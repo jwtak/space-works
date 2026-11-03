@@ -633,5 +633,5 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 }
 
 /* 딜소싱 하위 탭 */
-.deal-tabs { background: var(--card); border: 1px solid var(--line); border-bottom: 0; border-radius: var(--r-lg) var(--r-lg) 0 0; margin: 0; }
+.deal-tabs { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); margin: 0 0 12px; }
 @media (max-width: 760px) { .deal-tabs { border: 0; border-radius: 0; } }
