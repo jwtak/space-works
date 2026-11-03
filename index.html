@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SPACE WORKS</title>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://*.sharepoint.com; frame-src 'self' https://login.microsoftonline.com; child-src 'self' blob:; base-uri 'self'; form-action 'self'">
+<meta name="theme-color" content="#FFFFFF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SPACE WORKS">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23111'/%3E%3Ccircle cx='22' cy='11' r='3' fill='%2348C0B4'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="mail.css">
+</head>
+<body>
+<div id="login"></div>
+<div class="app">
+  <aside class="side">
+    <div class="brand"><b>SPACE INVESTMENT</b></div>
+    <nav class="nav" id="nav">
+      <div class="grp">개인업무</div>
+      <a href="#home" data-r="home"><svg class="i"><use href="#i-grid"/></svg>대시보드</a>
+      <a href="#todos" data-r="todos"><svg class="i"><use href="#i-check"/></svg>할 일<span class="cnt" data-cnt="todos"></span></a>
+      <a href="#calendar" data-r="calendar"><svg class="i"><use href="#i-cal"/></svg>일정</a>
+      <a href="#mail" data-r="mail"><svg class="i"><use href="#i-mail"/></svg>메일</a>
+      <div class="grp">기록·개발</div>
+      <a href="#notes" data-r="notes"><svg class="i"><use href="#i-file"/></svg>업무일지·회의록</a>
+      <a href="#programs" data-r="programs"><svg class="i"><use href="#i-box"/></svg>프로그램<span class="cnt" data-cnt="programs"></span></a>
+    </nav>
+    <div class="side-foot" id="side-foot"></div>
+  </aside>
+  <main class="main">
+    <header class="topbar">
+      <div class="crumb"><span>내 업무</span><svg class="i sm"><use href="#i-right"/></svg><b id="crumb">대시보드</b></div>
+      <div class="right"><span class="clock" id="clock"></span><span class="me"><span class="avatar">탁</span>탁지원 대리</span></div>
+    </header>
+    <div class="scroll"><div class="page" id="page"></div></div>
+  </main>
+  <nav class="tabbar" aria-label="메뉴">
+    <a href="#home" data-r="home"><svg class="i"><use href="#i-grid"/></svg><span>홈</span></a>
+    <a href="#todos" data-r="todos"><svg class="i"><use href="#i-check"/></svg><span>할 일</span></a>
+    <a href="#calendar" data-r="calendar"><svg class="i"><use href="#i-cal"/></svg><span>일정</span></a>
+    <a href="#mail" data-r="mail"><svg class="i"><use href="#i-mail"/></svg><span>메일</span></a>
+    <a href="#notes" data-r="notes"><svg class="i"><use href="#i-file"/></svg><span>기록</span></a>
+  </nav>
+</div>
+
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M6 21V4M6 4h11l-2 4 2 4H6"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 3 20h18z"/><path d="M12 10v4M12 17h.01"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="9" r="3.5"/><path d="M5.5 19.5c1.2-3 3.6-4.5 6.5-4.5s5.3 1.5 6.5 4.5"/></symbol>
+  <symbol id="i-week" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 14h6"/></symbol>
+  <symbol id="i-done" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-mail" viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13" rx="2"/><path d="m4 7 8 6 8-6"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24"><path d="M4 13.5 6.5 5h11l2.5 8.5V19a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M4 13.5h4.5l1 2h5l1-2H20"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M20 4 10.5 13.5M20 4l-6 16-3.5-6.5L4 10z"/></symbol>
+  <symbol id="i-reply" viewBox="0 0 24 24"><path d="M10 8 5 12.5 10 17M5 12.5h9a5 5 0 0 1 5 5V19"/></symbol>
+  <symbol id="i-forward" viewBox="0 0 24 24"><path d="m14 8 5 4.5-5 4.5M19 12.5h-9a5 5 0 0 0-5 5V19"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><path d="m19 11.5-7.3 7.3a4.5 4.5 0 0 1-6.4-6.4l7.6-7.6a3 3 0 0 1 4.2 4.2l-7.4 7.4a1.5 1.5 0 0 1-2.1-2.1l6.8-6.8"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol>
+  <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></symbol>
+  <symbol id="i-box" viewBox="0 0 24 24"><path d="m8 9-4 3 4 3M16 9l4 3-4 3M13.5 6l-3 12"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M6 3h8l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v4h4M8.5 12h7M8.5 16h7"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/></symbol>
+  <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19 12a7 7 0 1 1-2.05-4.95M19 4v4h-4"/></symbol>
+  <symbol id="i-left" viewBox="0 0 24 24"><path d="m14.5 6-6 6 6 6"/></symbol>
+  <symbol id="i-right" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6"/></symbol>
+  <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8M17 14v5H5V7h5"/></symbol>
+</svg>
+<script src="vendor/msal-browser.min.js"></script>
+<script src="graph.js"></script>
+<script src="app.js"></script>
+<script src="mail.js"></script>
+</body>
+</html>
