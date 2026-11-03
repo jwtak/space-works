@@ -12,7 +12,7 @@ const IPO_FUND = /전환사채|교환사채|신주인수권부사채|유상증�
 
 const ipoState = {
   data: null, marks: { items: [], version: null }, at: 0, loading: null,
-  q: '', f: 'all', sort: 'listed', open: new Set(), saving: Promise.resolve(), focus: null, host: null,
+  q: '', f: 'all', sort: 'listed', tab: 'contact', open: new Set(), saving: Promise.resolve(), focus: null, host: null,
 };
 
 /* ---------- 데이터 ---------- */
@@ -86,7 +86,6 @@ const ipoEok = (v) => (v == null || v === '' ? '–' : `${Number(v).toLocaleStri
 const ipoWon = (v) => (v == null ? '–' : `${Number(v).toLocaleString('ko-KR')}원`);
 const ipoTel = (t) => (t ? `<a class="ipo-tel" href="tel:${esc(String(t).replace(/[^\d+]/g, ''))}">${esc(t)}</a>` : '–');
 const ipoUrl = (u) => (u ? (/^https?:\/\//i.test(u) ? u : `http://${u}`) : '');
-const ipoLink = (u, label) => (u ? `<a class="btn sm" href="${esc(ipoUrl(u))}" target="_blank" rel="noopener">${esc(label)}${ico('ext', 'sm')}</a>` : '');
 
 function ipoChange(x) {
   if (!x.mcapNow || !x.mcapOffer) return '';
@@ -138,45 +137,87 @@ function ipoRow(x) {
     </div>${open ? ipoDetail(x) : ''}</div>`;
 }
 
+const IPO_TABS = [['contact', '연락처'], ['signal', '자금수요·포인트'], ['fin', '재무'], ['holders', '주주·락업'], ['disc', '공시']];
+
+/* ①②… 또는 ' · '로 이어 쓴 문장을 줄 목록으로 */
+const ipoSplitNum = (s) => String(s || '').split(/\s*(?=[①②③④⑤⑥⑦⑧⑨])/).map((t) => t.replace(/^[①②③④⑤⑥⑦⑧⑨]\s*/, '').trim()).filter(Boolean);
+const ipoSplitDot = (s) => String(s || '').split(/\s+·\s+|(?<=\))\s*,\s*/).map((t) => t.trim()).filter(Boolean);
+
 function ipoDetail(x) {
-  const m = ipoMark(x.code), st = ipoSt(x.code), w = x.writer || {}, g = x.discloser || {}, cfo = x.cfo || {}, fin = x.fin || {};
-  const row = (k, v) => (v ? `<dt>${k}</dt><dd>${v}</dd>` : '');
-  const person = (p) => [p['직책'], p['성명']].filter((s) => s && s !== '확인 필요').map(esc).join(' ');
-  const staff = (x.staff || []).map((s) => `${esc(s['구분'] || '')} ${esc(s['성명'] || '')} ${esc(s['직책'] || '')}`.trim()).filter(Boolean).join(' · ');
-  const years = ['2023', '2024', '2025'];
-  const half = fin.half && fin.half.label;
-  const fv = (y, i) => ipoEok((fin.years?.[y] || [])[i]);
-  const finTable = `<table class="ipo-fin"><thead><tr><th>억원</th>${years.map((y) => `<th>${y}</th>`).join('')}${half ? `<th>${esc(half.replace('반기', ' 반기').replace('분기', ' 분기'))}</th>` : ''}</tr></thead>
-    <tbody><tr><td>매출</td>${years.map((y) => `<td>${fv(y, 0)}</td>`).join('')}${half ? `<td>${ipoEok(fin.half.rev)}</td>` : ''}</tr>
-    <tr><td>영업이익</td>${years.map((y) => `<td>${fv(y, 1)}</td>`).join('')}${half ? `<td>${ipoEok(fin.half.op)}</td>` : ''}</tr></tbody></table>`;
-  const locks = x.locks.map((l) => `<li class="${l.d < today() ? 'past' : ''}"><span class="d">${esc(l.d)}</span><span>${esc(l['지분율'] || '')}</span><span class="t">${esc(l['대상'] || '')}</span></li>`).join('');
-  const evs = (x.events || []).map((e) => `<li><a href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.dt.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'))} ${esc(e.nm)}</a></li>`).join('');
-  const lst = (a) => (a || []).map((s) => `<li>${esc(s)}</li>`).join('');
+  const m = ipoMark(x.code), st = ipoSt(x.code), tab = ipoState.tab;
+  const tabs = IPO_TABS.map(([k, l]) => `<button type="button" role="tab" aria-selected="${tab === k}" class="${tab === k ? 'on' : ''}" data-ipo-tab="${k}">${l}</button>`).join('');
   return `<div class="ipo-detail">
-    ${x.summary ? `<p class="ipo-sum1">${esc(x.summary)}</p>` : ''}
-    <div class="ipo-acts">${IPO_STATUS.map((s) => `<button type="button" class="btn sm${s === st ? ' on' : ''}" data-ipo-st="${s}">${s}</button>`).join('')}
-      <input class="input ipo-note" data-ipo-note placeholder="메모" maxlength="300" value="${esc(m?.note || '')}" aria-label="메모"></div>
-    <div class="ipo-grid">
-      <section><h3>연락처</h3><dl class="ipo-dl">
-        ${row('작성책임자', w.name ? `${esc(w.title)} ${esc(w.name)} · ${ipoTel(w.phone)}${w.direct ? ' <span class="ipo-direct">직통</span>' : ''}` : '')}
-        ${row('공시책임자', person(g))}
-        ${row('공시담당자', staff)}
-        ${row('CFO', person(cfo))}
-        ${row('대표전화', ipoTel(x.phone))}
-        ${row('팩스', esc(x.fax))}
-        ${row('주관사', esc(x.broker))}
-      </dl>
-      <div class="ipo-links">${ipoLink(x.home, '홈페이지')}${ipoLink(x.ir, 'IR')}${ipoLink(x.contactPage, '문의')}${ipoLink(x.dartUrl, 'DART 원문')}</div>
-      ${x.route ? `<h3>접촉 경로</h3><p class="ipo-p">${esc(x.route)}</p>` : ''}</section>
-      <section><h3>자금수요 신호</h3><p class="ipo-p">${esc(x.signal || '–')}</p>
-        <h3>재무 <span class="muted">${esc(fin.basis || '')}</span></h3>${finTable}
-        <dl class="ipo-dl">${row('현금성자산', esc(fin.cash))}${row('차입금', esc(fin.debt))}${row('부채비율', esc(fin.lev))}</dl></section>
-      <section><h3>주요 FI</h3><p class="ipo-p">${esc(x.fi || '–')}</p>
-        ${locks ? `<h3>락업 해제</h3><ul class="ipo-locks">${locks}</ul>` : ''}
-        <h3>상장 후 공시</h3>${evs ? `<ul class="ipo-evs">${evs}</ul>` : '<p class="ipo-p muted">없음</p>'}</section>
+    <div class="ipo-dhead">
+      ${x.summary ? `<p class="ipo-sum1">${esc(x.summary)}</p>` : '<p></p>'}
+      <div class="ipo-acts"><div class="seg ipo-seg">${IPO_STATUS.map((s) => `<button type="button" class="${s === st ? 'on' : ''}" data-ipo-st="${s}">${s}</button>`).join('')}</div>
+        <input class="input ipo-note" data-ipo-note placeholder="메모" maxlength="300" value="${esc(m?.note || '')}" aria-label="메모"></div>
     </div>
-    <details class="ipo-more"><summary>투자 포인트 · 리스크</summary><div class="ipo-two"><ul>${lst(x.points)}</ul><ul>${lst(x.risks)}</ul></div></details>
+    <div class="ipo-tabs" role="tablist">${tabs}</div>
+    <div class="ipo-pane">${({ contact: ipoPaneContact, signal: ipoPaneSignal, fin: ipoPaneFin, holders: ipoPaneHolders, disc: ipoPaneDisc }[tab] || ipoPaneContact)(x)}</div>
   </div>`;
+}
+
+const ipoKv = (k, v) => (v ? `<div class="ipo-kv"><div class="k">${k}</div><div class="v">${v}</div></div>` : '');
+const ipoPerson = (p) => [p?.['직책'], p?.['성명']].filter((s) => s && s !== '확인 필요').map(esc).join(' ');
+
+function ipoPaneContact(x) {
+  const w = x.writer || {};
+  const staff = (x.staff || []).map((s) => [s['구분'], s['성명'], s['직책']].filter(Boolean).map(esc).join(' ')).filter(Boolean).join('<br>');
+  const links = [[x.home, '홈페이지'], [x.ir, 'IR'], [x.contactPage, '문의'], [x.dartUrl, 'DART 원문']]
+    .filter(([u]) => u).map(([u, l]) => `<a class="ipo-a" href="${esc(ipoUrl(u))}" target="_blank" rel="noopener">${l}${ico('ext', 'sm')}</a>`).join('');
+  const route = ipoSplitNum(x.route);
+  return `<div class="ipo-two-col">
+    <div>
+      ${w.name ? `<div class="ipo-lead"><div class="ipo-lead-k">작성책임자</div>
+        <div class="ipo-lead-v">${esc(w.title)} ${esc(w.name)}</div>
+        <div class="ipo-lead-s">${ipoTel(w.phone)}${w.direct ? '<span class="ipo-direct">직통</span>' : ''}</div></div>` : ''}
+      ${ipoKv('공시책임자', ipoPerson(x.discloser))}
+      ${ipoKv('공시담당자', staff)}
+      ${ipoKv('CFO', ipoPerson(x.cfo))}
+      ${ipoKv('대표전화', x.phone ? ipoTel(x.phone) : '')}
+      ${ipoKv('팩스', esc(x.fax))}
+      ${ipoKv('주관사', esc(x.broker))}
+      ${links ? `<div class="ipo-links">${links}</div>` : ''}
+    </div>
+    <div>${route.length ? `<div class="ipo-h">접촉 경로</div><ol class="ipo-ol">${route.map((r) => `<li>${esc(r)}</li>`).join('')}</ol>` : ''}</div>
+  </div>`;
+}
+
+function ipoPaneSignal(x) {
+  const lst = (a) => (a || []).map((s) => `<li>${esc(s)}</li>`).join('');
+  return `<div class="ipo-h">자금수요 신호</div><p class="ipo-p">${esc(x.signal || '–')}</p>
+    <div class="ipo-two-col">
+      <div><div class="ipo-h">투자 포인트</div><ul class="ipo-ul">${lst(x.points)}</ul></div>
+      <div><div class="ipo-h">리스크</div><ul class="ipo-ul">${lst(x.risks)}</ul></div>
+    </div>`;
+}
+
+function ipoPaneFin(x) {
+  const fin = x.fin || {}, years = ['2023', '2024', '2025'], half = fin.half && fin.half.label;
+  const fv = (y, i) => ipoEok((fin.years?.[y] || [])[i]);
+  return `<div class="ipo-h">손익 <span class="muted">${esc(fin.basis || '')} · 억원</span></div>
+    <table class="ipo-fin"><thead><tr><th></th>${years.map((y) => `<th>${y}</th>`).join('')}${half ? `<th>${esc(half)}</th>` : ''}</tr></thead>
+    <tbody><tr><td>매출</td>${years.map((y) => `<td>${fv(y, 0)}</td>`).join('')}${half ? `<td>${ipoEok(fin.half.rev)}</td>` : ''}</tr>
+    <tr><td>영업이익</td>${years.map((y) => `<td>${fv(y, 1)}</td>`).join('')}${half ? `<td>${ipoEok(fin.half.op)}</td>` : ''}</tr></tbody></table>
+    <div class="ipo-h">유동성</div>
+    ${ipoKv('현금성자산', esc(fin.cash))}${ipoKv('차입금', esc(fin.debt))}${ipoKv('부채비율', esc(fin.lev))}
+    ${ipoKv('시가총액', `${ipoEok(x.mcapNow)} · 공모가 기준 ${ipoEok(x.mcapOffer)} ${ipoChange(x)}`)}
+    ${fin.note ? `<div class="ipo-h">재무 특징</div><p class="ipo-p">${esc(fin.note)}</p>` : ''}`;
+}
+
+function ipoPaneHolders(x) {
+  const fi = ipoSplitDot(x.fi);
+  const locks = x.locks.map((l) => `<tr class="${l.d < today() ? 'past' : ''}"><td>${esc(l.d)}</td><td>${esc(l['지분율'] || '')}</td><td>${esc(l['대상'] || '')}</td></tr>`).join('');
+  return `<div class="ipo-two-col">
+    <div><div class="ipo-h">주요 FI</div>${fi.length ? `<ul class="ipo-ul">${fi.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : '<p class="ipo-p muted">없음</p>'}</div>
+    <div><div class="ipo-h">락업 해제</div>${locks ? `<table class="ipo-tbl"><thead><tr><th>해제일</th><th>지분율</th><th>대상</th></tr></thead><tbody>${locks}</tbody></table>` : '<p class="ipo-p muted">없음</p>'}</div>
+  </div>`;
+}
+
+function ipoPaneDisc(x) {
+  const evs = (x.events || []).map((e) => `<tr><td>${esc(e.dt.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'))}</td><td><a class="ipo-a" href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.nm)}</a></td></tr>`).join('');
+  return `<div class="ipo-h">상장 후 공시</div>${evs ? `<table class="ipo-tbl ipo-tbl-2"><thead><tr><th>접수일</th><th>보고서</th></tr></thead><tbody>${evs}</tbody></table>` : '<p class="ipo-p muted">없음</p>'}
+    ${x.dartUrl ? `<div class="ipo-links"><a class="ipo-a" href="${esc(x.dartUrl)}" target="_blank" rel="noopener">투자설명서 원문${ico('ext', 'sm')}</a></div>` : ''}`;
 }
 
 function ipoSummary() {
@@ -217,6 +258,8 @@ function ipoBind(root) {
     const fb = t.closest('[data-ipo-f]');
     if (fb) { ipoState.f = fb.dataset.ipoF; root.querySelectorAll('[data-ipo-f]').forEach((b) => b.classList.toggle('on', b === fb)); ipoDraw(); return; }
     if (t.closest('#ipo-ref')) { ipoLoad(true).then(ipoDraw).catch((e) => toast(e.message)); return; }
+    const tb = t.closest('[data-ipo-tab]');
+    if (tb) { ipoState.tab = tb.dataset.ipoTab; ipoRefreshRow(tb.closest('.ipo-row').dataset.code); return; }
     const sb = t.closest('[data-ipo-st]');
     if (sb) { ipoSetStatus(sb.closest('.ipo-row').dataset.code, sb.dataset.ipoSt); return; }
     if (t.closest('a, input, details, .ipo-detail')) return;

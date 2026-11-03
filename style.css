@@ -18,7 +18,7 @@
   --ok: #15803D;
   --r: 8px;
   --r-lg: 12px;
-  --font: Pretendard, 'Malgun Gothic', '맑은 고딕', system-ui, sans-serif;
+  --font: 'Pretendard Variable', Pretendard, 'Malgun Gothic', '맑은 고딕', system-ui, sans-serif;
   /* 요약 타일 4색 (면·아이콘 바탕·아이콘) */
   --t-blue: #F0F5FF;   --t-blue-i: #DCE6FD;   --t-blue-c: #2563EB;
   --t-violet: #F5F2FF; --t-violet-i: #E6DEFD; --t-violet-c: #6D28D9;

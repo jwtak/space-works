@@ -99,6 +99,7 @@ function foot() {
 const route = () => (location.hash || '#home').slice(1);
 const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', deals: '딜소싱', notes: '업무일지·회의록', programs: '프로그램' };
 function render() {
+  if (!S) return; // 로그인·데이터 읽기 전 hashchange
   let r = route();
   if (r.startsWith('deals/')) { ui.dealTab = r.slice(6) || 'events'; r = 'deals'; } // #deals/ipo → 딜소싱 > 신규상장
   r = CRUMB[r] ? r : 'home';
