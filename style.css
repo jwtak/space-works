@@ -463,7 +463,7 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
   .home .sec-hello { order: 0; }
   .home .sec-month { order: 1; }
   .home .sec-todo { order: 2; }
-  .home .ev-home { order: 3; }
+  .home .ev-home, .home .ipo-home { order: 3; }
   .home .sec-brief { order: 4; }
   .home .sec-notes { order: 5; }
   .home .sec-prog { order: 6; }

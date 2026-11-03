@@ -1,0 +1,90 @@
+/* 딜소싱 › 신규상장 (ipo.js) — style.css 토큰 사용, 표는 전부 왼쪽 정렬·머리글과 값 시작선 일치 */
+.ipo-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.ipo-sumrow { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--text3); font-size: 13px; }
+.ipo-sumrow b { color: var(--ink); font-weight: 600; }
+.ipo-sumrow .ipo-stale { color: var(--danger); }
+.ipo-top .btn { margin-left: auto; }
+
+.ipo-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 16px 24px; border-bottom: 1px solid var(--line); }
+.ipo-search { position: relative; flex: 1 1 240px; max-width: 320px; }
+.ipo-search .input { width: 100%; padding-left: 34px; }
+.ipo-sic { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text3); display: flex; }
+.ipo-filter .select { margin-left: auto; }
+.ipo-filter .seg button { white-space: nowrap; }
+
+/* 열: 상장일·상태는 고정, 나머지 5칸은 같은 폭 */
+.ipo-cols { display: grid; grid-template-columns: 72px repeat(5, minmax(0, 1fr)) 76px; gap: 16px; align-items: start; padding: 0 24px; }
+.ipo-head { min-height: 40px; align-items: center; font-size: 13px; font-weight: 600; color: var(--text2); border-bottom: 1px solid var(--line2); }
+.ipo-row { border-top: 1px solid var(--row); }
+.ipo-head + .ipo-row { border-top: 0; }
+.ipo-line { padding-top: 12px; padding-bottom: 12px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.ipo-line:hover { background: var(--hover); }
+.ipo-row.open > .ipo-line { background: var(--primary-soft); }
+.ipo-sub { font-size: 12px; line-height: 18px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ipo-ttl { padding: 0; border: 0; background: none; cursor: pointer; font-weight: 600; text-align: left; }
+.ipo-line:hover .ipo-ttl { color: var(--primary); }
+.ipo-chg { font-size: 12px; font-weight: 600; }
+.ipo-chg.up { color: var(--danger); }
+.ipo-chg.dn { color: var(--primary); }
+.ipo-soon { color: var(--t-amber-c); font-weight: 600; }
+.ipo-direct { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; border-radius: 9px; font-size: 11px; font-weight: 600; background: var(--t-green); color: var(--t-green-c); }
+
+.ipo-st { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 12px; font-size: 12px; font-weight: 500; white-space: nowrap; background: #F3F4F6; color: var(--text2); }
+.ipo-st.s-1 { background: var(--primary-soft); color: var(--primary); }
+.ipo-st.s-2 { background: var(--t-green); color: var(--t-green-c); }
+.ipo-st.s-3 { background: var(--t-amber); color: var(--t-amber-c); }
+
+.ipo-detail { padding: 4px 24px 20px; background: var(--card); }
+.ipo-sum1 { margin: 12px 0; color: var(--text2); }
+.ipo-acts { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 16px; }
+.ipo-acts .btn.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); font-weight: 600; }
+.ipo-note { flex: 1 1 220px; height: 32px; }
+.ipo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
+.ipo-grid h3, .ipo-more summary { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--text2); }
+.ipo-grid h3:not(:first-child) { margin-top: 16px; }
+.ipo-p { margin: 0; font-size: 13px; line-height: 20px; }
+.ipo-dl { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 4px 12px; margin: 0; font-size: 13px; }
+.ipo-dl dt { color: var(--text3); }
+.ipo-dl dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.ipo-tel { color: var(--primary); text-decoration: none; font-variant-numeric: tabular-nums; }
+.ipo-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.ipo-fin { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; font-variant-numeric: tabular-nums; margin-bottom: 8px; }
+.ipo-fin th, .ipo-fin td { text-align: left; padding: 5px 0; border-bottom: 1px solid var(--row); }
+.ipo-fin th { font-weight: 600; color: var(--text3); }
+.ipo-locks, .ipo-evs { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+.ipo-locks li { display: grid; grid-template-columns: 88px 64px minmax(0, 1fr); gap: 8px; padding: 3px 0; font-variant-numeric: tabular-nums; }
+.ipo-locks li.past { color: var(--text3); }
+.ipo-locks .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ipo-evs li { padding: 3px 0; }
+.ipo-evs a { color: var(--text2); text-decoration: none; }
+.ipo-evs a:hover { color: var(--primary); }
+.ipo-more { margin-top: 16px; border-top: 1px solid var(--row); padding-top: 12px; }
+.ipo-more summary { cursor: pointer; }
+.ipo-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; font-size: 13px; }
+.ipo-two ul { margin: 8px 0 0; padding-left: 18px; }
+.ipo-two li + li { margin-top: 4px; }
+
+@media (max-width: 1180px) {
+  .ipo-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 760px) {
+  .ipo-top { margin: 0 16px 8px; }
+  .ipo-card { border-radius: 0; border-left: 0; border-right: 0; }
+  .ipo-filter { padding: 12px 16px; }
+  .ipo-search { max-width: none; flex-basis: 100%; }
+  .ipo-filter .seg { display: flex; overflow-x: auto; max-width: 100%; scrollbar-width: none; }
+  .ipo-filter .seg button { flex: none; padding: 0 12px; }
+  .ipo-line { padding-top: 14px; padding-bottom: 14px; }
+  .ipo-c-lock::before { content: '락업'; font-size: 12px; color: var(--text3); }
+  .ipo-filter .select { margin-left: 0; }
+  .ipo-head { display: none; }
+  .ipo-cols { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 0 16px; }
+  .ipo-line > div:nth-child(1) { grid-column: 1 / -1; display: flex; gap: 8px; font-size: 12px; color: var(--text3); }
+  .ipo-line > div:nth-child(1) .ipo-sub { font-size: 12px; }
+  .ipo-c-name { grid-column: 1; }
+  .ipo-c-st { grid-column: 2; grid-row: 2; }
+  .ipo-line > div:nth-child(3), .ipo-line > div:nth-child(4) { display: none; }
+  .ipo-c-writer, .ipo-c-lock { grid-column: 1 / -1; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+  .ipo-detail { padding: 4px 16px 16px; }
+  .ipo-grid, .ipo-two { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+}

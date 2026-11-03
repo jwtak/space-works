@@ -99,7 +99,9 @@ function foot() {
 const route = () => (location.hash || '#home').slice(1);
 const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', deals: '딜소싱', notes: '업무일지·회의록', programs: '프로그램' };
 function render() {
-  const r = CRUMB[route()] ? route() : 'home';
+  let r = route();
+  if (r.startsWith('deals/')) { ui.dealTab = r.slice(6) || 'events'; r = 'deals'; } // #deals/ipo → 딜소싱 > 신규상장
+  r = CRUMB[r] ? r : 'home';
   document.querySelectorAll('[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === r));
   document.body.dataset.route = r;
   const cta = $('#side-cta');
@@ -178,6 +180,7 @@ function renderHome() {
           </div>
         </section>
         <div id="home-ev"></div>
+        <div id="home-ipo"></div>
         <section class="card sec-brief">
           <div class="card-head"><h2>AI 브리핑</h2><span class="meta">${bt ? `Claude · ${bt.getMonth() + 1}/${bt.getDate()} ${pad(bt.getHours())}:${pad(bt.getMinutes())} 갱신` : ''}</span></div>
           <div class="card-body brief">${b.text ? mdRender(b.text) : '<div class="empty">브리핑 없음</div>'}</div>
@@ -228,6 +231,7 @@ function renderHome() {
   PAGE.querySelectorAll('[data-tab-link]').forEach((el) => el.addEventListener('click', () => { ui.todoTab = el.dataset.tabLink; }));
   homeCalendar();
   mountMonth($('#home-month'));
+  if (typeof ipoHomeBlock === 'function') ipoHomeBlock().then((h) => { const box = $('#home-ipo'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
   if (typeof eventsHomeBlock === 'function') eventsHomeBlock().then((h) => { const box = $('#home-ev'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
 }
 
