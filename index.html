@@ -15,18 +15,22 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23111'/%3E%3Ccircle cx='22' cy='11' r='3' fill='%2348C0B4'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="mail.css">
+<link rel="stylesheet" href="events.css">
 </head>
 <body>
 <div id="login"></div>
 <div class="app">
   <aside class="side">
     <div class="brand"><b>SPACE INVESTMENT</b></div>
+    <div class="side-cta-wrap"><button class="btn primary side-cta" id="side-cta" type="button" hidden></button></div>
     <nav class="nav" id="nav">
       <div class="grp">개인업무</div>
       <a href="#home" data-r="home"><svg class="i"><use href="#i-grid"/></svg>대시보드</a>
       <a href="#todos" data-r="todos"><svg class="i"><use href="#i-check"/></svg>할 일<span class="cnt" data-cnt="todos"></span></a>
       <a href="#calendar" data-r="calendar"><svg class="i"><use href="#i-cal"/></svg>일정</a>
       <a href="#mail" data-r="mail"><svg class="i"><use href="#i-mail"/></svg>메일</a>
+      <div class="grp">투자업무</div>
+      <a href="#deals" data-r="deals"><svg class="i"><use href="#i-ticket"/></svg>딜소싱</a>
       <div class="grp">기록·개발</div>
       <a href="#notes" data-r="notes"><svg class="i"><use href="#i-file"/></svg>업무일지·회의록</a>
       <a href="#programs" data-r="programs"><svg class="i"><use href="#i-box"/></svg>프로그램<span class="cnt" data-cnt="programs"></span></a>
@@ -64,6 +68,7 @@
   <symbol id="i-forward" viewBox="0 0 24 24"><path d="m14 8 5 4.5-5 4.5M19 12.5h-9a5 5 0 0 0-5 5V19"/></symbol>
   <symbol id="i-clip" viewBox="0 0 24 24"><path d="m19 11.5-7.3 7.3a4.5 4.5 0 0 1-6.4-6.4l7.6-7.6a3 3 0 0 1 4.2 4.2l-7.4 7.4a1.5 1.5 0 0 1-2.1-2.1l6.8-6.8"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+  <symbol id="i-ticket" viewBox="0 0 24 24"><path d="M4 7.5A1.5 1.5 0 0 1 5.5 6h13A1.5 1.5 0 0 1 20 7.5V10a2 2 0 0 0 0 4v2.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 16.5V14a2 2 0 0 0 0-4z"/><path d="M14.5 6.5v2M14.5 11v2M14.5 15.5v2"/></symbol>
   <symbol id="i-home" viewBox="0 0 24 24"><path d="M4 10.5 12 4l8 6.5V19a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/></symbol>
   <symbol id="i-check" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="m8.5 12 2.5 2.5 4.5-5"/></symbol>
   <symbol id="i-cal" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8 3v4M16 3v4"/></symbol>
@@ -80,5 +85,6 @@
 <script src="graph.js"></script>
 <script src="app.js"></script>
 <script src="mail.js"></script>
+<script src="events.js"></script>
 </body>
 </html>

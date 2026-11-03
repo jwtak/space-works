@@ -23,10 +23,10 @@ const md = (s) => { const d = parse(s); return `${d.getMonth() + 1}/${d.getDate(
 const mdw = (s) => { const d = parse(s); return `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`; };
 const uid = () => Math.random().toString(16).slice(2, 10);
 const isMobile = () => matchMedia('(max-width: 760px)').matches;
-function openSheet(html, mount) { // 아래에서 올라오는 패널(데스크톱은 가운데 창)
+function openSheet(html, mount, cls = '') { // 아래에서 올라오는 패널(데스크톱은 가운데 창)
   const wrap = document.createElement('div');
   wrap.className = 'sheet-wrap';
-  wrap.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="handle"></div>${html}</div>`;
+  wrap.innerHTML = `<div class="sheet ${cls}" role="dialog" aria-modal="true"><div class="handle"></div>${html}</div>`;
   const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
   wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
@@ -79,6 +79,7 @@ function counts() {
 function accountMenu() {
   openSheet(`<h3>메뉴</h3><div class="who" style="font-size:13px;color:var(--text3);margin:-6px 0 8px">${esc(S.auth.upn)}</div>
     <ul class="menu">
+      <li><a href="#deals" data-close>${ico('ticket')}딜소싱</a></li>
       <li><a href="#programs" data-close>${ico('box')}프로그램</a></li>
       <li><button type="button" id="m-refresh">${ico('refresh')}새로고침</button></li>
       <li><button type="button" id="m-logout">${ico('ext')}로그아웃</button></li>
@@ -96,14 +97,25 @@ function foot() {
 
 // ---------- 라우팅 ----------
 const route = () => (location.hash || '#home').slice(1);
-const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', notes: '업무일지·회의록', programs: '프로그램' };
+const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', deals: '딜소싱', notes: '업무일지·회의록', programs: '프로그램' };
 function render() {
   const r = CRUMB[route()] ? route() : 'home';
   document.querySelectorAll('[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === r));
   document.body.dataset.route = r;
+  const cta = $('#side-cta');
+  if (cta) {
+    const done = () => { CALC = {}; render(); };
+    const act = {
+      home: ['일정 추가', () => openEventModal(null, [], done)], calendar: ['일정 추가', () => openEventModal(null, [], done)],
+      todos: ['할 일 추가', () => addTodoSheet()], notes: ['업무일지 쓰기', () => newNote('daily')],
+      programs: ['새 프로그램', () => { ui.progSel = 'new'; renderPrograms(); }],
+    }[r];
+    cta.hidden = !act; // 메일은 메일 화면 안에 "메일 쓰기"가 있다
+    if (act) { cta.innerHTML = `${ico('plus')}${act[0]}`; cta.onclick = act[1]; }
+  }
   if (r !== 'notes') document.body.classList.remove('note-open');
   $('#crumb').textContent = CRUMB[r];
-  ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, programs: renderPrograms, notes: renderNotes }[r] || renderHome)();
+  ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, deals: renderDeals, programs: renderPrograms, notes: renderNotes }[r] || renderHome)();
 }
 window.addEventListener('hashchange', render);
 
@@ -165,6 +177,7 @@ function renderHome() {
             ${tile(over.length ? 'red' : 'green', over.length ? 'alert' : 'done', '기한 지남', `${over.length}<small>건</small>`, `남은 할 일 ${open.length}건`, 'over')}
           </div>
         </section>
+        <div id="home-ev"></div>
         <section class="card sec-brief">
           <div class="card-head"><h2>AI 브리핑</h2><span class="meta">${bt ? `Claude · ${bt.getMonth() + 1}/${bt.getDate()} ${pad(bt.getHours())}:${pad(bt.getMinutes())} 갱신` : ''}</span></div>
           <div class="card-body brief">${b.text ? mdRender(b.text) : '<div class="empty">브리핑 없음</div>'}</div>
@@ -215,6 +228,20 @@ function renderHome() {
   PAGE.querySelectorAll('[data-tab-link]').forEach((el) => el.addEventListener('click', () => { ui.todoTab = el.dataset.tabLink; }));
   homeCalendar();
   mountMonth($('#home-month'));
+  if (typeof eventsHomeBlock === 'function') eventsHomeBlock().then((h) => { const box = $('#home-ev'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
+}
+
+// ---------- 딜소싱: 행사·IR / 신규상장 (각 화면은 events.js·ipo.js가 host 안에 그린다) ----------
+function renderDeals() {
+  const tabs = [['events', '행사·IR', typeof renderEvents === 'function' ? renderEvents : null], ['ipo', '신규상장', typeof renderIpo === 'function' ? renderIpo : null]];
+  ui.dealTab ||= 'events';
+  PAGE.innerHTML = `<div class="page-head"><h1>딜소싱</h1></div>
+    <div class="tabs deal-tabs">${tabs.map(([k, t]) => `<button type="button" data-dt="${k}" class="${ui.dealTab === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+    <div id="deal-host"></div>`;
+  PAGE.querySelectorAll('[data-dt]').forEach((b) => b.addEventListener('click', () => { ui.dealTab = b.dataset.dt; renderDeals(); }));
+  const host = $('#deal-host'), fn = tabs.find(([k]) => k === ui.dealTab)[2];
+  if (!fn) { host.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>'; return; }
+  Promise.resolve(fn(host)).catch((e) => { host.innerHTML = `<div class="card"><div class="empty">${esc(e.message)}</div></div>`; });
 }
 
 function homeTodoBlock(label, items) {
@@ -448,6 +475,115 @@ function calForm(kind, id, events) {
     ${actions}</form>`;
 }
 
+const REM_OPTS = [['', '없음'], ['0', '정시'], ['10', '10분 전'], ['15', '15분 전'], ['30', '30분 전'], ['60', '1시간 전'], ['1440', '1일 전']];
+const REP_OPTS = [['', '반복 안 함'], ['daily', '매일'], ['weekly', '매주'], ['monthly', '매월'], ['yearly', '매년']];
+
+async function openEventModal(id, events, onDone, date) {
+  if (!S.auth.connected) return toast('Outlook이 연결되지 않았습니다');
+  const e = id ? (events || []).find((x) => x.id === id) : null;
+  let det = {};
+  if (e) { try { det = await OUTLOOK.detail(id); } catch { /* 내용 없이도 연다 */ } }
+  const now = new Date(); now.setMinutes(0, 0, 0); now.setHours(Math.min(Math.max(now.getHours() + 1, 9), 22));
+  const day = date || ui.selDay || today();
+  const sd = e ? e.start.slice(0, 10) : day;
+  let ed = e ? e.end.slice(0, 10) : day;
+  if (e && e.allDay) ed = ymd(addDays(parse(ed), -1));
+  const st = e && !e.allDay ? e.start.slice(11, 16) : hhmm(now), et = e && !e.allDay ? e.end.slice(11, 16) : hhmm(new Date(now.getTime() + 3600000));
+  const series = det.type === 'occurrence' || det.type === 'exception';
+  const repNow = { daily: 'daily', weekly: 'weekly', absoluteMonthly: 'monthly', absoluteYearly: 'yearly' }[det.recurrence?.pattern?.type] || '';
+  const remNow = !e ? '15' : det.isReminderOn === false ? '' : String(det.reminderMinutesBeforeStart ?? 15);
+  const noteNow = (det.body?.content || '').trim();
+  const opts = (list, cur) => list.map(([v, t]) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${t}</option>`).join('');
+  openSheet(`<h3>${e ? '일정 수정' : '일정 추가'}</h3>
+    <form class="ev-form" id="evf" autocomplete="off">
+      <div class="r"><label>캘린더</label><div>${e
+        ? `<span class="cal-tag c-${e.cal}"><i class="cdot"></i>${e.cal === 'team' ? '스페이스인베스트먼트' : '내 일정'}</span>`
+        : `<div class="cal-pick">${CALS.slice(0, 2).map((c, i) => `<label class="c-${c.key}"><input type="radio" name="calendar" value="${c.key}" ${i === 0 ? 'checked' : ''}><i class="cdot"></i>${c.name}<span class="muted">${c.sub}</span></label>`).join('')}</div>`}</div></div>
+      <div class="r"><label for="ev-subj">제목</label><div class="line"><input class="input grow" id="ev-subj" name="subject" value="${esc(e?.subject || '')}" placeholder="제목을 입력하세요."><label class="ck"><input type="checkbox" class="check" name="important" ${det.importance === 'high' ? 'checked' : ''}>중요</label></div></div>
+      <div class="r"><label>일시</label><div>
+        <div class="line wrap"><span class="dt"><input class="input" type="date" name="startDate" value="${sd}"><input class="input t" type="time" step="600" name="startTime" value="${st}"></span><span class="tilde">~</span><span class="dt"><input class="input" type="date" name="endDate" value="${ed}"><input class="input t" type="time" step="600" name="endTime" value="${et}"></span><label class="ck"><input type="checkbox" class="check" name="allDay" ${e?.allDay ? 'checked' : ''}>종일</label></div>
+        <select class="select rep" name="repeat" ${series ? 'disabled' : ''}>${series ? '<option>반복 일정 — 이 일정만 수정</option>' : opts(REP_OPTS, repNow)}</select>
+      </div></div>
+      <div class="r"><label>내용</label><textarea class="area" name="note" placeholder="내용을 입력하세요.">${esc(noteNow)}</textarea></div>
+      <div class="r"><label>장소</label><input class="input" name="location" value="${esc(e?.location || '')}" placeholder="장소를 입력하세요."></div>
+      <div class="r"><label>알림</label><select class="select narrow" name="reminder">${opts(REM_OPTS, remNow)}</select></div>
+      <div class="ev-actions">${e ? '<button type="button" class="btn ghost danger" data-del>삭제</button>' : ''}<span class="sp"></span><button type="button" class="btn grey" data-cancel>취소</button><button type="submit" class="btn primary" data-save>저장</button></div>
+    </form>`, (el, close) => {
+    const f = el.querySelector('#evf'), save = f.querySelector('[data-save]'), allDay = f.allDay;
+    const sync = () => { save.disabled = !f.subject.value.trim(); f.querySelectorAll('input.t').forEach((t) => { t.disabled = allDay.checked; }); };
+    f.subject.addEventListener('input', sync); allDay.addEventListener('change', sync); sync();
+    setTimeout(() => f.subject.focus(), 50);
+    f.querySelector('[data-cancel]').onclick = close;
+    const del = f.querySelector('[data-del]');
+    if (del) del.onclick = async () => {
+      if (!confirm('이 일정을 삭제할까요?')) return;
+      try { await OUTLOOK.remove(id); close(); toast('Outlook에서 삭제했습니다'); onDone?.(); } catch (err) { toast(err.message); }
+    };
+    f.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      const v = Object.fromEntries(new FormData(f));
+      const body = { subject: v.subject, startDate: v.startDate, endDate: v.endDate, startTime: v.startTime, endTime: v.endTime, allDay: allDay.checked, location: v.location, calendar: v.calendar || 'team', important: !!v.important, reminder: v.reminder };
+      if ((v.note || '').trim() !== noteNow) body.note = v.note;
+      if (!series && v.repeat && v.repeat !== repNow) body.repeat = v.repeat;
+      save.disabled = true;
+      try {
+        await (id ? OUTLOOK.update(id, body) : OUTLOOK.create(body));
+        close(); ui.selDay = v.startDate;
+        toast(id ? 'Outlook 일정을 고쳤습니다' : body.calendar === 'team' ? '스페이스인베스트먼트 캘린더에 추가했습니다' : '내 일정에 추가했습니다');
+        onDone?.();
+      } catch (err) { save.disabled = false; toast(err.message); }
+    });
+  }, 'wide');
+}
+
+/* 데스크톱 월간: 주마다 여러 날 일정은 막대로 잇고, 하루 일정은 칸에 쌓는다 (하이웍스 월간보기) */
+function weekRowsHTML(start, n, events, first, td) {
+  const MAXL = 3;
+  const spanOf = (e) => {
+    const a = e.start.slice(0, 10); let b = e.end.slice(0, 10);
+    if (e.allDay || e.end.slice(11, 16) === '00:00') b = ymd(addDays(parse(b), -1));
+    return [a, b < a ? a : b];
+  };
+  const multi = (events || []).filter((e) => !e.cancelled && ui.calShow[e.cal || 'me'] !== false).map((e) => [e, ...spanOf(e)]).filter(([, a, b]) => b > a);
+  const multiIds = new Set(multi.map(([e]) => e.id));
+  let html = '';
+  for (let w = 0; w < n / 7; w++) {
+    const ws = ymd(addDays(start, w * 7)), we = ymd(addDays(start, w * 7 + 6));
+    const lanes = [], segs = [], hidden = new Array(7).fill(0);
+    const place = (c0, c1) => {
+      for (let l = 0; ; l++) {
+        lanes[l] ||= new Array(7).fill(false);
+        if (lanes[l].slice(c0, c1 + 1).every((x) => !x)) { for (let c = c0; c <= c1; c++) lanes[l][c] = true; return l; }
+      }
+    };
+    multi.filter(([, a, b]) => a <= we && b >= ws)
+      .sort((x, y) => x[1].localeCompare(y[1]) || diffDays(y[2], y[1]) - diffDays(x[2], x[1]))
+      .forEach(([e, a, b]) => {
+        const c0 = Math.max(0, diffDays(a, ws)), c1 = Math.min(6, diffDays(b, ws));
+        segs.push({ l: place(c0, c1), c0, c1, cls: `bar c-${e.cal || 'me'}${a < ws ? ' cont-l' : ''}${b > we ? ' cont-r' : ''}`, item: `ev|${e.id}`, d: a < ws ? ws : a, text: e.subject });
+      });
+    for (let c = 0; c < 7; c++) {
+      const k = ymd(addDays(start, w * 7 + c));
+      dayItems(k, events).filter((it) => !(it.type === 'ev' && multiIds.has(it.id))).forEach((it) => {
+        segs.push({ l: place(c, c), c0: c, c1: c, cls: `one c-${calKey(it)}${it.over ? ' over' : ''}`, item: `${it.type}|${it.id}`, d: k, text: (it.type === 'ev' && /\d/.test(it.time) ? `${it.time} ` : '') + it.title });
+      });
+    }
+    let bg = '';
+    for (let c = 0; c < 7; c++) {
+      const d = addDays(start, w * 7 + c), k = ymd(d);
+      const cls = [d.getMonth() !== first.getMonth() ? 'other' : '', k === td ? 'today' : '', k === ui.selDay ? 'sel' : '', d.getDay() === 0 ? 'sun' : d.getDay() === 6 ? 'sat' : ''].join(' ');
+      bg += `<div class="wbg ${cls}" data-day="${k}" style="grid-column:${c + 1}"><span class="n">${d.getDate()}</span></div>`;
+    }
+    const shown = segs.filter((sg) => {
+      if (sg.l < MAXL) return true;
+      for (let c = sg.c0; c <= sg.c1; c++) hidden[c]++;
+      return false;
+    });
+    html += `<div class="mweek">${bg}${shown.map((sg) => `<span class="it2 ${sg.cls}" data-item="${sg.item}" data-d="${sg.d}" title="${esc(sg.text)}" style="grid-column:${sg.c0 + 1} / ${sg.c1 + 2};grid-row:${sg.l + 2}">${esc(sg.text)}</span>`).join('')}${hidden.map((h, c) => (h ? `<button type="button" class="more2" data-day="${ymd(addDays(start, w * 7 + c))}" style="grid-column:${c + 1}">+${h}</button>` : '')).join('')}</div>`;
+  }
+  return html;
+}
+
 async function mountMonth(el) {
   if (!ui.month) { const n = new Date(); ui.month = new Date(n.getFullYear(), n.getMonth(), 1); }
   if (!ui.selDay) ui.selDay = today();
@@ -488,7 +624,9 @@ async function mountMonth(el) {
         <div class="cal-filter act">${CALS.filter((c) => S.auth.connected || ['ms', 'td'].includes(c.key)).map((c) =>
           `<label class="cf c-${c.key}" title="${c.sub}"><input type="checkbox" data-show="${c.key}" ${ui.calShow[c.key] !== false ? 'checked' : ''}><i class="box"></i>${c.name}</label>`).join('')}
 </div></div>
-      <div class="mcal">${WD.map((w, i) => `<div class="wd ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${w}</div>`).join('')}${cells}</div>
+      ${isMobile()
+        ? `<div class="mcal">${WD.map((w, i) => `<div class="wd ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${w}</div>`).join('')}${cells}</div>`
+        : `<div class="mcal bars"><div class="mwd">${WD.map((w, i) => `<div class="wd ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${w}</div>`).join('')}</div>${weekRowsHTML(start, n, events, first, td)}</div>`}
       <div class="mcal-day">
         <div class="day-head"><span class="hd">${mdw(ui.selDay)}</span><div class="tools">
           ${S.auth.connected ? `<button class="btn sm" data-new="ev">${ico('plus', 'sm')}일정</button>` : ''}
@@ -520,14 +658,20 @@ async function mountMonth(el) {
     }, { passive: true });
     el.querySelectorAll('.mcal [data-day]').forEach((c) => {
       c.addEventListener('click', () => { if (ui.selDay !== c.dataset.day) ui.calEdit = null; ui.selDay = c.dataset.day; draw(); });
-      c.addEventListener('dblclick', () => { ui.selDay = c.dataset.day; ui.calEdit = { kind: S.auth.connected ? 'new-ev' : 'new-td' }; draw(); });
+      c.addEventListener('dblclick', () => {
+        ui.selDay = c.dataset.day;
+        if (S.auth.connected) return openEventModal(null, events, refetch, c.dataset.day);
+        ui.calEdit = { kind: 'new-td' }; draw();
+      });
     });
     el.querySelectorAll('[data-item]').forEach((x) => x.addEventListener('click', (e) => {
       e.stopPropagation();
       const [kind, id] = x.dataset.item.split('|');
       if (x.dataset.d) ui.selDay = x.dataset.d;
-      const it = dayItems(ui.selDay, events, true).find((i) => i.type === kind && i.id === id);
-      ui.calEdit = it && it.editable ? { kind, id } : null;
+      const it = dayItems(ui.selDay, events, true).find((i) => i.type === kind && i.id === id)
+        || (kind === 'ev' && (events || []).some((x) => x.id === id) ? { type: 'ev', id, editable: events.find((x) => x.id === id).editable } : null);
+      if (kind === 'ev' && it?.editable) { ui.calEdit = null; draw(); return openEventModal(id, events, refetch); }
+      ui.calEdit = it && it.editable && kind !== 'ev' ? { kind, id } : null;
       draw();
     }));
     el.querySelectorAll('[data-show]').forEach((x) => x.addEventListener('change', () => {
@@ -535,7 +679,10 @@ async function mountMonth(el) {
       try { localStorage.setItem('calShow', JSON.stringify(ui.calShow)); } catch { /* 저장 못 해도 이번 화면엔 적용 */ }
       draw();
     }));
-    el.querySelectorAll('[data-new]').forEach((b) => b.addEventListener('click', () => { ui.calEdit = { kind: 'new-' + b.dataset.new }; draw(); }));
+    el.querySelectorAll('[data-new]').forEach((b) => b.addEventListener('click', () => {
+      if (b.dataset.new === 'ev') return openEventModal(null, events, refetch, ui.selDay);
+      ui.calEdit = { kind: 'new-' + b.dataset.new }; draw();
+    }));
 
     const form = $('#cf', el);
     if (!form) return;
@@ -805,6 +952,7 @@ async function start() {
   try {
     if (!(await G.init())) return loginScreen(G.wrongAccount ? `${G.wrongAccount} 계정으로는 열 수 없습니다` : '');
     document.body.classList.remove('signed-out');
+    if (typeof evLink !== 'undefined') evLink = '#deals'; // 홈 행사 카드 → 딜소싱 탭
     PAGE.innerHTML = '<div class="empty">불러오는 중…</div>';
     await load();
     render();
@@ -822,4 +970,5 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
     reloaded = true; location.reload();
   });
 }
-start();
+// mail.js·events.js 등 뒤에 붙는 스크립트까지 다 읽힌 다음 시작 (그 전에 그리면 renderMail 등이 아직 없다)
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();

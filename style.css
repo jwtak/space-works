@@ -463,9 +463,10 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
   .home .sec-hello { order: 0; }
   .home .sec-month { order: 1; }
   .home .sec-todo { order: 2; }
-  .home .sec-brief { order: 3; }
-  .home .sec-notes { order: 4; }
-  .home .sec-prog { order: 5; }
+  .home .ev-home { order: 3; }
+  .home .sec-brief { order: 4; }
+  .home .sec-notes { order: 5; }
+  .home .sec-prog { order: 6; }
   .home .sec-tiles, .home .sec-profile, .home .sec-today, .home .sec-status { display: none; }
   .sec-hello { padding: 8px 16px 14px; }
   .sec-hello .dt { font-size: 22px; line-height: 30px; font-weight: 700; letter-spacing: -0.03em; }
@@ -555,3 +556,82 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
   .mcal .c .n { width: 30px; height: 30px; font-size: 14px; }
   .mcal-day .k { width: 56px; }
 }
+
+/* ---------- 하이웍스형: 왼쪽 맨 위 파란 기본 버튼 ---------- */
+.side-cta-wrap { padding: 16px 12px 4px; }
+.side-cta { width: 100%; height: 48px; font-size: 15px; font-weight: 600; border-radius: var(--r); gap: 6px; }
+.side-cta[hidden] { display: none; }
+.side-cta-wrap:has(.side-cta[hidden]) { display: none; }
+
+/* ---------- 하이웍스형 일정 추가·수정 창 (라벨 왼쪽 폼) ---------- */
+.sheet.wide { max-width: 760px; }
+.sheet.wide h3 { padding-bottom: 14px; margin-bottom: 18px; border-bottom: 1px solid var(--line); font-size: 20px; }
+.ev-form .r { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 12px; align-items: start; margin-bottom: 14px; }
+.ev-form .r > label { padding-top: 9px; font-size: 14px; font-weight: 500; color: var(--text2); }
+.ev-form .input, .ev-form .select { width: 100%; }
+.ev-form .line { display: flex; align-items: center; gap: 10px; }
+.ev-form .line.wrap { flex-wrap: wrap; row-gap: 8px; }
+.ev-form .line .grow { flex: 1; min-width: 0; }
+.ev-form .dt { display: inline-flex; gap: 6px; }
+.ev-form .dt .input { width: 150px; }
+.ev-form .dt .input.t { width: 136px; }
+.ev-form .input:disabled { background: #F3F4F6; color: #9CA3AF; }
+.ev-form .tilde { color: var(--text3); }
+.ev-form .ck { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text2); white-space: nowrap; cursor: pointer; }
+.ev-form .select.rep { margin-top: 8px; width: 220px; }
+.ev-form .select.narrow { width: 220px; }
+.ev-form .area { width: 100%; min-height: 96px; }
+.ev-form .cal-tag { display: inline-flex; align-items: center; gap: 8px; height: 36px; font-weight: 500; color: var(--c-tx); }
+.ev-actions { display: flex; align-items: center; gap: 8px; padding-top: 18px; margin-top: 4px; border-top: 1px solid var(--line); }
+.ev-actions .sp { flex: 1; }
+.ev-actions .btn { min-width: 96px; height: 42px; }
+.btn.grey { background: #EEF0F3; border-color: #EEF0F3; color: var(--ink); }
+.btn.grey:hover { background: #E4E7EB; }
+.btn.primary:disabled { background: #BED6F8; border-color: #BED6F8; color: #fff; cursor: default; }
+.btn.ghost.danger { color: var(--danger); }
+
+/* ---------- 하이웍스형 월간 (데스크톱): 주마다 여러 날 막대 ---------- */
+.mcal.bars { display: block; }
+.mcal.bars .mwd { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.mweek { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: 30px repeat(3, 24px) 22px; row-gap: 2px; border-top: 1px solid var(--row); padding-bottom: 4px; }
+.mweek .wbg { grid-row: 1 / -1; padding: 6px 8px; cursor: pointer; min-width: 0; }
+.mweek .wbg:hover { background: var(--hover); }
+.mweek .wbg.today { background: #F5F8FC; }
+.mweek .wbg.sel { box-shadow: inset 0 0 0 2px var(--primary-soft); }
+.mweek .wbg .n { display: inline-grid; place-content: center; min-width: 24px; height: 24px; padding: 0 4px; border-radius: 12px; font-size: 13px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.mweek .wbg.today .n { background: var(--primary); color: #fff; font-weight: 600; }
+.mweek .wbg.sun .n { color: var(--danger); }
+.mweek .wbg.sat .n { color: var(--primary); }
+.mweek .wbg.today.sun .n, .mweek .wbg.today.sat .n { color: #fff; }
+.mweek .wbg.other .n { color: #B6BCC6; }
+.mweek .it2 { position: relative; z-index: 1; align-self: stretch; margin: 0 4px; padding: 0 8px; border-radius: 4px; font-size: 12px; line-height: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; background: var(--c-bg); color: var(--c-tx); }
+.mweek .it2:hover { filter: brightness(0.96); }
+.mweek .it2.bar { font-weight: 600; }
+.mweek .it2.bar.cont-l { margin-left: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+.mweek .it2.bar.cont-r { margin-right: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.mweek .it2.one.c-td.over { background: var(--danger-soft); color: var(--danger); }
+.mweek .more2 { position: relative; z-index: 1; grid-row: 5; justify-self: start; margin-left: 8px; border: 0; background: none; padding: 0 2px; font-size: 12px; font-weight: 600; color: var(--primary); cursor: pointer; line-height: 22px; }
+
+/* ---------- 하이웍스형 홈 위젯 머리띠 (데스크톱) ---------- */
+@media (min-width: 761px) {
+  .home .card > .card-head { background: #F5F9FD; border-bottom: 1px solid #E8EEF5; border-radius: var(--r-lg) var(--r-lg) 0 0; margin-bottom: 12px; }
+  .home .card.sec-profile { overflow: hidden; }
+}
+
+@media (max-width: 760px) {
+  .side-cta-wrap { display: none; }
+  .sheet.wide { max-width: none; max-height: 92vh; }
+  .ev-form .r { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+  .ev-form .r > label { padding-top: 0; font-size: 13px; }
+  .ev-form .dt { width: 100%; }
+  .ev-form .dt .input { flex: 1; width: auto; min-width: 0; }
+  .ev-form .dt .input.t { flex: 0 0 140px; }
+  .ev-form .tilde { display: none; }
+  .ev-form .select.rep, .ev-form .select.narrow { width: 100%; }
+  .ev-actions .btn { flex: 1; min-width: 0; height: 48px; }
+  .ev-actions .sp { display: none; }
+}
+
+/* 딜소싱 하위 탭 */
+.deal-tabs { background: var(--card); border: 1px solid var(--line); border-bottom: 0; border-radius: var(--r-lg) var(--r-lg) 0 0; margin: 0; }
+@media (max-width: 760px) { .deal-tabs { border: 0; border-radius: 0; } }

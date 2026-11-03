@@ -170,7 +170,27 @@ const OUTLOOK = {
       s = `${sd}T00:00:00`; e = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}T00:00:00`;
     } else { s = `${sd}T${b.startTime}:00`; e = `${ed}T${b.endTime}:00`; }
     if (e <= s) throw new Error('끝나는 시간이 시작보다 늦어야 합니다');
-    return { subject, isAllDay: !!b.allDay, start: { dateTime: s, timeZone: KST }, end: { dateTime: e, timeZone: KST }, location: { displayName: (b.location || '').trim() } };
+    const out = { subject, isAllDay: !!b.allDay, start: { dateTime: s, timeZone: KST }, end: { dateTime: e, timeZone: KST }, location: { displayName: (b.location || '').trim() } };
+    if ('important' in b) out.importance = b.important ? 'high' : 'normal';
+    if ('note' in b) out.body = { contentType: 'text', content: b.note || '' };
+    if ('reminder' in b) { // '' = 알림 없음, 숫자 = 시작 몇 분 전
+      out.isReminderOn = b.reminder !== '';
+      if (b.reminder !== '') out.reminderMinutesBeforeStart = Number(b.reminder);
+    }
+    if (b.repeat) { // 반복: 시작일 기준, 끝 없음
+      const d = new Date(`${sd}T00:00:00`), WDN = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+      const pattern = {
+        daily: { type: 'daily', interval: 1 },
+        weekly: { type: 'weekly', interval: 1, daysOfWeek: [WDN[d.getDay()]], firstDayOfWeek: 'sunday' },
+        monthly: { type: 'absoluteMonthly', interval: 1, dayOfMonth: d.getDate() },
+        yearly: { type: 'absoluteYearly', interval: 1, dayOfMonth: d.getDate(), month: d.getMonth() + 1 },
+      }[b.repeat];
+      if (pattern) out.recurrence = { pattern, range: { type: 'noEnd', startDate: sd } };
+    }
+    return out;
+  },
+  async detail(id) { // 수정 창에 채울 내용·중요·알림·반복
+    return G.get(`/me/events/${encodeURIComponent(id)}?$select=body,importance,isReminderOn,reminderMinutesBeforeStart,recurrence,type`, { headers: { Prefer: 'outlook.timezone="Korea Standard Time", outlook.body-content-type="text"' } });
   },
   async checkEditable(id) {
     const e = await G.get(`/me/events/${encodeURIComponent(id)}?$select=isOrganizer,attendees`);
