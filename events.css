@@ -1,17 +1,11 @@
-/* SPACE WORKS — 딜소싱 › 행사·IR (토큰·.btn·.card·.seg·.select·.mcal 은 style.css, 구성은 ipo.css 와 맞춤)
-   표는 전부 왼쪽 정렬, 머리글과 값 시작선 일치, 고정 칸(별·날짜·점수·숨김) 외 3칸은 같은 폭 */
+/* SPACE WORKS — 딜소싱 › 행사·IR (토큰·.btn·.card·.select·.mcal 은 style.css, 구성은 ipo.css 와 맞춤)
+   한 카드 안: 필터 한 줄 → 월 달력 → 1년치 목록. 표는 전부 왼쪽 정렬, 머리글과 값 시작선 일치 */
 
 /* 점수: 80 이상 파랑, 60~79 검정, 그 아래 회색 */
 .ev-sc { display: inline-block; min-width: 28px; font-size: 14px; line-height: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .ev-sc.t1 { color: var(--primary); font-weight: 700; }
 .ev-sc.t2 { color: var(--ink); }
 .ev-sc.t3 { color: var(--text3); font-weight: 500; }
-
-/* ---------- 머리 ---------- */
-.ev-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.ev-top h1 { margin: 0; font-size: 22px; line-height: 30px; font-weight: 700; }
-.ev-top .btn.ghost { margin-left: auto; }
-.ev-top .seg button { height: 32px; padding: 0 14px; font-size: 13px; }
 
 .ev-card { overflow: hidden; }
 .ev-blank { padding: 64px 24px; text-align: center; font-size: 14px; color: var(--text3); }
@@ -20,32 +14,39 @@
 /* ---------- 필터 한 줄 ---------- */
 .ev-filter { display: flex; align-items: center; gap: 8px; padding: 16px 24px; border-bottom: 1px solid var(--line); }
 .ev-filter:empty { display: none; }
-.ev-search { position: relative; flex: 0 1 280px; min-width: 180px; }
+.ev-search { position: relative; flex: 0 1 260px; min-width: 160px; }
 .ev-search .input { width: 100%; padding-left: 34px; }
 .ev-sic { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--text3); display: flex; pointer-events: none; }
-.ev-sels { display: flex; gap: 8px; min-width: 0; }
-.ev-sels .select { padding: 0 28px 0 10px; color: var(--text2); }
-.ev-sels .ev-msort { display: none; }
-.ev-mf { display: none; }
+.ev-sels { display: flex; gap: 8px; flex: 1 1 auto; min-width: 0; }
+.ev-sels .select { flex: 0 1 136px; min-width: 96px; padding: 0 26px 0 10px; color: var(--text2); text-overflow: ellipsis; }
+.ev-sels .ev-msort, .ev-mf { display: none; }
 .ev-mf b { color: var(--primary); font-weight: 600; }
 .ev-mf.on { border-color: var(--primary); color: var(--primary); }
-
-.ev-bar { display: flex; align-items: center; gap: 8px; min-height: 56px; padding: 10px 24px; border-bottom: 1px solid var(--line); }
-.ev-r { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+.ev-r { margin-left: auto; display: flex; align-items: center; gap: 8px; flex: none; }
 .ev-cnt { font-size: 13px; color: var(--text3); white-space: nowrap; }
 .ev-cnt b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
-.ev-yr { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; margin-right: 4px; }
+.ev-ref { flex: none; }
+
+/* ---------- 달력 ---------- */
+.ev-bar { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 8px 24px; }
+.ev-mcal { margin-bottom: 8px; }
+.ev-mcal .c { min-height: 92px; }
+.ev-mcal .it.ev-t1 { --c: var(--primary);  background: var(--primary-soft); color: #1D4ED8; font-weight: 600; }
+.ev-mcal .it.ev-t2 { --c: #6B7280;  background: #F3F4F6; color: var(--ink); }
+.ev-mcal .it.ev-t3 { --c: #C4C9D1;  background: none; color: var(--text3); box-shadow: inset 0 0 0 1px var(--line); }
+.ev-mcal .it.ev-on::before { content: '★ '; color: #FDC036; }
+.ev-mcal .it.more { color: var(--primary); font-weight: 600; }
 
 /* ---------- 목록 (ipo-cols 와 같은 방식) ---------- */
+.ev-list { border-top: 1px solid var(--line); }
 .ev-cols { display: grid; grid-template-columns: 24px 104px 40px repeat(3, minmax(0, 1fr)) 32px; gap: 16px; align-items: start; padding: 0 24px; }
 .ev-head { min-height: 40px; align-items: center; font-size: 13px; font-weight: 600; color: var(--text2); border-bottom: 1px solid var(--line2); }
-.ev-head .ev-cnt { font-size: 12px; font-weight: 500; }
 .ev-sort { display: inline-flex; align-items: center; gap: 2px; width: max-content; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
 .ev-sort:hover, .ev-sort.on { color: var(--primary); }
-.ev-grp { display: flex; align-items: baseline; gap: 6px; padding: 16px 24px 6px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.ev-grp { display: flex; align-items: baseline; gap: 6px; padding: 16px 24px 6px; font-size: 13px; font-weight: 600; color: var(--ink); scroll-margin-top: 8px; }
 .ev-grp span { font-size: 12px; font-weight: 500; color: var(--text3); font-variant-numeric: tabular-nums; }
 
-.ev-row { border-top: 1px solid var(--row); }
+.ev-row { border-top: 1px solid var(--row); scroll-margin-top: 8px; }
 .ev-head + .ev-row, .ev-grp + .ev-row { border-top: 0; }
 .ev-line { padding-top: 12px; padding-bottom: 12px; cursor: pointer; }
 .ev-line:hover { background: var(--hover); }
@@ -54,7 +55,7 @@
 .ev-star { width: 24px; height: 20px; padding: 0; border: 0; background: none; color: #C4C9D1; cursor: pointer; display: inline-flex; align-items: center; }
 .ev-star:hover { color: var(--text2); }
 .ev-star.on { color: #FDC036; }
-.ev-star.on svg, .ev-ystar svg { fill: currentColor; }
+.ev-star.on svg { fill: currentColor; }
 
 .ev-c-date { display: flex; flex-direction: column; min-width: 0; }
 .ev-d { font-size: 13px; line-height: 20px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -85,66 +86,49 @@
 .ev-detail dd:first-of-type { color: var(--ink); font-weight: 500; }
 .ev-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
 
-/* ---------- 달력: 점수 구간별 면 ---------- */
-.ev-mcal { margin-top: 0; }
-.ev-mcal .c { min-height: 96px; }
-.ev-mcal .it.ev-t1 { background: var(--primary-soft); color: #1D4ED8; font-weight: 600; }
-.ev-mcal .it.ev-t2 { background: #F3F4F6; color: var(--ink); }
-.ev-mcal .it.ev-t3 { background: none; color: var(--text3); box-shadow: inset 0 0 0 1px var(--line); }
-.ev-mcal .it.ev-on::before { content: '★ '; color: #FDC036; }
-.ev-mcal .it.more { color: var(--primary); font-weight: 600; }
-.ev-day { border-top: 1px solid var(--line); margin-top: 8px; }
-.ev-day + .ev-day { margin-top: 0; }
-.ev-none { padding: 4px 24px 20px; font-size: 13px; color: var(--text3); }
-
-/* ---------- 연간 ---------- */
-.ev-year { padding: 0 24px 8px; }
-.ev-yhead, .ev-yi { display: grid; column-gap: 16px; }
-.ev-yhead { grid-template-columns: 64px 104px 40px minmax(0, 1fr) minmax(0, 1fr); padding: 10px 0; border-bottom: 1px solid var(--line2); font-size: 13px; font-weight: 600; color: var(--text2); }
-.ev-ym { display: grid; grid-template-columns: 64px minmax(0, 1fr); column-gap: 16px; padding: 8px 0; border-bottom: 1px solid var(--row); }
-.ev-ym:last-child { border-bottom: 0; }
-.ev-ym-l { padding: 4px 0; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.ev-yi { grid-template-columns: 104px 40px minmax(0, 1fr) minmax(0, 1fr); align-items: start; padding: 4px 0; font-size: 13px; line-height: 20px; cursor: pointer; }
-.ev-yi:hover .ev-yt { color: var(--primary); }
-.ev-yd { font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--text2); }
-.ev-yt { min-width: 0; font-weight: 500; color: var(--ink); overflow-wrap: anywhere; }
-.ev-ystar { color: #FDC036; display: inline-flex; vertical-align: -3px; margin-right: 4px; }
-.ev-yv { min-width: 0; color: var(--text2); overflow-wrap: anywhere; }
-.ev-yempty { display: block; color: var(--line2); cursor: default; }
-
 /* ---------- 홈 카드 ---------- */
 .ev-home .card-body { padding-top: 0; }
 .ev-home .list .time { width: 84px; }
 .ev-home .list .ev-sc { flex: none; min-width: 0; }
 
 /* ---------- 좁은 PC ---------- */
+@media (max-width: 1440px) {
+  .ev-filter { flex-wrap: wrap; }
+  .ev-search { flex: 1 1 220px; max-width: 320px; }
+  .ev-sels { order: 3; flex: 1 1 100%; }
+  .ev-sels .select { flex: 1 1 0; max-width: 160px; }
+}
 @media (max-width: 1280px) {
   .ev-cols { grid-template-columns: 24px 104px 40px repeat(2, minmax(0, 1fr)) 32px; }
   .ev-c-ind { display: none; }
-  .ev-sels { overflow-x: auto; scrollbar-width: none; }
 }
 @media (max-width: 1024px) {
-  .ev-filter { flex-wrap: wrap; }
-  .ev-search { flex: 1 1 100%; }
   .ev-cols { grid-template-columns: 24px 104px 40px minmax(0, 1fr) 32px; }
   .ev-c-place { display: none; }
   .ev-mplace { display: block; }
 }
 
-/* ---------- 휴대폰 ---------- */
+/* ---------- 휴대폰: 필터는 [기간][정렬][필터] 3칸, 나머지는 '필터'로 펼침 ---------- */
 @media (max-width: 760px) {
-  .ev-top { margin: 0 16px 12px; }
   .ev-filter { padding: 12px 16px; gap: 8px; }
+  .ev-search { flex: 1 1 0; max-width: none; min-width: 0; }
   .ev-search .input { font-size: 16px; }
-  .ev-sels { flex: 1 1 100%; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; overflow: visible; }
+  .ev-sels { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
   .ev-sels > * { grid-column: span 3; }
+  .ev-sels .select { width: 100%; min-width: 0; max-width: none; height: 36px; order: 4; padding: 0 22px 0 8px; font-size: 14px; background-position-x: calc(100% - 6px); }
   .ev-sels [data-f="period"], .ev-sels .ev-msort, .ev-sels .ev-mf { grid-column: span 2; }
-  .ev-sels .select { width: 100%; min-width: 0; height: 36px; order: 4; padding: 0 22px 0 8px; font-size: 14px; background-position-x: calc(100% - 6px); }
   .ev-sels [data-f="period"] { order: 1; }
   .ev-sels .ev-msort { display: block; order: 2; }
   .ev-mf { display: inline-flex; justify-content: center; order: 3; height: 36px; padding: 0 8px; }
   .ev-sels:not(.open) .select:not([data-f="period"]):not(.ev-msort) { display: none; }
-  .ev-bar { padding: 10px 16px; flex-wrap: wrap; }
+  .ev-r { order: 4; flex: 1 1 100%; justify-content: flex-end; }
+
+  .ev-bar { padding: 6px 16px; min-height: 48px; }
+  .ev-mcal { margin: 0 8px 8px; }
+  .ev-mcal .c { min-height: 56px; }
+  .ev-mcal .it { box-shadow: none !important; }
+  .ev-mcal .it.ev-on::before, .ev-mcal .it.more { display: none; }
+  .ev-mcal .c.sel .n { box-shadow: inset 0 0 0 1.5px var(--primary); }
   .ev-head { display: none; }
   .ev-grp { padding: 14px 16px 4px; }
 
@@ -160,30 +144,5 @@
 
   .ev-detail { padding: 0 16px 16px; }
   .ev-detail dl { grid-template-columns: 64px minmax(0, 1fr); gap: 6px 12px; }
-
-  .ev-mcal .c { min-height: 56px; }
-  .ev-none { padding: 4px 16px 16px; }
-  .ev-year { padding: 0 16px 8px; }
-  .ev-yhead { display: none; }
-  .ev-ym { display: block; padding: 10px 0; }
-  .ev-ym-l { padding: 0 0 4px; }
-  .ev-yi { grid-template-columns: auto 40px; grid-template-areas: "d s" "t t" "v v"; justify-content: start; row-gap: 2px; padding: 6px 0; }
-  .ev-yi + .ev-yi { border-top: 1px solid var(--row); }
-  .ev-yd { grid-area: d; } .ev-yi > span:nth-child(2) { grid-area: s; } .ev-yt { grid-area: t; font-size: 14px; } .ev-yv { grid-area: v; color: var(--text3); }
   .ev-home .list .time { width: 76px; }
-}
-
-/* ---------- 인쇄: 행사 화면이 떠 있을 때만 앱 틀을 걷고 표만 ---------- */
-@media print {
-  body:has(.ev-page) { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body:has(.ev-page) .side, body:has(.ev-page) .topbar, body:has(.ev-page) .tabbar, body:has(.ev-page) .toast, body:has(.ev-page) .deal-tabs { display: none !important; }
-  body:has(.ev-page) .app, body:has(.ev-page) .main { display: block; height: auto; }
-  body:has(.ev-page) .scroll { overflow: visible; padding: 0; }
-  body:has(.ev-page) .page { max-width: none; padding: 0; }
-  .ev-top, .ev-filter, .ev-bar .btn, .ev-star, .ev-hide, .ev-links { display: none !important; }
-  .ev-card { border: 0; border-radius: 0; overflow: visible; }
-  .ev-bar { min-height: 0; padding: 0 0 8px; border: 0; }
-  .ev-year { padding: 0; }
-  .ev-ym, .ev-row { break-inside: avoid; }
-  .ev-yi { font-size: 12px; line-height: 18px; padding: 2px 0; }
 }
