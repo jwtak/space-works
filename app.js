@@ -22,6 +22,19 @@ const diffDays = (a, b) => Math.round((parse(a) - parse(b)) / 86400000);
 const md = (s) => { const d = parse(s); return `${d.getMonth() + 1}/${d.getDate()}`; };
 const mdw = (s) => { const d = parse(s); return `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`; };
 const uid = () => Math.random().toString(16).slice(2, 10);
+const isMobile = () => matchMedia('(max-width: 760px)').matches;
+function openSheet(html, mount) { // 아래에서 올라오는 패널(데스크톱은 가운데 창)
+  const wrap = document.createElement('div');
+  wrap.className = 'sheet-wrap';
+  wrap.innerHTML = `<div class="sheet" role="dialog" aria-modal="true"><div class="handle"></div>${html}</div>`;
+  const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); };
+  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
+  document.addEventListener('keydown', onKey);
+  document.body.appendChild(wrap);
+  if (mount) mount(wrap.querySelector('.sheet'), close);
+  return close;
+}
 const ico = (n, cls = '') => `<svg class="i ${cls}"><use href="#i-${n}"/></svg>`;
 
 function workDay(dateStr) { // DAY1부터 평일 기준 N일째
@@ -58,7 +71,22 @@ async function save(coll) {
 function counts() {
   const open = S.todos.items.filter((t) => !t.done).length;
   document.querySelectorAll('[data-cnt=todos]').forEach((el) => { el.textContent = open || ''; });
+  const urgent = S.todos.items.filter((t) => !t.done && t.due && t.due <= today()).length;
+  document.querySelectorAll('[data-badge=todos]').forEach((el) => { el.textContent = urgent || ''; });
   document.querySelectorAll('[data-cnt=programs]').forEach((el) => { el.textContent = S.programs.items.filter((p) => ['설계', '개발 중'].includes(p.status)).length || ''; });
+}
+
+function accountMenu() {
+  openSheet(`<h3>메뉴</h3><div class="who" style="font-size:13px;color:var(--text3);margin:-6px 0 8px">${esc(S.auth.upn)}</div>
+    <ul class="menu">
+      <li><a href="#programs" data-close>${ico('box')}프로그램</a></li>
+      <li><button type="button" id="m-refresh">${ico('refresh')}새로고침</button></li>
+      <li><button type="button" id="m-logout">${ico('ext')}로그아웃</button></li>
+    </ul>`, (el, close) => {
+    el.querySelectorAll('[data-close]').forEach((a) => a.addEventListener('click', close));
+    el.querySelector('#m-refresh').onclick = async () => { close(); CALC = {}; await load(); render(); toast('최신 내용으로 바꿨습니다'); };
+    el.querySelector('#m-logout').onclick = () => G.logout();
+  });
 }
 
 function foot() {
@@ -73,6 +101,7 @@ function render() {
   const r = CRUMB[route()] ? route() : 'home';
   document.querySelectorAll('[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === r));
   document.body.dataset.route = r;
+  if (r !== 'notes') document.body.classList.remove('note-open');
   $('#crumb').textContent = CRUMB[r];
   ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, programs: renderPrograms, notes: renderNotes }[r] || renderHome)();
 }
@@ -118,8 +147,17 @@ function renderHome() {
   PAGE.innerHTML = `
     <div class="home">
       <div class="col">
-        <section class="card" id="home-month"></section>
-        <section class="card">
+        <section class="sec-hello m-only">
+          <div class="dt">${d.getMonth() + 1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일</div>
+          <div class="sub">${greet(d.getHours())} · Day-${workDay(td)}</div>
+          <div class="chips">
+            ${ms.map((m) => `<span class="dchip">${esc(m.title.replace(/\s*\(.*\)$/, ''))} <b>D-${diffDays(m.date, td)}</b></span>`).join('')}
+            <a class="dchip blue" href="#todos" data-tab-link="today">오늘 마감 <b>${dueToday.length}</b></a>
+            <a class="dchip ${over.length ? 'red' : ''}" href="#todos" data-tab-link="over">기한 지남 <b>${over.length}</b></a>
+          </div>
+        </section>
+        <section class="card sec-month" id="home-month"></section>
+        <section class="card sec-tiles">
           <div class="card-head"><h2>주요 현황</h2></div>
           <div class="tiles">
             ${ms.map((m, i) => tile(i ? 'violet' : 'blue', 'flag', esc(m.title.replace(/\s*\(.*\)$/, '')), `D-${diffDays(m.date, td)}`, mdw(m.date))).join('')}
@@ -127,11 +165,11 @@ function renderHome() {
             ${tile(over.length ? 'red' : 'green', over.length ? 'alert' : 'done', '기한 지남', `${over.length}<small>건</small>`, `남은 할 일 ${open.length}건`, 'over')}
           </div>
         </section>
-        <section class="card">
+        <section class="card sec-brief">
           <div class="card-head"><h2>AI 브리핑</h2><span class="meta">${bt ? `Claude · ${bt.getMonth() + 1}/${bt.getDate()} ${pad(bt.getHours())}:${pad(bt.getMinutes())} 갱신` : ''}</span></div>
           <div class="card-body brief">${b.text ? mdRender(b.text) : '<div class="empty">브리핑 없음</div>'}</div>
         </section>
-        <section class="card">
+        <section class="card sec-todo">
           <div class="card-head"><h2>해야 할 일 <span class="n">${over.length + dueToday.length + soon.length}</span></h2><a class="btn sm act" href="#todos">전체 보기</a></div>
           <div class="card-body" style="padding-top:0">
             ${homeTodoBlock('기한 지남', over)}${homeTodoBlock('오늘', dueToday)}${homeTodoBlock('7일 안', soon)}
@@ -140,18 +178,18 @@ function renderHome() {
         </section>
       </div>
       <div class="col">
-        <section class="card">
+        <section class="card sec-profile">
           <div class="profile"><span class="ph">${ico('user', 'lg')}</span><div><div class="nm">탁지원 님, ${greet(d.getHours())}</div><div class="dp">투자운용본부 · 대리</div></div></div>
           <div class="timebox">
             <div class="cell"><div class="k">${d.getMonth() + 1}월 ${d.getDate()}일 (${WD[d.getDay()]})</div><div class="v blue" id="live-time">${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}</div></div>
             <div class="cell"><div class="k">입사 후</div><div class="v">Day-${workDay(td)}</div></div>
           </div>
         </section>
-        <section class="card">
+        <section class="card sec-today">
           <div class="card-head"><h2>오늘·내일 일정</h2><a class="btn sm act" href="#calendar">일정</a></div>
           <div class="card-body" id="home-cal" style="padding-top:0"><div class="empty">불러오는 중…</div></div>
         </section>
-        <section class="card">
+        <section class="card sec-status">
           <div class="card-head"><h2>할 일 현황 <span class="n">[${open.length}]</span></h2><a class="btn sm act" href="#todos">할 일</a></div>
           <div class="card-body status">
             <a href="#todos" data-tab-link="over"><span class="si ${over.length ? 'red' : ''}">${ico('alert', 'sm')}</span>기한 지남<span class="sv ${over.length ? 'red' : ''}">${over.length}건</span></a>
@@ -160,12 +198,12 @@ function renderHome() {
             <a href="#todos" data-tab-link="done"><span class="si">${ico('done', 'sm')}</span>이번 주 완료<span class="sv">${doneWeek.length}건</span></a>
           </div>
         </section>
-        <section class="card">
+        <section class="card sec-notes">
           <div class="card-head"><h2>최근 기록</h2><a class="btn sm act" href="#notes">기록</a></div>
           <div class="card-body" style="padding-top:0"><ul class="list">${S.notes.slice(0, 4).map((n) => `
             <li class="click" data-note="${esc(n.name)}"><div class="t"><div class="ttl">${esc(n.name.replace(/\.(txt|md)$/i, ''))}</div><div class="meta">${relTime(n.mtime)} 수정</div></div></li>`).join('') || '<div class="empty">기록이 없습니다.</div>'}</ul></div>
         </section>
-        <section class="card">
+        <section class="card sec-prog">
           <div class="card-head"><h2>진행 중 프로그램</h2><a class="btn sm act" href="#programs">전체</a></div>
           <div class="card-body" style="padding-top:0"><ul class="list">${prog.map((p) => `
             <li><div class="t"><div class="ttl">${esc(p.name)}</div><div class="meta">${esc(p.desc)}</div></div><span class="chip blue">${esc(p.status)}</span></li>`).join('') || '<div class="empty">진행 중인 프로그램이 없습니다.</div>'}</ul></div>
@@ -251,7 +289,9 @@ function renderTodos() {
       <button class="btn primary" type="submit">${ico('plus', 'sm')}추가</button>
     </form>
     <div class="tabs">${Object.entries(tabs).map(([k, [lbl, arr]]) => `<button data-tab="${k}" class="${ui.todoTab === k ? 'on' : ''}">${lbl}<span class="n">${arr.length}</span></button>`).join('')}</div>
-    <div id="todo-list" style="padding-bottom:8px">${body || '<div class="empty">해당하는 할 일이 없습니다.</div>'}</div></section>`;
+    <div id="todo-list" style="padding-bottom:8px">${body || '<div class="empty">해당하는 할 일이 없습니다.</div>'}</div></section>
+    <button class="fab" type="button" id="todo-fab" aria-label="할 일 추가">${ico('plus')}</button>`;
+  $('#todo-fab').onclick = () => addTodoSheet();
 
   $('#add-cat').value = ui.lastCat || '사무실 세팅';
   $('#addf').addEventListener('submit', (e) => {
@@ -289,7 +329,7 @@ function todoRow(t) {
       <div style="display:flex;flex-direction:column;gap:6px;padding:4px 0"><input class="edit-input" id="te-title" value="${esc(t.title)}"><input class="edit-input" id="te-note" style="border-color:var(--line2)" value="${esc(t.note)}" placeholder="메모 (선택)"></div>
       <select class="select" id="te-cat">${CATS.map((c) => `<option ${c === t.cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
       <input class="input" type="date" id="te-due" value="${t.due || ''}">
-      <div style="display:flex;gap:6px"><button class="btn primary" type="submit">저장</button><button class="btn" type="button" id="te-cancel">취소</button></div>
+      <div style="display:flex;gap:6px"><button class="btn primary" type="submit">저장</button><button class="btn" type="button" id="te-cancel">취소</button><button class="btn ghost" type="button" data-del="${t.id}">삭제</button></div>
     </form>`;
   }
   const di = dueInfo(t);
@@ -302,6 +342,27 @@ function todoRow(t) {
   </div>`;
 }
 
+
+function addTodoSheet(due) {
+  openSheet(`<h3>할 일 추가</h3>
+    <form id="sheet-todo">
+      <div class="field"><input class="input full" name="title" placeholder="할 일" autocomplete="off" required></div>
+      <div class="field"><div class="chips">${CATS.map((c) => `<label><input type="radio" name="cat" value="${c}" ${c === (ui.lastCat || '사무실 세팅') ? 'checked' : ''}>${c}</label>`).join('')}</div></div>
+      <div class="field"><label style="display:block;font-size:13px;color:var(--text2);margin-bottom:6px">마감일</label><input class="input full" type="date" name="due" value="${due || ''}"></div>
+      <button class="btn primary full" type="submit">추가</button>
+    </form>`, (el, close) => {
+    const f = el.querySelector('#sheet-todo');
+    setTimeout(() => f.title.focus(), 50);
+    f.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const v = Object.fromEntries(new FormData(f));
+      if (!v.title.trim()) return;
+      ui.lastCat = v.cat;
+      S.todos.items.push({ id: uid(), title: v.title.trim(), cat: v.cat, due: v.due || null, done: false, doneAt: null, created: today(), note: '' });
+      close(); save('todos'); render(); toast('추가했습니다');
+    });
+  });
+}
 
 // ---------- 월간 캘린더 (홈·일정 공용) ----------
 function monthGrid(m) { // 그 달이 걸친 주만 (5주 또는 6주)
@@ -396,11 +457,18 @@ async function mountMonth(el) {
 
   const draw = () => {
     const td = today();
+    const collapsed = isMobile() && el.id === 'home-month' && !ui.monthOpen; // 접기는 홈에서만
+    let from = 0, to = n;
+    if (collapsed) { // 선택한 날짜가 있는 주 한 줄만
+      const idx = diffDays(ui.selDay, ymd(start));
+      const row = idx >= 0 && idx < n ? Math.floor(idx / 7) : 0;
+      from = row * 7; to = from + 7;
+    }
     let cells = '';
-    for (let i = 0; i < n; i++) {
+    for (let i = from; i < to; i++) {
       const d = addDays(start, i), k = ymd(d), items = dayItems(k, events);
       const cls = [d.getMonth() !== first.getMonth() ? 'other' : '', k === td ? 'today' : '', k === ui.selDay ? 'sel' : '', d.getDay() === 0 ? 'sun' : d.getDay() === 6 ? 'sat' : ''].join(' ');
-      cells += `<div class="c ${cls}" data-day="${k}"><div class="n">${d.getDate()}</div>${items.slice(0, 3).map((it) =>
+      cells += `<div class="c ${cls}" data-day="${k}"><div class="n ${k === ui.selDay && k !== td ? 'ring' : ''}">${d.getDate()}</div>${items.slice(0, 3).map((it) =>
         `<span class="it c-${calKey(it)}${it.over ? ' over' : ''}" data-item="${it.type}|${esc(it.id)}" data-d="${k}" title="${esc(it.title)}">${it.type === 'ev' && /\d/.test(it.time) ? it.time + ' ' : ''}${esc(it.title)}</span>`).join('')}${items.length > 3 ? `<span class="it more">+${items.length - 3}</span>` : ''}</div>`;
     }
     const sel = dayItems(ui.selDay, events), ed = ui.calEdit;
@@ -416,6 +484,7 @@ async function mountMonth(el) {
     el.innerHTML = `<div class="card-head">
         <div class="mcal-nav"><button class="iconbtn" data-m="-1" aria-label="이전 달">${ico('left')}</button><span class="ym">${first.getFullYear()}년 ${first.getMonth() + 1}월</span><button class="iconbtn" data-m="1" aria-label="다음 달">${ico('right')}</button></div>
         <button class="btn sm" data-m="0">오늘</button>
+        ${el.id === 'home-month' ? `<button class="btn sm ghost mcal-toggle" type="button" data-mt>${ui.monthOpen ? '접기' : '월 전체'}</button>` : ''}
         <div class="cal-filter act">${CALS.filter((c) => S.auth.connected || ['ms', 'td'].includes(c.key)).map((c) =>
           `<label class="cf c-${c.key}" title="${c.sub}"><input type="checkbox" data-show="${c.key}" ${ui.calShow[c.key] !== false ? 'checked' : ''}><i class="box"></i>${c.name}</label>`).join('')}
 </div></div>
@@ -428,12 +497,27 @@ async function mountMonth(el) {
         ${rows ? `<ul class="list">${rows}</ul>` : newForm ? '' : '<div class="muted" style="font-size:13px;padding:6px 0">일정 없음</div>'}
       </div>`;
 
-    el.querySelectorAll('[data-m]').forEach((b) => b.addEventListener('click', () => {
-      const v = Number(b.dataset.m); ui.calEdit = null;
-      if (v === 0) { const n2 = new Date(); ui.month = new Date(n2.getFullYear(), n2.getMonth(), 1); ui.selDay = today(); }
-      else ui.month = new Date(ui.month.getFullYear(), ui.month.getMonth() + v, 1);
+    const nav = (v) => {
+      ui.calEdit = null;
+      if (v === 0) { const n2 = new Date(); ui.month = new Date(n2.getFullYear(), n2.getMonth(), 1); ui.selDay = today(); return mountMonth(el); }
+      if (collapsed) { // 접힌 상태: 한 주씩 이동
+        const nd = addDays(parse(ui.selDay), 7 * v); ui.selDay = ymd(nd);
+        if (nd.getMonth() !== ui.month.getMonth() || nd.getFullYear() !== ui.month.getFullYear()) { ui.month = new Date(nd.getFullYear(), nd.getMonth(), 1); return mountMonth(el); }
+        return draw();
+      }
+      ui.month = new Date(ui.month.getFullYear(), ui.month.getMonth() + v, 1);
       mountMonth(el);
-    }));
+    };
+    el.querySelectorAll('[data-m]').forEach((b) => b.addEventListener('click', () => nav(Number(b.dataset.m))));
+    const mt = el.querySelector('[data-mt]'); if (mt) mt.addEventListener('click', () => { ui.monthOpen = !ui.monthOpen; draw(); });
+    const grid = el.querySelector('.mcal');
+    let tx = null, ty = null;
+    grid.addEventListener('touchstart', (e) => { tx = e.touches[0].clientX; ty = e.touches[0].clientY; }, { passive: true });
+    grid.addEventListener('touchend', (e) => {
+      if (tx === null) return;
+      const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty; tx = null;
+      if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) nav(dx < 0 ? 1 : -1);
+    }, { passive: true });
     el.querySelectorAll('.mcal [data-day]').forEach((c) => {
       c.addEventListener('click', () => { if (ui.selDay !== c.dataset.day) ui.calEdit = null; ui.selDay = c.dataset.day; draw(); });
       c.addEventListener('dblclick', () => { ui.selDay = c.dataset.day; ui.calEdit = { kind: S.auth.connected ? 'new-ev' : 'new-td' }; draw(); });
@@ -620,7 +704,8 @@ function renderPrograms() {
 function renderNotes() {
   const q = ui.noteQ.trim().toLowerCase();
   const list = S.notes.filter((n) => !q || n.name.toLowerCase().includes(q) || n.preview.toLowerCase().includes(q));
-  if (!ui.note && S.notes.length) ui.note = S.notes[0].name;
+  if (!ui.note && S.notes.length && !isMobile()) ui.note = S.notes[0].name;
+  document.body.classList.toggle('note-open', isMobile() && !!ui.noteOpen);
   PAGE.innerHTML = `
     <div class="page-head"><h1>업무일지·회의록</h1></div>
     <div class="card notes">
@@ -634,7 +719,7 @@ function renderNotes() {
       <div class="editor" id="editor"><div class="empty" style="margin:auto">왼쪽에서 기록을 고르거나 새로 만드세요.</div></div>
     </div>`;
   $('#nq').addEventListener('input', (e) => { ui.noteQ = e.target.value; const pos = e.target.selectionStart; renderNotes(); const n = $('#nq'); n.focus(); n.setSelectionRange(pos, pos); });
-  PAGE.querySelectorAll('[data-n]').forEach((li) => li.addEventListener('click', async () => { await flushNote(); ui.note = li.dataset.n; renderNotes(); }));
+  PAGE.querySelectorAll('[data-n]').forEach((li) => li.addEventListener('click', async () => { await flushNote(); ui.note = li.dataset.n; ui.noteOpen = true; renderNotes(); }));
   PAGE.querySelectorAll('[data-new]').forEach((b) => b.addEventListener('click', () => newNote(b.dataset.new)));
   if (ui.note) openNote(ui.note);
 }
@@ -645,7 +730,8 @@ async function openNote(name) {
   try {
     const n = await STORE.readNote(name);
     cur = { name: n.name, version: n.version, dirty: false };
-    ed.innerHTML = `<div class="bar"><span class="nm">${esc(n.name)}</span><span class="st" id="nst">저장됨</span></div><textarea id="nta" spellcheck="false"></textarea>`;
+    ed.innerHTML = `<div class="bar"><button class="iconbtn m-only" type="button" id="note-back" aria-label="목록" style="width:44px;height:44px">${ico('left')}</button><span class="nm">${esc(n.name.replace(/\.(txt|md)$/i, ''))}</span><span class="st" id="nst">저장됨</span></div><textarea id="nta" spellcheck="false"></textarea>`;
+    $('#note-back').onclick = async () => { await flushNote(); ui.noteOpen = false; renderNotes(); };
     const ta = $('#nta'); ta.value = n.text;
     ta.addEventListener('input', () => { cur.dirty = true; $('#nst').textContent = '입력 중…'; clearTimeout(noteTimer); noteTimer = setTimeout(flushNote, 800); });
   } catch (e) { ed.innerHTML = `<div class="empty" style="margin:auto">${esc(e.message)}</div>`; }
@@ -674,12 +760,12 @@ async function newNote(kind) {
   else if (kind === 'meeting') { name = `회의록_${y}.${m}.${dd}(${w}).txt`; text = `회의록\n${full}\n참석: \n안건: \n\n1. `; }
   else { name = `메모_${y}.${m}.${dd}_${pad(d.getHours())}${pad(d.getMinutes())}.txt`; text = ''; }
   if (S.notes.some((n) => n.name === name)) {
-    if (kind === 'daily') { ui.note = name; toast('오늘 업무일지가 이미 있어 그 파일을 엽니다'); return renderNotes(); }
+    if (kind === 'daily') { ui.note = name; ui.noteOpen = true; toast('오늘 업무일지가 이미 있어 그 파일을 엽니다'); return renderNotes(); }
     let i = 2; const base = name.replace(/\.txt$/, ''); while (S.notes.some((n) => n.name === `${base}_${i}.txt`)) i++; name = `${base}_${i}.txt`;
   }
   try {
     await STORE.writeNote(name, text, null);
-    await load(); ui.note = name; ui.noteQ = ''; renderNotes();
+    await load(); ui.note = name; ui.noteQ = ''; ui.noteOpen = true; renderNotes();
     setTimeout(() => { const ta = $('#nta'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }, 200);
   } catch (e) { toast(e.message); }
 }
@@ -714,6 +800,7 @@ function loginScreen(msg) {
   if ($('#login-out')) $('#login-out').onclick = () => G.logout();
 }
 
+$('#me')?.addEventListener('click', () => { if (S) accountMenu(); });
 async function start() {
   try {
     if (!(await G.init())) return loginScreen(G.wrongAccount ? `${G.wrongAccount} 계정으로는 열 수 없습니다` : '');
@@ -725,5 +812,14 @@ async function start() {
     PAGE.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }
 }
-if ('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+  // 앱을 다시 열 때마다 새 버전 확인 → 새 서비스워커가 자리 잡으면, 작성 중인 내용이 없을 때 한 번 새로 고침
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) navigator.serviceWorker.getRegistration().then((r) => r && r.update()).catch(() => {}); });
+  let reloaded = false; const hadController = !!navigator.serviceWorker.controller; // 첫 설치 때는 새로 고치지 않음
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || reloaded || (cur && cur.dirty) || ui.mail?.compose || document.activeElement?.matches('input,textarea')) return;
+    reloaded = true; location.reload();
+  });
+}
 start();

@@ -66,7 +66,8 @@ function mailFrameDoc(html, allowRemote) {
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><base target="_blank">
 <style>html,body{margin:0}body{padding:20px 24px;font:14px/1.6 Pretendard,'Malgun Gothic',sans-serif;color:#111827;word-break:break-word;overflow-wrap:anywhere}
 img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap;font:inherit}a{color:#2563EB}
-blockquote{margin:0 0 0 4px;padding-left:12px;border-left:2px solid #E5E7EB;color:#4B5563}</style></head><body>${html}</body></html>`;
+blockquote{margin:0 0 0 4px;padding-left:12px;border-left:2px solid #E5E7EB;color:#4B5563}
+@media (max-width:600px){body{padding:16px;font-size:15px;line-height:1.65}}</style></head><body>${html}</body></html>`;
 }
 
 function mailConfirm({ title, rows, ok }) {
@@ -99,15 +100,18 @@ async function renderMail() {
       <section class="mail-list">
         <form class="mail-search" id="mail-sf">
           <span class="mail-search-ic">${ico('search', 'sm')}</span>
-          <input class="input" id="mail-q" placeholder="메일 검색" value="${esc(m.q)}" autocomplete="off">
+          <input class="input" id="mail-q" type="search" placeholder="메일 검색" value="${esc(m.q)}" autocomplete="off">
+          <button class="iconbtn mail-ref-m" type="button" data-ref aria-label="새로고침">${ico('refresh', 'sm')}</button>
         </form>
-        <div class="mail-list-head"><b id="mail-ltitle"></b><button class="iconbtn" type="button" id="mail-ref" title="새로고침" aria-label="새로고침">${ico('refresh', 'sm')}</button></div>
+        <div class="mail-list-head"><b id="mail-ltitle"></b><button class="iconbtn" type="button" id="mail-ref" data-ref title="새로고침" aria-label="새로고침">${ico('refresh', 'sm')}</button></div>
         <ul class="mail-items" id="mail-items"></ul>
       </section>
       <section class="mail-pane" id="mail-pane"></section>
+      <button class="mail-fab" type="button" id="mail-fab" aria-label="메일 쓰기">${ico('plus', 'lg')}</button>
     </div>`;
   $('#mail-new').addEventListener('click', () => mailOpenCompose({ mode: 'new' }));
-  $('#mail-ref').addEventListener('click', () => { mailLoadCounts(); mailLoadList(); });
+  $('#mail-fab').addEventListener('click', () => mailOpenCompose({ mode: 'new' }));
+  PAGE.querySelectorAll('[data-ref]').forEach((b) => b.addEventListener('click', () => { mailLoadCounts(); mailLoadList(); }));
   $('#mail-sf').addEventListener('submit', (e) => { e.preventDefault(); m.q = $('#mail-q').value.trim(); m.sel = null; m.msg = null; mailLoadList(); });
   $('#mail-q').addEventListener('search', () => { if (!$('#mail-q').value) { m.q = ''; mailLoadList(); } });
   mailDrawShell();
@@ -121,7 +125,16 @@ function mailDrawShell() {
   const sh = $('#mail-shell'); if (!sh) return;
   sh.dataset.view = ui.mail.compose ? 'compose' : ui.mail.view;
   sh.classList.toggle('composing', !!ui.mail.compose);
+  mailSyncBody();
 }
+
+/* 폰에서 읽기·쓰기 화면은 하단 탭바 자리에 메일 전용 바를 쓴다 (mail.css가 body 클래스로 탭바를 가린다) */
+function mailSyncBody() {
+  const m = ui.mail, on = route() === 'mail' && !!m;
+  document.body.classList.toggle('mail-reading', on && !m.compose && m.view === 'read');
+  document.body.classList.toggle('mail-composing', on && !!m.compose);
+}
+window.addEventListener('hashchange', () => { if (route() !== 'mail') document.body.classList.remove('mail-reading', 'mail-composing'); });
 
 function mailDrawFolders() {
   const nav = $('#mail-fnav'); if (!nav) return;
@@ -197,7 +210,7 @@ async function mailOpen(id) {
   mailDrawShell(); mailDrawList(); mailDrawPane();
   try {
     const [msg, atts] = await Promise.all([
-      G.get(`/me/messages/${encodeURIComponent(id)}?$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,body,hasAttachments,isRead,isDraft,webLink`),
+      G.get(`/me/messages/${encodeURIComponent(id)}?$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,body,hasAttachments,isRead,isDraft,webLink,flag`),
       G.get(`/me/messages/${encodeURIComponent(id)}/attachments?$select=id,name,size,contentType,isInline`).then((r) => r.value).catch(() => []),
     ]);
     if (m.sel !== id) return;
@@ -224,6 +237,45 @@ async function mailOpen(id) {
   }
 }
 
+/* 메일 화면 전용 아이콘 (index.html 공용 심볼에 없는 것) */
+const MAIL_ICONS = {
+  more: '<circle cx="12" cy="5.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.2" fill="currentColor" stroke="none"/><circle cx="12" cy="18.5" r="1.2" fill="currentColor" stroke="none"/>',
+  star: '<path d="m12 4 2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 16.4l-4.8 2.5.9-5.4-3.9-3.8 5.4-.8z"/>',
+  down: '<path d="m7 10 5 5 5-5"/>',
+  plusc: '<circle cx="12" cy="12" r="8"/><path d="M12 8.5v7M8.5 12h7"/>',
+  camera: '<path d="M4.5 8.5h3l1.5-2.5h6l1.5 2.5h3v10h-15z"/><circle cx="12" cy="13" r="3.2"/>',
+  dl: '<path d="M12 4.5v10M8 10.5l4 4 4-4M5 19.5h14"/>',
+  doc: '<path d="M7 3.5h7l4 4v13H7z"/><path d="M14 3.5v4h4"/>',
+};
+const mi = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${MAIL_ICONS[n]}</svg>`;
+function mailExtColor(name) {
+  const e = (name.split('.').pop() || '').toLowerCase();
+  if (e === 'pdf') return '#DC2626';
+  if (['xls', 'xlsx', 'csv'].includes(e)) return '#15803D';
+  if (['doc', 'docx', 'hwp', 'hwpx', 'txt'].includes(e)) return '#2563EB';
+  if (['ppt', 'pptx'].includes(e)) return '#EA580C';
+  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic'].includes(e)) return '#7C3AED';
+  return '#6B7280';
+}
+function mailDateLine(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}<span>${WD[d.getDay()]}요일</span>${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+/* 폰용 동작 목록(바텀시트). 고른 항목의 k, 닫으면 null */
+function mailSheet(items) {
+  return new Promise((resolve) => {
+    const wrap = document.createElement('div');
+    wrap.className = 'mail-modal mail-sheet-wrap';
+    wrap.innerHTML = `<div class="mail-dialog mail-sheet" role="menu">${items.map((it) => `<button type="button" role="menuitem" data-k="${it.k}">${esc(it.label)}</button>`).join('')}<button type="button" class="mail-sheet-x" data-k="">닫기</button></div>`;
+    const done = (v) => { wrap.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+    const onKey = (e) => { if (e.key === 'Escape') done(null); };
+    wrap.addEventListener('click', (e) => { if (e.target === wrap) return done(null); const b = e.target.closest('[data-k]'); if (b) done(b.dataset.k || null); });
+    document.addEventListener('keydown', onKey);
+    document.body.appendChild(wrap);
+  });
+}
+
 function mailDrawPane() {
   const m = ui.mail, pane = $('#mail-pane'); if (!pane) return;
   if (m.compose) return mailDrawCompose();
@@ -232,8 +284,19 @@ function mailDrawPane() {
   const x = m.msg, html = x.body?.contentType === 'html' ? x.body.content : `<pre>${esc(x.body?.content || '')}</pre>`;
   const hasRemote = /<img[^>]+src\s*=\s*["']?\s*https?:|url\(\s*["']?\s*https?:/i.test(html);
   const inTrash = m.folder === 'deleteditems';
+  const flagged = x.flag?.flagStatus === 'flagged';
+  const fromName = x.from?.emailAddress?.name || x.from?.emailAddress?.address || '(보낸 사람 없음)';
+  const attTotal = m.atts.reduce((s, a) => s + (a.size || 0), 0);
   pane.innerHTML = `
-    <div class="mail-rhead">
+    <div class="mail-mhead">
+      <button class="iconbtn" type="button" id="mail-mback" aria-label="목록">${ico('left')}</button>
+      <span class="mail-mhead-r">
+        <button class="iconbtn" type="button" data-act="reply" aria-label="답장">${ico('reply')}</button>
+        <button class="iconbtn" type="button" data-act="${inTrash ? 'purge' : 'delete'}" aria-label="${inTrash ? '영구 삭제' : '삭제'}">${ico('trash')}</button>
+        <button class="iconbtn" type="button" id="mail-rmore" aria-label="더보기">${mi('more')}</button>
+      </span>
+    </div>
+    <div class="mail-rhead" id="mail-rhead">
       <div class="mail-tools">
         <button class="iconbtn mail-back" type="button" id="mail-back" aria-label="목록">${ico('left')}</button>
         <button class="btn sm" type="button" data-act="reply">${ico('reply', 'sm')}답장</button>
@@ -245,7 +308,16 @@ function mailDrawPane() {
           ${x.webLink ? `<a class="iconbtn" href="${esc(x.webLink)}" target="_blank" rel="noopener" title="Outlook에서 열기" aria-label="Outlook에서 열기">${ico('ext', 'sm')}</a>` : ''}
         </span>
       </div>
-      <h2 class="mail-rsubj">${esc(x.subject || '(제목 없음)')}</h2>
+      <div class="mail-rsubj-row">
+        <h2 class="mail-rsubj">${esc(x.subject || '(제목 없음)')}</h2>
+        <button class="iconbtn mail-flag ${flagged ? 'on' : ''}" type="button" id="mail-flag" aria-pressed="${flagged}" aria-label="중요 표시">${mi('star')}</button>
+      </div>
+      <div class="mail-mdate">${mailDateLine(x.receivedDateTime || x.sentDateTime)}</div>
+      <div class="mail-mfrom">
+        <span class="mail-mlbl">보낸 사람</span>
+        <span class="mail-chip">${esc(fromName)}</span>
+        <button class="iconbtn mail-more-tg" type="button" id="mail-more-tg" aria-expanded="false" aria-label="주소 자세히">${mi('down')}</button>
+      </div>
       <dl class="mail-meta">
         <dt>보낸 사람</dt><dd>${esc(mailAddr(x.from))}</dd>
         <dt>받는 사람</dt><dd>${esc(mailAddrList(x.toRecipients))}</dd>
@@ -253,12 +325,38 @@ function mailDrawPane() {
         ${x.bccRecipients?.length ? `<dt>숨은참조</dt><dd>${esc(mailAddrList(x.bccRecipients))}</dd>` : ''}
         <dt>날짜</dt><dd>${mailFullTime(x.receivedDateTime || x.sentDateTime)}</dd>
       </dl>
-      ${m.atts.length ? `<div class="mail-atts">${m.atts.map((a) => `<button type="button" class="mail-att" data-att="${esc(a.id)}">${ico('clip', 'sm')}<span>${esc(a.name)}</span><span class="muted">${mailSize(a.size)}</span></button>`).join('')}</div>` : ''}
+      ${m.atts.length ? `<div class="mail-atts">${m.atts.map((a) => `<button type="button" class="mail-att" data-att="${esc(a.id)}">${ico('clip', 'sm')}<span>${esc(a.name)}</span><span class="muted">${mailSize(a.size)}</span></button>`).join('')}</div>
+      <div class="mail-matts">
+        <div class="mail-matts-h"><span>첨부 ${m.atts.length}개 <span class="muted">(${mailSize(attTotal)})</span></span><button type="button" class="mail-linkbtn" id="mail-dlall">모두 저장</button></div>
+        ${m.atts.map((a) => `<button type="button" class="mail-matt" data-att="${esc(a.id)}"><span class="mail-fic" style="color:${mailExtColor(a.name)}">${mi('doc')}</span><span class="mail-matt-n">${esc(a.name)}</span><span class="muted">(${mailSize(a.size)})</span><span class="mail-matt-dl">${mi('dl')}</span></button>`).join('')}
+      </div>` : ''}
       ${hasRemote && !m.remote ? '<div class="mail-remote">외부 이미지 차단됨 <button class="btn sm ghost" type="button" id="mail-remote">이미지 보기</button></div>' : ''}
     </div>
     <iframe class="mail-frame" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" title="메일 본문"></iframe>`;
   pane.querySelector('.mail-frame').srcdoc = mailFrameDoc(html, m.remote);
-  $('#mail-back').addEventListener('click', () => { m.view = 'list'; mailDrawShell(); });
+  const back = () => { m.view = 'list'; mailDrawShell(); };
+  $('#mail-back').addEventListener('click', back);
+  $('#mail-mback').addEventListener('click', back);
+  $('#mail-more-tg').addEventListener('click', (e) => {
+    const open = $('#mail-rhead').classList.toggle('open');
+    e.currentTarget.setAttribute('aria-expanded', String(open));
+  });
+  $('#mail-flag').addEventListener('click', async (e) => {
+    const b = e.currentTarget, on = !b.classList.contains('on');
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
+    try { await G.patch(`/me/messages/${encodeURIComponent(x.id)}`, { flag: { flagStatus: on ? 'flagged' : 'notFlagged' } }); x.flag = { flagStatus: on ? 'flagged' : 'notFlagged' }; }
+    catch (err) { b.classList.toggle('on', !on); b.setAttribute('aria-pressed', String(!on)); toast(err.message); }
+  });
+  $('#mail-rmore').addEventListener('click', async () => {
+    const k = await mailSheet([
+      { k: 'replyAll', label: '전체 답장' }, { k: 'forward', label: '전달' }, { k: 'unread', label: '안 읽음으로 표시' },
+      ...(x.webLink ? [{ k: 'outlook', label: 'Outlook에서 열기' }] : []),
+    ]);
+    if (k === 'outlook') window.open(x.webLink, '_blank', 'noopener');
+    else if (k) mailAction(k, x);
+  });
+  const dlAll = $('#mail-dlall');
+  if (dlAll) dlAll.addEventListener('click', async () => { for (const a of m.atts) await mailDownload(x.id, a); });
   const rb = $('#mail-remote'); if (rb) rb.addEventListener('click', () => { m.remote = true; mailDrawPane(); });
   pane.querySelectorAll('[data-att]').forEach((b) => b.addEventListener('click', () => mailDownload(x.id, m.atts.find((a) => a.id === b.dataset.att))));
   pane.querySelectorAll('[data-act]').forEach((b) => b.addEventListener('click', () => mailAction(b.dataset.act, x)));
@@ -320,42 +418,92 @@ async function mailOpenCompose({ mode, id }) {
   if (m.compose === c) mailDrawCompose();
 }
 
+/* 주소 칸: 쓴 주소는 칩으로, 값은 숨은 입력(name=to/cc/bcc)에 "a, b" 문자열로 */
+const mailTokens = (s) => (s || '').split(/[,;\n]/).map((t) => t.trim()).filter(Boolean);
+const mailTokLabel = (t) => { const mm = t.match(/^(.*?)\s*<([^>]+)>$/); return mm && mm[1] ? mm[1].replace(/^"|"$/g, '') : t; };
+const mailTokOk = (t) => /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test((t.match(/<([^>]+)>$/) || [, t])[1].trim());
+function mailTokInit(box) {
+  const hidden = box.querySelector('input[type=hidden]'), inp = box.querySelector('.mail-tok-in'), chips = box.querySelector('.mail-chips');
+  const toks = () => mailTokens(hidden.value);
+  const set = (arr) => { hidden.value = arr.join(', '); hidden.dispatchEvent(new Event('input', { bubbles: true })); draw(); };
+  const draw = () => {
+    chips.innerHTML = toks().map((t, i) => `<span class="mail-chip ${mailTokOk(t) ? '' : 'bad'}" title="${esc(t)}">${esc(mailTokLabel(t))}<button type="button" data-x="${i}" aria-label="${esc(mailTokLabel(t))} 빼기">×</button></span>`).join('');
+    chips.querySelectorAll('[data-x]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); const a = toks(); a.splice(Number(b.dataset.x), 1); set(a); inp.focus(); }));
+  };
+  const commit = () => { const v = inp.value.trim(); if (!v) return; inp.value = ''; set([...toks(), ...mailTokens(v)]); };
+  inp.addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ',' || e.key === ';') && inp.value.trim()) { e.preventDefault(); commit(); }
+    else if (e.key === 'Backspace' && !inp.value && toks().length) { const a = toks(); a.pop(); set(a); }
+  });
+  inp.addEventListener('input', () => { if (/[,;]/.test(inp.value)) commit(); });
+  inp.addEventListener('blur', () => setTimeout(commit, 160));
+  box.mailAdd = (t) => { inp.value = ''; set([...toks(), t]); };
+  box.mailCommit = commit;
+  draw();
+}
+
 function mailDrawCompose() {
   const c = ui.mail.compose, pane = $('#mail-pane'); if (!pane || !c) return;
   const title = { new: '메일 쓰기', reply: '답장', replyAll: '전체 답장', forward: '전달', draft: '임시 저장한 메일' }[c.mode];
-  const field = (key, label) => `<label class="mail-field"><span>${label}</span><div class="mail-ac"><input class="input" name="${key}" value="${esc(c[key])}" autocomplete="off" ${key === 'to' ? 'required' : ''}><ul class="mail-sug" hidden></ul></div></label>`;
+  const tokField = (key, label, pre = '', post = '') => `<div class="mail-field mail-addrf ${key === 'cc' || key === 'bcc' ? 'mail-ccf' : ''}"><span class="mail-flbl">${label}${pre}</span>
+    <div class="mail-ac mail-tok"><input type="hidden" name="${key}" value="${esc(c[key])}"><span class="mail-chips"></span><input class="mail-tok-in" autocomplete="off" aria-label="${label}" enterkeyhint="next"><ul class="mail-sug" hidden></ul></div>${post}</div>`;
   const files = [...c.existing.map((a) => ({ k: `e:${a.id}`, name: a.name, size: a.size })), ...c.files.map((f, i) => ({ k: `f:${i}`, name: f.name, size: f.size }))];
+  const ccOpen = c.ccOpen || !!(c.cc.trim() || c.bcc.trim());
+  const me = typeof G !== 'undefined' && G.account ? G.account : null;
+  const myAddr = me?.username || '', myName = me?.name || '';
   pane.innerHTML = `
-    <form class="mail-compose" id="mail-cf" novalidate>
+    <form class="mail-compose ${ccOpen ? 'cc-open' : ''}" id="mail-cf" novalidate>
       <div class="mail-chead">
         <button class="iconbtn mail-back" type="button" data-c="cancel" aria-label="닫기">${ico('left')}</button>
         <h2>${title}</h2>
         <span class="mail-tools-r">
-          <button class="btn sm" type="button" data-c="save">임시 저장</button>
-          <button class="btn sm" type="button" data-c="cancel">취소</button>
-          <button class="btn sm primary" type="submit">${ico('send', 'sm')}보내기</button>
+          <button class="btn sm mail-dsave" type="button" data-c="save">임시 저장</button>
+          <button class="btn sm mail-dcancel" type="button" data-c="cancel">취소</button>
+          <button class="btn sm primary mail-send" type="submit">${ico('send', 'sm')}보내기</button>
+          <button class="iconbtn mail-send-m" type="submit" aria-label="보내기">${ico('send')}</button>
+          <button class="iconbtn mail-cmore" type="button" id="mail-cmore" aria-label="더보기">${mi('more')}</button>
         </span>
       </div>
-      ${field('to', '받는 사람')}${field('cc', '참조')}${field('bcc', '숨은참조')}
-      <label class="mail-field"><span>제목</span><input class="input" name="subject" value="${esc(c.subject)}"></label>
-      <div class="mail-field mail-files"><span>첨부</span><div>
-        <label class="btn sm">${ico('clip', 'sm')}파일 추가<input type="file" multiple hidden id="mail-file"></label>
+      ${myAddr ? `<div class="mail-field mail-fromf"><span class="mail-flbl">보낸 사람</span><span class="mail-chip mail-chip-ro">${esc(myName ? `${myName} <${myAddr}>` : myAddr)}</span></div>` : ''}
+      ${tokField('to', '받는 사람', `<button type="button" class="iconbtn mail-cc-tg" id="mail-cc-tg" aria-expanded="${ccOpen}" aria-label="참조·숨은참조">${mi('down')}</button>`, `<button type="button" class="iconbtn mail-addr-add" id="mail-addr-add" aria-label="주소 추가">${mi('plusc')}</button>`)}
+      ${tokField('cc', '참조')}${tokField('bcc', '숨은참조')}
+      <label class="mail-field mail-subjf"><span class="mail-flbl">제목</span><input class="input" name="subject" value="${esc(c.subject)}" placeholder="제목을 입력해주세요."></label>
+      <div class="mail-field mail-files ${files.length ? 'has-files' : ''}"><span class="mail-flbl">첨부</span><div>
+        <label class="btn sm mail-dfile">${ico('clip', 'sm')}파일 추가<input type="file" multiple hidden id="mail-file"></label>
         ${files.map((f) => `<span class="mail-file">${esc(f.name)}<span class="muted">${mailSize(f.size)}</span><button type="button" class="iconbtn" data-rm="${f.k}" aria-label="첨부 빼기">${ico('trash', 'sm')}</button></span>`).join('')}
       </div></div>
       <textarea class="mail-body" name="text" placeholder="내용">${esc(c.text)}</textarea>
       ${c.quote ? `<details class="mail-quote"><summary>원문 보기</summary><iframe class="mail-frame" sandbox referrerpolicy="no-referrer" title="원문"></iframe></details>` : ''}
+      <div class="mail-ctools">
+        <label class="iconbtn mail-ctool" aria-label="사진 첨부">${mi('camera')}<input type="file" accept="image/*" capture="environment" hidden id="mail-cam"></label>
+        <label class="iconbtn mail-ctool" aria-label="파일 첨부">${ico('clip')}<input type="file" multiple hidden id="mail-file2"></label>
+      </div>
     </form>`;
   const f = $('#mail-cf');
   if (c.quote) f.querySelector('.mail-quote .mail-frame').srcdoc = mailFrameDoc(c.quote, false);
   const sync = () => { for (const k of ['to', 'cc', 'bcc', 'subject', 'text']) c[k] = f.elements[k].value; };
   f.addEventListener('input', sync);
+  const toggleCc = (open) => { c.ccOpen = f.classList.toggle('cc-open', open); $('#mail-cc-tg').setAttribute('aria-expanded', String(c.ccOpen)); };
   f.querySelectorAll('[data-c=cancel]').forEach((b) => b.addEventListener('click', async () => { if (await mailLeaveCompose()) mailAfterCompose(); }));
-  f.querySelector('[data-c=save]').addEventListener('click', async () => { sync(); await mailSaveDraft(true); });
-  f.addEventListener('submit', async (e) => { e.preventDefault(); sync(); await mailSend(); });
-  $('#mail-file').addEventListener('change', (e) => mailAddFiles(e.target.files));
+  f.querySelectorAll('[data-c=save]').forEach((b) => b.addEventListener('click', async () => { sync(); await mailSaveDraft(true); }));
+  f.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    f.querySelectorAll('.mail-tok').forEach((b) => b.mailCommit && b.mailCommit());
+    sync(); await mailSend();
+  });
+  $('#mail-cc-tg').addEventListener('click', (e) => { e.preventDefault(); toggleCc(!f.classList.contains('cc-open')); if (c.ccOpen) f.querySelector('.mail-ccf .mail-tok-in').focus(); });
+  $('#mail-addr-add').addEventListener('click', (e) => { e.preventDefault(); f.querySelector('.mail-addrf .mail-tok-in').focus(); });
+  $('#mail-cmore').addEventListener('click', async () => {
+    const k = await mailSheet([{ k: 'save', label: '임시 저장' }, { k: 'cc', label: c.ccOpen ? '참조·숨은참조 숨기기' : '참조·숨은참조 추가' }, { k: 'cancel', label: '쓰기 취소' }]);
+    if (k === 'save') { sync(); await mailSaveDraft(true); }
+    else if (k === 'cc') toggleCc(!c.ccOpen);
+    else if (k === 'cancel' && await mailLeaveCompose()) mailAfterCompose();
+  });
+  for (const id of ['mail-file', 'mail-file2', 'mail-cam']) $(`#${id}`).addEventListener('change', (e) => mailAddFiles(e.target.files));
   f.querySelectorAll('[data-rm]').forEach((b) => b.addEventListener('click', () => mailRemoveFile(b.dataset.rm)));
   f.querySelectorAll('.mail-ac').forEach(mailAutocomplete);
-  (c.mode === 'reply' || c.mode === 'replyAll' ? f.elements.text : f.elements.to.value ? f.elements.subject : f.elements.to).focus();
+  f.querySelectorAll('.mail-tok').forEach(mailTokInit);
+  (c.mode === 'reply' || c.mode === 'replyAll' ? f.elements.text : c.to ? f.elements.subject : f.querySelector('.mail-addrf .mail-tok-in')).focus();
 }
 
 function mailAddFiles(list) {
@@ -380,11 +528,13 @@ async function mailRemoveFile(k) {
 
 /* 받는이 칸: 마지막 주소 조각으로 /me/people 검색 */
 function mailAutocomplete(box) {
-  const input = box.querySelector('input'), sug = box.querySelector('.mail-sug');
+  const input = box.querySelector('input:not([type=hidden])'), sug = box.querySelector('.mail-sug');
   let timer = null, items = [], idx = -1;
   const close = () => { sug.hidden = true; items = []; idx = -1; };
   const pick = (i) => {
     const p = items[i]; if (!p) return;
+    const label = p.name && p.name !== p.address ? `${p.name} <${p.address}>` : p.address;
+    if (box.mailAdd) { box.mailAdd(label); close(); input.focus(); return; }
     const parts = input.value.split(/[,;]/); parts.pop();
     input.value = [...parts.map((s) => s.trim()).filter(Boolean), p.name && p.name !== p.address ? `${p.name} <${p.address}>` : p.address].join(', ') + ', ';
     input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -411,7 +561,7 @@ function mailAutocomplete(box) {
     if (sug.hidden) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); idx = (idx + 1) % items.length; draw(); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); idx = (idx - 1 + items.length) % items.length; draw(); }
-    else if (e.key === 'Enter' && idx >= 0) { e.preventDefault(); pick(idx); }
+    else if (e.key === 'Enter' && idx >= 0) { e.preventDefault(); e.stopImmediatePropagation(); pick(idx); }
     else if (e.key === 'Escape') close();
   });
   input.addEventListener('blur', () => setTimeout(close, 120));

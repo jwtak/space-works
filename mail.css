@@ -89,6 +89,10 @@
 .mail-dialog dd { margin: 0; color: var(--ink); word-break: break-all; }
 .mail-dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
 
+/* 폰 전용 요소: 데스크톱에서는 숨김 */
+.mail-fab, .mail-ref-m, .mail-mhead, .mail-flag, .mail-mdate, .mail-mfrom, .mail-matts, .mail-ctools,
+.mail-cc-tg, .mail-addr-add, .mail-send-m, .mail-cmore, .mail-fromf { display: none; }
+
 /* 좁은 화면 */
 @media (max-width: 1360px) {
   .mail-shell { grid-template-columns: 180px 320px minmax(0, 1fr); }
@@ -102,21 +106,166 @@
   .mail-f { height: 36px; white-space: nowrap; }
   .mail-shell.composing .mail-pane { grid-column: 1 / -1; }
 }
+/* 주소 칸(칩 입력) — 데스크톱은 입력칸 모양 그대로 */
+.mail-tok { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 36px; padding: 3px 8px; border: 1px solid var(--line2); border-radius: var(--r); background: var(--card); cursor: text; }
+.mail-tok:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+.mail-chips { display: contents; }
+.mail-tok-in { flex: 1; min-width: 120px; height: 28px; padding: 0 4px; border: 0; outline: none; background: transparent; }
+.mail-chip { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; height: 26px; padding: 0 4px 0 10px; border-radius: 13px; background: #F3F4F6; color: var(--ink); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mail-chip button { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text3); font-size: 16px; line-height: 1; cursor: pointer; }
+.mail-chip button:hover { background: #E5E7EB; color: var(--ink); }
+.mail-chip.bad { background: var(--danger-soft); color: var(--danger); }
+.mail-chip-ro { padding-right: 12px; }
+
+/* ---------- 폰: 상단바와 하단 탭바 사이를 꽉 채우는 흰 바탕 메일 앱 화면 ---------- */
 @media (max-width: 760px) {
-  .mail-shell, .mail-shell.composing { display: flex; flex-direction: column; height: calc(100dvh - 180px); border-radius: 0; border-left: 0; border-right: 0; }
-  .mail-folders { flex: none; gap: 8px; padding: 10px 12px; }
-  .mail-f svg { display: none; }
-  .mail-f { padding: 0 10px; font-size: 13px; }
-  .mail-list, .mail-pane { flex: 1; min-height: 0; border-right: 0; }
+  .mail-shell, .mail-shell.composing {
+    position: fixed; z-index: 5; left: 0; right: 0;
+    top: calc(56px + env(safe-area-inset-top)); /* style.css 모바일 상단바 높이와 같게 */
+    bottom: calc(60px + env(safe-area-inset-bottom));
+    display: flex; flex-direction: column; height: auto; min-height: 0;
+    border: 0; border-radius: 0; background: #fff;
+  }
+  /* 읽기·쓰기는 전체 화면(하단 탭바 숨김) */
+  body.mail-reading .tabbar, body.mail-composing .tabbar { display: none; }
+  body.mail-reading .mail-shell, body.mail-composing .mail-shell { bottom: 0; top: env(safe-area-inset-top); }
+  body.mail-reading .topbar, body.mail-composing .topbar { display: none; } /* 하이웍스처럼 메일 자체 상단 바 하나만 */
+  .mail-chead .mail-back { display: inline-flex; width: 44px; height: 44px; } /* 쓰기 화면 왼쪽 ← (닫기) */
+
   .mail-shell[data-view="list"] .mail-pane { display: none; }
   .mail-shell[data-view="read"] .mail-list, .mail-shell[data-view="read"] .mail-folders,
   .mail-shell[data-view="compose"] .mail-list, .mail-shell[data-view="compose"] .mail-folders { display: none; }
-  .mail-back { display: inline-flex; }
-  .mail-rhead { padding: 8px 16px 0; }
-  .mail-tools .btn.sm { padding: 0 10px; }
-  .mail-rsubj { font-size: 18px; line-height: 26px; margin-top: 12px; }
-  .mail-compose { padding: 0 16px 16px; }
-  .mail-chead .mail-tools-r .btn:not(.primary):not([data-c="save"]) { display: none; }
-  .mail-field { grid-template-columns: 64px minmax(0, 1fr); gap: 8px; }
-  .mail-frame { padding: 0; }
+
+  /* 폴더: 가로 스크롤 칩 */
+  .mail-folders { flex: none; flex-direction: row; gap: 0; padding: 10px 0 0; border: 0; overflow: visible; }
+  .mail-write { display: none; }
+  .mail-fnav { flex-direction: row; gap: 8px; width: 100%; padding: 0 16px; overflow-x: auto; scrollbar-width: none; }
+  .mail-fnav::-webkit-scrollbar { display: none; }
+  .mail-f { flex: none; gap: 6px; height: 40px; padding: 0 16px; border: 1px solid var(--line); border-radius: 20px; background: #fff; font-size: 14px; white-space: nowrap; }
+  .mail-f:hover { background: #fff; }
+  .mail-f.on { border-color: transparent; background: var(--primary-soft); }
+  .mail-f svg { display: none; }
+  .mail-fc { margin-left: 0; font-size: 13px; }
+
+  /* 검색 + 새로고침 */
+  .mail-search { display: flex; align-items: center; gap: 4px; padding: 8px 6px 8px 16px; }
+  .mail-search .input { flex: 1; min-width: 0; height: 40px; padding-left: 38px; border-radius: 20px; font-size: 16px; }
+  .mail-search-ic { left: 30px; top: 50%; transform: translateY(-50%); }
+  .mail-ref-m { display: inline-flex; flex: none; width: 44px; height: 44px; }
+  .mail-list-head { display: none; }
+
+  /* 목록: 가장자리까지, 구분선은 좌우 16 들여쓰기 */
+  .mail-list { flex: 1; min-height: 0; border: 0; }
+  .mail-items { padding-bottom: 96px; }
+  .mail-item { padding: 13px 16px 13px 28px; border-bottom: 0; }
+  .mail-item::after { content: ''; position: absolute; left: 16px; right: 16px; bottom: 0; height: 1px; background: var(--row); }
+  .mail-item:hover, .mail-item.on { background: none; }
+  .mail-item:active { background: var(--hover); }
+  .mail-item.unread::before { left: 12px; top: 21px; width: 8px; height: 8px; }
+  .mail-who { font-size: 15px; line-height: 22px; font-weight: 500; color: var(--ink); }
+  .mail-tm { font-size: 13px; }
+  .mail-subj { margin-top: 2px; font-size: 15px; line-height: 22px; }
+  .mail-pv { margin-top: 2px; font-size: 13px; line-height: 20px; }
+  .mail-more { padding: 16px; }
+  .mail-more .btn { height: 44px; padding: 0 20px; font-size: 14px; }
+
+  /* 메일 쓰기: 오른쪽 아래 플로팅 버튼 */
+  .mail-fab {
+    position: fixed; z-index: 15; right: 16px; bottom: calc(60px + env(safe-area-inset-bottom) + 16px);
+    align-items: center; justify-content: center; width: 56px; height: 56px; border: 0; border-radius: 50%;
+    background: var(--primary); color: #fff; cursor: pointer; box-shadow: 0 2px 12px rgba(17, 24, 39, .12), 0 2px 4px rgba(37, 99, 235, .2);
+  }
+  .mail-fab:active { background: var(--primary-hover); }
+  .mail-fab svg.i { width: 24px; height: 24px; stroke-width: 2; }
+  .mail-shell[data-view="list"] .mail-fab { display: inline-flex; }
+
+  /* 공통: 폰 상단 아이콘 버튼 */
+  .mail-mhead .iconbtn, .mail-chead .iconbtn { width: 44px; height: 44px; color: var(--text2); }
+  .mail-mhead svg.i, .mail-chead svg.i { width: 22px; height: 22px; }
+
+  /* 읽기 */
+  .mail-pane { flex: 1; min-height: 0; border: 0; background: #fff; }
+  .mail-mhead { display: flex; flex: none; align-items: center; height: 52px; padding: 0 4px; }
+  .mail-mhead-r { margin-left: auto; display: flex; }
+  .mail-tools { display: none; }
+  .mail-rhead { padding: 0 18px 4px; }
+  .mail-rsubj-row { display: flex; align-items: flex-start; gap: 4px; }
+  .mail-rsubj { flex: 1; margin: 4px 0 6px; font-size: 20px; line-height: 28px; font-weight: 700; }
+  .mail-flag { display: inline-flex; flex: none; width: 44px; height: 44px; margin: -4px -12px 0 0; color: var(--text3); }
+  .mail-flag svg.i { width: 24px; height: 24px; }
+  .mail-flag.on { color: #F59E0B; }
+  .mail-flag.on svg.i { fill: currentColor; }
+  .mail-mdate { display: block; font-size: 14px; line-height: 20px; color: var(--text3); font-variant-numeric: tabular-nums; }
+  .mail-mdate span { margin: 0 8px; }
+  .mail-mfrom { display: flex; align-items: center; gap: 10px; margin: 14px 0 12px; min-width: 0; }
+  .mail-mlbl { flex: none; font-size: 14px; color: var(--text2); }
+  .mail-mfrom .mail-chip { height: 32px; padding: 0 14px; border-radius: 16px; font-size: 14px; min-width: 0; }
+  .mail-more-tg { margin-left: auto; margin-right: -12px; color: var(--text3); transition: transform .15s; }
+  .mail-rhead.open .mail-more-tg { transform: rotate(180deg); }
+  .mail-meta { display: none; grid-template-columns: 64px minmax(0, 1fr); margin: 0 0 12px; padding: 10px 12px; border-radius: var(--r); background: #F9FAFB; font-size: 13px; }
+  .mail-rhead.open .mail-meta { display: grid; }
+  .mail-atts { display: none; }
+  .mail-matts { display: block; margin: 0 -18px; padding: 6px 18px 4px; border-top: 1px solid var(--line); }
+  .mail-matts-h { display: flex; align-items: center; justify-content: space-between; font-size: 15px; font-weight: 600; }
+  .mail-matts-h .muted { font-weight: 400; }
+  .mail-linkbtn { height: 44px; margin-right: -8px; padding: 0 8px; border: 0; background: none; color: var(--primary); font-size: 15px; font-weight: 500; cursor: pointer; }
+  .mail-matt { display: flex; align-items: center; gap: 10px; width: 100%; height: 48px; padding: 0; border: 0; background: none; color: var(--ink); font-size: 15px; text-align: left; cursor: pointer; }
+  .mail-matt:active { background: var(--hover); }
+  .mail-fic { display: inline-flex; flex: none; }
+  .mail-fic svg.i { width: 22px; height: 22px; }
+  .mail-matt-n { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mail-matt .muted { flex: none; font-size: 14px; }
+  .mail-matt-dl { margin-left: auto; display: inline-flex; color: var(--text3); }
+  .mail-remote .btn { height: 36px; }
+  .mail-rhead { border-bottom: 1px solid var(--line); }
+  .mail-frame { min-height: 0; }
+
+  /* 쓰기: 하이웍스형 줄 구성 */
+  .mail-compose { padding: 0; background: #fff; }
+  .mail-chead { gap: 0; min-height: 52px; margin: 0; padding: 0 4px; border-bottom: 0; background: #fff; }
+  .mail-chead h2, .mail-dsave, .mail-dcancel, .mail-send { display: none; }
+  .mail-chead .mail-tools-r { gap: 0; margin-right: 0; }
+  .mail-send-m, .mail-cmore { display: inline-flex; }
+  .mail-send-m { color: var(--primary) !important; }
+  .mail-field { grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; min-height: 64px; padding: 0 18px; border-bottom: 1px solid var(--line); }
+  .mail-flbl { display: inline-flex; align-items: center; font-size: 15px; font-weight: 400; color: var(--text2); white-space: nowrap; }
+  .mail-fromf { display: grid; grid-template-columns: auto minmax(0, 1fr); }
+  .mail-fromf .mail-chip { justify-self: start; height: 32px; padding: 0 14px; border-radius: 16px; font-size: 14px; color: var(--text2); }
+  .mail-cc-tg { display: inline-flex; width: 32px !important; margin-left: -2px; transition: transform .15s; }
+  .mail-compose.cc-open .mail-cc-tg { transform: rotate(180deg); }
+  .mail-addr-add { display: inline-flex; margin-right: -10px; color: var(--text3) !important; }
+  .mail-tok { min-height: 63px; padding: 8px 0; gap: 6px; border: 0; border-radius: 0; background: transparent; box-shadow: none !important; }
+  .mail-tok-in { min-width: 80px; height: 40px; padding: 0; font-size: 16px; }
+  .mail-tok .mail-chip { height: 32px; padding: 0 4px 0 14px; border-radius: 16px; font-size: 14px; }
+  .mail-tok .mail-chip button { width: 28px; height: 28px; }
+  .mail-ccf { display: none; }
+  .mail-compose.cc-open .mail-ccf { display: grid; }
+  .mail-subjf { grid-template-columns: minmax(0, 1fr); }
+  .mail-subjf .mail-flbl { display: none; }
+  .mail-subjf .input { height: 63px; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 17px; font-weight: 600; box-shadow: none !important; }
+  .mail-subjf .input::placeholder { color: #9CA3AF; font-weight: 600; }
+  .mail-files { display: none; }
+  .mail-files.has-files { display: grid; grid-template-columns: minmax(0, 1fr); padding: 10px 18px; }
+  .mail-files .mail-flbl, .mail-dfile { display: none; }
+  .mail-file { height: 36px; font-size: 14px; }
+  .mail-file .iconbtn { width: 36px; height: 36px; }
+  .mail-body { flex: 1 0 auto; min-height: 40vh; margin: 0; padding: 16px 18px; border: 0; border-radius: 0; resize: none; font-size: 16px; line-height: 26px; }
+  .mail-body:focus { box-shadow: none; }
+  .mail-body::placeholder { color: transparent; }
+  .mail-quote { margin: 0 18px 16px; }
+  .mail-ctools { display: flex; position: sticky; bottom: 0; z-index: 2; gap: 4px; margin-top: auto; padding: 4px 8px calc(4px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: #fff; }
+  .mail-ctool { width: 44px; height: 44px; color: var(--text2); cursor: pointer; }
+  .mail-ctool svg.i { width: 24px; height: 24px; }
+
+  /* 확인창·동작 목록: 바텀시트 */
+  .mail-modal { align-items: end; justify-items: stretch; padding: 0; }
+  .mail-dialog { width: 100%; padding: 12px 20px calc(16px + env(safe-area-inset-bottom)); border-radius: 24px 24px 0 0; box-shadow: 0 -10px 20px rgba(17, 24, 39, .06); }
+  .mail-dialog::before { content: ''; display: block; width: 40px; height: 4px; margin: 0 auto 16px; border-radius: 2px; background: #DBDBDB; }
+  .mail-dialog dl { font-size: 14px; }
+  .mail-dialog-actions .btn { flex: 1; height: 48px; font-size: 16px; }
 }
+/* 동작 목록(⋮) — 폰에서만 열린다 */
+.mail-sheet { display: flex; flex-direction: column; padding-left: 8px !important; padding-right: 8px !important; }
+.mail-sheet button { height: 52px; padding: 0 16px; border: 0; border-radius: var(--r); background: none; color: var(--ink); font-size: 16px; text-align: left; cursor: pointer; }
+.mail-sheet button:active { background: var(--hover); }
+.mail-sheet .mail-sheet-x { margin-top: 4px; color: var(--text3); text-align: center; }
