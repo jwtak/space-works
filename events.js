@@ -224,8 +224,14 @@ function evFilterHTML() {
     return `<option value="${val}"${String(f[key]) === String(val) ? ' selected' : ''}>${l}</option>`;
   }).join('')}</select>`;
   return `<div class="ev-search"><span class="ev-sic">${ico('search', 'sm')}</span><input class="input" id="ev-q" type="search" placeholder="행사·장소·회사 검색" value="${esc(evState.q)}" autocomplete="off" aria-label="검색"></div>
-    <div class="ev-sels">${v === 'list' ? sel('period', EV_PERIODS, '기간') : ''}${sel('type', EV_TYPES, '유형', '모든 유형')}${sel('ind', EV_INDS, '산업', '모든 산업')}${sel('region', EV_REGIONS, '지역', '모든 지역')}${sel('min', EV_MINS, '점수')}${sel('show', EV_SHOWS, '표시')}${v === 'list' ? sel('sort', [['date', '날짜순'], ['score', '점수순']], '정렬').replace('class="select"', 'class="select ev-msort"') : ''}</div>
+    <div class="ev-sels${evState.mOpen ? ' open' : ''}">${evMfHTML()}${v === 'list' ? sel('period', EV_PERIODS, '기간') : ''}${sel('type', EV_TYPES, '유형', '모든 유형')}${sel('ind', EV_INDS, '산업', '모든 산업')}${sel('region', EV_REGIONS, '지역', '모든 지역')}${sel('min', EV_MINS, '점수')}${sel('show', EV_SHOWS, '표시')}${v === 'list' ? sel('sort', [['date', '날짜순'], ['score', '점수순']], '정렬').replace('class="select"', 'class="select ev-msort"') : ''}</div>
     <span class="ev-r" id="ev-cnt"></span>`;
+}
+
+/* 휴대폰: 기간·정렬 옆 '필터' 하나로 나머지 선택 상자를 접는다 */
+function evMfHTML() {
+  const f = evState.f, d = evDefaults(), n = ['type', 'ind', 'region', 'min', 'show'].filter((k) => f[k] !== d[k]).length;
+  return `<button type="button" class="btn ev-mf${evState.mOpen ? ' on' : ''}" data-mf aria-expanded="${!!evState.mOpen}">필터${n ? ` <b>${n}</b>` : ''}</button>`;
 }
 
 /* ---------- 보기 ---------- */
@@ -348,6 +354,7 @@ function evBind(root) {
       return evRefreshRow(id);
     }
     if ((el = hit('[data-evview]'))) { f.view = el.dataset.evview; evSaveFilter(); return evDraw(); }
+    if (hit('[data-mf]')) { evState.mOpen = !evState.mOpen; return ($('#ev-filter').innerHTML = evFilterHTML()); }
     if ((el = hit('[data-sort]'))) { f.sort = el.dataset.sort; evSaveFilter(); return evDrawMain(); }
     if (hit('[data-reset]')) {
       evState.f = { ...evDefaults(), view: f.view, period: f.period, sort: f.sort }; evState.q = '';
@@ -369,6 +376,7 @@ function evBind(root) {
     const t = ev.target, k = t.dataset.f; if (!k) return;
     evState.f[k] = k === 'min' ? Number(t.value) : t.value;
     evSaveFilter(); evDrawMain();
+    const mf = $('.ev-mf'); if (mf) mf.outerHTML = evMfHTML();
   });
   root.addEventListener('input', (ev) => {
     if (ev.target.id !== 'ev-q') return;
