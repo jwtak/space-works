@@ -136,6 +136,7 @@ function accountMenu() {
     <ul class="menu">
       <li><a href="#deals" data-close>${ico('ticket')}딜소싱</a></li>
       <li><a href="#programs" data-close>${ico('box')}프로그램</a></li>
+      <li><button type="button" id="m-guide">${ico('flag')}사용 안내</button></li>
       <li><button type="button" id="m-req">${ico('spark')}요청사항<span class="cnt" data-cnt="req" style="margin-left:auto"></span></button></li>
       <li><button type="button" id="m-refresh">${ico('refresh')}새로고침</button></li>
       <li><button type="button" id="m-logout">${ico('ext')}로그아웃</button></li>
@@ -144,6 +145,7 @@ function accountMenu() {
     el.querySelector('#m-refresh').onclick = async () => { close(); CALC = {}; await load(); render(); toast('최신 내용으로 바꿨습니다'); };
     el.querySelector('#m-logout').onclick = () => G.logout();
     el.querySelector('#m-req').onclick = () => { close(); if (typeof rqOpen === 'function') rqOpen(); };
+    el.querySelector('#m-guide').onclick = () => { close(); setTimeout(() => gdOpen(true), 150); };
     if (typeof rqCount === 'function') rqCount();
   });
 }
@@ -1179,6 +1181,7 @@ async function start() {
     PAGE.innerHTML = '<div class="empty">불러오는 중…</div>';
     await load();
     render();
+    setTimeout(() => { if (typeof gdOpen === 'function') gdOpen(); }, 900); // 처음 들어온 사람에게 한 번 사용 안내
   } catch (e) {
     PAGE.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   }
