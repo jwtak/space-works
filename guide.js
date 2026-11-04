@@ -4,7 +4,7 @@ const GD_KEY = () => `guide1:${(G.account?.username || '').toLowerCase()}`;
 const GD_STEPS = [
   { t: '대시보드', d: '이번 달 일정과 할 일을 한 화면에서 봅니다. 날짜 칸을 누르면 바로 일정을 추가할 수 있습니다.', pc: '.nav [data-r="home"]', m: '.mh-it[href="#calendar"]' },
   { t: '메일', d: '회사 메일을 그대로 읽고 씁니다. 옆 숫자는 안 읽은 메일 수입니다.', pc: '.nav [data-r="mail"]', m: '.mh-it[href="#mail"]' },
-  { t: '딜소싱', d: '행사·IR 일정, 신규상장 기업 정보, 딜 뉴스를 매일 아침 자동으로 모읍니다. 뉴스는 우주·항공·방산을 따로 모아 볼 수 있고, 관심 표시·연락 상태·메모는 세 분이 함께 봅니다.', pc: '.nav [data-r="deals"]', m: '.mh-it[href="#deals"], .mh-it[href="#deals/ipo"], .mh-it[href="#deals/news"]' },
+  { t: '딜소싱', d: '행사·IR 일정, 신규상장 기업 정보, 딜 뉴스를 매일 아침 자동으로 모읍니다. 뉴스는 맨 위에 주요 기사를 골라 두고 우주·항공·방산을 따로 모아 볼 수 있으며, 관심 표시·연락 상태·메모는 세 분이 함께 봅니다.', pc: '.nav [data-r="deals"]', m: '.mh-it[href="#deals"], .mh-it[href="#deals/ipo"], .mh-it[href="#deals/news"]' },
   { t: '주간회의 · 공용 폴더', d: '팀 파일함입니다. 파일을 끌어다 놓으면 올라가고, PPT·엑셀은 누르면 바로 열립니다. ‘링크 복사’로 폴더 주소를 보내면 받는 분은 그 폴더가 바로 열립니다.', pc: '.nav [data-r="weekly"], .nav [data-r="files"]', m: '.mh-it[href="#weekly"], .mh-it[href="#files"]' },
   { t: '홈페이지', d: '만들고 있는 회사 홈페이지를 미리 봅니다. 공개 전이라 웍스 안에서만 보입니다.', pc: '.nav [data-r="homepage"]' },
   { t: '요청사항', d: '불편한 점이나 있었으면 하는 기능을 화면마다 남겨 주세요. 반영하면 그 아래에 답을 달아 드립니다.', pc: '#req:not([hidden])', m: '#me', mt: '요청사항 (이름 메뉴 안)' },

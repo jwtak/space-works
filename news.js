@@ -1,13 +1,14 @@
 /* 딜 뉴스: 매일 아침 수집기(00. 대시보드\news)가 OneDrive data/news.json에 올린다.
    cat 'deal' = 사모펀드·M&A·Pre-IPO·출자 등, 'space' = 우주·항공·방산(모회사 분야, 따로 모아 본다).
-   화면은 딜소싱 > 뉴스 탭(renderNews), 대시보드 요약 카드(newsHomeBlock). */
+   화면은 딜소싱 > 뉴스 탭(renderNews: 맨 위 주요 기사 + 날짜별 최신순), 대시보드 요약 카드(newsHomeBlock).
+   주요 기사 = 수집 때 매긴 딜 관점 점수가 높은 최근 이틀 기사(점수 자체는 화면에 안 보임). */
 const NW_TTL = 300000;
 const NW_CATS = [['all', '전체'], ['deal', '딜'], ['space', '우주·항공·방산']];
 const NW_PERIODS = [['1', '오늘'], ['3', '최근 3일'], ['7', '최근 7일'], ['14', '최근 2주']];
-const NW_SORTS = [['score', '중요도순'], ['time', '최신순']];
-const nwS = { data: null, at: 0, loading: null, cat: 'all', q: '', period: '3', sort: 'score' };
+const NW_PICK = 5, NW_PICK_MIN = 60;
+const nwS = { data: null, at: 0, loading: null, cat: 'all', q: '', period: '3' };
 try { Object.assign(nwS, JSON.parse(localStorage.getItem('nwFilter') || '{}')); } catch { /* 기본값 */ }
-const nwSave = () => { try { localStorage.setItem('nwFilter', JSON.stringify({ cat: nwS.cat, period: nwS.period, sort: nwS.sort })); } catch { /* 기억 못 해도 됨 */ } };
+const nwSave = () => { try { localStorage.setItem('nwFilter', JSON.stringify({ cat: nwS.cat, period: nwS.period })); } catch { /* 기억 못 해도 됨 */ } };
 
 function nwLoad(force) {
   if (!force && nwS.at && Date.now() - nwS.at < NW_TTL) return Promise.resolve();
@@ -30,8 +31,16 @@ function nwList() {
     && (!q || [x.title, x.source, x.why, ...(x.tags || []), ...(x.companies || [])].join(' ').toLowerCase().includes(q)));
 }
 
-function nwRow(x) {
-  const meta = [x.source, nwTime(x.published), (x.also || []).length ? `외 ${x.also.length}곳` : ''].filter(Boolean);
+// 검색 중이 아닐 때만 맨 위에 고른다(목록에서는 빠짐)
+function nwPicks(list) {
+  if (nwS.q.trim()) return [];
+  const from = ymd(addDays(new Date(), -1));
+  return list.filter((x) => nwDay(x.published) >= from && (x.score || 0) >= NW_PICK_MIN)
+    .sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, NW_PICK);
+}
+
+function nwRow(x, pick) {
+  const meta = [x.source, `${pick && nwDay(x.published) !== today() ? '어제 ' : ''}${nwTime(x.published)}`, (x.also || []).length ? `외 ${x.also.length}곳` : ''].filter(Boolean);
   const tags = [...(nwS.cat === 'all' && x.cat === 'space' ? ['우주·항공·방산'] : []), ...(x.tags || [])].slice(0, 4);
   return `<li class="nw-row">
     <div class="nw-main"><a class="nw-ttl" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title)}</a>
@@ -51,12 +60,13 @@ function nwDraw() {
     b.classList.toggle('on', nwS.cat === k); b.querySelector('.n').textContent = n;
   });
   if (!list.length) { body.innerHTML = `<div class="empty">${nwS.q ? '검색 결과가 없습니다.' : '이 기간에 모은 기사가 없습니다.'}</div>`; return; }
-  const by = (a, b) => (nwS.sort === 'score' ? (b.score || 0) - (a.score || 0) : 0) || String(b.published).localeCompare(String(a.published));
-  const days = [...new Set(list.map((x) => nwDay(x.published)))].sort().reverse();
-  body.innerHTML = days.map((k) => {
-    const its = list.filter((x) => nwDay(x.published) === k).sort(by), dd = parse(k);
+  const picks = nwPicks(list), picked = new Set(picks), rest = list.filter((x) => !picked.has(x));
+  const by = (a, b) => String(b.published).localeCompare(String(a.published));
+  const days = [...new Set(rest.map((x) => nwDay(x.published)))].sort().reverse();
+  body.innerHTML = (picks.length ? `<div class="nw-grp nw-pick-h"><b>주요 기사</b></div><ul class="nw-list nw-pick">${picks.map((x) => nwRow(x, true)).join('')}</ul>` : '') + days.map((k) => {
+    const its = rest.filter((x) => nwDay(x.published) === k).sort(by), dd = parse(k);
     const lbl = k === td ? '오늘' : k === ymd(addDays(new Date(), -1)) ? '어제' : '';
-    return `<div class="nw-grp"><b>${dd.getMonth() + 1}월 ${dd.getDate()}일 (${WD[dd.getDay()]})</b>${lbl ? `<span>${lbl}</span>` : ''}<span class="n">${its.length}건</span></div><ul class="nw-list">${its.map(nwRow).join('')}</ul>`;
+    return `<div class="nw-grp"><b>${dd.getMonth() + 1}월 ${dd.getDate()}일 (${WD[dd.getDay()]})</b>${lbl ? `<span>${lbl}</span>` : ''}<span class="n">${its.length}건</span></div><ul class="nw-list">${its.map((x) => nwRow(x)).join('')}</ul>`;
   }).join('');
 }
 
@@ -66,7 +76,6 @@ async function renderNews(host) {
         <div class="nw-seg">${NW_CATS.map(([k, l]) => `<button type="button" data-nw-cat="${k}" class="${nwS.cat === k ? 'on' : ''}">${l}<span class="n"></span></button>`).join('')}</div>
         <div class="nw-search"><span class="nw-sic">${ico('search', 'sm')}</span><input class="input" id="nw-q" type="search" placeholder="기사·매체·회사 검색" value="${esc(nwS.q)}"></div>
         <select class="select" id="nw-period" aria-label="기간">${NW_PERIODS.map(([k, l]) => `<option value="${k}"${nwS.period === k ? ' selected' : ''}>${l}</option>`).join('')}</select>
-        <select class="select" id="nw-sort" aria-label="정렬">${NW_SORTS.map(([k, l]) => `<option value="${k}"${nwS.sort === k ? ' selected' : ''}>${l}</option>`).join('')}</select>
         <span class="nw-sum" id="nw-sum"></span>
         <button class="iconbtn" type="button" id="nw-ref" aria-label="새로고침">${ico('refresh', 'sm')}</button>
       </div>
@@ -74,7 +83,6 @@ async function renderNews(host) {
   host.querySelectorAll('[data-nw-cat]').forEach((b) => b.addEventListener('click', () => { nwS.cat = b.dataset.nwCat; nwSave(); nwDraw(); }));
   $('#nw-q').addEventListener('input', (e) => { nwS.q = e.target.value; nwDraw(); });
   $('#nw-period').addEventListener('change', (e) => { nwS.period = e.target.value; nwSave(); nwDraw(); });
-  $('#nw-sort').addEventListener('change', (e) => { nwS.sort = e.target.value; nwSave(); nwDraw(); });
   $('#nw-ref').addEventListener('click', async () => { $('#nw-body').innerHTML = '<div class="empty">불러오는 중…</div>'; try { await nwLoad(true); } catch (e) { toast(e.message); } nwDraw(); });
   await nwLoad();
   nwDraw();
