@@ -151,8 +151,9 @@ function accountMenu() {
 }
 
 function foot() {
-  $('#side-foot').innerHTML = `<div class="who"><span class="dot ok"></span>${esc(S.auth.upn)}</div><button class="btn ghost sm" id="logout" style="padding:0;height:24px">로그아웃</button>`;
+  $('#side-foot').innerHTML = `<button type="button" class="side-guide" id="side-guide">${ico('help')}사용 안내</button><div class="who"><span class="dot ok"></span>${esc(S.auth.upn)}</div><button class="btn ghost sm" id="logout" style="padding:0;height:24px">로그아웃</button>`;
   $('#logout').onclick = () => G.logout();
+  $('#side-guide').onclick = () => { if (typeof gdOpen === 'function') gdOpen(true); };
 }
 
 // ---------- 라우팅 ----------
