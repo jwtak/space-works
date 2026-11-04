@@ -667,3 +667,4 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 .mh-due.blue { color: var(--primary); }
 .mh-empty { color: var(--text3); font-size: 14px; }
 .mh-more { display: block; padding-top: 12px; font-size: 14px; font-weight: 500; color: var(--primary); text-decoration: none; }
+.card[hidden] { display: none !important; }

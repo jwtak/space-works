@@ -54,8 +54,23 @@ async function load() {
     STORE.readJSON('todos'), STORE.readJSON('programs'), STORE.readJSON('milestones'),
     STORE.readText('data/briefing.md'), STORE.listNotes(S?.notes || []),
   ]);
-  S = { todos, programs, milestones, briefing: { text: brief.text, mtime: brief.mtime }, notes, auth: { connected: true, upn: G.account.username } };
+  const me = S?.me || await G.get('/me?$select=displayName,jobTitle,department').catch(() => ({}));
+  S = { todos, programs, milestones, briefing: { text: brief.text, mtime: brief.mtime }, notes, me, auth: { connected: true, upn: G.account.username } };
+  meChrome();
   counts(); foot();
+}
+
+/* 로그인한 사람 이름·직급 (대표님도 각자 계정으로 쓴다) */
+const myName = () => (S?.me?.displayName || G.account?.name || '').replace(/\s*\(.*\)$/, '');
+// 회사 계정에 부서·직급이 비어 있으면 이 표로 채운다
+const TITLES = { 'jw.tak@spaceinve.com': ['투자운용본부', '대리'], 'sunyeul.yu@spaceinve.com': ['', '대표'], 'chungjun.bae@spaceinve.com': ['', '대표'] };
+const myTitle = () => S?.me?.jobTitle || (TITLES[(G.account?.username || '').toLowerCase()] || [])[1] || '';
+const myRole = () => [S?.me?.department || (TITLES[(G.account?.username || '').toLowerCase()] || [])[0], myTitle()].filter(Boolean).join(' · ');
+function meChrome() {
+  const b = $('#me'); if (!b) return;
+  const n = myName();
+  b.innerHTML = `<span class="avatar">${esc(n.slice(0, 1))}</span>${esc(n)}${myTitle() ? ' ' + esc(myTitle()) : ''}`;
+  if (!G.isOwner) CALS[0].sub = '팀 공유';
 }
 
 async function save(coll) {
@@ -165,7 +180,7 @@ function renderHome() {
       <div class="col">
         <section class="sec-hello m-only">
           <div class="dt">${d.getMonth() + 1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일</div>
-          <div class="sub">${greet(d.getHours())} · Day-${workDay(td)}</div>
+          <div class="sub">${greet(d.getHours())}${G.isOwner ? ` · Day-${workDay(td)}` : ''}</div>
           <div class="chips">
             ${ms.map((m) => `<span class="dchip">${esc(m.title.replace(/\s*\(.*\)$/, ''))} <b>D-${diffDays(m.date, td)}</b></span>`).join('')}
             <a class="dchip blue" href="#todos" data-tab-link="today">오늘 마감 <b>${dueToday.length}</b></a>
@@ -183,7 +198,7 @@ function renderHome() {
         </section>
         <div id="home-ev"></div>
         <div id="home-ipo"></div>
-        <section class="card sec-brief">
+        <section class="card sec-brief" ${!b.text && !G.isOwner ? 'hidden' : ''}>
           <div class="card-head"><h2>AI 브리핑</h2><span class="meta">${bt ? `Claude · ${bt.getMonth() + 1}/${bt.getDate()} ${pad(bt.getHours())}:${pad(bt.getMinutes())} 갱신` : ''}</span></div>
           <div class="card-body brief">${b.text ? mdRender(b.text) : '<div class="empty">브리핑 없음</div>'}</div>
         </section>
@@ -197,10 +212,10 @@ function renderHome() {
       </div>
       <div class="col">
         <section class="card sec-profile">
-          <div class="profile"><span class="ph">${ico('user', 'lg')}</span><div><div class="nm">탁지원 님, ${greet(d.getHours())}</div><div class="dp">투자운용본부 · 대리</div></div></div>
+          <div class="profile"><span class="ph">${ico('user', 'lg')}</span><div><div class="nm">${esc(myName())} 님, ${greet(d.getHours())}</div><div class="dp">${esc(myRole())}</div></div></div>
           <div class="timebox">
             <div class="cell"><div class="k">${d.getMonth() + 1}월 ${d.getDate()}일 (${WD[d.getDay()]})</div><div class="v blue" id="live-time">${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}</div></div>
-            <div class="cell"><div class="k">입사 후</div><div class="v">Day-${workDay(td)}</div></div>
+            ${G.isOwner ? `<div class="cell"><div class="k">입사 후</div><div class="v">Day-${workDay(td)}</div></div>` : ''}
           </div>
         </section>
         <section class="card sec-today">
@@ -254,7 +269,7 @@ function renderHomeMobile() {
     ['#deals/ipo', 'chart', '신규상장', ''],
     ['#programs', 'box', '프로그램', prog ? `<i class="mh-n grey">${prog}</i>` : ''],
     ['', 'spark', 'AI 브리핑', ''],
-  ];
+  ].filter(([h]) => h || S.briefing.text || G.isOwner);
   PAGE.innerHTML = `<div class="mhome">
     <section class="mh-hello">
       <div class="dt">${d.getMonth() + 1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일</div>
@@ -270,7 +285,7 @@ function renderHomeMobile() {
     </section>
   </div>`;
   PAGE.querySelectorAll('[data-toggle]').forEach((el) => el.addEventListener('change', () => toggleTodo(el.dataset.toggle)));
-  PAGE.querySelector('[data-brief]').addEventListener('click', (e) => {
+  PAGE.querySelector('[data-brief]')?.addEventListener('click', (e) => {
     e.preventDefault();
     const b = S.briefing, bt = b.mtime ? new Date(b.mtime * 1000) : null;
     openSheet(`<h3>AI 브리핑</h3>${bt ? `<div class="meta" style="margin:-6px 0 12px">${bt.getMonth() + 1}/${bt.getDate()} ${pad(bt.getHours())}:${pad(bt.getMinutes())} 갱신</div>` : ''}<div class="brief">${b.text ? mdRender(b.text) : '<div class="empty">브리핑 없음</div>'}</div>`);
@@ -512,7 +527,7 @@ function calForm(kind, id, events) {
       ${f('시작', `<div class="pair"><input class="input" type="date" name="startDate" value="${sd}" required><input class="input t" type="time" step="600" name="startTime" value="${st}"></div>`, 'half')}
       ${f('종료', `<div class="pair"><input class="input" type="date" name="endDate" value="${ed}" required><input class="input t" type="time" step="600" name="endTime" value="${et}"></div>`, 'half')}
       ${f('장소', `<input class="input" name="location" value="${esc(e?.location || '')}">`, 'half')}
-      ${e ? '' : f('캘린더', `<div class="cal-pick">${CALS.slice(0, 2).map((c, i) => `<label class="c-${c.key}"><input type="radio" name="calendar" value="${c.key}" ${i === 0 ? 'checked' : ''}><i class="cdot"></i>${c.name}<span class="muted">${c.sub}</span></label>`).join('')}</div>`, 'wide')}
+      ${e ? '' : f('캘린더', `<div class="cal-pick">${CALS.slice(0, 2).filter((c) => c.key !== 'team' || OUTLOOK.teamWritable).map((c, i) => `<label class="c-${c.key}"><input type="radio" name="calendar" value="${c.key}" ${i === 0 ? 'checked' : ''}><i class="cdot"></i>${c.name}<span class="muted">${c.sub}</span></label>`).join('')}</div>`, 'wide')}
       <label class="allday"><input type="checkbox" class="check" name="allDay" ${e?.allDay ? 'checked' : ''}>종일</label>
       ${actions}</form>`;
   }
@@ -556,7 +571,7 @@ async function openEventModal(id, events, onDone, date) {
     <form class="ev-form" id="evf" autocomplete="off">
       <div class="r"><label>캘린더</label><div>${e
         ? `<span class="cal-tag c-${e.cal}"><i class="cdot"></i>${e.cal === 'team' ? '스페이스인베스트먼트' : '내 일정'}</span>`
-        : `<div class="cal-pick">${CALS.slice(0, 2).map((c, i) => `<label class="c-${c.key}"><input type="radio" name="calendar" value="${c.key}" ${i === 0 ? 'checked' : ''}><i class="cdot"></i>${c.name}<span class="muted">${c.sub}</span></label>`).join('')}</div>`}</div></div>
+        : `<div class="cal-pick">${CALS.slice(0, 2).filter((c) => c.key !== 'team' || OUTLOOK.teamWritable).map((c, i) => `<label class="c-${c.key}"><input type="radio" name="calendar" value="${c.key}" ${i === 0 ? 'checked' : ''}><i class="cdot"></i>${c.name}<span class="muted">${c.sub}</span></label>`).join('')}</div>`}</div></div>
       <div class="r"><label for="ev-subj">제목</label><div class="line"><input class="input grow" id="ev-subj" name="subject" value="${esc(e?.subject || '')}" placeholder="제목을 입력하세요."><label class="ck"><input type="checkbox" class="check" name="important" ${det.importance === 'high' ? 'checked' : ''}>중요</label></div></div>
       <div class="r"><label>일시</label><div>
         <div class="line wrap"><span class="dt"><input class="input" type="date" name="startDate" value="${sd}"><input class="input t" type="time" step="600" name="startTime" value="${st}"></span><span class="tilde">~</span><span class="dt"><input class="input" type="date" name="endDate" value="${ed}"><input class="input t" type="time" step="600" name="endTime" value="${et}"></span><label class="ck"><input type="checkbox" class="check" name="allDay" ${e?.allDay ? 'checked' : ''}>종일</label></div>
@@ -961,7 +976,7 @@ async function newNote(kind) {
   const d = new Date(), y = String(d.getFullYear()).slice(2), m = pad(d.getMonth() + 1), dd = pad(d.getDate()), w = WD[d.getDay()];
   const full = `${d.getFullYear()}.${m}.${dd}(${w})`;
   let name, text;
-  if (kind === 'daily') { name = `업무 일지_${y}.${m}.${dd}.txt`; text = `업무 일지\n${full} Day-${workDay(today())}\n\n1. `; }
+  if (kind === 'daily') { name = `업무 일지_${y}.${m}.${dd}.txt`; text = `업무 일지\n${full}${G.isOwner ? ` Day-${workDay(today())}` : ''}\n\n1. `; }
   else if (kind === 'meeting') { name = `회의록_${y}.${m}.${dd}(${w}).txt`; text = `회의록\n${full}\n참석: \n안건: \n\n1. `; }
   else { name = `메모_${y}.${m}.${dd}_${pad(d.getHours())}${pad(d.getMinutes())}.txt`; text = ''; }
   if (S.notes.some((n) => n.name === name)) {
@@ -997,7 +1012,7 @@ function loginScreen(msg) {
   document.body.classList.add('signed-out');
   $('#login').innerHTML = `<div class="login-box">
     <div class="brand-mark">SPACE WORKS</div>
-    <p class="muted">${msg ? esc(msg) : 'jw.tak@spaceinve.com'}</p>
+    <p class="muted">${msg ? esc(msg) : '스페이스인베스트먼트 회사 계정'}</p>
     <button class="btn primary" id="login-go" style="width:100%;height:44px">회사 계정으로 로그인</button>
     ${G.wrongAccount ? '<button class="btn ghost" id="login-out" style="width:100%;margin-top:8px">다른 계정 로그아웃</button>' : ''}
   </div>`;
