@@ -23,7 +23,6 @@ function nwLoad(force) {
 
 const nwDay = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : ymd(d); };
 const nwTime = (iso) => { const d = new Date(iso); return isNaN(d) ? '' : `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
-const nwSc = (n) => `<span class="ev-sc ${n >= 80 ? 't1' : n >= 60 ? 't2' : 't3'}" title="딜 관점 중요도">${Number(n) || 0}</span>`;
 function nwList() {
   const items = nwS.data?.items || [], q = nwS.q.trim().toLowerCase();
   const from = ymd(addDays(new Date(), -(Number(nwS.period) - 1)));
@@ -34,7 +33,7 @@ function nwList() {
 function nwRow(x) {
   const meta = [x.source, nwTime(x.published), (x.also || []).length ? `외 ${x.also.length}곳` : ''].filter(Boolean);
   const tags = [...(nwS.cat === 'all' && x.cat === 'space' ? ['우주·항공·방산'] : []), ...(x.tags || [])].slice(0, 4);
-  return `<li class="nw-row">${nwSc(x.score)}
+  return `<li class="nw-row">
     <div class="nw-main"><a class="nw-ttl" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title)}</a>
       ${x.why ? `<div class="nw-why">${esc(x.why)}</div>` : ''}
       <div class="nw-meta"><span title="${esc((x.also || []).join(', '))}">${meta.map(esc).join(' · ')}</span>${tags.map((t) => `<span class="chip ${t === '우주·항공·방산' ? 'blue' : 'line'}">${esc(t)}</span>`).join('')}</div></div></li>`;
@@ -88,7 +87,7 @@ async function newsHomeBlock() {
   const from = ymd(addDays(new Date(), -1)), recent = d.items.filter((x) => nwDay(x.published) >= from).sort((a, b) => (b.score || 0) - (a.score || 0));
   const deal = recent.filter((x) => x.cat !== 'space').slice(0, 5), space = recent.filter((x) => x.cat === 'space').slice(0, 3);
   if (!deal.length && !space.length) return '';
-  const li = (x) => `<li><a class="nw-hl" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><span class="ttl">${esc(x.title)}</span><span class="meta">${esc([x.source, `${nwDay(x.published) === today() ? '' : '어제 '}${nwTime(x.published)}`].filter(Boolean).join(' · '))}</span></a>${nwSc(x.score)}</li>`;
+  const li = (x) => `<li><a class="nw-hl" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><span class="ttl">${esc(x.title)}</span><span class="meta">${esc([x.source, `${nwDay(x.published) === today() ? '' : '어제 '}${nwTime(x.published)}`].filter(Boolean).join(' · '))}</span></a></li>`;
   return `<section class="card nw-home">
     <div class="card-head"><h2>딜 뉴스</h2><a class="btn sm act" href="#deals/news">전체 보기</a></div>
     <div class="card-body">${deal.length ? `<ul class="list">${deal.map(li).join('')}</ul>` : ''}
