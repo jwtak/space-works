@@ -308,10 +308,10 @@ matchMedia('(max-width: 760px)').addEventListener('change', () => { if (S && rou
 
 // ---------- 딜소싱: 행사·IR / 신규상장 (각 화면은 events.js·ipo.js가 host 안에 그린다) ----------
 function renderDeals() {
-  const tabs = [['events', '행사·IR', typeof renderEvents === 'function' ? renderEvents : null], ['ipo', '신규상장', typeof renderIpo === 'function' ? renderIpo : null]];
+  const tabs = [['events', '행사·IR', typeof renderEvents === 'function' ? renderEvents : null, 'ticket'], ['ipo', '신규상장', typeof renderIpo === 'function' ? renderIpo : null, 'chart']];
   ui.dealTab ||= 'events';
   PAGE.innerHTML = `<div class="page-head"><h1>딜소싱</h1></div>
-    <div class="tabs deal-tabs">${tabs.map(([k, t]) => `<button type="button" data-dt="${k}" class="${ui.dealTab === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+    <div class="deal-seg" role="tablist">${tabs.map(([k, t, , i]) => `<button type="button" role="tab" data-dt="${k}" aria-selected="${ui.dealTab === k}" class="${ui.dealTab === k ? 'on' : ''}">${ico(i)}${t}</button>`).join('')}</div>
     <div id="deal-host"></div>`;
   PAGE.querySelectorAll('[data-dt]').forEach((b) => b.addEventListener('click', () => { ui.dealTab = b.dataset.dt; renderDeals(); }));
   const host = $('#deal-host'), fn = tabs.find(([k]) => k === ui.dealTab)[2];

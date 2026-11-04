@@ -633,8 +633,16 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 }
 
 /* 딜소싱 하위 탭 */
-.deal-tabs { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); margin: 0 0 12px; }
-@media (max-width: 760px) { .deal-tabs { border: 0; border-radius: 0; } }
+/* 딜소싱 행사·IR / 신규상장 전환: 회색 트랙 위 흰 알약 */
+.deal-seg { display: inline-flex; gap: 4px; padding: 4px; margin: 0 0 16px; background: #E9EDF3; border-radius: 12px; }
+.deal-seg button { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 22px; border: 0; border-radius: 9px; background: none; color: var(--text2); font-size: 16px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s, box-shadow .15s; }
+.deal-seg button:hover:not(.on) { color: var(--ink); background: rgba(255, 255, 255, .55); }
+.deal-seg button.on { background: var(--card); color: var(--primary); font-weight: 700; box-shadow: 0 1px 3px rgba(15, 23, 42, .12), 0 1px 1px rgba(15, 23, 42, .04); }
+.deal-seg button svg.i { width: 18px; height: 18px; }
+@media (max-width: 760px) {
+  .deal-seg { display: flex; margin: 4px 16px 12px; }
+  .deal-seg button { flex: 1; justify-content: center; padding: 0 12px; }
+}
 
 /* ---------- 폰 첫 화면: 메뉴 모음(하이웍스 앱형) + 오늘 ---------- */
 .mhome { display: flex; flex-direction: column; }
