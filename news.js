@@ -31,12 +31,14 @@ function nwList() {
     && (!q || [x.title, x.source, x.why, ...(x.tags || []), ...(x.companies || [])].join(' ').toLowerCase().includes(q)));
 }
 
-// 검색 중이 아닐 때만 맨 위에 고른다(목록에서는 빠짐)
-function nwPicks(list) {
+// 검색 중이 아닐 때만 맨 위에 고른다(목록에서는 빠짐): 시사점에 나온 기사 먼저, 나머지는 최근 이틀 점수순
+function nwPicks(list, brief) {
   if (nwS.q.trim()) return [];
-  const from = ymd(addDays(new Date(), -1));
-  return list.filter((x) => nwDay(x.published) >= from && (x.score || 0) >= NW_PICK_MIN)
-    .sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, NW_PICK);
+  const from = ymd(addDays(new Date(), -1)), inList = new Map(list.map((x) => [x.id, x]));
+  const first = [...new Set(brief.flatMap((l) => l.ids || []))].map((i) => inList.get(i)).filter(Boolean);
+  const rest = list.filter((x) => !first.includes(x) && nwDay(x.published) >= from && (x.score || 0) >= NW_PICK_MIN)
+    .sort((a, b) => (b.score || 0) - (a.score || 0));
+  return [...first, ...rest].slice(0, Math.max(NW_PICK, first.length));
 }
 
 // 오늘의 시사점(수집기가 주요 기사로 쓴 so what 3~4줄): 고른 분류의 기사를 근거로 한 줄만
@@ -45,10 +47,12 @@ function nwBrief() {
   const byId = new Map((nwS.data.items || []).map((x) => [x.id, x]));
   return lines.filter((l) => l && l.text && (nwS.cat === 'all' || (l.ids || []).some((i) => byId.get(i)?.cat === nwS.cat)));
 }
-function nwBriefLine(t) { // "주체: 상황 — 액션" → 주체 굵게, 액션 강조
+function nwBriefLine(l) { // "주체: 상황 — 액션" → 주체 굵게, 액션 강조. 누르면 근거 기사
+  const t = l.text, x = (l.ids || []).map((i) => nwS.data.items.find((y) => y.id === i)).find(Boolean);
   const m = /^([^:]{1,30}):\s*(.*)$/.exec(t), subj = m ? m[1] : '', rest = m ? m[2] : t;
   const k = rest.lastIndexOf(' — '), body = k > 0 ? rest.slice(0, k) : rest, act = k > 0 ? rest.slice(k + 3) : '';
-  return `<li>${subj ? `<b>${esc(subj)}</b> ` : ''}${esc(body)}${act ? ` <span class="act">— ${esc(act)}</span>` : ''}</li>`;
+  const inner = `${subj ? `<b>${esc(subj)}</b> ` : ''}${esc(body)}${act ? ` <span class="act">— ${esc(act)}</span>` : ''}`;
+  return `<li>${x ? `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" title="${esc(x.title)}">${inner}</a>` : inner}</li>`;
 }
 
 function nwRow(x, pick, rank) {
@@ -72,10 +76,10 @@ function nwDraw() {
     b.classList.toggle('on', nwS.cat === k); b.querySelector('.n').textContent = n;
   });
   if (!list.length) { body.innerHTML = `<div class="empty">${nwS.q ? '검색 결과가 없습니다.' : '이 기간에 모은 기사가 없습니다.'}</div>`; return; }
-  const picks = nwPicks(list), brief = nwBrief(), picked = new Set(picks), rest = list.filter((x) => !picked.has(x));
+  const brief = nwBrief(), picks = nwPicks(list, brief), picked = new Set(picks), rest = list.filter((x) => !picked.has(x));
   const by = (a, b) => String(b.published).localeCompare(String(a.published));
   const days = [...new Set(rest.map((x) => nwDay(x.published)))].sort().reverse();
-  body.innerHTML = (picks.length || brief.length ? `<section class="nw-pick"><div class="nw-pick-h">${ico('spark', 'sm')}<b>주요 기사</b></div>${brief.length ? `<ul class="nw-brief">${brief.map((l) => nwBriefLine(l.text)).join('')}</ul>` : ''}${picks.length ? `<ul class="nw-list">${picks.map((x, i) => nwRow(x, true, i + 1)).join('')}</ul>` : ''}</section>` : '') + days.map((k) => {
+  body.innerHTML = (picks.length || brief.length ? `<section class="nw-pick"><div class="nw-pick-h">${ico('spark', 'sm')}<b>주요 기사</b></div>${brief.length ? `<ul class="nw-brief">${brief.map(nwBriefLine).join('')}</ul>` : ''}${picks.length ? `<ul class="nw-list">${picks.map((x, i) => nwRow(x, true, i + 1)).join('')}</ul>` : ''}</section>` : '') + days.map((k) => {
     const its = rest.filter((x) => nwDay(x.published) === k).sort(by), dd = parse(k);
     const lbl = k === td ? '오늘' : k === ymd(addDays(new Date(), -1)) ? '어제' : '';
     return `<div class="nw-grp"><b>${dd.getMonth() + 1}월 ${dd.getDate()}일 (${WD[dd.getDay()]})</b>${lbl ? `<span>${lbl}</span>` : ''}<span class="n">${its.length}건</span></div><ul class="nw-list">${its.map((x) => nwRow(x)).join('')}</ul>`;

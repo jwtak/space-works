@@ -27,6 +27,9 @@
 .nw-brief li::before { content: ''; position: absolute; left: 2px; top: 10px; width: 4px; height: 4px; border-radius: 50%; background: var(--primary); }
 .nw-brief b { font-weight: 700; color: var(--ink); }
 .nw-brief .act { font-weight: 600; color: var(--primary); }
+.nw-brief a { color: inherit; text-decoration: none; }
+.nw-brief a:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line2); }
+.nw-brief a:hover b { color: var(--primary); }
 .nw-rank { font-size: 15px; line-height: 22px; font-weight: 700; color: var(--primary); }
 .nw-pick .chip { background: var(--card); }
 .nw-row { padding: 12px 24px; border-top: 1px solid var(--row); }
