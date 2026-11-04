@@ -6,6 +6,7 @@ const FL_SMALL = 4 * 1024 * 1024; // 이보다 크면 업로드 세션으로 나
 const FL_CHUNK = 3276800; // 320KiB의 10배(업로드 세션 조각 크기 규칙)
 const FL_SEL = 'id,name,size,folder,file,lastModifiedDateTime,lastModifiedBy,webUrl,parentReference';
 const FL_OFFICE = ['doc', 'docx', 'xls', 'xlsx', 'xlsm', 'ppt', 'pptx'];
+const FL_APP = { doc: 'ms-word', docx: 'ms-word', xls: 'ms-excel', xlsx: 'ms-excel', xlsm: 'ms-excel', ppt: 'ms-powerpoint', pptx: 'ms-powerpoint' };
 const FL_PREVIEW = { img: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'], pdf: ['pdf'], txt: ['txt', 'csv', 'md', 'json', 'log'] };
 
 const flS = { path: null, items: [], sort: { k: 'name', dir: 1 }, sel: new Set(), q: '', results: null, loading: false, at: 0 };
@@ -169,7 +170,7 @@ function flSelBar() {
 function flActions(sel) {
   const one = sel.length === 1 ? sel[0] : null, files = sel.filter((it) => !it.folder), locked = sel.some(flLocked);
   return [
-    one && { k: 'open', label: one.folder ? '열기' : '새 창에서 열기', run: () => (one.folder ? flOpen(one) : window.open(one.webUrl, '_blank', 'noopener')) },
+    one && { k: 'open', label: one.folder ? '열기' : FL_APP[flExt(one.name)] && !isMobile() ? '웹에서 열기' : '새 창에서 열기', run: () => (one.folder ? flOpen(one) : window.open(one.webUrl, '_blank', 'noopener')) },
     files.length === sel.length && { k: 'down', label: '다운로드', run: () => flDownload(files) },
     one && { k: 'link', label: '링크 복사', run: () => flCopyLink(one) },
     one && !locked && { k: 'ren', label: '이름 바꾸기', run: () => flRename(one) },
@@ -202,9 +203,23 @@ function flMenu(anchor, sel) {
 }
 
 /* ---------- 열기·미리보기·다운로드 ---------- */
+// PC는 설치된 Word·Excel·PowerPoint로 바로 연다. 파일함 원본을 직접 열어서 앱에서 저장하면 그대로 반영된다
+let flLib = '';
+async function flAppOpen(it, app) {
+  try {
+    flLib ||= (await G.get(`/drives/${flDrive()}?$select=webUrl`)).webUrl;
+    const dir = (it.parentReference?.path || '').split('root:')[1] || '';
+    const url = `${flLib}${dir.split('/').map(encodeURIComponent).join('/')}/${encodeURIComponent(it.name)}`;
+    const a = document.createElement('a'); a.href = `${app}:ofe|u|${url}`; a.click();
+  } catch { window.open(it.webUrl, '_blank', 'noopener'); }
+}
+// 앱에서 저장하고 웍스로 돌아오면 목록(수정한 날짜·크기)을 다시 받는다
+window.addEventListener('focus', () => { if (document.body.dataset.route === 'files' && $('#fl-list') && !flS.results && Date.now() - flS.at > 5000) flLoad(); });
+
 function flOpen(it) {
   if (it.folder) { flGo(flS.results ? [flPathOf(it), it.name].filter(Boolean).join('/') : [flS.path, it.name].filter(Boolean).join('/')); return; }
   const e = flExt(it.name);
+  if (FL_APP[e] && !isMobile()) { flAppOpen(it, FL_APP[e]); return; }
   if (FL_OFFICE.includes(e) || e === 'loop') { window.open(it.webUrl, '_blank', 'noopener'); return; }
   if (flKind(it)) { flPreview(it); return; }
   flDownload([it]);
