@@ -112,11 +112,12 @@ function foot() {
 
 // ---------- 라우팅 ----------
 const route = () => (location.hash || '#home').slice(1);
-const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', deals: '딜소싱', notes: '업무일지·회의록', programs: '프로그램' };
+const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', deals: '딜소싱', files: '공용 폴더', notes: '업무일지·회의록', programs: '프로그램' };
 function render() {
   if (!S) return; // 로그인·데이터 읽기 전 hashchange
   let r = route();
   if (r.startsWith('deals/')) { ui.dealTab = r.slice(6) || 'events'; r = 'deals'; } // #deals/ipo → 딜소싱 > 신규상장
+  if (r === 'files' || r.startsWith('files/')) { ui.filesPath = decodeURIComponent(r.slice(6)); r = 'files'; } // #files/00. 전체 공유/01. 명함 → 공용 폴더의 그 폴더
   r = CRUMB[r] ? r : 'home';
   document.querySelectorAll('[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === r));
   document.body.dataset.route = r;
@@ -127,13 +128,14 @@ function render() {
       home: ['일정 추가', () => openEventModal(null, [], done)], calendar: ['일정 추가', () => openEventModal(null, [], done)],
       todos: ['할 일 추가', () => addTodoSheet()], notes: ['업무일지 쓰기', () => newNote('daily')],
       programs: ['새 프로그램', () => { ui.progSel = 'new'; renderPrograms(); }],
+      files: ['파일 올리기', () => typeof filesUpload === 'function' && filesUpload()],
     }[r];
     cta.hidden = !act; // 메일은 메일 화면 안에 "메일 쓰기"가 있다
     if (act) { cta.innerHTML = `${ico('plus')}${act[0]}`; cta.onclick = act[1]; }
   }
   if (r !== 'notes') document.body.classList.remove('note-open');
   $('#crumb').textContent = CRUMB[r];
-  ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, deals: renderDeals, programs: renderPrograms, notes: renderNotes }[r] || renderHome)();
+  ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, deals: renderDeals, files: () => (typeof renderFiles === 'function' ? renderFiles(PAGE) : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), programs: renderPrograms, notes: renderNotes }[r] || renderHome)();
 }
 window.addEventListener('hashchange', render);
 
@@ -267,6 +269,7 @@ function renderHomeMobile() {
     ['#notes', 'file', '업무일지', ''],
     ['#deals', 'ticket', '행사·IR', ''],
     ['#deals/ipo', 'chart', '신규상장', ''],
+    ['#files', 'folder', '공용 폴더', ''],
     ['#programs', 'box', '프로그램', prog ? `<i class="mh-n grey">${prog}</i>` : ''],
     ['', 'spark', 'AI 브리핑', ''],
   ].filter(([h]) => h || S.briefing.text || G.isOwner);

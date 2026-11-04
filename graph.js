@@ -17,6 +17,7 @@ const CFG = {
     },
     writable: ['data/event_marks.json', 'data/ipo_marks.json'], // 수집기는 같은 파일을 덮어쓰므로 id가 바뀌지 않는다
   },
+  teamDrive: 'b!j-FPAIUPjU6AnBcIJNprMgAfPOR1jCVOvR6mVssjMWkyr34wYSj7Rp-_wJU9Subr', // 팀 '스페이스인베스트먼트' 파일함(공용 폴더) — 팀원이면 누구나 읽고 쓴다
   teamCalendarId: 'AAMkAGY5ZWRkMzlmLTNmYjUtNDE3NC04YTUxLTliZjgyYjU0Yjc1NQBGAAAAAAB2D1ON4THdQYUFMZAr45FEBwA217gkwboaRqzQAV2p_lEqAAAAAAEGAAA217gkwboaRqzQAV2p_lEqAAAAE7aBAAA=',
   root: 'SPACE WORKS',        // 회사 OneDrive 안 앱 폴더
   teamCalendar: '스페이스인베스트먼트',
