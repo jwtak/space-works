@@ -126,12 +126,20 @@
 .ev-home .list .time { width: 84px; }
 .ev-home .list .ev-sc { flex: none; min-width: 0; }
 
+/* 본문 폭 기준(요청사항 칸이 늘 붙어 있어 화면 폭과 본문 폭이 다르다): 넓으면 검색 옆 한 줄, 좁으면 필터만 아래 한 줄에 고르게 */
+@media (min-width: 761px) {
+  .ev-filter { container-type: inline-size; flex-wrap: wrap; }
+  @container (max-width: 1099.98px) {
+    .ev-sels { order: 3; flex: 1 1 100%; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .ev-sels .select { min-width: 0; max-width: none; }
+  }
+  @container (max-width: 900px) { .ev-sels { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+}
+
 /* ---------- 좁은 PC ---------- */
 @media (max-width: 1440px) {
   .ev-filter { flex-wrap: wrap; }
   .ev-search { flex: 1 1 220px; max-width: 320px; }
-  .ev-sels { order: 3; flex: 1 1 100%; }
-  .ev-sels .select { flex: 1 1 0; max-width: 160px; }
 }
 @media (max-width: 1280px) {
   .ev-cols { grid-template-columns: 24px 120px 40px repeat(2, minmax(0, 1fr)) 32px; }

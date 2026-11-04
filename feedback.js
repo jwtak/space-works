@@ -153,7 +153,7 @@ function rqBind(box) {
 let rqOff = null;
 function rqOpen() {
   const box = $('#req'); if (!box) return;
-  box.hidden = false; document.body.classList.add('req-on');
+  box.hidden = false; document.body.classList.add('req-on'); rqAlignSoon();
   if (rqWide()) { try { localStorage.setItem('reqDock', '1'); } catch { /* 기억 못 해도 됨 */ } } else if (!rqOff) rqOff = pushLayer(() => { rqOff = null; rqClose(true); }, () => { rqOff = null; rqClose(true); });
   rqDraw();
   if (Date.now() - rqS.at > 20000 && !rqS.busy) rqLoad().then((ok) => { if (!ok) return; rqCount(); if (!rqDrafting()) rqDraw(); }).catch(() => {});
@@ -167,6 +167,17 @@ function rqClose(viaBack) {
 }
 function rqToggle() { $('#req')?.hidden ? rqOpen() : rqClose(); }
 const rqDock = () => true; // PC는 항상 열어 둔다
+
+// 박스 위쪽 선을 그 화면 첫 본문 카드(공용 폴더 목록, 딜소싱 필터 카드 등)의 위쪽 선에 맞춘다
+function rqAlign() {
+  const box = $('#req'), pg = $('#page');
+  if (!box || box.hidden || !pg || !rqWide()) return;
+  const c = [...pg.querySelectorAll('.card')].find((e) => e.getClientRects().length);
+  const top = c ? Math.round(c.getBoundingClientRect().top - pg.getBoundingClientRect().top) : 78;
+  if (box.style.marginTop !== `${top}px`) box.style.marginTop = `${top}px`;
+}
+let rqAlignQ = 0;
+const rqAlignSoon = () => { cancelAnimationFrame(rqAlignQ); rqAlignQ = requestAnimationFrame(rqAlign); };
 
 // 앱 시작 후(로그인·데이터 읽은 뒤) app.js load()가 부른다
 async function rqInit() {
@@ -183,6 +194,8 @@ async function rqInit() {
     } else if (!box.hidden) rqClose(true);
   });
   window.addEventListener('hashchange', () => { rqS.reply = null; rqS.replyDraft = ''; rqDraw(); });
+  new MutationObserver(rqAlignSoon).observe($('#page'), { childList: true, subtree: true }); // 화면이 그려질 때마다 위치 맞춤
+  addEventListener('resize', rqAlignSoon); rqAlignSoon();
   setInterval(() => {
     if (document.hidden || rqS.busy || document.activeElement?.closest?.('#req')) return;
     rqLoad().then((ok) => { if (!ok) return; rqCount(); if (!rqDrafting()) rqDraw(); }).catch(() => {});
