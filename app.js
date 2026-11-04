@@ -284,6 +284,7 @@ function renderHome() {
         </section>
         <div id="home-ev"></div>
         <div id="home-ipo"></div>
+        <div id="home-news"></div>
         <section class="card sec-brief" ${!b.text && !G.isOwner ? 'hidden' : ''}>
           <div class="card-head"><h2>AI 브리핑</h2><span class="meta">${bt ? `Claude · ${bt.getMonth() + 1}/${bt.getDate()} ${pad(bt.getHours())}:${pad(bt.getMinutes())} 갱신` : ''}</span></div>
           <div class="card-body brief">${b.text ? mdRender(b.text) : '<div class="empty">브리핑 없음</div>'}</div>
@@ -336,6 +337,7 @@ function renderHome() {
   mountMonth($('#home-month'));
   if (typeof ipoHomeBlock === 'function') ipoHomeBlock().then((h) => { const box = $('#home-ipo'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
   if (typeof eventsHomeBlock === 'function') eventsHomeBlock().then((h) => { const box = $('#home-ev'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
+  if (typeof newsHomeBlock === 'function') newsHomeBlock().then((h) => { const box = $('#home-news'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
 }
 
 // ---------- 폰 첫 화면: 하이웍스 앱처럼 메뉴 모음 + 오늘 한 묶음 ----------
@@ -353,6 +355,7 @@ function renderHomeMobile() {
     ['#notes', 'file', '업무일지', ''],
     ['#deals', 'ticket', '행사·IR', ''],
     ['#deals/ipo', 'chart', '신규상장', ''],
+    ['#deals/news', 'news', '딜 뉴스', ''],
     ['#weekly', 'week', '주간회의', ''],
     ['#files', 'folder', '공용 폴더', ''],
     ['#programs', 'box', '프로그램', prog ? `<i class="mh-n grey">${prog}</i>` : ''],
@@ -394,7 +397,7 @@ matchMedia('(max-width: 760px)').addEventListener('change', () => { if (S && rou
 
 // ---------- 딜소싱: 행사·IR / 신규상장 (각 화면은 events.js·ipo.js가 host 안에 그린다) ----------
 function renderDeals() {
-  const tabs = [['events', '행사·IR', typeof renderEvents === 'function' ? renderEvents : null, 'ticket'], ['ipo', '신규상장', typeof renderIpo === 'function' ? renderIpo : null, 'chart']];
+  const tabs = [['events', '행사·IR', typeof renderEvents === 'function' ? renderEvents : null, 'ticket'], ['ipo', '신규상장', typeof renderIpo === 'function' ? renderIpo : null, 'chart'], ['news', '딜 뉴스', typeof renderNews === 'function' ? renderNews : null, 'news']];
   if (!tabs.some(([k]) => k === ui.dealTab)) ui.dealTab = 'events';
   PAGE.innerHTML = `<div class="page-head"><h1>딜소싱</h1></div>
     <div class="deal-seg" role="tablist">${tabs.map(([k, t, , i]) => `<button type="button" role="tab" data-dt="${k}" aria-selected="${ui.dealTab === k}" class="${ui.dealTab === k ? 'on' : ''}">${ico(i)}${t}</button>`).join('')}</div>
@@ -1174,7 +1177,12 @@ function loginScreen(msg) {
 $('#me')?.addEventListener('click', () => { if (S) accountMenu(); });
 async function start() {
   try {
-    if (!(await G.init())) return loginScreen(G.wrongAccount ? `${G.wrongAccount} 계정으로는 열 수 없습니다` : '');
+    if (!(await G.init())) {
+      // 받은 링크(#files/… 등)로 들어왔는데 로그인이 필요하면, 로그인 뒤 그 화면으로 돌아오게 기억해 둔다
+      if (location.hash.length > 1 && !/^#(code|state|error)=/.test(location.hash)) try { sessionStorage.setItem('worksNext', location.hash); } catch { /* 못 기억하면 대시보드로 */ }
+      return loginScreen(G.wrongAccount ? `${G.wrongAccount} 계정으로는 열 수 없습니다` : '');
+    }
+    try { const nx = sessionStorage.getItem('worksNext'); if (nx) { sessionStorage.removeItem('worksNext'); if (!location.hash || location.hash === '#home') history.replaceState(null, '', nx); } } catch { /* 없으면 그대로 */ }
     if (!history.state?.seq) history.replaceState(hStamp(0), ''); // 로그인 처리 중 MSAL이 기록을 바꿨으면 다시 번호
     hRoute = route();
     document.body.classList.remove('signed-out');

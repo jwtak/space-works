@@ -75,6 +75,7 @@ async function renderFiles(host, mode = 'files') {
           <label class="fl-search">${ico('search', 'sm')}<input class="input" id="fl-q" type="search" placeholder="${flM.title} 검색" value="${esc(flS.q)}" enterkeyhint="search"></label>
           <button class="btn" type="button" id="fl-mkdir">${ico('plus', 'sm')}<span>새 폴더</span></button>
           <button class="btn primary fl-upbtn" type="button" id="fl-upbtn">${ico('upload', 'sm')}<span>파일 올리기</span></button>
+          <button class="btn fl-share" type="button" id="fl-share" title="이 폴더를 바로 여는 웍스 링크">${ico('link', 'sm')}<span>링크 복사</span></button>
           <button class="iconbtn fl-ref" type="button" id="fl-ref" aria-label="새로고침">${ico('refresh')}</button>
         </div>
       </div>
@@ -87,6 +88,7 @@ async function renderFiles(host, mode = 'files') {
   q.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); flSearch(q.value.trim()); } });
   q.addEventListener('search', () => { if (!q.value.trim()) flSearch(''); });
   $('#fl-mkdir').onclick = flMkdir;
+  $('#fl-share').onclick = () => flCopyText(flWorksLink(flS.path), '이 폴더 링크를 복사했습니다. 카톡·메일에 붙여 넣어 보내세요');
   $('#fl-ref').onclick = () => { flS.at = 0; flLoad(true); };
   $('#fl-fab').onclick = filesUpload;
   $('#fl-upbtn').onclick = filesUpload;
@@ -306,8 +308,13 @@ async function flPreview(it) {
   } catch (e) { body.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
-async function flCopyLink(it) {
-  try { await navigator.clipboard.writeText(it.webUrl); toast('링크를 복사했습니다'); } catch { toast('링크를 복사하지 못했습니다'); }
+// 웍스 안에서 그 폴더를 바로 여는 주소(대표님께 보내면 로그인 뒤 그 폴더가 열린다). 파일은 SharePoint 주소(웹 오피스로 열림)
+const WORKS_URL = 'https://jwtak.github.io/space-works/';
+const flWorksLink = (p) => { const r = flRel(p); return `${WORKS_URL}#${flRoute}${r ? `/${encodeURIComponent(r)}` : ''}`; };
+async function flCopyText(t, msg) { try { await navigator.clipboard.writeText(t); toast(msg); } catch { toast('링크를 복사하지 못했습니다'); } }
+function flCopyLink(it) {
+  if (it.folder) return flCopyText(flWorksLink([flS.results ? flPathOf(it) : flS.path, it.name].filter(Boolean).join('/')), '폴더 링크를 복사했습니다. 카톡·메일에 붙여 넣어 보내세요');
+  return flCopyText(it.webUrl, '파일 링크를 복사했습니다');
 }
 
 /* ---------- 이름 바꾸기·새 폴더·삭제 ---------- */

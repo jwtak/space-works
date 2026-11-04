@@ -116,7 +116,8 @@
   .fl-card { min-height: 0; }
   .fl-upbtn { display: none; }
   #fl-mkdir { width: 44px; height: 44px; padding: 0; }
-  #fl-mkdir span { display: none; }
+  #fl-mkdir span, .fl-share span { display: none; }
+  .fl-share { width: 44px; height: 44px; padding: 0; justify-content: center; }
   .fl-ref { width: 44px; height: 44px; }
   .fl-selbar { padding: 10px 16px; }
   .fl-res { padding: 12px 16px; }
