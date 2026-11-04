@@ -13,7 +13,7 @@ const CFG = {
     files: {
       'data/events.json': '012DPUXZQFZYHRAN7BNVG2IILT52OAVGS5', 'data/ipo.json': '012DPUXZU5TGCSCOXN4ZBZVZDWZC2NNGOE',
       'data/event_marks.json': '012DPUXZVI2AS22PVZMJGZP7MQLZDQU6F7', 'data/ipo_marks.json': '012DPUXZTFV2MMH3PHJRDYVR6J6BGIVZCX',
-      'data/ipo_contact.xlsx': '012DPUXZUK5SFDL7IV5JAKFMWLNTENY6FT',
+      'data/ipo_contact.xlsx': '012DPUXZUK5SFDL7IV5JAKFMWLNTENY6FT', 'data/news.json': '012DPUXZSPICTCTSCMJVD3JB5NCM76N4F5',
     },
     writable: ['data/event_marks.json', 'data/ipo_marks.json'], // 수집기는 같은 파일을 덮어쓰므로 id가 바뀌지 않는다
   },
