@@ -64,6 +64,14 @@ async function load() {
 const myName = () => (S?.me?.displayName || G.account?.name || '').replace(/\s*\(.*\)$/, '');
 // 회사 계정에 부서·직급이 비어 있으면 이 표로 채운다
 const TITLES = { 'jw.tak@spaceinve.com': ['투자운용본부', '대리'], 'sunyeul.yu@spaceinve.com': ['', '대표'], 'chungjun.bae@spaceinve.com': ['', '대표'] };
+// 일정 담당자: Outlook 분류(categories)에 이름으로 저장. 분류가 없으면 제목 앞 "(탁지원)"에서 읽는다
+const PEOPLE = ['탁지원', '유선열', '배청준'];
+function evOwners(e) {
+  const c = (e?.categories || []).filter((x) => PEOPLE.includes(x));
+  if (c.length) return c;
+  const m = /^\s*[(\[]([^)\]]+)[)\]]/.exec(e?.subject || '');
+  return m ? PEOPLE.filter((p) => m[1].includes(p)) : [];
+}
 const myTitle = () => S?.me?.jobTitle || (TITLES[(G.account?.username || '').toLowerCase()] || [])[1] || '';
 const myRole = () => [S?.me?.department || (TITLES[(G.account?.username || '').toLowerCase()] || [])[0], myTitle()].filter(Boolean).join(' · ');
 function meChrome() {
@@ -574,6 +582,7 @@ async function openEventModal(id, events, onDone, date) {
       <div class="r"><label>캘린더</label><div>${e
         ? `<span class="cal-tag c-${e.cal}"><i class="cdot"></i>${e.cal === 'team' ? '스페이스인베스트먼트' : '내 일정'}</span>`
         : `<div class="cal-pick">${CALS.slice(0, 2).filter((c) => c.key !== 'team' || OUTLOOK.teamWritable).map((c, i) => `<label class="c-${c.key}"><input type="radio" name="calendar" value="${c.key}" ${i === 0 ? 'checked' : ''}><i class="cdot"></i>${c.name}<span class="muted">${c.sub}</span></label>`).join('')}</div>`}</div></div>
+      <div class="r"><label>담당자</label><div class="cal-pick owner-pick">${PEOPLE.map((p) => `<label><input type="checkbox" name="owner" value="${p}" ${(e ? evOwners(e) : PEOPLE.filter((x) => myName().includes(x))).includes(p) ? 'checked' : ''}>${p}</label>`).join('')}</div></div>
       <div class="r"><label for="ev-subj">제목</label><div class="line"><input class="input grow" id="ev-subj" name="subject" value="${esc(e?.subject || '')}" placeholder="제목을 입력하세요."><label class="ck"><input type="checkbox" class="check" name="important" ${det.importance === 'high' ? 'checked' : ''}>중요</label></div></div>
       <div class="r"><label>일시</label><div>
         <div class="line wrap"><span class="dt"><input class="input" type="date" name="startDate" value="${sd}"><input class="input t" type="time" step="600" name="startTime" value="${st}"></span><span class="tilde">~</span><span class="dt"><input class="input" type="date" name="endDate" value="${ed}"><input class="input t" type="time" step="600" name="endTime" value="${et}"></span><label class="ck"><input type="checkbox" class="check" name="allDay" ${e?.allDay ? 'checked' : ''}>종일</label></div>
@@ -599,6 +608,7 @@ async function openEventModal(id, events, onDone, date) {
       const v = Object.fromEntries(new FormData(f));
       const body = { subject: v.subject, startDate: v.startDate, endDate: v.endDate, startTime: v.startTime, endTime: v.endTime, allDay: allDay.checked, location: v.location, calendar: v.calendar || 'team', important: !!v.important, reminder: v.reminder };
       if ((v.note || '').trim() !== noteNow) body.note = v.note;
+      body.categories = [...(e?.categories || []).filter((c) => !PEOPLE.includes(c)), ...new FormData(f).getAll('owner')];
       if (!series && v.repeat && v.repeat !== repNow) body.repeat = v.repeat;
       save.disabled = true;
       try {
@@ -689,7 +699,7 @@ async function mountMonth(el) {
       const ext = it.type === 'ev' && !it.editable
         ? `<span class="chip line">${it.ev.organizer_me ? '참석자 있음' : '받은 초대'}</span>${it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank">Teams 참가</a>` : it.link ? `<a class="btn sm ghost" href="${esc(it.link)}" target="_blank">Outlook에서 열기</a>` : ''}`
         : it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank">Teams 참가</a>` : '';
-      return `<li class="${it.editable ? 'click' : ''}" ${it.editable ? `data-item="${it.type}|${esc(it.id)}"` : ''}><span class="k c-${calKey(it)}"><i class="cdot"></i>${it.time}</span><div class="t"><div class="ttl">${esc(it.title)}</div>${it.ev ? `<div class="meta">${it.cal === 'team' ? '스페이스인베스트먼트' : '내 일정'}${it.ev.location ? ' · ' + esc(it.ev.location) : ''}</div>` : ''}</div>${ext}</li>`;
+      return `<li class="${it.editable ? 'click' : ''}" ${it.editable ? `data-item="${it.type}|${esc(it.id)}"` : ''}><span class="k c-${calKey(it)}"><i class="cdot"></i>${it.time}</span><div class="t"><div class="ttl">${esc(it.title)}</div>${it.ev ? `<div class="meta">${it.cal === 'team' ? '스페이스인베스트먼트' : '내 일정'}${evOwners(it.ev).length ? ' · 담당 ' + evOwners(it.ev).join(', ') : ''}${it.ev.location ? ' · ' + esc(it.ev.location) : ''}</div>` : ''}</div>${ext}</li>`;
     }).join('');
     const newForm = ed && ed.kind.startsWith('new-') ? `<div class="new-wrap">${calForm(ed.kind.slice(4), null, events)}</div>` : '';
     el.innerHTML = `<div class="card-head">
@@ -732,8 +742,14 @@ async function mountMonth(el) {
       if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) nav(dx < 0 ? 1 : -1);
     }, { passive: true });
     el.querySelectorAll('.mcal [data-day]').forEach((c) => {
-      c.addEventListener('click', () => { if (ui.selDay !== c.dataset.day) ui.calEdit = null; ui.selDay = c.dataset.day; draw(); });
+      c.addEventListener('click', () => {
+        if (ui.selDay !== c.dataset.day) ui.calEdit = null;
+        ui.selDay = c.dataset.day; draw();
+        // PC는 날짜 칸을 한 번 누르면 바로 일정 추가 (+N은 그날 목록만)
+        if (!isMobile() && S.auth.connected && !c.classList.contains('more2')) openEventModal(null, events, refetch, c.dataset.day);
+      });
       c.addEventListener('dblclick', () => {
+        if (!isMobile() && S.auth.connected) return;
         ui.selDay = c.dataset.day;
         if (S.auth.connected) return openEventModal(null, events, refetch, c.dataset.day);
         ui.calEdit = { kind: 'new-td' }; draw();

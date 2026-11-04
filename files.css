@@ -42,6 +42,7 @@
 .fl-row .c-nm { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .fl-row .c-mo { display: flex; justify-content: flex-end; }
 .fl-nmw { display: flex; flex-direction: column; min-width: 0; }
+.fl-ren { height: 34px; max-width: 520px; margin: -6px 0; font-size: 15px; }
 .fl-name { display: block; max-width: 100%; border: 0; background: none; padding: 0; font: inherit; color: var(--ink); text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fl-name:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
 .fl-where { font-size: 12px; line-height: 18px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

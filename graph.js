@@ -183,7 +183,7 @@ const OUTLOOK = {
     return ids;
   },
   async events(start, end) {
-    const sel = 'id,subject,start,end,isAllDay,location,onlineMeeting,organizer,isOrganizer,attendees,webLink,isCancelled,bodyPreview';
+    const sel = 'id,subject,start,end,isAllDay,location,onlineMeeting,organizer,isOrganizer,attendees,webLink,isCancelled,bodyPreview,categories';
     const q = new URLSearchParams({ startDateTime: start, endDateTime: end, $top: '200', $orderby: 'start/dateTime', $select: sel });
     const out = [];
     for (const [cal, cid] of Object.entries(await OUTLOOK.calendarIds())) {
@@ -196,7 +196,7 @@ const OUTLOOK = {
             editable: !!e.isOrganizer && !(e.attendees || []).length && (cal !== 'team' || OUTLOOK.teamWritable), // 참석자 없는 내 일정만 (수정 시 상대에게 알림이 가지 않게)
             subject: e.subject || '(제목 없음)', start: e.start.dateTime.slice(0, 16), end: e.end.dateTime.slice(0, 16),
             allDay: !!e.isAllDay, location: e.location?.displayName || '', join: e.onlineMeeting?.joinUrl || '',
-            organizer: e.organizer?.emailAddress?.name || '', link: e.webLink || '', cancelled: !!e.isCancelled,
+            organizer: e.organizer?.emailAddress?.name || '', link: e.webLink || '', cancelled: !!e.isCancelled, categories: e.categories || [],
           });
         }
         url = j['@odata.nextLink'] || null;
@@ -216,6 +216,7 @@ const OUTLOOK = {
     if (e <= s) throw new Error('끝나는 시간이 시작보다 늦어야 합니다');
     const out = { subject, isAllDay: !!b.allDay, start: { dateTime: s, timeZone: KST }, end: { dateTime: e, timeZone: KST }, location: { displayName: (b.location || '').trim() } };
     if ('important' in b) out.importance = b.important ? 'high' : 'normal';
+    if ('categories' in b) out.categories = b.categories; // 담당자 이름을 Outlook 분류로 저장
     if ('note' in b) out.body = { contentType: 'text', content: b.note || '' };
     if ('reminder' in b) { // '' = 알림 없음, 숫자 = 시작 몇 분 전
       out.isReminderOn = b.reminder !== '';

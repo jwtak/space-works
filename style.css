@@ -360,6 +360,7 @@ textarea.area { min-height: 120px; padding: 10px 12px; border: 1px solid var(--l
 .cal-pick input { position: absolute; opacity: 0; pointer-events: none; }
 .cal-pick label:has(input:checked) { border-color: var(--c); background: var(--c-bg); color: var(--c-tx); }
 .cal-pick label:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+.owner-pick label:has(input:checked) { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); font-weight: 600; }
 @media (max-width: 1180px) { .cal-filter { gap: 10px; } .cf { font-size: 12px; } }
 .card-head:has(.cal-filter) { flex-wrap: wrap; }
 @media (max-width: 1440px) {

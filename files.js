@@ -133,7 +133,12 @@ function flDraw() {
   list.querySelectorAll('.fl-item').forEach((row) => {
     const it = items.find((x) => x.id === row.dataset.id); if (!it) return;
     row.querySelector('.check')?.addEventListener('change', (e) => { e.target.checked ? flS.sel.add(it.id) : flS.sel.delete(it.id); flDraw(); });
-    row.querySelector('.fl-name').addEventListener('click', () => flOpen(it));
+    const nm = row.querySelector('.fl-name');
+    if (it.folder && !flLocked(it)) { // 폴더: 한 번은 열기, 두 번은 그 자리에서 이름 바꾸기
+      let t = null;
+      nm.addEventListener('click', () => { clearTimeout(t); t = setTimeout(() => flOpen(it), 250); });
+      nm.addEventListener('dblclick', () => { clearTimeout(t); flInlineRename(row, it); });
+    } else nm.addEventListener('click', () => flOpen(it));
     row.querySelector('.fl-more').addEventListener('click', (e) => { e.stopPropagation(); flMenu(e.currentTarget, [it]); });
     row.addEventListener('click', (e) => { if (isMobile() && !e.target.closest('button,input,a')) flOpen(it); });
   });
@@ -301,6 +306,33 @@ function flRename(it) {
     await G.patch(`/drives/${flDrive()}/items/${it.id}`, { name: n, '@microsoft.graph.conflictBehavior': 'fail' });
     toast('이름을 바꿨습니다'); flS.sel.clear(); flAfterChange();
   });
+}
+
+function flInlineRename(row, it) {
+  const w = row.querySelector('.fl-nmw'), nm = w?.querySelector('.fl-name');
+  if (!nm || w.querySelector('.fl-ren')) return;
+  const inp = document.createElement('input');
+  inp.className = 'input fl-ren'; inp.value = it.name; inp.maxLength = 200; inp.setAttribute('aria-label', '새 이름');
+  nm.hidden = true; w.prepend(inp); inp.focus(); inp.select();
+  let busy = false;
+  const undo = () => { inp.remove(); nm.hidden = false; };
+  const finish = async (save) => {
+    if (busy || !inp.isConnected) return;
+    const n = inp.value.trim();
+    if (!save || !n || n === it.name) return undo();
+    if (/[\\/:*?"<>|#%]/.test(n) || /^\.|\.$/.test(n)) { toast('이름에 쓸 수 없는 글자가 있습니다'); inp.focus(); return; }
+    busy = true; inp.disabled = true;
+    try {
+      await G.patch(`/drives/${flDrive()}/items/${it.id}`, { name: n, '@microsoft.graph.conflictBehavior': 'fail' });
+      toast('이름을 바꿨습니다'); flAfterChange();
+    } catch (er) { busy = false; undo(); toast(er.status === 409 ? '같은 이름이 이미 있습니다' : er.message); }
+  };
+  inp.addEventListener('keydown', (e) => {
+    if (e.isComposing) return;
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+  inp.addEventListener('blur', () => finish(true));
+  ['click', 'dblclick'].forEach((k) => inp.addEventListener(k, (e) => e.stopPropagation()));
 }
 
 function flMkdir() {
