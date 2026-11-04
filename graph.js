@@ -274,7 +274,7 @@ const OUTLOOK = {
     return out;
   },
   async detail(id) { // 수정 창에 채울 내용·중요·알림·반복
-    return G.get(`/me/events/${encodeURIComponent(id)}?$select=body,importance,isReminderOn,reminderMinutesBeforeStart,recurrence,type`, { headers: { Prefer: 'outlook.timezone="Korea Standard Time", outlook.body-content-type="text"' } });
+    return G.get(`/me/events/${encodeURIComponent(id)}?$select=body,importance,isReminderOn,reminderMinutesBeforeStart,recurrence,type,attendees`, { headers: { Prefer: 'outlook.timezone="Korea Standard Time", outlook.body-content-type="text"' } });
   },
   async checkEditable(id) {
     const e = await G.get(`/me/events/${encodeURIComponent(id)}?$select=isOrganizer,attendees`);

@@ -587,6 +587,8 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 .ev-form .select.narrow { width: 220px; }
 .ev-form .area { width: 100%; min-height: 96px; }
 .ev-form .cal-tag { display: inline-flex; align-items: center; gap: 8px; height: 36px; font-weight: 500; color: var(--c-tx); }
+.ev-view .r > .v { padding-top: 8px; font-size: 14px; line-height: 22px; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
+.ev-view .cal-tag { height: auto; }
 .ev-actions { display: flex; align-items: center; gap: 8px; padding-top: 18px; margin-top: 4px; border-top: 1px solid var(--line); }
 .ev-actions .sp { flex: 1; }
 .ev-actions .btn { min-width: 96px; height: 42px; }

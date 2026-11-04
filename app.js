@@ -712,6 +712,34 @@ async function openEventModalInner(id, events, onDone, date) {
   }, 'wide');
 }
 
+// 고칠 수 없는 일정(참석자 있는 회의·받은 초대·보기 전용 팀 일정): 내용만 보여 준다
+async function openEventView(e) {
+  if (evModalBusy || document.querySelector('.ev-view')) return;
+  evModalBusy = true;
+  try {
+    let det = {};
+    try { det = await OUTLOOK.detail(e.id); } catch { /* 내용 없이도 연다 */ }
+    const sd = e.start.slice(0, 10); let ed = e.end.slice(0, 10);
+    if (e.allDay) ed = ymd(addDays(parse(ed), -1));
+    const when = e.allDay ? `${mdw(sd)}${ed > sd ? ` ~ ${mdw(ed)}` : ''} 종일`
+      : `${mdw(sd)} ${e.start.slice(11, 16)} ~ ${ed > sd ? `${mdw(ed)} ` : ''}${e.end.slice(11, 16)}`;
+    const who = (det.attendees || []).map((a) => a.emailAddress?.name || a.emailAddress?.address).filter(Boolean);
+    const note = (det.body?.content || '').split(/_{10,}/)[0].trim(); // Teams 초대 안내문(밑줄 구분선 아래)은 뺀다
+    const row = (l, v) => (v ? `<div class="r"><label>${l}</label><div class="v">${v}</div></div>` : '');
+    openSheet(`<h3>${esc(e.subject)}</h3>
+      <div class="ev-form ev-view">
+        ${row('캘린더', `<span class="cal-tag c-${e.cal}"><i class="cdot"></i>${e.cal === 'team' ? '스페이스인베스트먼트' : '내 일정'}</span>`)}
+        ${row('일시', esc(when))}
+        ${row('담당자', esc(evOwners(e).join(', ')))}
+        ${row('주최자', e.organizer_me ? '' : esc(e.organizer || ''))}
+        ${row('참석자', esc(who.join(', ')))}
+        ${row('장소', esc(e.location || ''))}
+        ${row('내용', esc(note))}
+        <div class="ev-actions"><span class="sp"></span>${e.link ? `<a class="btn grey" href="${esc(e.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}${e.join ? `<a class="btn primary" href="${esc(e.join)}" target="_blank" rel="noopener">Teams 참가</a>` : '<button type="button" class="btn primary" data-close>닫기</button>'}</div>
+      </div>`, (el, close) => { const b = el.querySelector('[data-close]'); if (b) b.onclick = close; }, 'wide');
+  } finally { evModalBusy = false; }
+}
+
 /* 데스크톱 월간: 주마다 여러 날 일정은 막대로 잇고, 하루 일정은 칸에 쌓는다 (하이웍스 월간보기) */
 function weekRowsHTML(start, n, events, first, td) {
   const MAXL = 3;
@@ -790,7 +818,8 @@ async function mountMonth(el) {
       const ext = it.type === 'ev' && !it.editable
         ? `<span class="chip line">${it.ev.cal === 'team' && !OUTLOOK.teamWritable ? '보기 전용' : it.ev.organizer_me ? '참석자 있음' : '받은 초대'}</span>${it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank" rel="noopener">Teams 참가</a>` : it.link ? `<a class="btn sm ghost" href="${esc(it.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}`
         : it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank" rel="noopener">Teams 참가</a>` : '';
-      return `<li class="${it.editable ? 'click' : ''}" ${it.editable ? `data-item="${it.type}|${esc(it.id)}"` : ''}><span class="k c-${calKey(it)}"><i class="cdot"></i>${it.time}</span><div class="t"><div class="ttl">${esc(it.title)}</div>${it.ev ? `<div class="meta">${it.cal === 'team' ? '스페이스인베스트먼트' : '내 일정'}${evOwners(it.ev).length ? ' · 담당 ' + evOwners(it.ev).join(', ') : ''}${it.ev.location ? ' · ' + esc(it.ev.location) : ''}</div>` : ''}</div>${ext}</li>`;
+      const click = it.editable || it.type === 'ev';
+      return `<li class="${click ? 'click' : ''}" ${click ? `data-item="${it.type}|${esc(it.id)}"` : ''}><span class="k c-${calKey(it)}"><i class="cdot"></i>${it.time}</span><div class="t"><div class="ttl">${esc(it.title)}</div>${it.ev ? `<div class="meta">${it.cal === 'team' ? '스페이스인베스트먼트' : '내 일정'}${evOwners(it.ev).length ? ' · 담당 ' + evOwners(it.ev).join(', ') : ''}${it.ev.location ? ' · ' + esc(it.ev.location) : ''}</div>` : ''}</div>${ext}</li>`;
     }).join('');
     const newForm = ed && ed.kind.startsWith('new-') ? `<div class="new-wrap">${calForm(ed.kind.slice(4), null, events)}</div>` : '';
     el.innerHTML = `<div class="card-head">
@@ -851,11 +880,14 @@ async function mountMonth(el) {
     });
     el.querySelectorAll('[data-item]').forEach((x) => x.addEventListener('click', (e) => {
       e.stopPropagation();
+      if (e.target.closest('a')) return; // Teams 참가·Outlook 링크
       const [kind, id] = x.dataset.item.split('|');
       if (x.dataset.d) ui.selDay = x.dataset.d;
       const it = dayItems(ui.selDay, events, true).find((i) => i.type === kind && i.id === id)
         || (kind === 'ev' && (events || []).some((x) => x.id === id) ? { type: 'ev', id, editable: events.find((x) => x.id === id).editable } : null);
       if (kind === 'ev' && it?.editable) { ui.calEdit = null; draw(); return openEventModal(id, events, refetch); }
+      const ev = kind === 'ev' && (events || []).find((y) => y.id === id);
+      if (ev) { ui.calEdit = null; draw(); return openEventView(ev); }
       ui.calEdit = it && it.editable && kind !== 'ev' ? { kind, id } : null;
       draw();
     }));
