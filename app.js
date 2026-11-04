@@ -63,6 +63,7 @@ async function load() {
   S = { todos, programs, milestones, briefing: { text: brief.text, mtime: brief.mtime }, notes, me, auth: { connected: true, upn: G.account.username } };
   meChrome();
   counts(); foot(); mailUnread();
+  if (typeof rqInit === 'function') rqInit();
 }
 
 /* 로그인한 사람 이름·직급 (대표님도 각자 계정으로 쓴다) */
@@ -120,12 +121,15 @@ function accountMenu() {
     <ul class="menu">
       <li><a href="#deals" data-close>${ico('ticket')}딜소싱</a></li>
       <li><a href="#programs" data-close>${ico('box')}프로그램</a></li>
+      <li><button type="button" id="m-req">${ico('spark')}요청사항<span class="cnt" data-cnt="req" style="margin-left:auto"></span></button></li>
       <li><button type="button" id="m-refresh">${ico('refresh')}새로고침</button></li>
       <li><button type="button" id="m-logout">${ico('ext')}로그아웃</button></li>
     </ul>`, (el, close) => {
     el.querySelectorAll('[data-close]').forEach((a) => a.addEventListener('click', close));
     el.querySelector('#m-refresh').onclick = async () => { close(); CALC = {}; await load(); render(); toast('최신 내용으로 바꿨습니다'); };
     el.querySelector('#m-logout').onclick = () => G.logout();
+    el.querySelector('#m-req').onclick = () => { close(); if (typeof rqOpen === 'function') rqOpen(); };
+    if (typeof rqCount === 'function') rqCount();
   });
 }
 
@@ -166,8 +170,9 @@ window.addEventListener('hashchange', render);
    앱 안 버튼으로 닫은 겹의 기록은 지우지 않는다(history.go를 섞으면 메뉴 이동과 꼬인다). 대신 뒤로 갈 때 건너뛴다. */
 const LAYERS = []; // { depth, route, close, leave }
 let hSeq = 0, hCur = 0, hRoute = route(), hSkipping = false;
-const hStamp = (layer) => { hCur = ++hSeq; return { layer, seq: hCur }; };
-if (!history.state?.seq) history.replaceState(hStamp(0), '');
+// 번호는 시각 기준: 새로 고친 뒤에 쌓는 기록이 그 전 기록보다 항상 크다(뒤로/앞으로 구분)
+const hStamp = (layer) => { hSeq = Math.max(Date.now(), hSeq + 1); hCur = hSeq; return { layer, seq: hCur }; };
+if (!history.state?.seq) history.replaceState(hStamp(0), ''); else hCur = history.state.seq;
 // close: 뒤로 가기로 닫을 때(false를 돌려주면 안 닫힘), leave: 다른 메뉴로 옮길 때. 돌려주는 함수는 앱 안에서 닫았을 때 부른다
 function pushLayer(close, leave) {
   const L = { depth: (history.state?.layer || 0) + 1, route: route(), close, leave };

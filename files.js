@@ -21,7 +21,7 @@ const flBase = (p) => (p ? `/drives/${flDrive()}/root:/${flEnc(p)}:` : `/drives/
 const flExt = (n) => (/\.([a-z0-9]+)$/i.exec(n || '') || [, ''])[1].toLowerCase();
 const flKind = (it) => { const e = flExt(it.name); return Object.keys(FL_PREVIEW).find((k) => FL_PREVIEW[k].includes(e)) || ''; };
 const flLocked = (it) => !flS.results && flS.path === '' && FL_LOCK.includes(it.name);
-const FL_HIDE = [...FL_LOCK, '_홈페이지 미리보기']; // 맨 위에서 안 보이는 폴더: 주간회의(주간회의 메뉴), 홈페이지 빌드(홈페이지 메뉴)
+const FL_HIDE = [...FL_LOCK, '_홈페이지 미리보기', '_웍스']; // 맨 위에서 안 보이는 폴더: 주간회의(주간회의 메뉴), 홈페이지 빌드(홈페이지 메뉴)
 const flHidden = (it) => !flM.base && flS.path === '' && FL_HIDE.includes(it.name); // 공용 폴더 맨 위에선 주간회의를 안 보인다(주간회의 메뉴로)
 const flItems = () => flS.results || flS.items;
 const flGo = (p) => { const r = flRel(p); location.hash = r ? `#${flRoute}/${encodeURIComponent(r)}` : `#${flRoute}`; };
