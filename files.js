@@ -20,15 +20,21 @@ const flEnc = (p) => p.split('/').map(encodeURIComponent).join('/');
 const flBase = (p) => (p ? `/drives/${flDrive()}/root:/${flEnc(p)}:` : `/drives/${flDrive()}/root`);
 const flExt = (n) => (/\.([a-z0-9]+)$/i.exec(n || '') || [, ''])[1].toLowerCase();
 const flKind = (it) => { const e = flExt(it.name); return Object.keys(FL_PREVIEW).find((k) => FL_PREVIEW[k].includes(e)) || ''; };
-const flLocked = (it) => !flS.results && flS.path === '' && FL_LOCK.includes(it.name);
 const FL_HIDE = [...FL_LOCK, '_홈페이지 미리보기', '_웍스']; // 맨 위에서 안 보이는 폴더: 주간회의(주간회의 메뉴), 홈페이지 빌드(홈페이지 메뉴)
 const flHidden = (it) => !flM.base && flS.path === '' && FL_HIDE.includes(it.name); // 공용 폴더 맨 위에선 주간회의를 안 보인다(주간회의 메뉴로)
+const flInHidden = (p) => !flM.base && FL_HIDE.some((n) => p === n || p.startsWith(`${n}/`)); // 공용 폴더에서 숨긴 폴더 안(주소로 들어온 경우)
+const flLocked = (it) => !flS.results && ((flS.path === '' && FL_LOCK.includes(it.name)) || flInHidden(flS.path));
 const flItems = () => flS.results || flS.items;
 const flGo = (p) => { const r = flRel(p); location.hash = r ? `#${flRoute}/${encodeURIComponent(r)}` : `#${flRoute}`; };
 const flPathOf = (it) => { // 검색 결과의 폴더 경로: parentReference.path = /drives/{id}/root:/a/b
-  const m = /root:(.*)$/.exec(it.parentReference?.path || '');
-  return m ? decodeURIComponent(m[1]).replace(/^\//, '') : '';
+  if (typeof it._where === 'string') return it._where; // 검색에서 직접 채운 경로(이미 풀린 글자라 다시 풀지 않는다)
+  const m = /root:(.*)$/.exec(it.parentReference?.path || ''); if (!m) return '';
+  let p = m[1]; try { p = decodeURIComponent(p); } catch { /* '%'가 든 이름: 그대로 */ }
+  return p.replace(/^\//, '');
 };
+const flPids = new Map(); // 검색 결과 부모 폴더 id → 경로(이름 바꾸면 비운다)
+window.flUploading = 0; // 올리는 중인 파일 수: app.js가 0보다 크면 새 버전 자동 새로 고침을 미룬다
+window.addEventListener('beforeunload', (e) => { if (window.flUploading > 0) { e.preventDefault(); e.returnValue = ''; } });
 
 function flSize(it) {
   if (it.folder) return `${it.folder.childCount}개 항목`;
@@ -114,6 +120,8 @@ async function flLoad(force) {
 
 function flDraw() {
   const list = $('#fl-list'); if (!list) return;
+  if (flS.renaming?.isConnected) return; // 그 자리 이름 바꾸기 중엔 다시 그리지 않는다(끝나면 그린다)
+  flS.renaming = null;
   const segs = flRel(flS.path) ? flRel(flS.path).split('/') : [], full = (i) => [flM.base, ...segs.slice(0, i + 1)].filter(Boolean).join('/');
   $('#fl-crumb').innerHTML = [`<button type="button" data-crumb="${esc(flM.base)}">${flM.root}</button>`,
     ...segs.map((s, i) => `<span class="sep" aria-hidden="true">›</span><button type="button" data-crumb="${esc(full(i))}"${i === segs.length - 1 ? ' aria-current="page"' : ''}>${esc(s)}</button>`)].join('');
@@ -147,7 +155,7 @@ function flDraw() {
       let t = null;
       nm.addEventListener('click', () => { clearTimeout(t); t = setTimeout(() => flOpen(it), 250); });
       nm.addEventListener('dblclick', () => { clearTimeout(t); flInlineRename(row, it); });
-    } else nm.addEventListener('click', () => flOpen(it));
+    } else nm.addEventListener('click', (e) => { if (e.detail <= 1) flOpen(it); }); // 두 번 눌러도 한 번만 연다
     row.querySelector('.fl-more').addEventListener('click', (e) => { e.stopPropagation(); flMenu(e.currentTarget, [it]); });
     row.addEventListener('click', (e) => { if (isMobile() && !e.target.closest('button,input,a')) flOpen(it); });
   });
@@ -220,27 +228,31 @@ function flMenu(anchor, sel) {
 /* ---------- 열기·미리보기·다운로드 ---------- */
 // PC는 설치된 Word·Excel·PowerPoint로 바로 연다. 파일함 원본을 직접 열어서 앱에서 저장하면 그대로 반영된다
 // 설치형 Office가 라이선스에 없는 계정(Business Basic: 대표님들)은 웹 오피스로 연다
-let flLib = '', flApps = null;
+let flLib = '', flApps = null, flAppsReq = null;
 const flDesk = () => flApps === true && !isMobile();
-async function flCheckApps() {
-  if (flApps !== null) return;
-  try { flApps = (await G.get('/me/licenseDetails?$select=servicePlans')).value.some((l) => l.servicePlans.some((p) => ['OFFICE_BUSINESS', 'OFFICESUBSCRIPTION'].includes(p.servicePlanName) && p.provisioningStatus === 'Success')); }
-  catch { flApps = false; }
+// 확인에 실패하면 flApps는 null 그대로(다음에 다시 확인). 확인 중이면 같은 요청을 나눠 쓴다
+function flCheckApps() {
+  if (flApps !== null) return Promise.resolve();
+  return (flAppsReq ||= G.get('/me/licenseDetails?$select=servicePlans')
+    .then((j) => { flApps = j.value.some((l) => l.servicePlans.some((p) => ['OFFICE_BUSINESS', 'OFFICESUBSCRIPTION'].includes(p.servicePlanName) && p.provisioningStatus === 'Success')); })
+    .catch(() => {}).finally(() => { flAppsReq = null; }));
 }
 async function flAppOpen(it, app) {
   try {
     flLib ||= (await G.get(`/drives/${flDrive()}?$select=webUrl`)).webUrl;
-    const dir = (it.parentReference?.path || '').split('root:')[1] || '';
-    const url = `${flLib}${dir.split('/').map(encodeURIComponent).join('/')}/${encodeURIComponent(it.name)}`;
+    const dir = flPathOf(it); // 맨 위 항목이면 '' → '//'가 생기지 않게
+    const url = `${flLib.replace(/\/$/, '')}${dir ? `/${flEnc(dir)}` : ''}/${encodeURIComponent(it.name)}`;
     const a = document.createElement('a'); a.href = `${app}:ofe|u|${url}`; a.click();
   } catch { window.open(it.webUrl, '_blank', 'noopener'); }
 }
 // 앱에서 저장하고 웍스로 돌아오면 목록(수정한 날짜·크기)을 다시 받는다
 window.addEventListener('focus', () => { if (flOnScreen() && $('#fl-list') && !flS.results && Date.now() - flS.at > 5000) flLoad(); });
 
-function flOpen(it) {
+async function flOpen(it) {
   if (it.folder) { flGo(flS.results ? [flPathOf(it), it.name].filter(Boolean).join('/') : [flS.path, it.name].filter(Boolean).join('/')); return; }
   const e = flExt(it.name);
+  // 라이선스 확인 중이면 잠깐 기다린다(누른 뒤 몇 초 안이라 앱·새 창 열기는 그대로 된다)
+  if (FL_APP[e] && flApps === null && !isMobile()) await Promise.race([flCheckApps(), new Promise((r) => setTimeout(r, 3000))]);
   if (FL_APP[e] && flDesk()) { flAppOpen(it, FL_APP[e]); return; }
   if (FL_OFFICE.includes(e) || e === 'loop') { window.open(it.webUrl, '_blank', 'noopener'); return; }
   if (flKind(it)) { flPreview(it); return; }
@@ -282,7 +294,13 @@ async function flPreview(it) {
   try {
     const blob = await G.get(`/drives/${flDrive()}/items/${it.id}/content`, { type: 'blob' });
     if (!wrap.isConnected) return;
-    if (kind === 'txt') { body.innerHTML = '<pre class="fl-pv-txt"></pre>'; body.firstChild.textContent = (await blob.text()).slice(0, 400000); return; }
+    if (kind === 'txt') { // UTF-8로 깨지면(엑셀에서 저장한 CSV 등) EUC-KR로 다시 읽는다
+      const buf = await blob.arrayBuffer();
+      let t = new TextDecoder().decode(buf);
+      if (t.includes('\uFFFD')) { try { t = new TextDecoder('euc-kr').decode(buf); } catch { /* 그대로 */ } }
+      if (!wrap.isConnected) return;
+      body.innerHTML = '<pre class="fl-pv-txt"></pre>'; body.firstChild.textContent = t.slice(0, 400000); return;
+    }
     url = URL.createObjectURL(kind === 'pdf' ? new Blob([blob], { type: 'application/pdf' }) : blob);
     body.innerHTML = kind === 'pdf' ? `<iframe class="fl-pv-frame" src="${url}" title="${esc(it.name)}"></iframe>` : `<img class="fl-pv-img" src="${url}" alt="${esc(it.name)}">`;
   } catch (e) { body.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
@@ -314,7 +332,7 @@ function flRename(it) {
   flNameSheet('이름 바꾸기', it.name, '바꾸기', async (n) => {
     if (n === it.name) return;
     await G.patch(`/drives/${flDrive()}/items/${it.id}`, { name: n, '@microsoft.graph.conflictBehavior': 'fail' });
-    toast('이름을 바꿨습니다'); flS.sel.clear(); flAfterChange();
+    toast('이름을 바꿨습니다'); flS.sel.clear(); flAfterChange({ ren: [it, n] });
   });
 }
 
@@ -324,24 +342,25 @@ function flInlineRename(row, it) {
   const inp = document.createElement('input');
   inp.className = 'input fl-ren'; inp.value = it.name; inp.maxLength = 200; inp.setAttribute('aria-label', '새 이름');
   nm.hidden = true; w.prepend(inp); inp.focus(); inp.select();
+  flS.renaming = inp; // 이 동안 목록을 다시 그리지 않는다
   let busy = false;
-  const undo = () => { inp.remove(); nm.hidden = false; };
-  const finish = async (save) => {
+  const undo = () => { inp.remove(); nm.hidden = false; flS.renaming = null; flDraw(); };
+  const finish = async (save, viaBlur) => {
     if (busy || !inp.isConnected) return;
     const n = inp.value.trim();
     if (!save || !n || n === it.name) return undo();
-    if (/[\\/:*?"<>|#%]/.test(n) || /^\.|\.$/.test(n)) { toast('이름에 쓸 수 없는 글자가 있습니다'); inp.focus(); return; }
+    if (/[\\/:*?"<>|#%]/.test(n) || /^\.|\.$/.test(n)) { toast('이름에 쓸 수 없는 글자가 있습니다'); if (viaBlur) undo(); else inp.focus(); return; } // 다른 곳을 눌렀으면 되돌린다(포커스를 뺏지 않게)
     busy = true; inp.disabled = true;
     try {
       await G.patch(`/drives/${flDrive()}/items/${it.id}`, { name: n, '@microsoft.graph.conflictBehavior': 'fail' });
-      toast('이름을 바꿨습니다'); flAfterChange();
+      flS.renaming = null; toast('이름을 바꿨습니다'); flAfterChange({ ren: [it, n] });
     } catch (er) { busy = false; undo(); toast(er.status === 409 ? '같은 이름이 이미 있습니다' : er.message); }
   };
   inp.addEventListener('keydown', (e) => {
     if (e.isComposing) return;
     if (e.key === 'Enter') { e.preventDefault(); finish(true); } else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
   });
-  inp.addEventListener('blur', () => finish(true));
+  inp.addEventListener('blur', () => { if (document.hasFocus()) finish(true, true); }); // 다른 창으로 옮긴 건 무시(돌아오면 그대로 이어서)
   ['click', 'dblclick'].forEach((k) => inp.addEventListener(k, (e) => e.stopPropagation()));
 }
 
@@ -360,16 +379,22 @@ function flDelete(sel) {
     el.querySelector('[data-cancel]').onclick = close;
     el.querySelector('.fl-del-ok').onclick = async (e) => {
       e.currentTarget.disabled = true;
-      let ok = 0;
-      for (const it of list) { try { await G.del(`/drives/${flDrive()}/items/${it.id}`); ok++; } catch (er) { toast(er.status === 423 ? `${it.name}: 누군가 열어 둔 파일입니다` : `${it.name}: ${er.message}`); } }
-      close(); if (ok) toast(`${ok}개를 휴지통으로 옮겼습니다`);
-      flS.sel.clear(); flAfterChange();
+      const gone = [];
+      for (const it of list) { try { await G.del(`/drives/${flDrive()}/items/${it.id}`); gone.push(it.id); } catch (er) { toast(er.status === 423 ? `${it.name}: 누군가 열어 둔 파일입니다` : `${it.name}: ${er.message}`); } }
+      close(); if (gone.length) toast(`${gone.length}개를 휴지통으로 옮겼습니다`);
+      flS.sel.clear(); flAfterChange({ del: gone });
     };
   });
 }
 
-function flAfterChange() {
-  if (flS.results) flSearch(flS.q); else { flS.at = 0; flLoad(); }
+// 검색 중이면 검색 색인이 늦게 바뀌어서 다시 검색하지 않고 결과를 그 자리에서 고친다. 폴더 목록은 다음에 열 때 다시 받는다
+function flAfterChange(ch = {}) {
+  if (ch.ren) { const [it, n] = ch.ren; if (it.folder) flPids.clear(); it.name = n; }
+  if (flS.results) {
+    if (ch.del) flS.results = flS.results.filter((x) => !ch.del.includes(x.id));
+    if (ch.ren) flS.results.forEach((x) => { if (x.id === ch.ren[0].id) x.name = ch.ren[1]; });
+    flS.at = 0; flDraw();
+  } else { flS.at = 0; flLoad(); }
 }
 
 /* ---------- 검색 ---------- */
@@ -378,24 +403,24 @@ async function flSearch(q) {
   // 검색 결과 = 한 겹: 뒤로 가면 폴더 목록으로
   if (q && !flS.searchOff) flS.searchOff = pushLayer(() => { flS.searchOff = null; const i = $('#fl-q'); if (i) i.value = ''; flSearch(''); }, () => { flS.searchOff = null; });
   if (!q && flS.searchOff) { flS.searchOff(); flS.searchOff = null; }
-  if (!q) { flS.results = null; flDraw(); if (!flS.items.length) flLoad(); return; }
+  if (!q) { flS.results = null; flS.loading = false; flDraw(); if (!flS.items.length || !flS.at) flLoad(); return; } // 진행 중이던 검색은 결과를 버린다
   flS.results = []; flS.loading = true; flDraw();
   try {
     const out = [];
-    let url = `/drives/${flDrive()}/root/search(q='${encodeURIComponent(q.replace(/'/g, "''"))}')?$select=${FL_SEL}&$top=200`;
+    // 주간회의 메뉴는 그 폴더 안에서만 찾는다
+    let url = `${flM.base ? flBase(flM.base) : `/drives/${flDrive()}/root`}/search(q='${encodeURIComponent(q.replace(/'/g, "''"))}')?$select=${FL_SEL}&$top=200`;
     for (let i = 0; url && i < 3; i++) { const j = await G.get(url); out.push(...j.value); url = j['@odata.nextLink'] || null; }
     if (flS.q !== q) return;
-    // 검색 결과에는 폴더 경로가 안 와서, 부모 폴더를 한 번씩 물어 경로를 채운다
-    const pids = [...new Set(out.map((x) => x.parentReference?.id).filter(Boolean))];
-    const paths = {};
+    // 검색 결과에는 폴더 경로가 안 와서, 부모 폴더를 한 번씩 물어 경로를 채운다(물어본 건 기억)
+    const pids = [...new Set(out.filter((x) => !x.parentReference?.path).map((x) => x.parentReference?.id).filter((id) => id && !flPids.has(id)))];
     await Promise.all(pids.map(async (id) => {
-      try { const p = await G.get(`/drives/${flDrive()}/items/${id}?$select=name,root,parentReference`); paths[id] = p.root ? '' : [flPathOf(p), p.name].filter(Boolean).join('/'); } catch { paths[id] = ''; }
+      try { const p = await G.get(`/drives/${flDrive()}/items/${id}?$select=name,root,parentReference`); flPids.set(id, p.root ? '' : [flPathOf(p), p.name].filter(Boolean).join('/')); } catch { /* 다음 검색 때 다시 */ }
     }));
     if (flS.q !== q) return;
-    out.forEach((x) => { if (x.parentReference && !x.parentReference.path) x.parentReference.path = `/drives/${flDrive()}/root:/${paths[x.parentReference.id] || ''}`; });
-    // 주간회의 메뉴는 그 폴더 안 결과만, 공용 폴더는 주간회의 폴더 안 결과는 뺀다
+    out.forEach((x) => { if (x.parentReference && !x.parentReference.path) x._where = flPids.get(x.parentReference.id) || ''; });
+    // 주간회의 메뉴는 그 폴더 안 결과만, 공용 폴더는 숨긴 폴더(주간회의·_웍스·_홈페이지 미리보기)와 그 안 결과는 뺀다
     const inBase = (x) => { const w = flPathOf(x); return w === flM.base || w.startsWith(`${flM.base}/`); };
-    flS.results = out.filter((x) => x.name && (flM.base ? inBase(x) : !FL_LOCK.some((n) => { const w = flPathOf(x); return (w === '' && x.name === n) || w === n || w.startsWith(`${n}/`); })));
+    flS.results = out.filter((x) => x.name && (flM.base ? inBase(x) : !FL_HIDE.some((n) => { const w = flPathOf(x); return (w === '' && x.name === n) || w === n || w.startsWith(`${n}/`); })));
   } catch (e) { if (flS.q === q) { flS.results = []; toast(e.message); } }
   flS.loading = false; flDraw();
 }
@@ -412,23 +437,35 @@ function filesUpload() {
 }
 
 // 공용 폴더 화면이면 카드 밖 빈 곳에 놓아도 지금 폴더에 올린다
-let flDepth = 0;
+let flDepth = 0, flDragT = null;
 const flHasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
 const flDropCard = () => (flOnScreen() && !document.querySelector('.fl-pv-wrap') ? $('#fl-card') : null);
-const flDropEnd = () => { flDepth = 0; $('#fl-card')?.classList.remove('drop'); };
-document.addEventListener('dragenter', (e) => {
-  const card = flHasFiles(e) && flDropCard(); if (!card) return;
-  e.preventDefault(); flDepth++;
+const flDropEnd = () => { flDepth = 0; clearTimeout(flDragT); $('#fl-card')?.classList.remove('drop'); };
+const flDropShow = (card) => {
+  if (card.classList.contains('drop')) return;
   const segs = flRel(flS.path) ? flRel(flS.path).split('/') : [];
   card.dataset.drop = `${segs[segs.length - 1] || flM.root}에 올리기`;
   card.classList.add('drop');
+};
+document.addEventListener('dragenter', (e) => {
+  const card = flHasFiles(e) && flDropCard(); if (!card) return;
+  e.preventDefault(); flDepth++; flDropShow(card);
 });
-document.addEventListener('dragover', (e) => { if (flHasFiles(e) && flDropCard()) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
-document.addEventListener('dragleave', () => { if (flDepth && !--flDepth) flDropEnd(); });
+// 공용 폴더·주간회의 화면에선 파일을 어디에 놓아도 브라우저가 그 파일로 이동하지 않게 막는다(미리보기가 열려 있어도)
+document.addEventListener('dragover', (e) => {
+  if (!flHasFiles(e) || !flOnScreen()) return;
+  const card = flDropCard();
+  e.preventDefault(); e.dataTransfer.dropEffect = card ? 'copy' : 'none';
+  if (card) flDropShow(card); // dragleave로 잘못 꺼졌으면 다시 켠다
+  clearTimeout(flDragT); flDragT = setTimeout(flDropEnd, 1000); // dragleave를 놓쳐도 덮개가 남지 않게
+});
+document.addEventListener('dragleave', (e) => { if (!e.relatedTarget) flDropEnd(); else if (flDepth && !--flDepth) flDropEnd(); }); // relatedTarget 없음 = 창 밖으로 나감
+document.addEventListener('dragend', flDropEnd);
 document.addEventListener('drop', (e) => {
-  if (!flHasFiles(e) || !flDropCard()) return;
+  if (!flHasFiles(e) || !flOnScreen()) return;
   e.preventDefault(); flDropEnd();
-  const entries = [...(e.dataTransfer.items || [])].map((x) => x.webkitGetAsEntry?.());
+  if (!flDropCard()) { if (document.querySelector('.fl-pv-wrap')) toast('미리보기를 닫고 놓아 주세요'); return; }
+  const entries = [...(e.dataTransfer.items || [])].filter((x) => x.kind === 'file').map((x) => x.webkitGetAsEntry?.());
   const files = [...e.dataTransfer.files].filter((f, i) => !entries[i]?.isDirectory);
   if (files.length < e.dataTransfer.files.length) toast('폴더는 끌어놓을 수 없습니다. 파일만 올립니다');
   if (files.length) flUpload(files);
@@ -444,25 +481,36 @@ async function flUpload(files) {
     box.appendChild(r); return r;
   });
   let ok = 0;
+  window.flUploading += files.length;
   for (let i = 0; i < files.length; i++) {
     const f = files[i], r = rows[i], set = (p, t) => { r.querySelector('i').style.width = `${p}%`; r.querySelector('.pc').textContent = t ?? `${Math.round(p)}%`; };
+    let s = null;
     try {
       const target = `/drives/${flDrive()}/root:/${flEnc([path, f.name].filter(Boolean).join('/'))}:`;
       if (f.size <= FL_SMALL) {
         set(30);
         await G.put(`${target}/content?@microsoft.graph.conflictBehavior=rename`, f, { headers: { 'Content-Type': f.type || 'application/octet-stream' } });
       } else {
-        const s = await G.post(`${target}/createUploadSession`, { item: { '@microsoft.graph.conflictBehavior': 'rename' } });
+        s = await G.post(`${target}/createUploadSession`, { item: { '@microsoft.graph.conflictBehavior': 'rename' } });
         for (let at = 0; at < f.size; at += FL_CHUNK) {
           const end = Math.min(at + FL_CHUNK, f.size);
-          // 업로드 주소는 미리 인증돼 있어 Authorization을 붙이면 안 된다
-          const res = await fetch(s.uploadUrl, { method: 'PUT', headers: { 'Content-Range': `bytes ${at}-${end - 1}/${f.size}` }, body: f.slice(at, end) });
-          if (!res.ok) throw new Error(`올리기 실패 (${res.status})`);
+          // 업로드 주소는 미리 인증돼 있어 Authorization을 붙이면 안 된다. 조각마다 네트워크 오류·5xx·429면 잠시 뒤 두 번 더
+          let res = null;
+          for (let k = 0; k < 3; k++) {
+            if (k) await new Promise((w) => setTimeout(w, 1500 * 2 ** (k - 1)));
+            try { res = await fetch(s.uploadUrl, { method: 'PUT', headers: { 'Content-Range': `bytes ${at}-${end - 1}/${f.size}` }, body: f.slice(at, end), signal: AbortSignal.timeout ? AbortSignal.timeout(180000) : undefined }); } catch { res = null; continue; }
+            if (res.ok || (res.status < 500 && res.status !== 429)) break;
+          }
+          if (!res?.ok) throw new Error(res ? `올리기 실패 (${res.status})` : '올리기 실패 (네트워크)');
           set((end / f.size) * 100);
         }
+        s = null;
       }
       set(100, '완료'); r.classList.add('done'); ok++;
-    } catch (e) { set(100, '실패'); r.classList.add('fail'); r.title = e.message; }
+    } catch (e) {
+      set(100, '실패'); r.classList.add('fail'); r.title = e.message;
+      if (s?.uploadUrl) fetch(s.uploadUrl, { method: 'DELETE' }).catch(() => {}); // 끝내 실패한 업로드 세션은 지운다(조각이 남지 않게)
+    } finally { window.flUploading--; }
   }
   if (ok) toast(`${ok}개를 올렸습니다`);
   if (path === flS.path && $('#fl-list')) { flS.at = 0; flLoad(); }

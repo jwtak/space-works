@@ -33,7 +33,9 @@ function openSheet(html, mount, cls = '') { // 아래에서 올라오는 패널(
     if (viaBack !== true) off();
   };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
-  wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
+  let downOut = false; const openedAt = Date.now();
+  wrap.addEventListener('mousedown', (e) => { downOut = e.target === wrap; });
+  wrap.addEventListener('click', (e) => { if (e.target === wrap && downOut && Date.now() - openedAt > 300) close(); });
   document.addEventListener('keydown', onKey);
   document.body.appendChild(wrap);
   const off = pushLayer(() => close(true), () => close(true));
@@ -87,15 +89,28 @@ function meChrome() {
   if (!G.isOwner) CALS[0].sub = '팀 공유';
 }
 
-async function save(coll) {
-  try {
-    S[coll].version = await STORE.writeJSON(coll, S[coll].items, S[coll].version);
-    counts();
-  } catch (e) {
-    toast(e.message);
-    if (e.status === 409) { await load(); render(); }
-  }
+/* 저장은 파일마다 한 줄로: 앞 저장이 끝나기 전에 또 바꾸면 끝난 뒤 최신 내용으로 한 번 더 저장한다
+   (같은 버전으로 두 번 보내 거짓 충돌이 나거나, 두 번째 변경이 사라지지 않게) */
+const SAVING = {};
+function save(coll) {
+  const q = (SAVING[coll] ||= { p: null, again: false });
+  if (q.p) { q.again = true; return q.p; }
+  q.p = (async () => {
+    do {
+      q.again = false;
+      try {
+        const v = await STORE.writeJSON(coll, S[coll].items, S[coll].version);
+        S[coll].version = v; counts();
+      } catch (e) {
+        toast(e.message);
+        if (e.status === 409) { q.again = false; q.p = null; await load(); render(); return; }
+        break;
+      }
+    } while (q.again);
+  })().finally(() => { q.p = null; });
+  return q.p;
 }
+const saving = () => Object.values(SAVING).some((q) => q.p);
 
 // 왼쪽 메뉴 '메일' 옆 숫자 = 받은편지함 안 읽은 메일 (1분마다, 메일 화면에선 폴더 개수와 같이 갱신)
 function setMailCnt(n) {
@@ -145,7 +160,7 @@ function render() {
   if (!S) return; // 로그인·데이터 읽기 전 hashchange
   let r = route();
   if (r.startsWith('deals/')) { ui.dealTab = r.slice(6) || 'events'; r = 'deals'; } else if (r === 'deals') ui.dealTab = 'events'; // #deals/ipo → 딜소싱 > 신규상장
-  for (const k of ['files', 'weekly']) if (r === k || r.startsWith(`${k}/`)) { ui.filesPath = decodeURIComponent(r.slice(k.length + 1)); r = k; } // #files/00. 전체 공유/01. 명함 → 공용 폴더의 그 폴더
+  for (const k of ['files', 'weekly']) if (r === k || r.startsWith(`${k}/`)) { try { ui.filesPath = decodeURIComponent(r.slice(k.length + 1)); } catch { ui.filesPath = ''; } r = k; } // #files/00. 전체 공유/01. 명함 → 공용 폴더의 그 폴더
   r = CRUMB[r] ? r : 'home';
   document.querySelectorAll('[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === r));
   document.body.dataset.route = r;
@@ -160,7 +175,7 @@ function render() {
     cta.hidden = !act; // 메일은 메일 화면 안에 "메일 쓰기", 공용 폴더는 목록 위에 "파일 올리기"가 있다
     if (act) { cta.innerHTML = `${ico('plus')}${act[0]}`; cta.onclick = act[1]; }
   }
-  if (r !== 'notes') document.body.classList.remove('note-open');
+  if (r !== 'notes') { document.body.classList.remove('note-open'); if (cur?.dirty) flushNote(); } // 업무일지를 쓰다 다른 메뉴로 가도 저장
   $('#crumb').textContent = CRUMB[r];
   ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, deals: renderDeals, weekly: () => renderFiles(PAGE, 'weekly'), files: () => (typeof renderFiles === 'function' ? renderFiles(PAGE) : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), programs: renderPrograms, notes: renderNotes, homepage: renderHomepage }[r] || renderHome)();
 }
@@ -200,8 +215,8 @@ window.addEventListener('popstate', async (e) => {
     }
     closed = true;
   }
-  if (d > 0 && !LAYERS.some((L) => L.route === r && L.depth === d)) { hSkipping = true; history.back(); return; } // 이미 닫힌 겹의 기록
-  if (hSkipping) { hSkipping = false; return; }
+  if (d > 0 && !LAYERS.some((L) => L.route === r && L.depth === d)) { if (!hSkipping) hSkipping = closed || crossed ? 'done' : 'none'; history.back(); return; } // 이미 닫힌 겹의 기록
+  if (hSkipping) { const k = hSkipping; hSkipping = false; if (k === 'none' && !closed && !crossed) history.back(); return; } // 건너뛰는 동안 아무것도 안 닫혔으면 한 번 더
   if (!closed && !crossed) history.back(); // 누른 뒤로 가기가 화면에 아무 변화도 없었으면 한 번 더
 });
 
@@ -377,7 +392,7 @@ matchMedia('(max-width: 760px)').addEventListener('change', () => { if (S && rou
 // ---------- 딜소싱: 행사·IR / 신규상장 (각 화면은 events.js·ipo.js가 host 안에 그린다) ----------
 function renderDeals() {
   const tabs = [['events', '행사·IR', typeof renderEvents === 'function' ? renderEvents : null, 'ticket'], ['ipo', '신규상장', typeof renderIpo === 'function' ? renderIpo : null, 'chart']];
-  ui.dealTab ||= 'events';
+  if (!tabs.some(([k]) => k === ui.dealTab)) ui.dealTab = 'events';
   PAGE.innerHTML = `<div class="page-head"><h1>딜소싱</h1></div>
     <div class="deal-seg" role="tablist">${tabs.map(([k, t, , i]) => `<button type="button" role="tab" data-dt="${k}" aria-selected="${ui.dealTab === k}" class="${ui.dealTab === k ? 'on' : ''}">${ico(i)}${t}</button>`).join('')}</div>
     <div id="deal-host"></div>`;
@@ -405,7 +420,7 @@ async function homeCalendar() {
     const ev = r.events.filter((e) => !e.cancelled);
     if (!ev.length) { box.innerHTML = '<div class="empty">오늘·내일 일정이 없습니다.</div>'; return; }
     box.innerHTML = `<ul class="list">${ev.map((e) => `<li><span class="time">${e.allDay ? '종일' : e.start.slice(11, 16)}</span>
-      <div class="t"><div class="ttl">${esc(e.subject)}</div><div class="meta">${e.start.slice(0, 10) === today() ? '오늘' : '내일'}${e.location || e.organizer ? ' · ' + esc(e.location || e.organizer) : ''}</div></div>${e.join ? `<a class="btn sm" href="${esc(e.join)}" target="_blank" rel="noopener">참가</a>` : ''}</li>`).join('')}</ul>`;
+      <div class="t"><div class="ttl">${esc(e.subject)}</div><div class="meta">${e.start.slice(0, 10) <= today() ? '오늘' : '내일'}${e.location || e.organizer ? ' · ' + esc(e.location || e.organizer) : ''}</div></div>${e.join ? `<a class="btn sm" href="${esc(e.join)}" target="_blank" rel="noopener">참가</a>` : ''}</li>`).join('')}</ul>`;
   } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
@@ -476,7 +491,7 @@ function renderTodos() {
   PAGE.querySelectorAll('[data-edit]').forEach((el) => el.addEventListener('click', () => { ui.todoEdit = el.dataset.edit; renderTodos(); }));
   PAGE.querySelectorAll('[data-del]').forEach((el) => el.addEventListener('click', () => {
     const t = S.todos.items.find((x) => x.id === el.dataset.del);
-    if (t && confirm(`"${t.title}" 할 일을 삭제할까요?`)) { S.todos.items = S.todos.items.filter((x) => x !== t); save('todos'); renderTodos(); }
+    if (t && confirm(`"${t.title}" 할 일을 삭제할까요?`)) { S.todos.items = S.todos.items.filter((x) => x !== t); if (ui.todoEdit === t.id) ui.todoEdit = null; save('todos'); renderTodos(); }
   }));
   const ef = $('#todo-edit');
   if (ef) {
@@ -563,7 +578,7 @@ function dayItemsAll(k, events) {
   // 같은 일정이 두 곳에 있으면 하나만 보인다 (원본은 그대로): 팀 캘린더 ↔ 내 일정(회의 초대), D-day ↔ 캘린더 일정
   const evs = [];
   for (const e of ev) {
-    const dup = evs.find((x) => x.time === e.time && sameTitle(x.title, e.title));
+    const dup = evs.find((x) => x.cal !== e.cal && x.time === e.time && normTitle(x.title) === normTitle(e.title));
     if (!dup) { evs.push(e); continue; }
     const keep = dup.cal === 'team' ? dup : e, drop = keep === dup ? e : dup;
     keep.join = keep.join || drop.join; keep.alt = drop;
@@ -573,6 +588,7 @@ function dayItemsAll(k, events) {
   return [...mss, ...evs, ...tds];
 }
 
+const normTitle = (s) => String(s).replace(/\[[^\]]*\]|\([^)]*\)/g, '').replace(/[^0-9A-Za-z가-힣]/g, '');
 function sameTitle(a, b) { // 기호·공백을 빼고 앞 네 글자가 같으면 같은 일정으로 본다
   const n = (s) => String(s).replace(/\[[^\]]*\]|\([^)]*\)/g, '').replace(/[^0-9A-Za-z가-힣]/g, '').slice(0, 4);
   const x = n(a), y = n(b);
@@ -621,8 +637,14 @@ function calForm(kind, id, events) {
 const REM_OPTS = [['', '없음'], ['0', '정시'], ['10', '10분 전'], ['15', '15분 전'], ['30', '30분 전'], ['60', '1시간 전'], ['1440', '1일 전']];
 const REP_OPTS = [['', '반복 안 함'], ['daily', '매일'], ['weekly', '매주'], ['monthly', '매월'], ['yearly', '매년']];
 
+let evModalBusy = false;
 async function openEventModal(id, events, onDone, date) {
   if (!S.auth.connected) return toast('Outlook이 연결되지 않았습니다');
+  if (evModalBusy || document.querySelector('#evf')) return; // 더블클릭·느린 망에서 두 번 눌러도 창은 하나
+  evModalBusy = true;
+  try { await openEventModalInner(id, events, onDone, date); } finally { evModalBusy = false; }
+}
+async function openEventModalInner(id, events, onDone, date) {
   const e = id ? (events || []).find((x) => x.id === id) : null;
   let det = {};
   if (e) { try { det = await OUTLOOK.detail(id); } catch { /* 내용 없이도 연다 */ } }
@@ -757,7 +779,7 @@ async function mountMonth(el) {
       const on = ed && ed.kind === it.type && ed.id === it.id;
       if (on) return `<li class="editing">${calForm(it.type, it.id, events)}</li>`;
       const ext = it.type === 'ev' && !it.editable
-        ? `<span class="chip line">${it.ev.organizer_me ? '참석자 있음' : '받은 초대'}</span>${it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank" rel="noopener">Teams 참가</a>` : it.link ? `<a class="btn sm ghost" href="${esc(it.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}`
+        ? `<span class="chip line">${it.ev.cal === 'team' && !OUTLOOK.teamWritable ? '보기 전용' : it.ev.organizer_me ? '참석자 있음' : '받은 초대'}</span>${it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank" rel="noopener">Teams 참가</a>` : it.link ? `<a class="btn sm ghost" href="${esc(it.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}`
         : it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank" rel="noopener">Teams 참가</a>` : '';
       return `<li class="${it.editable ? 'click' : ''}" ${it.editable ? `data-item="${it.type}|${esc(it.id)}"` : ''}><span class="k c-${calKey(it)}"><i class="cdot"></i>${it.time}</span><div class="t"><div class="ttl">${esc(it.title)}</div>${it.ev ? `<div class="meta">${it.cal === 'team' ? '스페이스인베스트먼트' : '내 일정'}${evOwners(it.ev).length ? ' · 담당 ' + evOwners(it.ev).join(', ') : ''}${it.ev.location ? ' · ' + esc(it.ev.location) : ''}</div>` : ''}</div>${ext}</li>`;
     }).join('');
@@ -789,6 +811,9 @@ async function mountMonth(el) {
         return draw();
       }
       ui.month = new Date(ui.month.getFullYear(), ui.month.getMonth() + v, 1);
+      const nowM = new Date(); // 선택한 날이 그 달 밖이면 그 달 1일(이번 달이면 오늘)로
+      if (parse(ui.selDay).getMonth() !== ui.month.getMonth() || parse(ui.selDay).getFullYear() !== ui.month.getFullYear())
+        ui.selDay = nowM.getMonth() === ui.month.getMonth() && nowM.getFullYear() === ui.month.getFullYear() ? today() : ymd(ui.month);
       mountMonth(el);
     };
     el.querySelectorAll('[data-m]').forEach((b) => b.addEventListener('click', () => nav(Number(b.dataset.m))));
@@ -880,9 +905,10 @@ async function mountMonth(el) {
   };
   draw();
   if (!S.auth.connected) return;
+  const tok = el._tok = (el._tok || 0) + 1;
   try {
     const r = await fetchCal(ymd(start), ymd(end));
-    if (!el.isConnected || !r.connected) return;
+    if (!el.isConnected || !r.connected || el._tok !== tok) return; // 그사이 다른 달로 옮겼다
     events = r.events || []; draw();
   } catch (e) { /* 일정 실패해도 D-day·할 일은 보인다 */ }
 }
@@ -928,10 +954,12 @@ async function renderCalendar(force) {
   bindSeg();
 
   try {
+    const tok = (renderCalendar.tok = (renderCalendar.tok || 0) + 1);
     const r = await fetchCal(ymd(s), ymd(e), force);
-    if (route() !== 'calendar') return;
+    if (route() !== 'calendar' || renderCalendar.tok !== tok || !$('#cal-body')) return; // 그사이 다른 주·월간으로 옮겼다
     const byDay = {};
-    r.events.forEach((ev) => (byDay[ev.start.slice(0, 10)] ||= []).push(ev));
+    // 여러 날 일정은 걸친 날마다(기간 전에 시작한 일정도 첫날에) 보인다
+    r.events.forEach((ev) => { for (let i = 0; i < 14; i++) { const k = ymd(addDays(s, i)); if (ev.start.slice(0, 10) <= k && ev.end > `${k}T00:00`) (byDay[k] ||= []).push(ev); } });
     const td = today();
     let html = '';
     for (let i = 0; i < 14; i++) {
@@ -948,7 +976,7 @@ async function renderCalendar(force) {
     }
     $('#cal-body').innerHTML = `<section class="card" style="overflow:hidden">${html}</section>
       <div class="muted" style="font-size:12px;margin-top:8px">${r.fetched} 기준</div>`;
-  } catch (err) { $('#cal-body').innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+  } catch (err) { const cb = $('#cal-body'); if (cb) cb.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
 }
 
 // ---------- 프로그램 ----------
@@ -1008,6 +1036,8 @@ function renderHomepage() {
       <a class="btn" href="hp/" target="_blank" rel="noopener">${ico('ext', 'sm')}새 창</a></div></div>
     <div class="card hp-card ${ui.hpView === 'm' ? 'm' : ''}">${navigator.serviceWorker?.controller ? '<iframe class="hp-frame" src="hp/" title="홈페이지 미리보기"></iframe>' : '<div class="empty">한 번 새로 고침한 뒤 다시 열어 주세요.</div>'}</div>`;
   PAGE.querySelectorAll('[data-hpv]').forEach((b) => b.addEventListener('click', () => { ui.hpView = b.dataset.hpv; renderHomepage(); }));
+  // 처음 접속이라 서비스워커가 아직 이 화면을 맡기 전이면, 맡는 순간 다시 그린다
+  if (!navigator.serviceWorker?.controller) navigator.serviceWorker?.addEventListener('controllerchange', () => { if (route() === 'homepage') renderHomepage(); }, { once: true });
   G.get(`/drives/${CFG.teamDrive}/root:/${encodeURIComponent('_홈페이지 미리보기')}?$select=lastModifiedDateTime`).then((j) => {
     const d = new Date(j.lastModifiedDateTime), el = $('#hp-when');
     if (el) el.textContent = `${d.getMonth() + 1}.${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())} 반영`;
@@ -1021,7 +1051,7 @@ function renderNotes() {
   if (!ui.note && S.notes.length && !isMobile()) ui.note = S.notes[0].name;
   document.body.classList.toggle('note-open', isMobile() && !!ui.noteOpen);
   if (isMobile() && ui.noteOpen && !ui.noteOff) { // 폰에서 기록을 연 상태 = 한 겹
-    ui.noteOff = pushLayer(async () => { ui.noteOff = null; await flushNote(); ui.noteOpen = false; renderNotes(); }, () => { ui.noteOff = null; ui.noteOpen = false; });
+    ui.noteOff = pushLayer(async () => { ui.noteOff = null; await flushNote(); ui.noteOpen = false; renderNotes(); }, () => { ui.noteOff = null; ui.noteOpen = false; flushNote(); });
   }
   PAGE.innerHTML = `
     <div class="page-head"><h1>업무일지·회의록</h1></div>
@@ -1041,31 +1071,48 @@ function renderNotes() {
   if (ui.note) openNote(ui.note);
 }
 
-let cur = null; // 열린 기록 { name, version, dirty }
+let cur = null, noteTok = 0; // 열린 기록 { name, version, text, dirty, gen, saving, conflict }
 async function openNote(name) {
-  const ed = $('#editor');
+  const ed = $('#editor'), tok = ++noteTok;
+  const known = S.notes.find((x) => x.name === name);
   try {
-    const n = await STORE.readNote(name);
-    cur = { name: n.name, version: n.version, dirty: false };
-    ed.innerHTML = `<div class="bar"><button class="iconbtn m-only" type="button" id="note-back" aria-label="목록" style="width:44px;height:44px">${ico('left')}</button><span class="nm">${esc(n.name.replace(/\.(txt|md)$/i, ''))}</span><span class="st" id="nst">저장됨</span></div><textarea id="nta" spellcheck="false"></textarea>`;
-    $('#note-back').onclick = async () => { ui.noteOff?.(); ui.noteOff = null; await flushNote(); ui.noteOpen = false; renderNotes(); };
-    const ta = $('#nta'); ta.value = n.text;
-    ta.addEventListener('input', () => { cur.dirty = true; $('#nst').textContent = '입력 중…'; clearTimeout(noteTimer); noteTimer = setTimeout(flushNote, 800); });
-  } catch (e) { ed.innerHTML = `<div class="empty" style="margin:auto">${esc(e.message)}</div>`; }
+    // 같은 기록을 다시 그릴 때(검색·새로 그리기)는 받아 둔 내용을 그대로 — 저장 안 된 글자가 사라지지 않게
+    if (!(cur && cur.name === name && (cur.dirty || cur.saving || !known || known.version === cur.version))) {
+      const n = await STORE.readNote(name);
+      if (tok !== noteTok) return; // 그사이 다른 기록을 눌렀다
+      cur = { name: n.name, version: n.version, text: n.text, dirty: false, gen: 0, saving: null, conflict: false };
+    }
+    if (!ed.isConnected) return;
+    ed.innerHTML = `<div class="bar"><button class="iconbtn m-only" type="button" id="note-back" aria-label="목록" style="width:44px;height:44px">${ico('left')}</button><span class="nm">${esc(cur.name.replace(/\.(txt|md)$/i, ''))}</span><span class="st" id="nst">${cur.dirty ? '입력 중…' : '저장됨'}</span></div><textarea id="nta" spellcheck="false"></textarea>`;
+    ed.querySelector('#note-back').onclick = async () => { ui.noteOff?.(); ui.noteOff = null; await flushNote(); ui.noteOpen = false; renderNotes(); };
+    const ta = ed.querySelector('#nta'), c = cur; ta.value = c.text;
+    ta.addEventListener('input', () => {
+      c.text = ta.value; c.dirty = true; c.gen++;
+      const st = $('#nst'); if (st && !c.conflict) st.textContent = '입력 중…';
+      clearTimeout(noteTimer); if (!c.conflict) noteTimer = setTimeout(flushNote, 800);
+    });
+  } catch (e) { if (tok === noteTok) ed.innerHTML = `<div class="empty" style="margin:auto">${esc(e.message)}</div>`; }
 }
 
 async function flushNote() {
   clearTimeout(noteTimer);
-  if (!cur || !cur.dirty || !$('#nta')) return;
-  const text = $('#nta').value;
-  try {
-    cur.version = await STORE.writeNote(cur.name, text, cur.version); cur.dirty = false;
-    const st = $('#nst'); if (st) { const d = new Date(); st.textContent = `저장됨 ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
-    const n = S.notes.find((x) => x.name === cur.name); if (n) { n.mtime = Date.now() / 1000; n.preview = text.slice(0, 400); n.version = cur.version; }
-  } catch (e) {
-    toast(e.message);
-    if (e.status === 409) { $('#nst').textContent = '다른 곳에서 수정됨 — 내용을 복사해 두고 다시 여세요'; }
-  }
+  const c = cur; if (!c) return;
+  if (c.saving) await c.saving; // 앞 저장이 끝난 뒤 최신 버전으로
+  if (!c.dirty || c.conflict) return;
+  const gen = c.gen, text = c.text;
+  c.saving = (async () => {
+    try {
+      c.version = await STORE.writeNote(c.name, text, c.version);
+      if (c.gen === gen) c.dirty = false; // 저장하는 사이에 친 글자가 있으면 한 번 더
+      const st = cur === c && $('#nst'); if (st && !c.dirty) { const d = new Date(); st.textContent = `저장됨 ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
+      const n = S.notes.find((x) => x.name === c.name); if (n) { n.mtime = Date.now() / 1000; n.preview = text.slice(0, 400); n.version = c.version; }
+    } catch (e) {
+      toast(e.message);
+      if (e.status === 409) { c.conflict = true; const st = cur === c && $('#nst'); if (st) st.textContent = '다른 곳에서 수정됨 — 내용을 복사해 두고 다시 여세요'; }
+    }
+  })();
+  try { await c.saving; } finally { c.saving = null; }
+  if (c.dirty && !c.conflict) return flushNote();
 }
 
 async function newNote(kind) {
@@ -1081,7 +1128,10 @@ async function newNote(kind) {
     let i = 2; const base = name.replace(/\.txt$/, ''); while (S.notes.some((n) => n.name === `${base}_${i}.txt`)) i++; name = `${base}_${i}.txt`;
   }
   try {
-    await STORE.writeNote(name, text, null);
+    try { await STORE.writeNote(name, text, null); } catch (e) {
+      if (e.status !== 409 || kind !== 'daily') throw e; // 다른 기기에서 오늘 업무일지를 먼저 만들었다 → 그 파일을 연다
+      toast('오늘 업무일지가 이미 있어 그 파일을 엽니다');
+    }
     await load(); ui.note = name; ui.noteQ = ''; ui.noteOpen = true; renderNotes();
     setTimeout(() => { const ta = $('#nta'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }, 200);
   } catch (e) { toast(e.message); }
@@ -1096,11 +1146,12 @@ function tick() {
 tick(); setInterval(tick, 1000);
 window.addEventListener('beforeunload', () => { if (cur && cur.dirty) flushNote(); });
 async function refresh() { // 다른 기기·Claude Code가 바꾼 내용 반영 (편집 중이 아닐 때만)
-  if (!S || document.hidden || ui.todoEdit || ui.calEdit || ui.mail?.composing || (route() === 'programs' && ui.progSel) || (cur && cur.dirty) || document.activeElement?.matches('input,textarea,select')) return;
+  const r = route();
+  if (!S || document.hidden || saving() || (r === 'todos' && ui.todoEdit) || (['home', 'calendar'].includes(r) && ui.calEdit) || ui.mail?.compose || (r === 'programs' && ui.progSel) || (cur && (cur.dirty || cur.saving)) || document.activeElement?.matches('input,textarea,select')) return;
   const sig = () => JSON.stringify([S.todos.version, S.programs.version, S.milestones.version, S.briefing.mtime, S.notes.map((n) => n.version)]);
   const before = sig();
   try { await load(); } catch { return; }
-  if (before !== sig() && !['notes', 'mail'].includes(route())) render();
+  if (before !== sig() && ['home', 'todos', 'calendar', 'programs'].includes(route())) render();
 }
 setInterval(refresh, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { CALC = {}; refresh(); } });
@@ -1121,6 +1172,8 @@ $('#me')?.addEventListener('click', () => { if (S) accountMenu(); });
 async function start() {
   try {
     if (!(await G.init())) return loginScreen(G.wrongAccount ? `${G.wrongAccount} 계정으로는 열 수 없습니다` : '');
+    if (!history.state?.seq) history.replaceState(hStamp(0), ''); // 로그인 처리 중 MSAL이 기록을 바꿨으면 다시 번호
+    hRoute = route();
     document.body.classList.remove('signed-out');
     if (typeof evLink !== 'undefined') evLink = '#deals'; // 홈 행사 카드 → 딜소싱 탭
     PAGE.innerHTML = '<div class="empty">불러오는 중…</div>';
@@ -1136,7 +1189,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) navigator.serviceWorker.getRegistration().then((r) => r && r.update()).catch(() => {}); });
   let reloaded = false; const hadController = !!navigator.serviceWorker.controller; // 첫 설치 때는 새로 고치지 않음
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadController || reloaded || (cur && cur.dirty) || ui.mail?.compose || document.activeElement?.matches('input,textarea')) return;
+    if (!hadController || reloaded || (cur && cur.dirty) || ui.mail?.compose || window.flUploading > 0 || saving() || document.activeElement?.matches('input,textarea')) return;
     reloaded = true; location.reload();
   });
 }

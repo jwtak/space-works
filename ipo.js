@@ -20,12 +20,17 @@ function ipoLoad(force) {
   if (!force && ipoState.at && Date.now() - ipoState.at < IPO_TTL) return Promise.resolve();
   if (!ipoState.loading) {
     ipoState.loading = (async () => {
-      const [d, mk] = await Promise.all([STORE.readText('data/ipo.json'), STORE.readJSON('ipo_marks')]);
+      // 저장 대기 중에 읽으면 대기 변경이 덮이므로 저장이 끝난 뒤 읽고, 아직 못 보낸 변경은 다시 얹는다
+      let d, mk, s;
+      do {
+        s = ipoState.saving; await s.catch(() => {});
+        [d, mk] = await Promise.all([STORE.readText('data/ipo.json'), STORE.readJSON('ipo_marks')]);
+      } while (s !== ipoState.saving);
       let data = null;
       if (d.text) { try { data = JSON.parse(d.text); } catch { throw new Error('ipo.json 형식이 올바르지 않습니다'); } }
       if (data) data.items = (data.items || []).map(ipoNorm);
       ipoState.data = data;
-      ipoState.marks = { items: Array.isArray(mk.items) ? mk.items : [], version: mk.version };
+      ipoState.marks = { items: ipoApplyDirty(Array.isArray(mk.items) ? mk.items : []), version: mk.version };
       ipoState.at = Date.now();
     })().finally(() => { ipoState.loading = null; });
   }
@@ -49,27 +54,54 @@ const ipoSt = (code) => ipoMark(code)?.status || '미접촉';
 const ipoNow = () => { const d = new Date(); return `${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
 /* 표시 저장: ipo_marks.json 은 탁지원·대표님 두 분이 같이 쓴다(편집 공유).
-   다른 사람이 먼저 저장했으면(409) 최신본을 다시 읽고, 이번에 바꾼 회사만 덮어 합쳐 한 번 더 저장한다. */
+   dirty = 아직 저장 안 된 변경 {code → {patch(바뀐 필드만), seq, base(되돌릴 원본)}}.
+   다른 사람이 먼저 저장했으면(409) 최신본을 다시 읽고 바뀐 필드만 얹어 한 번 더 저장한다.
+   그 밖의 실패는 화면을 저장 전으로 되돌린다. */
+let ipoSeq = 0;
+
+function ipoApplyDirty(items) {
+  ipoState.dirty.forEach((e, code) => {
+    const k = items.findIndex((x) => x.code === code);
+    const m = { ...(k >= 0 ? items[k] : { code, status: '미접촉', note: '' }), ...e.patch, name: e.name, at: e.at, by: e.by };
+    if (k >= 0) items[k] = m; else items.push(m);
+  });
+  return items;
+}
+
+function ipoRollback(msg) {
+  ipoState.dirty.forEach((e, code) => {
+    const items = ipoState.marks.items, k = items.findIndex((x) => x.code === code);
+    if (e.base) { if (k >= 0) items[k] = e.base; else items.push(e.base); } else if (k >= 0) items.splice(k, 1);
+  });
+  ipoState.dirty.clear();
+  toast(msg);
+  ipoDraw();
+}
+
 function ipoSaveMarks() {
   let merged = false;
   ipoState.saving = ipoState.saving.then(async () => {
     for (let i = 0; i < 3; i++) {
+      if (!ipoState.dirty.size) return;
+      const sent = new Map([...ipoState.dirty].map(([code, e]) => [code, e.seq]));
+      const body = ipoState.marks.items.map((m) => ({ ...m }));
       try {
-        ipoState.marks.version = await STORE.writeJSON('ipo_marks', ipoState.marks.items, ipoState.marks.version);
-        ipoState.dirty.clear();
+        ipoState.marks.version = await STORE.writeJSON('ipo_marks', body, ipoState.marks.version);
+        // 보내는 동안 또 바뀐 회사는 남겨 두고 다음 저장에 태운다
+        sent.forEach((seq, code) => { if (ipoState.dirty.get(code)?.seq === seq) ipoState.dirty.delete(code); });
         return;
       } catch (e) {
-        if (e.status !== 409) { toast(e.message); return; }
+        if (e.status !== 409) { ipoRollback(e.status === 403 ? '편집 권한이 없습니다.' : '저장하지 못했습니다. 잠시 후 다시 시도해 주세요.'); return; }
         try {
           const r = await STORE.readJSON('ipo_marks');
           const items = Array.isArray(r.items) ? r.items : [];
-          ipoState.dirty.forEach((m, code) => { const k = items.findIndex((x) => x.code === code); if (k >= 0) items[k] = m; else items.push(m); });
-          ipoState.marks = { items, version: r.version };
+          ipoState.dirty.forEach((d, code) => { const x = items.find((m) => m.code === code); d.base = x ? { ...x } : null; });
+          ipoState.marks = { items: ipoApplyDirty(items), version: r.version };
           merged = true;
-        } catch { toast('저장하지 못했습니다. 새로고침 후 다시 시도해 주세요.'); return; }
+        } catch { ipoRollback('저장하지 못했습니다. 잠시 후 다시 시도해 주세요.'); return; }
       }
     }
-    toast('다른 분이 동시에 수정 중입니다. 잠시 후 다시 시도해 주세요.');
+    ipoRollback('다른 분이 동시에 수정 중입니다. 잠시 후 다시 시도해 주세요.');
   }).finally(() => { if (merged) ipoDraw(); }); // 다른 분이 바꾼 내용도 화면에 반영
   return ipoState.saving;
 }
@@ -77,9 +109,12 @@ function ipoSaveMarks() {
 function ipoTouch(code, patch) {
   const x = ipoFind(code); if (!x) return;
   let m = ipoMark(code);
+  const prev = ipoState.dirty.get(code);
+  const base = prev ? prev.base : (m ? { ...m } : null);
   if (!m) { m = { code, name: x.name, status: '미접촉', note: '' }; ipoState.marks.items.push(m); }
-  Object.assign(m, patch, { name: x.name, at: ipoNow(), by: G.account?.name || '' });
-  ipoState.dirty.set(code, m);
+  const e = { patch: { ...prev?.patch, ...patch }, seq: ++ipoSeq, base, name: x.name, at: ipoNow(), by: G.account?.name || '' };
+  Object.assign(m, patch, { name: e.name, at: e.at, by: e.by });
+  ipoState.dirty.set(code, e);
 }
 
 function ipoSetStatus(code, status) {

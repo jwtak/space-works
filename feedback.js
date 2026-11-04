@@ -13,39 +13,51 @@ const RQ_HINT = {
   programs: '예: 프로그램마다 담당자와 마감일이 보이면 좋겠습니다',
   homepage: '예: 투자전략 페이지 첫 문장을 더 짧게 바꾸면 좋겠습니다',
 };
-const rqS = { items: [], etag: null, at: 0, scope: 'page', open: null, reply: null, busy: false };
+// loaded: 한 번이라도 제대로 읽었는지(또는 파일이 없음을 확인했는지). gen: 저장이 시작·끝날 때마다 올려, 그 사이 끝난 읽기는 버린다
+const rqS = { items: [], etag: null, at: 0, scope: 'page', open: null, reply: null, replyDraft: '', busy: false, loaded: false, gen: 0 };
 const rqUrl = () => `/drives/${CFG.teamDrive}/root:/${RQ_PATH.split('/').map(encodeURIComponent).join('/')}:`;
 const rqPage = () => (document.body.dataset.route || 'home');
-const rqWide = () => matchMedia('(min-width: 1800px)').matches;
-const rqWhen = (s) => { const d = new Date(s); return `${d.getMonth() + 1}.${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+const RQ_MQ = '(min-width: 1800px)';
+const rqWide = () => matchMedia(RQ_MQ).matches;
+const rqWhen = (s) => { const d = new Date(s); return isNaN(d) ? '' : `${d.getMonth() + 1}.${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const rqWho = () => [myName(), myTitle()].filter(Boolean).join(' ');
+const rqDrafting = () => [...document.querySelectorAll('#req textarea')].some((t) => t.value.trim());
 
-async function rqLoad() {
+// inSave: rqSave 안에서 부를 때. 밖에서 부른 읽기는 저장 중이거나 그 사이 저장이 있었으면 결과를 버린다(false)
+async function rqLoad(inSave) {
+  const g = rqS.gen;
+  let items = [], etag = null;
   try {
     const meta = await G.get(`${rqUrl()}?$select=eTag`);
     const text = await G.get(`${rqUrl()}/content`, { type: 'text' });
     const d = JSON.parse(text || '{}');
-    rqS.items = Array.isArray(d.items) ? d.items : []; rqS.etag = meta.eTag;
+    items = Array.isArray(d.items) ? d.items.filter((x) => x && typeof x === 'object') : []; etag = meta.eTag;
   } catch (e) {
-    if (e.status !== 404) throw e;
-    rqS.items = []; rqS.etag = null; // 아직 아무도 안 씀
+    if (e.status !== 404) throw e; // 404 = 아직 아무도 안 씀
   }
-  rqS.at = Date.now();
+  if (inSave !== true && (g !== rqS.gen || rqS.busy)) return false;
+  rqS.items = items; rqS.etag = etag; rqS.loaded = true; rqS.at = Date.now();
+  return true;
 }
 
-// fn(items)로 고친 뒤 저장. 다른 사람이 먼저 저장했으면(412) 다시 읽고 다시 적용
+// fn(items)로 고친 뒤 저장. 다른 사람이 먼저 저장했으면(412·409) 다시 읽고 다시 적용 — fn은 여러 번 적용돼도 같은 결과여야 한다
 async function rqSave(fn) {
-  for (let i = 0; i < 4; i++) {
-    if (i) await rqLoad();
-    fn(rqS.items);
-    try {
-      const r = await G.put(`${rqUrl()}/content`, JSON.stringify({ items: rqS.items }, null, 1),
-        { headers: { 'Content-Type': 'application/json', ...(rqS.etag ? { 'If-Match': rqS.etag } : {}) } });
-      rqS.etag = r?.eTag || null; rqS.at = Date.now();
-      return;
-    } catch (e) { if (![409, 412].includes(e.status)) throw e; }
-  }
-  throw new Error('다른 사람이 동시에 쓰고 있습니다. 잠시 후 다시 해 주세요');
+  rqS.gen++;
+  try {
+    if (!rqS.loaded) await rqLoad(true); // 처음 읽기가 실패했거나 아직이면 먼저 읽는다(빈 목록으로 남의 요청을 덮지 않게)
+    for (let i = 0; i < 4; i++) {
+      if (i) await rqLoad(true);
+      fn(rqS.items);
+      try {
+        // eTag가 없으면(새 파일) 그사이 누가 만들었을 때 덮지 않고 409로 실패하게
+        const r = await G.put(`${rqUrl()}/content${rqS.etag ? '' : '?@microsoft.graph.conflictBehavior=fail'}`, JSON.stringify({ items: rqS.items }, null, 1),
+          { headers: { 'Content-Type': 'application/json', ...(rqS.etag ? { 'If-Match': rqS.etag } : {}) } });
+        rqS.etag = r?.eTag || null; rqS.at = Date.now();
+        return;
+      } catch (e) { if (![409, 412].includes(e.status)) throw e; }
+    }
+    throw new Error('다른 사람이 동시에 쓰고 있습니다. 잠시 후 다시 해 주세요');
+  } finally { rqS.gen++; }
 }
 
 function rqCount() {
@@ -59,9 +71,9 @@ function rqItemHTML(x) {
     <div class="rq-meta"><b>${esc(x.by)}</b><span>${rqWhen(x.at)}</span>${rqS.scope === 'all' ? `<span>${esc(CRUMB[x.page] || x.page)}</span>` : ''}
       <span class="chip ${done ? 'green' : 'blue'} rq-st">${done ? '반영 완료' : '요청'}</span></div>
     <p class="rq-txt">${esc(x.text)}</p>
-    ${(x.replies || []).map((r) => `<div class="rq-re"><div class="rq-meta"><b>${esc(r.by)}</b><span>${rqWhen(r.at)}</span></div><p class="rq-txt">${esc(r.text)}</p></div>`).join('')}
-    ${rqS.reply === x.id ? `<form class="rq-rf" data-rf="${esc(x.id)}"><textarea class="area" name="t" rows="2" placeholder="의견을 입력하세요" required></textarea>
-      <div class="rq-act"><button type="button" class="btn sm grey" data-rcancel>취소</button><button class="btn sm primary">등록</button></div></form>` : ''}
+    ${(Array.isArray(x.replies) ? x.replies : []).filter(Boolean).map((r) => `<div class="rq-re"><div class="rq-meta"><b>${esc(r.by)}</b><span>${rqWhen(r.at)}</span></div><p class="rq-txt">${esc(r.text)}</p></div>`).join('')}
+    ${rqS.reply === x.id ? `<form class="rq-rf" data-rf="${esc(x.id)}"><textarea class="area" name="t" rows="2" placeholder="의견을 입력하세요" required>${esc(rqS.replyDraft)}</textarea>
+      <div class="rq-act"><button type="button" class="btn sm grey" data-rcancel>취소</button><button class="btn sm primary" ${rqS.busy ? 'disabled' : ''}>등록</button></div></form>` : ''}
     <div class="rq-tools">
       <button type="button" data-reply="${esc(x.id)}">의견 달기</button>
       ${G.isOwner ? `<button type="button" data-done="${esc(x.id)}">${done ? '요청으로 되돌리기' : '반영 완료'}</button>` : ''}
@@ -73,7 +85,7 @@ function rqDraw() {
   const box = $('#req'); if (!box || box.hidden) return;
   const page = rqPage();
   const list = rqS.items.filter((x) => rqS.scope === 'all' || x.page === page)
-    .sort((a, b) => (a.status === 'done') - (b.status === 'done') || b.at.localeCompare(a.at));
+    .sort((a, b) => (a.status === 'done') - (b.status === 'done') || String(b.at || '').localeCompare(String(a.at || '')));
   const draft = $('#rq-t')?.value || '';
   box.innerHTML = `<div class="rq-hd"><h2>요청사항</h2>
       <div class="rq-seg">${[['page', CRUMB[page] || '이 화면'], ['all', '전체']].map(([k, t]) => `<button type="button" data-scope="${k}" class="${rqS.scope === k ? 'on' : ''}">${esc(t)}</button>`).join('')}</div>
@@ -83,11 +95,16 @@ function rqDraw() {
     <ul class="rq-list">${list.length ? list.map(rqItemHTML).join('') : '<li class="rq-none">아직 요청이 없습니다</li>'}</ul>`;
 }
 
+// 저장에 성공하면 true. 실패하면 다시 읽어 저장 안 된 변경을 화면에서 걷어낸다
 async function rqAct(fn, msg) {
-  if (rqS.busy) return;
-  rqS.busy = true;
-  try { await rqSave(fn); if (msg) toast(msg); } catch (e) { toast(e.message); }
-  rqS.busy = false; rqCount(); rqDraw();
+  if (rqS.busy) { toast('저장 중입니다'); return false; }
+  rqS.busy = true; rqDraw();
+  let ok = false;
+  try { await rqSave(fn); ok = true; if (msg) toast(msg); } catch (e) { toast(e.message); }
+  rqS.busy = false;
+  if (!ok) { rqS.loaded = false; await rqLoad().catch(() => {}); } // 못 읽으면 다음 저장 때 먼저 읽는다
+  rqCount(); rqDraw();
+  return ok;
 }
 
 function rqBind(box) {
@@ -95,26 +112,37 @@ function rqBind(box) {
     const t = e.target.closest('button'); if (!t) return;
     if (t.dataset.scope) { rqS.scope = t.dataset.scope; rqDraw(); return; }
     if ('rqx' in t.dataset) { rqClose(); return; }
-    if (t.dataset.reply) { rqS.reply = rqS.reply === t.dataset.reply ? null : t.dataset.reply; rqDraw(); box.querySelector('.rq-rf textarea')?.focus(); return; }
-    if ('rcancel' in t.dataset) { rqS.reply = null; rqDraw(); return; }
-    if (t.dataset.done) { const id = t.dataset.done; rqAct((items) => { const x = items.find((i) => i.id === id); if (x) x.status = x.status === 'done' ? 'open' : 'done'; }); return; }
+    if (t.dataset.reply) { rqS.reply = rqS.reply === t.dataset.reply ? null : t.dataset.reply; rqS.replyDraft = ''; rqDraw(); box.querySelector('.rq-rf textarea')?.focus(); return; }
+    if ('rcancel' in t.dataset) { rqS.reply = null; rqS.replyDraft = ''; rqDraw(); return; }
+    if (t.dataset.done) {
+      const id = t.dataset.done, to = rqS.items.find((i) => i.id === id)?.status === 'done' ? 'open' : 'done'; // 누른 순간 보이던 상태 기준
+      rqAct((items) => { items.forEach((x) => { if (x.id === id) x.status = to; }); }); return;
+    }
     if (t.dataset.del) {
       if (!confirm('이 요청을 삭제할까요?')) return;
-      const id = t.dataset.del; rqAct((items) => { const i = items.findIndex((x) => x.id === id); if (i >= 0) items.splice(i, 1); }, '삭제했습니다');
+      const id = t.dataset.del; rqAct((items) => { for (let i = items.length - 1; i >= 0; i--) if (items[i].id === id) items.splice(i, 1); }, '삭제했습니다');
     }
   });
-  box.addEventListener('submit', (e) => {
+  box.addEventListener('input', (e) => { if (e.target.matches('.rq-rf textarea')) rqS.replyDraft = e.target.value; });
+  box.addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target, by = rqWho(), email = (G.account?.username || '').toLowerCase(), at = new Date().toISOString();
+    if (rqS.busy) { toast('저장 중입니다'); return; }
     if (f.id === 'rq-new') {
       const text = $('#rq-t').value.trim(); if (!text) return;
       const item = { id: uid(), page: rqPage(), text, by, email, at, status: 'open', replies: [] };
-      $('#rq-t').value = '';
-      rqAct((items) => { items.push(item); }, '요청을 남겼습니다');
+      const ok = await rqAct((items) => { if (!items.some((x) => x.id === item.id)) items.push(item); }, '요청을 남겼습니다');
+      const inp = $('#rq-t'); if (!inp) return;
+      if (ok) { if (inp.value.trim() === text) inp.value = ''; } else if (!inp.value.trim()) inp.value = text; // 실패하면 쓴 글을 그대로 둔다
     } else if (f.dataset.rf) {
       const id = f.dataset.rf, text = f.t.value.trim(); if (!text) return;
-      rqS.reply = null;
-      rqAct((items) => { const x = items.find((i) => i.id === id); if (x) (x.replies ||= []).push({ id: uid(), text, by, email, at }); });
+      const re = { id: uid(), text, by, email, at };
+      const ok = await rqAct((items) => {
+        const x = items.find((i) => i.id === id); if (!x) return;
+        if (!Array.isArray(x.replies)) x.replies = [];
+        if (!x.replies.some((r) => r && r.id === re.id)) x.replies.push(re);
+      });
+      if (ok && rqS.reply === id) { rqS.reply = null; rqS.replyDraft = ''; rqDraw(); }
     }
   });
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.target.matches('textarea')) e.target.form?.requestSubmit(); });
@@ -127,15 +155,17 @@ function rqOpen() {
   box.hidden = false; document.body.classList.add('req-on');
   if (rqWide()) { try { localStorage.setItem('reqDock', '1'); } catch { /* 기억 못 해도 됨 */ } } else if (!rqOff) rqOff = pushLayer(() => { rqOff = null; rqClose(true); }, () => { rqOff = null; rqClose(true); });
   rqDraw();
-  if (Date.now() - rqS.at > 20000) rqLoad().then(() => { rqCount(); rqDraw(); }).catch(() => {});
+  if (Date.now() - rqS.at > 20000 && !rqS.busy) rqLoad().then((ok) => { if (!ok) return; rqCount(); if (!rqDrafting()) rqDraw(); }).catch(() => {});
 }
+// viaBack === true: 뒤로 가기·다른 메뉴로 옮기기·화면 폭 변화로 닫힘 → 붙여 두기 설정은 그대로
 function rqClose(viaBack) {
   const box = $('#req'); if (!box) return;
   box.hidden = true; document.body.classList.remove('req-on');
-  if (rqWide()) { try { localStorage.setItem('reqDock', '0'); } catch { /* 기억 못 해도 됨 */ } }
+  if (viaBack !== true && rqWide()) { try { localStorage.setItem('reqDock', '0'); } catch { /* 기억 못 해도 됨 */ } }
   if (viaBack !== true && rqOff) { rqOff(); rqOff = null; }
 }
 function rqToggle() { $('#req')?.hidden ? rqOpen() : rqClose(); }
+const rqDock = () => { let d = '1'; try { d = localStorage.getItem('reqDock') ?? '1'; } catch { /* 기본은 붙여 둠 */ } return d === '1'; };
 
 // 앱 시작 후(로그인·데이터 읽은 뒤) app.js load()가 부른다
 async function rqInit() {
@@ -143,9 +173,18 @@ async function rqInit() {
   if (!box || box.dataset.bound) return; // load()가 1분마다 다시 불러도 한 번만
   box.dataset.bound = '1'; rqBind(box);
   $('#req-btn')?.addEventListener('click', rqToggle);
-  let dock = '1'; try { dock = localStorage.getItem('reqDock') ?? '1'; } catch { /* 기본은 붙여 둠 */ }
-  if (rqWide() && dock === '1') rqOpen();
-  window.addEventListener('hashchange', () => { rqS.reply = null; rqDraw(); });
-  setInterval(() => { if (!document.hidden && !rqS.busy && !document.activeElement?.closest?.('#req')) rqLoad().then(() => { rqCount(); rqDraw(); }).catch(() => {}); }, 60000);
-  try { await rqLoad(); rqCount(); rqDraw(); } catch { /* 요청사항은 없어도 된다 */ }
+  if (rqWide() && rqDock()) rqOpen();
+  // 1800px을 넘나들 때: 넓어지면 덮는 겹을 없애고 붙여 두기, 좁아지면 붙여 둔 패널을 닫는다(겹 없이 덮어 두지 않게)
+  matchMedia(RQ_MQ).addEventListener?.('change', (e) => {
+    if (e.matches) {
+      if (rqOff) { rqOff(); rqOff = null; }
+      if (!box.hidden) { try { localStorage.setItem('reqDock', '1'); } catch { /* 기억 못 해도 됨 */ } } else if (rqDock()) rqOpen();
+    } else if (!box.hidden) rqClose(true);
+  });
+  window.addEventListener('hashchange', () => { rqS.reply = null; rqS.replyDraft = ''; rqDraw(); });
+  setInterval(() => {
+    if (document.hidden || rqS.busy || document.activeElement?.closest?.('#req')) return;
+    rqLoad().then((ok) => { if (!ok) return; rqCount(); if (!rqDrafting()) rqDraw(); }).catch(() => {});
+  }, 60000);
+  try { if (await rqLoad()) { rqCount(); rqDraw(); } } catch { /* 요청사항은 없어도 된다 */ }
 }

@@ -27,7 +27,7 @@ const APP_URL = location.origin + location.pathname.replace(/[^/]*$/, ''); // �
 // 서비스워커가 홈페이지 미리보기 파일을 읽을 때 토큰을 달라고 하면 넘겨준다(sw.js hpToken)
 navigator.serviceWorker?.addEventListener('message', async (e) => {
   if (e.data?.type !== 'need-token' || !e.ports[0]) return;
-  try { const r = await MS.acquireTokenSilent({ scopes: CFG.scopes, account: G.account }); e.ports[0].postMessage({ token: r.accessToken, exp: r.expiresOn.getTime() }); } catch { e.ports[0].postMessage(null); }
+  try { const r = await MS.acquireTokenSilent({ scopes: CFG.scopes, account: G.account, forceRefresh: !!e.data.force }); e.ports[0].postMessage({ token: r.accessToken, exp: r.expiresOn.getTime() }); } catch { e.ports[0].postMessage(null); }
 });
 const MS = new msal.PublicClientApplication({
   auth: { clientId: CFG.clientId, authority: CFG.authority, redirectUri: APP_URL, postLogoutRedirectUri: APP_URL, navigateToLoginRequestUrl: false },
@@ -41,9 +41,10 @@ const G = {
   async init() {
     await MS.initialize();
     const res = await MS.handleRedirectPromise();
-    const all = MS.getAllAccounts();
-    const acc = res?.account || all.find((a) => a.tenantId === CFG.tenantId) || all[0] || null;
-    if (acc && acc.tenantId !== CFG.tenantId) { G.wrongAccount = acc.username; return false; } // 회사 밖 계정
+    if (res?.account && res.account.tenantId !== CFG.tenantId) { G.wrongAccount = res.account.username; return false; } // 회사 밖 계정으로 방금 로그인
+    const act = MS.getActiveAccount();
+    const acc = res?.account || (act?.tenantId === CFG.tenantId ? act : null) || MS.getAllAccounts().find((a) => a.tenantId === CFG.tenantId) || null;
+    if (acc) MS.setActiveAccount(acc); // 한 브라우저에 여러 계정이 있어도 마지막에 고른 계정으로 연다
     G.account = acc;
     return !!acc;
   },
@@ -51,22 +52,36 @@ const G = {
   login() { return MS.loginRedirect({ scopes: CFG.scopes, prompt: 'select_account' }); },
   logout() { return MS.logoutRedirect({ account: G.account || undefined }); },
 
-  async token() {
+  async token(force) {
     try {
-      return (await MS.acquireTokenSilent({ scopes: CFG.scopes, account: G.account })).accessToken;
+      return (await MS.acquireTokenSilent({ scopes: CFG.scopes, account: G.account, forceRefresh: !!force })).accessToken;
     } catch (e) {
-      if (e instanceof msal.InteractionRequiredAuthError) await MS.acquireTokenRedirect({ scopes: CFG.scopes, account: G.account });
+      if (e instanceof msal.InteractionRequiredAuthError || /interaction_required|login_required|consent_required|no_tokens_found|monitor_window_timeout|timed_out|token_renewal/i.test(e.errorCode || '')) {
+        G.relogin();
+        const err = new Error('로그인이 만료되었습니다. 위쪽 "다시 로그인"을 눌러 주세요.'); err.status = 401; throw err;
+      }
       throw e;
     }
+  },
+  // 다시 로그인 배너(한 번만). 누르면 쓰던 기록을 저장하고 로그인 화면으로
+  relogin() {
+    if (document.querySelector('.relogin')) return;
+    const b = document.createElement('div');
+    b.className = 'relogin'; b.setAttribute('role', 'alert');
+    b.innerHTML = '<span>로그인이 만료되었습니다</span><button type="button" class="btn sm primary">다시 로그인</button>';
+    b.querySelector('button').onclick = async () => {
+      try { if (typeof flushNote === 'function') await flushNote(); } catch { /* 저장 못 해도 로그인은 진행 */ }
+      MS.acquireTokenRedirect({ scopes: CFG.scopes, account: G.account });
+    };
+    document.body.appendChild(b);
   },
 
   /* 동시 요청 줄 세우기: Graph는 앱 하나가 한 메일함에 동시에 4개까지만 받는다(MailboxConcurrency).
      같은 앱으로 PC·폰이 함께 붙으므로 기기마다 3개로 묶는다. */
   busy: 0, waiting: [],
   async slot(fn) {
-    if (G.busy >= 3) await new Promise((res) => G.waiting.push(res));
-    G.busy++;
-    try { return await fn(); } finally { G.busy--; G.waiting.shift()?.(); }
+    if (G.busy >= 3) await new Promise((res) => G.waiting.push(res)); else G.busy++;
+    try { return await fn(); } finally { const next = G.waiting.shift(); if (next) next(); else G.busy--; }
   },
 
   /* type: 'json'(기본) | 'text' | 'blob' | 'none' */
@@ -79,11 +94,16 @@ const G = {
       b = JSON.stringify(body);
       h['Content-Type'] = h['Content-Type'] || 'application/json';
     }
-    // 429(요청 과다)·503·504는 서버가 알려 준 시간만큼 기다렸다 다시(최대 4번)
-    let r;
+    // 429(요청 과다)는 서버가 알려 준 시간만큼 기다렸다 다시(최대 4번). 503·504는 GET만 다시 —
+    // 메일 보내기·일정 만들기 같은 요청은 서버가 이미 처리했을 수 있어 두 번 보내지 않는다. 401은 토큰을 새로 받아 한 번만 다시.
+    const again = method === 'GET' ? [429, 503, 504] : [429];
+    const ms = type === 'blob' ? 0 : b !== undefined ? 120000 : 45000; // 응답 없는 요청이 자리를 계속 차지하지 않게
+    let r, renewed = false;
     for (let i = 0; ; i++) {
-      r = await G.slot(() => fetch(url, { method, headers: h, body: b }));
-      if (![429, 503, 504].includes(r.status) || i >= 4) break;
+      try { r = await G.slot(() => fetch(url, { method, headers: h, body: b, signal: ms && AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined })); }
+      catch (e) { if (e.name === 'TimeoutError' || e.name === 'AbortError') { const err = new Error('응답이 없습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.'); err.status = 0; throw err; } throw e; }
+      if (r.status === 401 && !renewed) { renewed = true; h.Authorization = `Bearer ${await G.token(true)}`; continue; }
+      if (!again.includes(r.status) || i >= 4) break;
       const wait = Math.min(Number(r.headers.get('Retry-After')) || 2 ** i, 20) * 1000 + Math.random() * 400;
       await new Promise((res) => setTimeout(res, wait));
     }
@@ -115,7 +135,11 @@ const STORE = {
 
   async meta(rel) {
     try { return await G.get(`${STORE.sharedItem(rel) || STORE.path(rel)}?$select=id,name,eTag,lastModifiedDateTime,size`); }
-    catch (e) { if (e.status === 404 || (e.status === 403 && STORE.sharedItem(rel))) return null; throw e; }
+    catch (e) {
+      if (STORE.sharedItem(rel) && [403, 404].includes(e.status)) { const err = new Error('공유받은 딜소싱 자료를 열 수 없습니다(권한 또는 파일 변경). 탁지원 대리에게 알려 주세요.'); err.status = e.status; throw err; }
+      if (e.status === 404) return null;
+      throw e;
+    }
   },
   async readText(rel) {
     const m = await STORE.meta(rel);
@@ -150,8 +174,10 @@ const STORE = {
 
   async listNotes(prev = []) {
     let kids = [];
-    try { kids = (await G.get(`${STORE.path('업무일지')}:/children?$select=id,name,eTag,lastModifiedDateTime,size&$top=200`)).value; }
-    catch (e) { if (e.status !== 404) throw e; }
+    try {
+      let url = `${STORE.path('업무일지')}:/children?$select=id,name,eTag,lastModifiedDateTime,size&$top=200`;
+      while (url) { const j = await G.get(url); kids.push(...j.value); url = j['@odata.nextLink'] || null; }
+    } catch (e) { if (e.status !== 404) throw e; }
     const files = kids.filter((k) => /\.(txt|md)$/i.test(k.name) && !k.name.startsWith('~$'));
     const known = new Map(prev.map((n) => [n.name, n]));
     const previews = await Promise.all(files.map((f) => (known.get(f.name)?.version === f.eTag ? Promise.resolve(known.get(f.name).preview)
@@ -170,12 +196,16 @@ const STORE = {
 
 /* ---------- 캘린더: 기본(내 일정) + 팀 캘린더(owner의 '스페이스인베스트먼트', 대표님께 공유) ---------- */
 const OUTLOOK = {
-  ids: null,
-  teamWritable: true, // owner만 팀 캘린더에 추가·수정(다른 사람은 보기만)
+  ids: null, idsP: null,
+  teamWritable: false, // owner만 팀 캘린더에 추가·수정(다른 사람은 보기만) — calendarIds()가 정한다
   /* 반환: { me: 캘린더 경로, team: 캘린더 경로 } — calendarView·events는 이 경로 뒤에 붙인다 */
-  async calendarIds() {
-    if (OUTLOOK.ids) return OUTLOOK.ids;
+  calendarIds() {
+    if (OUTLOOK.ids) return Promise.resolve(OUTLOOK.ids);
+    return (OUTLOOK.idsP ||= OUTLOOK.loadIds().finally(() => { OUTLOOK.idsP = null; }));
+  },
+  async loadIds() {
     const ids = {};
+    let temporary = false;
     for (const c of (await G.get('/me/calendars?$select=id,name,isDefaultCalendar')).value) {
       if (c.isDefaultCalendar) ids.me = `/me/calendars/${c.id}`;
       else if (G.isOwner && c.name.trim() === CFG.teamCalendar) ids.team = `/me/calendars/${c.id}`;
@@ -183,18 +213,20 @@ const OUTLOOK = {
     OUTLOOK.teamWritable = G.isOwner;
     if (!G.isOwner) { // 공유받은 캘린더는 주인 사서함 쪽 경로로 읽는다(Outlook에 추가했는지와 무관)
       const p = `/users/${CFG.owner}/calendars/${CFG.teamCalendarId}`;
-      try { await G.get(`${p}?$select=id`); ids.team = p; } catch { /* 공유 안 됨: 내 일정만 */ }
+      try { await G.get(`${p}?$select=id`); ids.team = p; } catch (e) { if (![403, 404].includes(e.status)) temporary = true; /* 403·404 = 공유 안 됨: 내 일정만 */ }
     }
-    OUTLOOK.ids = ids;
+    if (!temporary) OUTLOOK.ids = ids; // 네트워크 오류 한 번으로 팀 캘린더가 계속 빠지지 않게
     return ids;
   },
   async events(start, end) {
     const sel = 'id,subject,start,end,isAllDay,location,onlineMeeting,organizer,isOrganizer,attendees,webLink,isCancelled,bodyPreview,categories';
-    const q = new URLSearchParams({ startDateTime: start, endDateTime: end, $top: '200', $orderby: 'start/dateTime', $select: sel });
-    const out = [];
-    for (const [cal, cid] of Object.entries(await OUTLOOK.calendarIds())) {
+    const kst = (t) => (/[zZ]|[+-]\d\d:?\d\d$/.test(t) ? t : `${t}+09:00`); // 시간대가 없으면 Graph가 UTC로 읽어 오전 9시 전 일정이 빠진다
+    const q = new URLSearchParams({ startDateTime: kst(start), endDateTime: kst(end), $top: '200', $orderby: 'start/dateTime', $select: sel });
+    const out = [], cals = Object.entries(await OUTLOOK.calendarIds());
+    let failed = 0, lastErr = null;
+    for (const [cal, cid] of cals) {
       let url = `${cid}/calendarView?${q}`;
-      while (url) {
+      try { while (url) {
         const j = await G.get(url, { headers: G.KST });
         for (const e of j.value) {
           out.push({
@@ -206,8 +238,9 @@ const OUTLOOK = {
           });
         }
         url = j['@odata.nextLink'] || null;
-      }
+      } } catch (e) { failed++; lastErr = e; } // 팀 캘린더 하나가 막혀도 내 일정은 보여 준다
     }
+    if (failed && failed === cals.length) throw lastErr;
     return out.sort((a, b) => a.start.localeCompare(b.start) || (a.cal === 'team' ? -1 : 1));
   },
   body(b) {

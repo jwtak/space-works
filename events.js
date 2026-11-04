@@ -23,7 +23,7 @@ const evDefaults = () => ({ period: '12m', type: '', ind: '', region: '', min: 4
 const evState = {
   data: null, marks: { items: [], version: null }, at: 0, loading: null,
   f: evLoadFilter(), q: '', open: new Set(), month: null, day: null, mOpen: false,
-  saving: Promise.resolve(), focus: null, el: null, pop: null,
+  saving: Promise.resolve(), dirty: new Map(), base: new Map(), focus: null, el: null, pop: null,
 };
 
 /* ---------- 상태·데이터 ---------- */
@@ -61,27 +61,67 @@ function evLoad(force) {
   if (!force && evState.at && Date.now() - evState.at < EV_TTL) return Promise.resolve();
   if (!evState.loading) {
     evState.loading = (async () => {
-      const [ev, mk] = await Promise.all([STORE.readText('data/events.json'), STORE.readJSON('event_marks')]);
+      // 표시는 저장 줄 뒤에서 읽는다: 대기 중인 저장이 끝난 뒤 읽고, 아직 못 올린 표시는 그 위에 다시 얹는다
+      const marks = evState.saving.catch(() => {}).then(() => STORE.readJSON('event_marks')).then((mk) => { evState.marks = evMerge(mk); });
+      evState.saving = marks.catch(() => {}); // 읽기가 실패해도 다음 저장은 이어서
+      const [ev] = await Promise.all([STORE.readText('data/events.json'), marks]);
       let data = null;
       if (ev.text) { try { data = evNorm(JSON.parse(ev.text)); } catch { throw new Error('events.json 형식이 올바르지 않습니다'); } }
       evState.data = data;
-      evState.marks = { items: evMarkList(mk.items), version: mk.version };
       evState.at = Date.now();
     })().finally(() => { evState.loading = null; });
   }
   return evState.loading;
 }
 
-/* 표시 저장: 차례로 하나씩. 다른 기기에서 먼저 고쳤으면(409) 알리고 다시 읽는다 (app.js save() 와 같은 방식) */
+/* 서버에서 읽은 표시 위에 아직 못 올린 내 표시(evState.dirty: id → 바꾼 칸, null = 해제)를 다시 얹는다.
+   내가 바꾼 칸만 덮어 다른 분이 같은 행사에 적은 칸은 그대로 둔다 */
+function evMerge(r) {
+  const items = evMarkList(r.items);
+  evState.dirty.forEach((p, id) => {
+    const k = items.findIndex((m) => m.id === id);
+    evState.base.set(id, k >= 0 ? { ...items[k] } : null); // 저장 실패 때 되돌릴 서버 값
+    if (p) { if (k >= 0) Object.assign(items[k], p); else items.push({ id, status: p.status, note: '', at: p.at, title: p.title, start: p.start }); }
+    else if (k >= 0) { if (items[k].note) items[k].status = ''; else items.splice(k, 1); } // 메모가 있으면 표시만 지운다
+  });
+  return { items, version: r.version };
+}
+
+// 이번에 보낸 표시(sent) 중 그 뒤로 다시 안 바뀐 것을 서버 값으로 되돌린다
+function evRevert(sent) {
+  const items = evState.marks.items;
+  sent.forEach((p, id) => {
+    if (evState.dirty.get(id) !== p) return;
+    const b = evState.base.get(id), k = items.findIndex((m) => m.id === id);
+    if (b && k >= 0) items[k] = b; else if (b) items.push(b); else if (k >= 0) items.splice(k, 1);
+    evState.dirty.delete(id); evState.base.delete(id);
+  });
+}
+
+function evRedraw() { if ($('#ev-root')) evDrawMain(); evPopDraw(); }
+
+/* 표시 저장: 차례로 하나씩. event_marks.json 은 탁지원·대표님 두 분이 같이 쓴다(편집 공유).
+   다른 분이 먼저 저장했으면(409) 최신본을 다시 읽고 이번에 바꾼 표시만 다시 얹어 한 번 더 저장한다(최대 3번).
+   그래도 안 되거나 권한·네트워크 문제로 실패하면 화면을 서버 값으로 되돌린다 */
 function evSaveMarks() {
   evState.saving = evState.saving.then(async () => {
-    try { evState.marks.version = await STORE.writeJSON('event_marks', evState.marks.items, evState.marks.version); }
-    catch (e) {
-      toast(e.message);
-      if (e.status !== 409) return;
-      try { const r = await STORE.readJSON('event_marks'); evState.marks = { items: evMarkList(r.items), version: r.version }; } catch { /* 다음 저장 때 */ }
-      if ($('#ev-root')) evDrawMain();
+    if (!evState.dirty.size) return; // 앞 저장이 이미 올렸다
+    let sent = new Map(evState.dirty), err = null;
+    for (let i = 0; i < 3; i++) {
+      try {
+        evState.marks.version = await STORE.writeJSON('event_marks', evState.marks.items, evState.marks.version);
+        sent.forEach((p, id) => { if (evState.dirty.get(id) === p) { evState.dirty.delete(id); evState.base.delete(id); } }); // 보내는 동안 또 바뀐 건 다음 저장이 올린다
+        return;
+      } catch (e) {
+        err = e;
+        if (e.status !== 409) break;
+        try { evState.marks = evMerge(await STORE.readJSON('event_marks')); sent = new Map(evState.dirty); } catch (e2) { err = e2; break; }
+        evRedraw(); // 다른 분이 바꾼 표시도 화면에 반영
+      }
     }
+    evRevert(sent);
+    toast(err?.status === 403 || /읽기 전용/.test(err?.message || '') ? '편집 권한이 없습니다' : '저장하지 못했습니다. 잠시 후 다시 시도해 주세요');
+    evRedraw();
   });
   return evState.saving;
 }
@@ -89,9 +129,12 @@ function evSaveMarks() {
 function evToggleMark(id, status) {
   const e = evFind(id); if (!e) return;
   const items = evState.marks.items, m = evMarkOf(id);
-  if (m && evSt(id) === status) items.splice(items.indexOf(m), 1);
-  else if (m) Object.assign(m, { status, at: evNow(), title: e.title, start: e.start });
-  else items.push({ id, status, note: '', at: evNow(), title: e.title, start: e.start });
+  if (!evState.base.has(id)) evState.base.set(id, m ? { ...m } : null); // 저장 실패 때 되돌릴 값
+  const p = m && evSt(id) === status ? null : { status, at: evNow(), title: e.title, start: e.start }; // null = 표시 해제
+  if (!p) { if (m.note) m.status = ''; else items.splice(items.indexOf(m), 1); } // 메모가 있으면 표시만 지운다
+  else if (m) Object.assign(m, p);
+  else items.push({ id, status, note: '', at: p.at, title: e.title, start: e.start });
+  evState.dirty.set(id, p);
   if (evPass(e)) { evRefreshRow(id); evDrawCal(); } // 지금 조건에서 빠지면(숨김, 관심 해제 등) 다시 그린다
   else { evState.open.delete(id); evDrawMain(); }
   evSaveMarks();

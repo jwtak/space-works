@@ -40,7 +40,10 @@ function mailFullTime(iso) {
   return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())}(${WD[d.getDay()]}) ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 const mailWho = (r) => (r?.emailAddress ? r.emailAddress.name || r.emailAddress.address : '');
-const mailAddr = (r) => (r?.emailAddress ? (r.emailAddress.name && r.emailAddress.name !== r.emailAddress.address ? `${r.emailAddress.name} <${r.emailAddress.address}>` : r.emailAddress.address) : '');
+// "이름 <주소>" 문자열의 이름: 주소 칸은 , ; 로 나누므로 이름에 든 구분 기호는 공백으로 ("Smith, John" → Smith John)
+const mailName = (n) => String(n || '').replace(/[,;<>"]+/g, ' ').replace(/\s+/g, ' ').trim();
+const mailLabel = (name, address) => { const n = mailName(name); return n && n !== address ? `${n} <${address}>` : address; };
+const mailAddr = (r) => (r?.emailAddress ? mailLabel(r.emailAddress.name, r.emailAddress.address) : '');
 const mailAddrList = (arr) => (arr || []).map(mailAddr).join(', ');
 const mailSize = (b) => (b < 1024 ? `${b}B` : b < 1048576 ? `${Math.round(b / 1024)}KB` : `${(b / 1048576).toFixed(1)}MB`);
 const mailIsMobile = () => window.matchMedia('(max-width: 760px)').matches;
@@ -96,9 +99,9 @@ async function mailLoadSig() {
   const m = mailState();
   if (m.sig == null) {
     try { m.sig = mailSanitize((await STORE.readText('data/signature.html')).text || '').trim(); }
-    catch { m.sig = ''; }
+    catch { /* 못 읽었으면 다음에 다시 읽는다 */ }
   }
-  return m.sig;
+  return m.sig || '';
 }
 const mailSigBlock = (sig) => `<div data-sig="1">${sig}</div>`;
 const mailHasSig = (html) => /data-sig=|SPACE(&nbsp;|\s| )INVESTMENT/i.test(html || '');
@@ -116,6 +119,11 @@ function mailTyped(c) {
   doc.body.querySelectorAll('[data-sig]').forEach((n) => n.remove());
   return !!(doc.body.textContent || '').trim() || !!doc.body.querySelector('img');
 }
+/* 닫으면 잃는 내용이 있는지: 마지막 저장 뒤 고쳤고, 본문을 썼거나 첨부를 붙였거나 주소·제목이 처음과 다르면 */
+const mailBase = (c) => [c.to, c.cc, c.bcc, c.subject].map((s) => (s || '').trim()).join('\n');
+const mailDirty = (c) => !c.saved && !!(mailTyped(c) || c.files.length || mailBase(c) !== c.base);
+const mailEdited = (c) => { c.saved = false; c.rev = (c.rev || 0) + 1; };
+const mailLockFiles = (c) => document.querySelectorAll('#mail-cf [data-rm]').forEach((b) => { b.disabled = !!(c.busy || c.sending); });
 
 /* iframe 안에 들어갈 문서. 스크립트·폼·외부 요청은 막고, 외부 이미지는 사용자가 허용할 때만 */
 function mailFrameDoc(html, allowRemote) {
@@ -135,8 +143,9 @@ function mailConfirm({ title, rows, ok }) {
       <h3 id="mail-dlg-t">${esc(title)}</h3>
       <dl>${rows.filter((r) => r[1]).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
       <div class="mail-dialog-actions"><button class="btn" type="button" data-r="0">취소</button><button class="btn primary" type="button" data-r="1">${esc(ok)}</button></div></div>`;
-    const done = (v) => { wrap.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+    const done = (v, viaBack) => { if (!wrap.isConnected) return; wrap.remove(); document.removeEventListener('keydown', onKey); if (viaBack !== true) off(); resolve(v); };
     const onKey = (e) => { if (e.key === 'Escape') done(false); };
+    const off = pushLayer(() => done(false, true), () => done(false, true)); // 뒤로 가기 = 취소
     wrap.addEventListener('click', (e) => { if (e.target === wrap) done(false); const b = e.target.closest('[data-r]'); if (b) done(b.dataset.r === '1'); });
     document.addEventListener('keydown', onKey);
     document.body.appendChild(wrap);
@@ -171,13 +180,16 @@ function mailMenu(anchor, items) {
     menu.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - 248))}px`;
     menu.style.top = `${r.bottom + 6}px`;
     anchor.setAttribute('aria-expanded', 'true');
-    const done = (v) => {
+    const done = (v, viaBack) => {
+      if (!menu.isConnected) return;
       menu.remove(); anchor.setAttribute('aria-expanded', 'false'); anchor.mailClosedAt = Date.now();
       document.removeEventListener('mousedown', onDown, true); document.removeEventListener('keydown', onKey);
+      if (viaBack !== true) off();
       resolve(v);
     };
     const onDown = (e) => { if (!menu.contains(e.target)) done(null); };
     const onKey = (e) => { if (e.key === 'Escape') done(null); };
+    const off = pushLayer(() => done(null, true), () => done(null, true));
     menu.addEventListener('mail-close', () => done(null));
     menu.addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (b) done(b.dataset.k); });
     document.addEventListener('mousedown', onDown, true);
@@ -230,6 +242,7 @@ async function renderMail() {
   });
   PAGE.querySelectorAll('[data-bulk]').forEach((b) => b.addEventListener('click', () => mailBulk(b.dataset.bulk)));
   mailDrawShell();
+  setTimeout(() => { if (route() === 'mail') mailSyncLayers(); }); // 다른 메뉴에서 돌아왔으면 그 기록에 번호가 붙은 뒤 겹을 다시 쌓는다
   mailDrawFolders();
   mailDrawPane();
   mailLoadCounts();
@@ -252,6 +265,11 @@ function mailSyncBody() {
   document.body.classList.toggle('mail-composing', on && !!m.compose);
 }
 window.addEventListener('hashchange', () => { if (route() !== 'mail') document.body.classList.remove('mail-reading', 'mail-composing'); });
+// 쓰던 메일이 있으면 창 닫기·새로 고침 전에 묻는다 (다른 메뉴로 옮겨도 쓰기 상태는 남아 있다)
+window.addEventListener('beforeunload', (e) => {
+  const c = typeof ui !== 'undefined' && ui.mail?.compose;
+  if (c && (c.busy || c.sending || mailDirty(c))) { e.preventDefault(); e.returnValue = ''; }
+});
 
 /* 뒤로 가기: 메일 읽기·쓰기는 각각 한 겹(pushLayer) — 뒤로 가면 쓰기 → 읽던 메일 → 목록 순으로 닫힌다 */
 const mailReadOn = (m) => m.view === 'read' || (!!m.compose && m.backTo === 'read');
@@ -259,6 +277,15 @@ function mailSyncLayers() { // 앱 안 버튼(목록·취소·보내기·삭제)
   const m = ui.mail;
   if (m.composeOff && !m.compose) { m.composeOff(); m.composeOff = null; }
   if (m.readOff && !mailReadOn(m)) { m.readOff(); m.readOff = null; }
+  // 열려 있는데 겹이 없으면(새로 열었거나 다른 메뉴에 다녀옴) 읽기 → 쓰기 순으로 쌓는다. 메뉴를 막 옮겨 기록 번호가 없으면 renderMail이 뒤에 다시 부른다
+  if (route() !== 'mail' || !history.state?.seq) return;
+  if (!m.readOff && mailReadOn(m)) m.readOff = pushLayer(() => { m.readOff = null; if (m.view === 'read') mailBackToList(); }, () => { m.readOff = null; if (!m.compose) m.view = 'list'; });
+  if (!m.composeOff && m.compose) {
+    m.composeOff = pushLayer(async () => {
+      if (!(await mailLeaveCompose())) return false;
+      m.composeOff = null; mailAfterCompose();
+    }, () => { m.composeOff = null; });
+  }
 }
 function mailBackToList() {
   const m = ui.mail;
@@ -329,7 +356,9 @@ async function mailLoadList(more) {
   const folderName = MAIL_FOLDERS.find((f) => f.id === m.folder)?.name || '';
   $('#mail-ltitle').textContent = m.q ? `"${m.q}" 검색 결과` : folderName;
   mailDrawCount();
-  if (!more) { m.list = []; m.next = null; m.checked.clear(); box.innerHTML = '<li class="empty">불러오는 중…</li>'; }
+  // 늦게 온 이전 요청(다른 폴더·검색·보기, 지난 "더 보기")이 새 목록을 덮지 않게 마지막 요청만 반영
+  const my = (m.listSeq = (m.listSeq || 0) + 1), key = [m.folder, m.q, m.filter].join('\n');
+  if (!more) { m.list = []; m.next = null; m.checked.clear(); m.listKey = key; box.innerHTML = '<li class="empty">불러오는 중…</li>'; }
   m.loading = true;
   const flt = $('#mail-filter'); if (flt) flt.disabled = !!m.q; // $search 는 $filter 와 같이 못 쓴다
   try {
@@ -348,13 +377,13 @@ async function mailLoadList(more) {
       url = `/me/mailFolders/${m.folder}/messages?${q}`;
     }
     const j = await G.get(url);
-    if (route() !== 'mail') return;
+    if (my !== m.listSeq || m.listKey !== key || route() !== 'mail') return;
     m.list = more ? m.list.concat(j.value) : j.value;
     m.next = j['@odata.nextLink'] || null;
     mailDrawList();
   } catch (e) {
-    box.innerHTML = `<li class="empty">${esc(e.message)}</li>`;
-  } finally { m.loading = false; }
+    if (my === m.listSeq && box.isConnected) box.innerHTML = `<li class="empty">${esc(e.message)}</li>`;
+  } finally { if (my === m.listSeq) m.loading = false; }
 }
 
 function mailDrawList() {
@@ -409,7 +438,7 @@ async function mailOpen(id) {
   if (m.folder === 'drafts' && item?.isDraft) return mailOpenCompose({ mode: 'draft', id });
   const box = $('#mail-items'); if (box && m.view !== 'read') m.scroll = box.scrollTop; // ← 목록으로 돌아올 때 같은 위치
   m.sel = id; m.msg = null; m.atts = []; m.remote = false; m.view = 'read';
-  if (!m.readOff) m.readOff = pushLayer(() => { m.readOff = null; if (m.view === 'read') mailBackToList(); }, () => { m.readOff = null; m.view = 'list'; });
+  const folder = m.folder; // 안 읽음 개수는 연 폴더 기준 (읽음 처리 응답 전에 폴더를 옮겨도)
   mailDrawShell(); mailDrawList(); mailDrawPane();
   try {
     const [msg, atts] = await Promise.all([
@@ -417,21 +446,28 @@ async function mailOpen(id) {
       G.get(`/me/messages/${encodeURIComponent(id)}/attachments?$select=id,name,size,contentType,isInline`).then((r) => r.value).catch(() => []),
     ]);
     if (m.sel !== id) return;
-    // 본문 속 cid: 이미지(서명 로고 등)는 첨부에서 꺼내 data: 주소로 바꾼다
+    // 본문 속 cid: 이미지(서명 로고 등)는 첨부에서 꺼내 data: 주소로 바꾼다. 본문에 실제로 쓰인 것만 첨부 목록에서 숨긴다
+    const used = new Set();
     if (msg.body?.contentType === 'html' && /cid:/i.test(msg.body.content)) {
       for (const a of atts.filter((x) => x.isInline && x.size < MAIL_MAX_ATTACH)) {
         try {
           const full = await G.get(`/me/messages/${encodeURIComponent(id)}/attachments/${encodeURIComponent(a.id)}`);
-          if (full.contentId && full.contentBytes) msg.body.content = msg.body.content.split(`cid:${full.contentId}`).join(`data:${full.contentType || 'image/png'};base64,${full.contentBytes}`);
+          if (full.contentId && full.contentBytes && msg.body.content.includes(`cid:${full.contentId}`)) {
+            msg.body.content = msg.body.content.split(`cid:${full.contentId}`).join(`data:${full.contentType || 'image/png'};base64,${full.contentBytes}`);
+            used.add(a.id);
+          }
         } catch { /* 이미지 하나 실패해도 본문은 보인다 */ }
       }
     }
-    m.msg = msg; m.atts = atts.filter((a) => !a.isInline);
+    if (m.sel !== id) return;
+    m.msg = msg; m.atts = atts.filter((a) => !used.has(a.id));
     mailDrawPane();
     if (!msg.isRead) {
       G.patch(`/me/messages/${encodeURIComponent(id)}`, { isRead: true }).then(() => {
-        if (item) item.isRead = true;
-        const c = m.counts[m.folder]; if (c && c.unread) c.unread -= 1;
+        const it = m.list.find((x) => x.id === id) || item;
+        if (msg.isRead || (it && it.isRead)) return; // 그새 다른 데서 읽음 처리했으면 개수를 또 빼지 않는다
+        msg.isRead = true; if (it) it.isRead = true;
+        const c = m.counts[folder]; if (c && c.unread) c.unread -= 1;
         if (route() === 'mail') { mailDrawList(); mailDrawFolders(); }
       }).catch(() => {});
     }
@@ -503,8 +539,9 @@ function mailSheet(items) {
     const wrap = document.createElement('div');
     wrap.className = 'mail-modal mail-sheet-wrap';
     wrap.innerHTML = `<div class="mail-dialog mail-sheet" role="menu">${items.map((it) => `<button type="button" role="menuitem" data-k="${it.k}">${esc(it.label)}</button>`).join('')}<button type="button" class="mail-sheet-x" data-k="">닫기</button></div>`;
-    const done = (v) => { wrap.remove(); document.removeEventListener('keydown', onKey); resolve(v); };
+    const done = (v, viaBack) => { if (!wrap.isConnected) return; wrap.remove(); document.removeEventListener('keydown', onKey); if (viaBack !== true) off(); resolve(v); };
     const onKey = (e) => { if (e.key === 'Escape') done(null); };
+    const off = pushLayer(() => done(null, true), () => done(null, true));
     wrap.addEventListener('click', (e) => { if (e.target === wrap) return done(null); const b = e.target.closest('[data-k]'); if (b) done(b.dataset.k || null); });
     document.addEventListener('keydown', onKey);
     document.body.appendChild(wrap);
@@ -677,13 +714,17 @@ function mailZip(files) {
 async function mailSaveAll(x, atts, btn) {
   if (!atts.length) return;
   if (btn) btn.disabled = true;
+  const bad = []; // 하나 실패해도 나머지는 저장한다
   try {
-    if (atts.length < 3) { for (const a of atts) mailSaveBlob(await mailAttBlob(x.id, a), a.name); return; }
+    if (atts.length < 3) { for (const a of atts) { try { mailSaveBlob(await mailAttBlob(x.id, a), a.name); } catch { bad.push(a.name); } } return; }
     const files = [];
-    for (const a of atts) files.push({ name: a.name, data: new Uint8Array(await (await mailAttBlob(x.id, a)).arrayBuffer()) });
-    mailSaveBlob(mailZip(files), `${(x.subject || '첨부파일').replace(/[\\/:*?"<>|]+/g, '_').trim().slice(0, 80) || '첨부파일'}.zip`);
+    for (const a of atts) {
+      try { files.push({ name: String(a.name || '첨부파일').replace(/[\\/]+/g, '_'), data: new Uint8Array(await (await mailAttBlob(x.id, a)).arrayBuffer()) }); } // zip 안 이름의 / \ 는 폴더가 된다
+      catch { bad.push(a.name); }
+    }
+    if (files.length) mailSaveBlob(mailZip(files), `${(x.subject || '첨부파일').replace(/[\\/:*?"<>|]+/g, '_').trim().slice(0, 80) || '첨부파일'}.zip`);
   } catch (e) { toast(e.message); }
-  finally { if (btn) btn.disabled = false; }
+  finally { if (btn) btn.disabled = false; if (bad.length) toast(`받지 못한 첨부: ${bad.join(', ')}`); }
 }
 
 /* 미리보기 창: 이미지 <img>, PDF <iframe src=blob:>, 텍스트 <pre>. 미리보기 되는 첨부끼리 ←/→ */
@@ -768,8 +809,11 @@ async function mailAction(act, x, arg) {
   try {
     if (act === 'reply' || act === 'replyAll' || act === 'forward') return mailOpenCompose({ mode: act, id: x.id });
     if (act === 'read') {
+      const it = m.list.find((i) => i.id === x.id), was = it ? it.isRead : x.isRead;
       await G.patch(`/me/messages/${enc(x.id)}`, { isRead: true });
-      const it = m.list.find((i) => i.id === x.id); if (it) it.isRead = true;
+      x.isRead = true; if (it) it.isRead = true;
+      const c = m.counts[m.folder]; if (!was && c && c.unread) c.unread -= 1; // 실제로 바뀐 때만
+      if (route() === 'mail') { mailDrawList(); mailDrawFolders(); }
       return toast('읽음으로 표시했습니다');
     }
     if (act === 'star' || act === 'unstar') {
@@ -795,19 +839,17 @@ async function mailAction(act, x, arg) {
     }
     if (act === 'move') {
       await G.post(`/me/messages/${enc(x.id)}/move`, { destinationId: arg.id });
-      const idx = m.list.findIndex((i) => i.id === x.id), nxt = m.list[idx + 1] || m.list[idx - 1];
-      m.list = m.list.filter((i) => i.id !== x.id);
+      // 삭제처럼 목록으로 (다음 메일을 저절로 열면 읽음 처리돼 버린다)
+      m.list = m.list.filter((i) => i.id !== x.id); m.sel = null; m.msg = null; m.view = 'list';
+      mailDrawShell(); mailDrawList(); mailDrawPane(); mailLoadCounts();
       toast(`${arg.name}(으)로 옮겼습니다`);
-      mailLoadCounts();
-      if (nxt) return mailOpen(nxt.id);
-      m.sel = null; m.msg = null; m.view = 'list';
-      mailDrawShell(); mailDrawList(); mailDrawPane();
       return;
     }
     if (act === 'unread') {
+      const it = m.list.find((i) => i.id === x.id), was = it ? it.isRead : x.isRead;
       await G.patch(`/me/messages/${encodeURIComponent(x.id)}`, { isRead: false });
-      const it = m.list.find((i) => i.id === x.id); if (it) it.isRead = false;
-      const c = m.counts[m.folder]; if (c) c.unread += 1;
+      x.isRead = false; if (it) it.isRead = false;
+      const c = m.counts[m.folder]; if (c && was) c.unread += 1; // 실제로 바뀐 때만
       m.sel = null; m.msg = null; m.view = 'list';
       mailDrawShell(); mailDrawList(); mailDrawFolders(); mailDrawPane();
       return;
@@ -827,33 +869,38 @@ async function mailAction(act, x, arg) {
 /* mode: new | reply | replyAll | forward | draft */
 async function mailOpenCompose({ mode, id }) {
   const m = mailState();
-  if (m.compose && !(await mailLeaveCompose())) return;
-  const sig = await mailLoadSig();
-  const c = { mode, draftId: null, auto: false, saved: false, to: '', cc: '', bcc: '', subject: '', text: '', html: '', quote: '', existing: [], files: [], busy: false,
+  if (m.opening || (m.compose?.loading && m.compose.mode === mode && m.compose.src === id)) return; // 두 번 누름
+  m.opening = true;
+  let sig, back;
+  try {
+    back = m.compose ? m.backTo : m.view === 'read' ? 'read' : 'list'; // 답장 쓰다 새 메일을 열어도 돌아갈 곳은 그대로
+    if (m.compose && !(await mailLeaveCompose())) return;
+    sig = await mailLoadSig();
+  } finally { m.opening = false; }
+  const c = { mode, src: id, loading: mode !== 'new', draftId: null, auto: false, saved: false, kept: false, to: '', cc: '', bcc: '', subject: '', text: '', html: '', quote: '', existing: [], files: [], busy: false,
     plain: false, important: false, each: false, sched: null, sigOn: !!sig && mode !== 'draft' };
   if (mode !== 'draft') c.html = `<div><br></div><div><br></div>${sig ? mailSigBlock(sig) : ''}`;
-  m.backTo = m.view === 'read' ? 'read' : 'list';
+  c.base = mailBase(c);
+  m.backTo = back;
   m.compose = c; m.view = 'compose';
-  if (!m.composeOff) {
-    m.composeOff = pushLayer(async () => {
-      if (!(await mailLeaveCompose())) return false;
-      m.composeOff = null; mailAfterCompose();
-    }, () => { m.composeOff = null; });
-  }
   mailDrawShell(); mailDrawFolders(); mailDrawPane();
   try {
     if (mode === 'reply' || mode === 'replyAll' || mode === 'forward') {
       const fn = { reply: 'createReply', replyAll: 'createReplyAll', forward: 'createForward' }[mode];
       const d = await G.post(`/me/messages/${encodeURIComponent(id)}/${fn}`, {});
+      if (m.compose !== c) { G.del(`/me/messages/${encodeURIComponent(d.id)}`).catch(() => {}); return; } // 만드는 사이 쓰기를 닫았으면 남은 초안을 지운다
       Object.assign(c, { draftId: d.id, auto: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(d.ccRecipients), subject: d.subject || '', quote: d.body?.content || '' });
     } else if (mode === 'draft') {
       const d = await G.get(`/me/messages/${encodeURIComponent(id)}?$select=id,subject,toRecipients,ccRecipients,bccRecipients,body,importance`);
+      if (m.compose !== c) return;
       const html = d.body?.contentType === 'html' ? mailSanitize(d.body.content) : mailTextHtml(d.body?.content || '');
       Object.assign(c, { draftId: d.id, saved: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(d.ccRecipients), bcc: mailAddrList(d.bccRecipients), subject: d.subject || '',
         html, sigOn: mailHasSig(html), important: d.importance === 'high' });
     }
+    c.base = mailBase(c);
     if (c.draftId) c.existing = (await G.get(`/me/messages/${encodeURIComponent(c.draftId)}/attachments?$select=id,name,size,isInline`)).value.filter((a) => !a.isInline);
   } catch (e) { toast(e.message); }
+  c.loading = false;
   if (m.compose === c) mailDrawCompose();
 }
 
@@ -893,7 +940,7 @@ function mailDrawCompose() {
   const book = (key) => `<button type="button" class="mail-book" data-book="${key}" aria-label="주소록">${mi('plusc', 'bk-m')}${ico('plus', 'bk-d')}</button>`;
   const tokField = (key, label, pre = '', cls = '') => `<div class="mail-field mail-addrf ${cls}"><span class="mail-flbl">${label}${pre}</span>
     <div class="mail-ac mail-tok"><input type="hidden" name="${key}" value="${esc(c[key])}"><span class="mail-chips"></span><input class="mail-tok-in" autocomplete="off" aria-label="${label}" enterkeyhint="next"><ul class="mail-sug" hidden></ul></div>${book(key)}</div>`;
-  const files = [...c.existing.map((a) => ({ k: `e:${a.id}`, name: a.name, size: a.size })), ...c.files.map((f, i) => ({ k: `f:${i}`, name: f.name, size: f.size }))];
+  const files = [...c.existing.map((a) => ({ att: a, name: a.name, size: a.size })), ...c.files.map((f) => ({ file: f, name: f.name, size: f.size }))];
   const ccOpen = c.ccOpen || !!(c.cc.trim() || c.bcc.trim());
   const bccOpen = c.bccOpen || !!c.bcc.trim();
   const me = typeof G !== 'undefined' && G.account ? G.account : null;
@@ -928,7 +975,7 @@ function mailDrawCompose() {
           <label class="btn sm mail-dfile">${mi('pc')}내 컴퓨터<input type="file" multiple hidden id="mail-file"></label>
           <span class="mail-drop-tx">에서 첨부하거나, 여기로 파일을 끌어놓으세요.</span>
         </div>
-        ${files.length ? `<div class="mail-flist">${files.map((f) => `<span class="mail-file">${mi('doc')}<span class="mail-file-n">${esc(f.name)}</span><span class="muted">${mailSize(f.size)}</span><button type="button" class="iconbtn" data-rm="${f.k}" aria-label="첨부 빼기">${mi('close')}</button></span>`).join('')}</div>
+        ${files.length ? `<div class="mail-flist">${files.map((f, i) => `<span class="mail-file">${mi('doc')}<span class="mail-file-n">${esc(f.name)}</span><span class="muted">${mailSize(f.size)}</span><button type="button" class="iconbtn" data-rm="${i}" aria-label="첨부 빼기" ${c.busy || c.sending ? 'disabled' : ''}>${mi('close')}</button></span>`).join('')}</div>
         <div class="mail-drop-sz">${files.length}개 · ${mailSize(files.reduce((s, f) => s + (f.size || 0), 0))}</div>` : ''}
       </div></div>
       ${c.plain ? `<textarea class="mail-body" name="text" placeholder="내용">${esc(c.text)}</textarea>` : `
@@ -955,7 +1002,9 @@ function mailDrawCompose() {
     if (c.plain) c.text = f.elements.text.value; else if (rte) c.html = rte.innerHTML;
   };
   c.sync = sync;
-  f.addEventListener('input', sync);
+  f.addEventListener('input', () => { sync(); mailEdited(c); });
+  // 받는이 칸에 치다 만 주소를 칩으로 확정 (칸을 벗어날 때의 확정은 늦게 돌아서 저장·옵션·첨부·닫기보다 뒤에 온다)
+  const commit = () => { f.querySelectorAll('.mail-tok').forEach((b) => b.mailCommit && b.mailCommit()); sync(); };
   // 입력칸에서 Enter = 보내기(폼 제출)가 되지 않게. 제목에서 Enter는 본문으로
   f.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter' || e.isComposing || e.target.tagName !== 'INPUT') return;
@@ -963,13 +1012,12 @@ function mailDrawCompose() {
     if (e.target.name === 'subject') (rte || f.elements.text).focus();
   });
   const toggleCc = (open) => { c.ccOpen = f.classList.toggle('cc-open', open); $('#mail-cc-tg').setAttribute('aria-expanded', String(c.ccOpen)); };
-  f.querySelectorAll('[data-c=cancel]').forEach((b) => b.addEventListener('click', async () => { if (await mailLeaveCompose()) mailAfterCompose(); }));
-  f.querySelectorAll('[data-c=save]').forEach((b) => b.addEventListener('click', async () => { sync(); await mailSaveDraft(true); }));
-  f.querySelector('[data-c=preview]').addEventListener('click', () => { f.querySelectorAll('.mail-tok').forEach((b) => b.mailCommit && b.mailCommit()); sync(); mailPreview(); });
+  f.querySelectorAll('[data-c=cancel]').forEach((b) => b.addEventListener('click', async () => { commit(); if (await mailLeaveCompose()) mailAfterCompose(); }));
+  f.querySelectorAll('[data-c=save]').forEach((b) => b.addEventListener('click', async () => { commit(); await mailSaveDraft(c, true); }));
+  f.querySelector('[data-c=preview]').addEventListener('click', () => { commit(); mailPreview(); });
   f.addEventListener('submit', async (e) => {
     e.preventDefault();
-    f.querySelectorAll('.mail-tok').forEach((b) => b.mailCommit && b.mailCommit());
-    sync(); await mailSend();
+    commit(); await mailSend(c);
   });
   $('#mail-cc-tg').addEventListener('click', (e) => { e.preventDefault(); toggleCc(!f.classList.contains('cc-open')); if (c.ccOpen) f.querySelector('.mail-ccf .mail-tok-in').focus(); });
   $('#mail-bcc-tg').addEventListener('click', (e) => {
@@ -979,21 +1027,21 @@ function mailDrawCompose() {
     if (c.bccOpen) f.querySelector('.mail-bccf .mail-tok-in').focus();
   });
   $('#mail-each').addEventListener('change', (e) => { c.each = e.target.checked; f.classList.toggle('each', c.each); });
-  $('#mail-opt').addEventListener('click', (e) => { sync(); mailOptions(e.currentTarget); });
+  $('#mail-opt').addEventListener('click', (e) => { commit(); mailOptions(e.currentTarget); });
   f.querySelectorAll('[data-book]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); mailBook(b.closest('.mail-field').querySelector('.mail-tok')); }));
   $('#mail-cmore').addEventListener('click', async () => {
     const k = await mailSheet([{ k: 'save', label: '임시 저장' }, { k: 'cc', label: c.ccOpen ? '참조·숨은참조 숨기기' : '참조·숨은참조 추가' }, { k: 'cancel', label: '쓰기 취소' }]);
-    if (k === 'save') { sync(); await mailSaveDraft(true); }
+    if (k === 'save') { commit(); await mailSaveDraft(c, true); }
     else if (k === 'cc') toggleCc(!c.ccOpen);
-    else if (k === 'cancel' && await mailLeaveCompose()) mailAfterCompose();
+    else if (k === 'cancel') { commit(); if (await mailLeaveCompose()) mailAfterCompose(); }
   });
-  for (const id of ['mail-file', 'mail-file2', 'mail-cam']) $(`#${id}`).addEventListener('change', (e) => { sync(); mailAddFiles(e.target.files); });
+  for (const id of ['mail-file', 'mail-file2', 'mail-cam']) $(`#${id}`).addEventListener('change', (e) => { commit(); mailAddFiles(e.target.files); });
   // 첨부 칸에 파일을 끌어다 놓기 (데스크톱)
   const drop = $('#mail-drop');
   drop.addEventListener('dragover', (e) => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); drop.classList.add('over'); } });
   drop.addEventListener('dragleave', (e) => { if (!drop.contains(e.relatedTarget)) drop.classList.remove('over'); });
-  drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer.files.length) { sync(); mailAddFiles(e.dataTransfer.files); } });
-  f.querySelectorAll('[data-rm]').forEach((b) => b.addEventListener('click', () => { sync(); mailRemoveFile(b.dataset.rm); }));
+  drop.addEventListener('drop', (e) => { e.preventDefault(); drop.classList.remove('over'); if (e.dataTransfer.files.length) { commit(); mailAddFiles(e.dataTransfer.files); } });
+  f.querySelectorAll('[data-rm]').forEach((b) => b.addEventListener('click', () => { commit(); mailRemoveFile(c, files[Number(b.dataset.rm)]); }));
   f.querySelectorAll('.mail-ac').forEach(mailAutocomplete);
   f.querySelectorAll('.mail-tok').forEach(mailTokInit);
   if (c.mode === 'reply' || c.mode === 'replyAll') {
@@ -1068,7 +1116,7 @@ function mailRteInit(rte, c) {
     tools.classList.toggle('in-table', !!cellOf(s.anchorNode));
   };
   document.addEventListener('selectionchange', onSel);
-  const done = () => { c.html = rte.innerHTML; onSel(); };
+  const done = () => { c.html = rte.innerHTML; mailEdited(c); onSel(); };
   const exec = (cmd, val = null, css = false) => { restore(); document.execCommand('styleWithCSS', false, css); document.execCommand(cmd, false, val); done(); };
 
   /* 표 */
@@ -1273,6 +1321,7 @@ function mailApplyOptions(c, o) {
     }
     c.sigOn = o.sigOn;
   }
+  mailEdited(c);
   mailDrawCompose();
 }
 
@@ -1318,7 +1367,7 @@ function mailBook(tok) {
   });
   inp.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(() => load(inp.value.trim()), 250); });
   add.addEventListener('click', () => {
-    for (const p of picked.values()) tok.mailAdd(p.name && p.name !== p.address ? `${p.name} <${p.address}>` : p.address);
+    for (const p of picked.values()) tok.mailAdd(mailLabel(p.name, p.address));
     w.close();
   });
   inp.focus();
@@ -1326,23 +1375,24 @@ function mailBook(tok) {
 }
 
 function mailAddFiles(list) {
-  const c = ui.mail.compose;
+  const c = ui.mail.compose; if (!c) return;
+  if (c.sending) return toast('보내는 중입니다');
   for (const file of list) {
     if (file.size > MAIL_MAX_ATTACH) { toast(`${file.name}: 3MB 이하 파일만 첨부할 수 있습니다`); continue; }
-    c.files.push(file);
+    c.files.push(file); mailEdited(c);
   }
   mailDrawCompose();
 }
 
-async function mailRemoveFile(k) {
-  const c = ui.mail.compose;
-  if (k.startsWith('f:')) c.files.splice(Number(k.slice(2)), 1);
+/* it: 그릴 때의 첨부 항목 { att: 올린 첨부 } | { file: 올릴 파일 } — 번호가 아니라 그 객체로 뺀다 (올리는 중에 순서가 바뀌어도) */
+async function mailRemoveFile(c, it) {
+  if (!it || c.busy || c.sending) return;
+  if (it.file) c.files = c.files.filter((x) => x !== it.file);
   else {
-    const aid = k.slice(2);
-    try { await G.del(`/me/messages/${encodeURIComponent(c.draftId)}/attachments/${encodeURIComponent(aid)}`); c.existing = c.existing.filter((a) => a.id !== aid); }
+    try { await G.del(`/me/messages/${encodeURIComponent(c.draftId)}/attachments/${encodeURIComponent(it.att.id)}`); c.existing = c.existing.filter((a) => a.id !== it.att.id); }
     catch (e) { toast(e.message); }
   }
-  mailDrawCompose();
+  if (ui.mail.compose === c) mailDrawCompose();
 }
 
 /* 받는이 칸: 마지막 주소 조각으로 /me/people 검색. 후보가 뜨면 첫 번째가 기본 선택이라 Enter 한 번에 들어간다.
@@ -1353,7 +1403,7 @@ function mailAutocomplete(box) {
   const close = () => { sug.hidden = true; items = []; idx = -1; };
   const pick = (i) => {
     const p = items[i]; if (!p) return;
-    const label = p.name && p.name !== p.address ? `${p.name} <${p.address}>` : p.address;
+    const label = mailLabel(p.name, p.address);
     close();
     if (box.mailAdd) { box.mailAdd(label); input.focus(); return; }
     const parts = input.value.split(/[,;]/); parts.pop();
@@ -1415,9 +1465,9 @@ function mailFileB64(file) {
 }
 
 /* 초안을 만들거나 고친다. 첨부도 올린다. 반환: 초안 id */
-async function mailSaveDraft(notify) {
-  const c = ui.mail.compose;
-  if (c.busy) return null;
+async function mailSaveDraft(c, notify) {
+  if (c.loading) { toast('불러오는 중입니다'); return null; }
+  if (c.busy || (notify && c.sending)) { if (notify) toast(c.sending ? '보내는 중입니다' : '저장 중입니다'); return null; }
   let msg;
   try {
     msg = {
@@ -1431,7 +1481,8 @@ async function mailSaveDraft(notify) {
   // 발송 예약: PidTagDeferredSendTime. 예약을 껐으면 지난 시각으로 덮어 바로 보내지게 한다
   const at = c.sched ? mailSchedDate(c.sched) : c.schedSaved ? Date.now() - 60e3 : 0;
   if (at) msg.singleValueExtendedProperties = [{ id: 'SystemTime 0x3FEF', value: new Date(at).toISOString() }];
-  c.busy = true;
+  const rev = c.rev;
+  c.busy = true; mailLockFiles(c);
   try {
     if (c.draftId) await G.patch(`/me/messages/${encodeURIComponent(c.draftId)}`, msg);
     else { const d = await G.post('/me/messages', msg); c.draftId = d.id; }
@@ -1442,17 +1493,18 @@ async function mailSaveDraft(notify) {
         '@odata.type': '#microsoft.graph.fileAttachment', name: file.name, contentType: file.type || 'application/octet-stream', contentBytes: await mailFileB64(file),
       });
       c.existing.push({ id: a.id, name: a.name, size: a.size });
-      c.files.shift();
+      c.files = c.files.filter((x) => x !== file);
     }
-    c.saved = true;
-    if (notify) { toast('임시보관함에 저장했습니다'); mailLoadCounts(); mailDrawCompose(); }
+    c.saved = c.rev === rev; c.kept = true; // 저장하는 사이에 고쳤으면 아직 저장 안 된 것
+    if (notify) { toast('임시보관함에 저장했습니다'); mailLoadCounts(); if (ui.mail.compose === c) mailDrawCompose(); }
     return c.draftId;
   } catch (e) { toast(e.message); return null; }
-  finally { c.busy = false; }
+  finally { c.busy = false; mailLockFiles(c); }
 }
 
-async function mailSend() {
-  const c = ui.mail.compose;
+async function mailSend(c) {
+  if (c.sending) return;
+  if (c.busy) return toast('저장 중입니다. 잠시 후 다시 눌러 주세요');
   let to, cc, bcc;
   try { to = mailParseAddrs(c.to, '받는 사람'); cc = c.each ? [] : mailParseAddrs(c.cc, '참조'); bcc = c.each ? [] : mailParseAddrs(c.bcc, '숨은참조'); }
   catch (e) { return toast(e.message); }
@@ -1468,44 +1520,51 @@ async function mailSend() {
       ['옵션', [c.important && '중요', each && '개인별 보내기'].filter(Boolean).join(' · ')]],
     ok: c.sched ? '예약' : '보내기',
   });
-  if (!ok) return;
+  if (!ok || c.sending || ui.mail.compose !== c) return;
+  c.sending = true; mailLockFiles(c); // 보내는 동안(첨부 올리기 포함) 닫기·첨부 빼기·저장을 막는다
   const btns = document.querySelectorAll('#mail-cf [type=submit]'); btns.forEach((b) => { b.disabled = true; });
-  const id = await mailSaveDraft(false);
-  if (!id) { btns.forEach((b) => { b.disabled = false; }); return; }
   const enc = encodeURIComponent, sent = [];
   try {
-    // 개인별 보내기: 첨부까지 올린 초안을 받는 사람 수만큼 복사해 한 명씩 보낸다
-    if (each) {
-      for (const r of to.slice(1)) {
-        const cp = await G.post(`/me/messages/${enc(id)}/copy`, { destinationId: 'drafts' });
-        await G.patch(`/me/messages/${enc(cp.id)}`, { toRecipients: [r], ccRecipients: [], bccRecipients: [] });
-        await G.post(`/me/messages/${enc(cp.id)}/send`, {}, { type: 'none' });
-        sent.push(r);
+    const id = await mailSaveDraft(c, false);
+    if (!id) { btns.forEach((b) => { b.disabled = false; }); return; }
+    try {
+      // 개인별 보내기: 첨부까지 올린 초안을 받는 사람 수만큼 복사해 한 명씩 보낸다
+      if (each) {
+        for (const r of to.slice(1)) {
+          const cp = await G.post(`/me/messages/${enc(id)}/copy`, { destinationId: 'drafts' });
+          try {
+            await G.patch(`/me/messages/${enc(cp.id)}`, { toRecipients: [r], ccRecipients: [], bccRecipients: [] });
+            await G.post(`/me/messages/${enc(cp.id)}/send`, {}, { type: 'none' });
+          } catch (err) { G.del(`/me/messages/${enc(cp.id)}`).catch(() => {}); throw err; } // 못 보낸 복사본은 임시보관함에 남기지 않는다
+          sent.push(r);
+        }
+        await G.patch(`/me/messages/${enc(id)}`, { toRecipients: [to[0]] });
       }
-      await G.patch(`/me/messages/${enc(id)}`, { toRecipients: [to[0]] });
+      await G.post(`/me/messages/${enc(id)}/send`, {}, { type: 'none' });
+      toast(c.sched ? `${mailSchedLabel(c.sched)}에 보냅니다` : each ? `${to.length}명에게 보냈습니다` : '보냈습니다');
+      c.sending = false;
+      if (ui.mail.compose === c) { ui.mail.compose = null; mailAfterCompose(true); }
+    } catch (e) {
+      if (sent.length) {
+        // 이미 보낸 사람은 빼고 남은 사람만 받는 사람에 남긴다 (다시 눌러도 두 번 가지 않게)
+        const done = new Set(sent.map((r) => r.emailAddress.address.toLowerCase()));
+        c.to = mailTokens(c.to).filter((t) => !done.has(((t.match(/<([^>]+)>$/) || [, t])[1]).trim().toLowerCase())).join(', ');
+        mailEdited(c); c.sending = false;
+        if (ui.mail.compose === c) mailDrawCompose();
+        toast(`${sent.length}명에게 보냈고 나머지는 실패했습니다: ${e.message}`);
+      } else toast(e.message);
+      btns.forEach((b) => { if (b.isConnected) b.disabled = false; });
     }
-    await G.post(`/me/messages/${enc(id)}/send`, {}, { type: 'none' });
-    toast(c.sched ? `${mailSchedLabel(c.sched)}에 보냅니다` : each ? `${to.length}명에게 보냈습니다` : '보냈습니다');
-    ui.mail.compose = null;
-    mailAfterCompose(true);
-  } catch (e) {
-    if (sent.length) {
-      // 이미 보낸 사람은 빼고 남은 사람만 받는 사람에 남긴다 (다시 눌러도 두 번 가지 않게)
-      const done = new Set(sent.map((r) => r.emailAddress.address.toLowerCase()));
-      c.to = mailTokens(c.to).filter((t) => !done.has(((t.match(/<([^>]+)>$/) || [, t])[1]).trim().toLowerCase())).join(', ');
-      mailDrawCompose();
-      toast(`${sent.length}명에게 보냈고 나머지는 실패했습니다: ${e.message}`);
-    } else toast(e.message);
-    btns.forEach((b) => { if (b.isConnected) b.disabled = false; });
-  }
+  } finally { c.sending = false; mailLockFiles(c); }
 }
 
 /* 쓰던 메일을 닫아도 되는지 확인. 답장·전달로 자동 생성된 초안은 저장하지 않았으면 지운다 */
 async function mailLeaveCompose() {
   const c = ui.mail.compose; if (!c) return true;
-  const typed = mailTyped(c) || (c.mode === 'new' && (c.to.trim() || c.subject.trim())) || c.files.length;
-  if (typed && !c.saved && !(await mailConfirm({ title: '작성 중인 메일을 닫을까요?', rows: [['제목', c.subject.trim() || '(제목 없음)']], ok: '닫기' }))) return false;
-  if (c.auto && !c.saved && c.draftId) G.del(`/me/messages/${encodeURIComponent(c.draftId)}`).catch(() => {});
+  if (c.busy || c.sending) { toast(c.sending ? '보내는 중입니다' : '저장 중입니다'); return false; }
+  if (mailDirty(c) && !(await mailConfirm({ title: '작성 중인 메일을 닫을까요?', rows: [['제목', c.subject.trim() || '(제목 없음)']], ok: '닫기' }))) return false;
+  if (ui.mail.compose !== c) return true;
+  if (c.auto && !c.kept && c.draftId) G.del(`/me/messages/${encodeURIComponent(c.draftId)}`).catch(() => {}); // 한 번도 저장하지 않은 답장·전달 초안
   ui.mail.compose = null;
   return true;
 }

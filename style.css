@@ -116,7 +116,7 @@ svg.i.lg { width: 22px; height: 22px; }
 
 .empty { padding: 28px 0; color: var(--text3); font-size: 13px; text-align: center; }
 .muted { color: var(--text3); }
-.toast { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); background: #1F2937; color: #fff; padding: 10px 16px; border-radius: var(--r); font-size: 13px; z-index: 50; }
+.toast { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); background: #1F2937; color: #fff; padding: 10px 16px; border-radius: var(--r); font-size: 13px; z-index: 120; }
 
 /* ---------- 홈 ---------- */
 .home { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; align-items: start; }
@@ -634,6 +634,8 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 }
 
 /* 딜소싱 하위 탭 */
+.relogin { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; align-items: center; gap: 12px; padding: 8px 8px 8px 16px; border-radius: 10px; background: var(--ink); color: #fff; font-size: 14px; box-shadow: 0 8px 24px rgba(15, 23, 42, .2); }
+
 /* 홈페이지 미리보기 */
 .hp-when { font-size: 13px; color: var(--text3); }
 .hp-seg { display: inline-flex; gap: 2px; padding: 3px; background: #E9EDF3; border-radius: 10px; }
