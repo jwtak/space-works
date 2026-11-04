@@ -261,7 +261,8 @@ async function flPreview(it) {
       <div class="fl-pv-body"><div class="empty">불러오는 중…</div></div></div>`;
   document.body.appendChild(wrap);
   let url = null;
-  const close = () => { wrap.remove(); if (url) URL.revokeObjectURL(url); document.removeEventListener('keydown', onKey); };
+  const close = (viaBack) => { if (!wrap.isConnected) return; wrap.remove(); if (url) URL.revokeObjectURL(url); document.removeEventListener('keydown', onKey); if (viaBack !== true) off(); };
+  const off = pushLayer(() => close(true), () => close(true));
   const onKey = (e) => { if (e.key === 'Escape') close(); };
   document.addEventListener('keydown', onKey);
   wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
@@ -365,6 +366,9 @@ function flAfterChange() {
 /* ---------- 검색 ---------- */
 async function flSearch(q) {
   flS.q = q; flS.sel.clear();
+  // 검색 결과 = 한 겹: 뒤로 가면 폴더 목록으로
+  if (q && !flS.searchOff) flS.searchOff = pushLayer(() => { flS.searchOff = null; const i = $('#fl-q'); if (i) i.value = ''; flSearch(''); }, () => { flS.searchOff = null; });
+  if (!q && flS.searchOff) { flS.searchOff(); flS.searchOff = null; }
   if (!q) { flS.results = null; flDraw(); if (!flS.items.length) flLoad(); return; }
   flS.results = []; flS.loading = true; flDraw();
   try {

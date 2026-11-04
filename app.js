@@ -27,11 +27,16 @@ function openSheet(html, mount, cls = '') { // 아래에서 올라오는 패널(
   const wrap = document.createElement('div');
   wrap.className = 'sheet-wrap';
   wrap.innerHTML = `<div class="sheet ${cls}" role="dialog" aria-modal="true"><div class="handle"></div>${html}</div>`;
-  const close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); };
+  const close = (viaBack) => { // viaBack === true: 뒤로 가기·메뉴 이동으로 닫힘
+    if (!wrap.isConnected) return;
+    wrap.remove(); document.removeEventListener('keydown', onKey);
+    if (viaBack !== true) off();
+  };
   const onKey = (e) => { if (e.key === 'Escape') close(); };
   wrap.addEventListener('click', (e) => { if (e.target === wrap) close(); });
   document.addEventListener('keydown', onKey);
   document.body.appendChild(wrap);
+  const off = pushLayer(() => close(true), () => close(true));
   if (mount) mount(wrap.querySelector('.sheet'), close);
   return close;
 }
@@ -145,6 +150,42 @@ function render() {
   ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, deals: renderDeals, files: () => (typeof renderFiles === 'function' ? renderFiles(PAGE) : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), programs: renderPrograms, notes: renderNotes }[r] || renderHome)();
 }
 window.addEventListener('hashchange', render);
+
+/* 뒤로 가기: 화면 안에서 한 겹(창·패널·메일 읽기·상세) 열 때마다 기록을 하나 쌓고, 뒤로 가면 맨 위 한 겹만 닫는다.
+   앱 안 버튼으로 닫은 겹의 기록은 지우지 않는다(history.go를 섞으면 메뉴 이동과 꼬인다). 대신 뒤로 갈 때 건너뛴다. */
+const LAYERS = []; // { depth, route, close, leave }
+let hSeq = 0, hCur = 0, hRoute = route(), hSkipping = false;
+const hStamp = (layer) => { hCur = ++hSeq; return { layer, seq: hCur }; };
+if (!history.state?.seq) history.replaceState(hStamp(0), '');
+// close: 뒤로 가기로 닫을 때(false를 돌려주면 안 닫힘), leave: 다른 메뉴로 옮길 때. 돌려주는 함수는 앱 안에서 닫았을 때 부른다
+function pushLayer(close, leave) {
+  const L = { depth: (history.state?.layer || 0) + 1, route: route(), close, leave };
+  history.pushState(hStamp(L.depth), '');
+  LAYERS.push(L);
+  return () => { const i = LAYERS.indexOf(L); if (i >= 0) LAYERS.splice(i, 1); };
+}
+window.addEventListener('hashchange', () => {
+  if (!history.state?.seq) history.replaceState(hStamp(0), ''); // 새로 연 메뉴 기록에도 번호
+  const r = route();
+  LAYERS.filter((L) => L.route !== r).forEach((L) => { LAYERS.splice(LAYERS.indexOf(L), 1); L.leave?.(); });
+});
+window.addEventListener('popstate', async (e) => {
+  const st = e.state || {}, d = st.layer || 0, r = route(), crossed = r !== hRoute;
+  const back = !st.seq || st.seq < hCur;
+  hCur = st.seq || hCur; hRoute = r;
+  if (!back) { hSkipping = false; return; } // 앞으로 가기는 그대로
+  let closed = false;
+  for (const L of LAYERS.filter((x) => x.route === r && x.depth > d).sort((a, b) => b.depth - a.depth)) {
+    LAYERS.splice(LAYERS.indexOf(L), 1);
+    if ((await L.close()) === false) { // 닫지 않기로 함(작성 중인 메일 등): 기록을 다시 쌓는다
+      L.depth = (history.state?.layer || 0) + 1; history.pushState(hStamp(L.depth), ''); LAYERS.push(L); hSkipping = false; return;
+    }
+    closed = true;
+  }
+  if (d > 0 && !LAYERS.some((L) => L.route === r && L.depth === d)) { hSkipping = true; history.back(); return; } // 이미 닫힌 겹의 기록
+  if (hSkipping) { hSkipping = false; return; }
+  if (!closed && !crossed) history.back(); // 누른 뒤로 가기가 화면에 아무 변화도 없었으면 한 번 더
+});
 
 // ---------- 할 일 공통 ----------
 function dueInfo(t) {
@@ -919,6 +960,8 @@ function renderPrograms() {
           ${sel.id !== 'new' ? `<button class="btn ghost" type="button" id="pf-del" style="margin-left:auto">삭제</button>` : ''}</div>
       </form>` : ''}
     </div>`;
+  if (sel && !ui.progOff) ui.progOff = pushLayer(() => { ui.progOff = null; ui.progSel = null; renderPrograms(); }, () => { ui.progOff = null; ui.progSel = null; }); // 오른쪽 상세 = 한 겹
+  if (!sel && ui.progOff) { ui.progOff(); ui.progOff = null; }
   PAGE.querySelectorAll('[data-ptab]').forEach((b) => b.addEventListener('click', () => { ui.progTab = b.dataset.ptab; renderPrograms(); }));
   PAGE.querySelectorAll('[data-p]').forEach((r) => r.addEventListener('click', () => { ui.progSel = r.dataset.p; renderPrograms(); }));
   $('#p-new').onclick = () => { ui.progSel = 'new'; renderPrograms(); $('#pf-name').focus(); };
@@ -944,6 +987,9 @@ function renderNotes() {
   const list = S.notes.filter((n) => !q || n.name.toLowerCase().includes(q) || n.preview.toLowerCase().includes(q));
   if (!ui.note && S.notes.length && !isMobile()) ui.note = S.notes[0].name;
   document.body.classList.toggle('note-open', isMobile() && !!ui.noteOpen);
+  if (isMobile() && ui.noteOpen && !ui.noteOff) { // 폰에서 기록을 연 상태 = 한 겹
+    ui.noteOff = pushLayer(async () => { ui.noteOff = null; await flushNote(); ui.noteOpen = false; renderNotes(); }, () => { ui.noteOff = null; ui.noteOpen = false; });
+  }
   PAGE.innerHTML = `
     <div class="page-head"><h1>업무일지·회의록</h1></div>
     <div class="card notes">
@@ -969,7 +1015,7 @@ async function openNote(name) {
     const n = await STORE.readNote(name);
     cur = { name: n.name, version: n.version, dirty: false };
     ed.innerHTML = `<div class="bar"><button class="iconbtn m-only" type="button" id="note-back" aria-label="목록" style="width:44px;height:44px">${ico('left')}</button><span class="nm">${esc(n.name.replace(/\.(txt|md)$/i, ''))}</span><span class="st" id="nst">저장됨</span></div><textarea id="nta" spellcheck="false"></textarea>`;
-    $('#note-back').onclick = async () => { await flushNote(); ui.noteOpen = false; renderNotes(); };
+    $('#note-back').onclick = async () => { ui.noteOff?.(); ui.noteOff = null; await flushNote(); ui.noteOpen = false; renderNotes(); };
     const ta = $('#nta'); ta.value = n.text;
     ta.addEventListener('input', () => { cur.dirty = true; $('#nst').textContent = '입력 중…'; clearTimeout(noteTimer); noteTimer = setTimeout(flushNote, 800); });
   } catch (e) { ed.innerHTML = `<div class="empty" style="margin:auto">${esc(e.message)}</div>`; }

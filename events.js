@@ -293,7 +293,7 @@ function evPopDraw() {
 
 function evPopClose() {
   const p = evState.pop; if (!p) return;
-  evState.pop = null; p.close();
+  evState.pop = null; p.subOff?.(); p.close();
 }
 
 function evPopOpen(day, id) {
@@ -307,7 +307,9 @@ function evPopOpen(day, id) {
     p.box.className = 'ev-pop ev-float';
     p.box.setAttribute('role', 'dialog');
     document.body.appendChild(p.box);
-    p.close = () => p.box.remove();
+    const drop = () => { if (evState.pop === p) evState.pop = null; p.box.remove(); };
+    const off = pushLayer(drop, drop);
+    p.close = () => { p.box.remove(); off(); };
     p.cell = document.querySelector(`#ev-cal [data-day="${day}"]`)?.getBoundingClientRect();
   }
   p.box.addEventListener('click', (ev) => evPopClick(ev, p));
@@ -318,8 +320,12 @@ function evPopClick(ev, p) {
   const hit = (s) => ev.target.closest(s);
   let el;
   if ((el = hit('[data-mark]'))) { evToggleMark(p.id, el.dataset.mark); return evPopDraw(); }
-  if ((el = hit('[data-pop-ev]'))) { p.id = el.dataset.popEv; return evPopDraw(); }
-  if (hit('[data-pop-back]')) { p.id = null; return evPopDraw(); }
+  if ((el = hit('[data-pop-ev]'))) { // 그날 목록 → 행사 상세도 한 겹: 뒤로 가면 목록으로
+    p.id = el.dataset.popEv;
+    if (!p.subOff) p.subOff = pushLayer(() => { p.subOff = null; if (evState.pop === p) { p.id = null; evPopDraw(); } });
+    return evPopDraw();
+  }
+  if (hit('[data-pop-back]')) { p.subOff?.(); p.subOff = null; p.id = null; return evPopDraw(); }
   if (hit('[data-pop-x]')) return evPopClose();
   if (hit('[data-pop-list]')) {
     const id = p.id; evPopClose();

@@ -150,7 +150,8 @@ function mailModal(html, cls = '') {
   wrap.className = 'mail-modal';
   wrap.innerHTML = `<div class="mail-dialog ${cls}" role="dialog" aria-modal="true">${html}</div>`;
   const onKey = (e) => { if (e.key === 'Escape') wrap.close(); };
-  wrap.close = () => { wrap.remove(); document.removeEventListener('keydown', onKey); };
+  wrap.close = (viaBack) => { if (!wrap.isConnected) return; wrap.remove(); document.removeEventListener('keydown', onKey); if (viaBack !== true) off(); };
+  const off = pushLayer(() => wrap.close(true), () => wrap.close(true));
   wrap.addEventListener('click', (e) => { if (e.target === wrap || e.target.closest('[data-close]')) wrap.close(); });
   document.addEventListener('keydown', onKey);
   document.body.appendChild(wrap);
@@ -241,7 +242,7 @@ function mailDrawShell() {
   sh.dataset.view = ui.mail.compose ? 'compose' : ui.mail.view;
   sh.classList.toggle('composing', !!ui.mail.compose);
   mailSyncBody();
-  mailSyncHist();
+  mailSyncLayers();
 }
 
 /* 폰에서 읽기·쓰기 화면은 하단 탭바 자리에 메일 전용 바를 쓴다 (mail.css가 body 클래스로 탭바를 가린다) */
@@ -250,40 +251,20 @@ function mailSyncBody() {
   document.body.classList.toggle('mail-reading', on && !m.compose && m.view === 'read');
   document.body.classList.toggle('mail-composing', on && !!m.compose);
 }
-window.addEventListener('hashchange', () => { if (route() !== 'mail') { document.body.classList.remove('mail-reading', 'mail-composing'); MAIL_H.length = 0; } });
+window.addEventListener('hashchange', () => { if (route() !== 'mail') document.body.classList.remove('mail-reading', 'mail-composing'); });
 
-/* 브라우저 뒤로 가기: 메일 읽기·쓰기를 열 때마다 기록을 하나씩 쌓아, 뒤로 가면 쓰기 → 읽던 메일 → 목록 순으로 닫힌다 */
-const MAIL_H = []; // 쌓은 기록 ('read' | 'compose'), history.state.mail = 그 깊이
-let mailHSilent = 0;
-const mailHValid = (v) => (v === 'compose' ? !!ui.mail?.compose : !ui.mail?.compose && ui.mail?.view === 'read');
-function mailPush(v) {
-  const top = MAIL_H[MAIL_H.length - 1];
-  if (top && !mailHValid(top)) { MAIL_H[MAIL_H.length - 1] = v; history.replaceState({ mail: MAIL_H.length }, ''); return; }
-  if (top === v) return;
-  MAIL_H.push(v); history.pushState({ mail: MAIL_H.length }, '');
-}
-function mailSyncHist() { // 앱 안 버튼(목록·취소·보내기·삭제)으로 닫았을 때 쌓인 기록도 걷어낸다
-  let k = 0;
-  while (MAIL_H.length && !mailHValid(MAIL_H[MAIL_H.length - 1])) { MAIL_H.pop(); k++; }
-  if (k) { mailHSilent++; history.go(-k); }
-}
-window.addEventListener('popstate', async (e) => {
-  if (mailHSilent) { mailHSilent--; return; }
+/* 뒤로 가기: 메일 읽기·쓰기는 각각 한 겹(pushLayer) — 뒤로 가면 쓰기 → 읽던 메일 → 목록 순으로 닫힌다 */
+const mailReadOn = (m) => m.view === 'read' || (!!m.compose && m.backTo === 'read');
+function mailSyncLayers() { // 앱 안 버튼(목록·취소·보내기·삭제)으로 닫았으면 그 겹을 내린다
   const m = ui.mail;
-  if (route() !== 'mail' || !m || !$('#mail-shell')) return;
-  MAIL_H.splice(e.state?.mail || 0);
-  const top = MAIL_H[MAIL_H.length - 1] || 'list';
-  if (m.compose && top !== 'compose') {
-    if (!(await mailLeaveCompose())) { MAIL_H.push('compose'); history.pushState({ mail: MAIL_H.length }, ''); return; }
-    m.view = top === 'read' && m.sel ? 'read' : 'list';
-    mailDrawShell(); mailDrawFolders(); mailDrawPane();
-    return;
-  }
-  if (top === 'list' && m.view === 'read') {
-    m.view = 'list'; mailDrawShell();
-    const box = $('#mail-items'); if (box) box.scrollTop = m.scroll || 0;
-  }
-});
+  if (m.composeOff && !m.compose) { m.composeOff(); m.composeOff = null; }
+  if (m.readOff && !mailReadOn(m)) { m.readOff(); m.readOff = null; }
+}
+function mailBackToList() {
+  const m = ui.mail;
+  m.view = 'list'; mailDrawShell();
+  const box = $('#mail-items'); if (box) box.scrollTop = m.scroll || 0;
+}
 
 function mailDrawFolders() {
   const nav = $('#mail-fnav'); if (!nav) return;
@@ -426,8 +407,8 @@ async function mailOpen(id) {
   const item = m.list.find((x) => x.id === id);
   if (m.folder === 'drafts' && item?.isDraft) return mailOpenCompose({ mode: 'draft', id });
   const box = $('#mail-items'); if (box && m.view !== 'read') m.scroll = box.scrollTop; // ← 목록으로 돌아올 때 같은 위치
-  mailPush('read');
   m.sel = id; m.msg = null; m.atts = []; m.remote = false; m.view = 'read';
+  if (!m.readOff) m.readOff = pushLayer(() => { m.readOff = null; if (m.view === 'read') mailBackToList(); }, () => { m.readOff = null; m.view = 'list'; });
   mailDrawShell(); mailDrawList(); mailDrawPane();
   try {
     const [msg, atts] = await Promise.all([
@@ -595,12 +576,8 @@ function mailDrawPane() {
     </div>
     <iframe class="mail-frame" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" title="메일 본문"></iframe>`;
   pane.querySelector('.mail-frame').srcdoc = mailFrameDoc(html, m.remote);
-  const back = () => {
-    m.view = 'list'; mailDrawShell();
-    const box = $('#mail-items'); if (box) box.scrollTop = m.scroll || 0;
-  };
-  $('#mail-back').addEventListener('click', back);
-  $('#mail-mback').addEventListener('click', back);
+  $('#mail-back').addEventListener('click', mailBackToList);
+  $('#mail-mback').addEventListener('click', mailBackToList);
   $('#mail-prev').addEventListener('click', () => prevId && mailOpen(prevId));
   $('#mail-next').addEventListener('click', () => nextId && mailOpen(nextId));
   $('#mail-print').addEventListener('click', () => mailPrint(x, html));
@@ -854,8 +831,14 @@ async function mailOpenCompose({ mode, id }) {
   const c = { mode, draftId: null, auto: false, saved: false, to: '', cc: '', bcc: '', subject: '', text: '', html: '', quote: '', existing: [], files: [], busy: false,
     plain: false, important: false, each: false, sched: null, sigOn: !!sig && mode !== 'draft' };
   if (mode !== 'draft') c.html = `<div><br></div><div><br></div>${sig ? mailSigBlock(sig) : ''}`;
-  mailPush('compose');
+  m.backTo = m.view === 'read' ? 'read' : 'list';
   m.compose = c; m.view = 'compose';
+  if (!m.composeOff) {
+    m.composeOff = pushLayer(async () => {
+      if (!(await mailLeaveCompose())) return false;
+      m.composeOff = null; mailAfterCompose();
+    }, () => { m.composeOff = null; });
+  }
   mailDrawShell(); mailDrawFolders(); mailDrawPane();
   try {
     if (mode === 'reply' || mode === 'replyAll' || mode === 'forward') {
@@ -1528,7 +1511,7 @@ async function mailLeaveCompose() {
 
 function mailAfterCompose(sent) {
   const m = ui.mail;
-  m.view = m.sel ? 'read' : 'list';
+  m.view = m.sel && m.backTo === 'read' ? 'read' : 'list';
   if (sent && m.folder === 'drafts') { m.sel = null; m.msg = null; m.view = 'list'; }
   mailDrawShell(); mailDrawFolders(); mailDrawPane();
   if (sent || m.folder === 'drafts') { mailLoadList(); mailLoadCounts(); }
