@@ -9,6 +9,11 @@ const FL_OFFICE = ['doc', 'docx', 'xls', 'xlsx', 'xlsm', 'ppt', 'pptx'];
 const FL_APP = { doc: 'ms-word', docx: 'ms-word', xls: 'ms-excel', xlsx: 'ms-excel', xlsm: 'ms-excel', ppt: 'ms-powerpoint', pptx: 'ms-powerpoint' };
 const FL_PREVIEW = { img: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'], pdf: ['pdf'], txt: ['txt', 'csv', 'md', 'json', 'log'] };
 
+// 같은 화면을 두 메뉴로 쓴다: 공용 폴더(파일함 전체, 주간회의 폴더는 뺌) · 주간회의(그 폴더만)
+const FL_MODES = { files: { base: '', root: FL_ROOT, title: '공용 폴더' }, weekly: { base: '주간회의', root: '주간회의', title: '주간회의' } };
+let flM = FL_MODES.files, flRoute = 'files';
+const flRel = (p) => (flM.base ? (p === flM.base ? '' : p.slice(flM.base.length + 1)) : p); // 파일함 경로 → 메뉴 안 경로
+const flOnScreen = () => ['files', 'weekly'].includes(document.body.dataset.route);
 const flS = { path: null, items: [], sort: { k: 'name', dir: 1 }, sel: new Set(), q: '', results: null, loading: false, at: 0 };
 const flDrive = () => (typeof CFG !== 'undefined' && CFG.teamDrive) || 'b!j-FPAIUPjU6AnBcIJNprMgAfPOR1jCVOvR6mVssjMWkyr34wYSj7Rp-_wJU9Subr';
 const flEnc = (p) => p.split('/').map(encodeURIComponent).join('/');
@@ -16,8 +21,9 @@ const flBase = (p) => (p ? `/drives/${flDrive()}/root:/${flEnc(p)}:` : `/drives/
 const flExt = (n) => (/\.([a-z0-9]+)$/i.exec(n || '') || [, ''])[1].toLowerCase();
 const flKind = (it) => { const e = flExt(it.name); return Object.keys(FL_PREVIEW).find((k) => FL_PREVIEW[k].includes(e)) || ''; };
 const flLocked = (it) => !flS.results && flS.path === '' && FL_LOCK.includes(it.name);
+const flHidden = (it) => !flM.base && flS.path === '' && FL_LOCK.includes(it.name); // 공용 폴더 맨 위에선 주간회의를 안 보인다(주간회의 메뉴로)
 const flItems = () => flS.results || flS.items;
-const flGo = (p) => { location.hash = p ? `#files/${encodeURIComponent(p)}` : '#files'; };
+const flGo = (p) => { const r = flRel(p); location.hash = r ? `#${flRoute}/${encodeURIComponent(r)}` : `#${flRoute}`; };
 const flPathOf = (it) => { // 검색 결과의 폴더 경로: parentReference.path = /drives/{id}/root:/a/b
   const m = /root:(.*)$/.exec(it.parentReference?.path || '');
   return m ? decodeURIComponent(m[1]).replace(/^\//, '') : '';
@@ -48,16 +54,18 @@ function flSorted(list) {
 }
 
 /* ---------- 화면 ---------- */
-async function renderFiles(host) {
-  const path = typeof ui !== 'undefined' && typeof ui.filesPath === 'string' ? ui.filesPath : '';
+async function renderFiles(host, mode = 'files') {
+  flRoute = FL_MODES[mode] ? mode : 'files'; flM = FL_MODES[flRoute];
+  const rel = typeof ui !== 'undefined' && typeof ui.filesPath === 'string' ? ui.filesPath : '';
+  const path = [flM.base, rel].filter(Boolean).join('/');
   if (path !== flS.path) { flS.path = path; flS.items = []; flS.sel.clear(); flS.results = null; flS.q = ''; flS.at = 0; }
   host.innerHTML = `
-    <div class="page-head"><h1>공용 폴더</h1></div>
+    <div class="page-head"><h1>${flM.title}</h1></div>
     <section class="card fl-card" id="fl-card">
       <div class="fl-top">
         <nav class="fl-crumb" id="fl-crumb" aria-label="경로"></nav>
         <div class="fl-tools">
-          <label class="fl-search">${ico('search', 'sm')}<input class="input" id="fl-q" type="search" placeholder="공용 폴더 검색" value="${esc(flS.q)}" enterkeyhint="search"></label>
+          <label class="fl-search">${ico('search', 'sm')}<input class="input" id="fl-q" type="search" placeholder="${flM.title} 검색" value="${esc(flS.q)}" enterkeyhint="search"></label>
           <button class="btn" type="button" id="fl-mkdir">${ico('plus', 'sm')}<span>새 폴더</span></button>
           <button class="btn primary fl-upbtn" type="button" id="fl-upbtn">${ico('upload', 'sm')}<span>파일 올리기</span></button>
           <button class="iconbtn fl-ref" type="button" id="fl-ref" aria-label="새로고침">${ico('refresh')}</button>
@@ -91,13 +99,13 @@ async function flLoad(force) {
     let url = `${flBase(path)}/children?$select=${FL_SEL}&$top=500`;
     while (url) { const j = await G.get(url); out.push(...j.value); url = j['@odata.nextLink'] || null; }
     if (path !== flS.path) return;
-    flS.items = out; flS.at = Date.now();
+    flS.items = out.filter((x) => !flHidden(x)); flS.at = Date.now();
     const ids = new Set(out.map((x) => x.id)); [...flS.sel].forEach((id) => { if (!ids.has(id)) flS.sel.delete(id); });
   } catch (e) {
     if (path !== flS.path) return;
     flS.items = [];
     toast(e.status === 404 ? '폴더를 찾을 수 없습니다' : e.status === 403 ? '이 폴더를 볼 권한이 없습니다' : e.message);
-    if (e.status === 404 && path) { flGo(path.split('/').slice(0, -1).join('/')); return; }
+    if (e.status === 404 && path !== flM.base) { flGo(path.split('/').slice(0, -1).join('/')); return; }
   }
   flS.loading = false;
   flDraw();
@@ -105,9 +113,9 @@ async function flLoad(force) {
 
 function flDraw() {
   const list = $('#fl-list'); if (!list) return;
-  const segs = flS.path ? flS.path.split('/') : [];
-  $('#fl-crumb').innerHTML = [`<button type="button" data-crumb="">${FL_ROOT}</button>`,
-    ...segs.map((s, i) => `<span class="sep" aria-hidden="true">›</span><button type="button" data-crumb="${esc(segs.slice(0, i + 1).join('/'))}"${i === segs.length - 1 ? ' aria-current="page"' : ''}>${esc(s)}</button>`)].join('');
+  const segs = flRel(flS.path) ? flRel(flS.path).split('/') : [], full = (i) => [flM.base, ...segs.slice(0, i + 1)].filter(Boolean).join('/');
+  $('#fl-crumb').innerHTML = [`<button type="button" data-crumb="${esc(flM.base)}">${flM.root}</button>`,
+    ...segs.map((s, i) => `<span class="sep" aria-hidden="true">›</span><button type="button" data-crumb="${esc(full(i))}"${i === segs.length - 1 ? ' aria-current="page"' : ''}>${esc(s)}</button>`)].join('');
   $('#fl-crumb').querySelectorAll('[data-crumb]').forEach((b) => b.addEventListener('click', () => flGo(b.dataset.crumb)));
   const cur = $('#fl-crumb [aria-current]'); if (cur && isMobile()) cur.scrollIntoView({ inline: 'end', block: 'nearest' });
 
@@ -151,7 +159,7 @@ function flRowHTML(it) {
   return `<div class="fl-row fl-item${flS.sel.has(it.id) ? ' on' : ''}" role="row" data-id="${esc(it.id)}">
     <span class="c-ck">${flLocked(it) ? '' : `<input type="checkbox" class="check" aria-label="${esc(it.name)} 선택" ${flS.sel.has(it.id) ? 'checked' : ''}>`}</span>
     <span class="c-nm">${flIcon(it)}<span class="fl-nmw"><button type="button" class="fl-name" title="${esc(it.name)}">${esc(it.name)}</button>
-      ${where !== '' || flS.results ? `<span class="fl-where">${esc(where ? `${FL_ROOT} › ${where.replace(/\//g, ' › ')}` : FL_ROOT)}</span>` : ''}
+      ${where !== '' || flS.results ? `<span class="fl-where">${esc(flRel(where) ? `${flM.root} › ${flRel(where).replace(/\//g, ' › ')}` : flM.root)}</span>` : ''}
       <span class="fl-meta">${flDate(it.lastModifiedDateTime)} · ${flSize(it)}</span></span></span>
     <span class="c-dt">${flDate(it.lastModifiedDateTime)}</span>
     <span class="c-by">${esc(by)}</span>
@@ -227,7 +235,7 @@ async function flAppOpen(it, app) {
   } catch { window.open(it.webUrl, '_blank', 'noopener'); }
 }
 // 앱에서 저장하고 웍스로 돌아오면 목록(수정한 날짜·크기)을 다시 받는다
-window.addEventListener('focus', () => { if (document.body.dataset.route === 'files' && $('#fl-list') && !flS.results && Date.now() - flS.at > 5000) flLoad(); });
+window.addEventListener('focus', () => { if (flOnScreen() && $('#fl-list') && !flS.results && Date.now() - flS.at > 5000) flLoad(); });
 
 function flOpen(it) {
   if (it.folder) { flGo(flS.results ? [flPathOf(it), it.name].filter(Boolean).join('/') : [flS.path, it.name].filter(Boolean).join('/')); return; }
@@ -384,7 +392,9 @@ async function flSearch(q) {
     }));
     if (flS.q !== q) return;
     out.forEach((x) => { if (x.parentReference && !x.parentReference.path) x.parentReference.path = `/drives/${flDrive()}/root:/${paths[x.parentReference.id] || ''}`; });
-    flS.results = out.filter((x) => x.name);
+    // 주간회의 메뉴는 그 폴더 안 결과만, 공용 폴더는 주간회의 폴더 안 결과는 뺀다
+    const inBase = (x) => { const w = flPathOf(x); return w === flM.base || w.startsWith(`${flM.base}/`); };
+    flS.results = out.filter((x) => x.name && (flM.base ? inBase(x) : !FL_LOCK.some((n) => { const w = flPathOf(x); return (w === '' && x.name === n) || w === n || w.startsWith(`${n}/`); })));
   } catch (e) { if (flS.q === q) { flS.results = []; toast(e.message); } }
   flS.loading = false; flDraw();
 }
@@ -403,13 +413,13 @@ function filesUpload() {
 // 공용 폴더 화면이면 카드 밖 빈 곳에 놓아도 지금 폴더에 올린다
 let flDepth = 0;
 const flHasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
-const flDropCard = () => (document.body.dataset.route === 'files' && !document.querySelector('.fl-pv-wrap') ? $('#fl-card') : null);
+const flDropCard = () => (flOnScreen() && !document.querySelector('.fl-pv-wrap') ? $('#fl-card') : null);
 const flDropEnd = () => { flDepth = 0; $('#fl-card')?.classList.remove('drop'); };
 document.addEventListener('dragenter', (e) => {
   const card = flHasFiles(e) && flDropCard(); if (!card) return;
   e.preventDefault(); flDepth++;
-  const segs = flS.path ? flS.path.split('/') : [];
-  card.dataset.drop = `${segs[segs.length - 1] || FL_ROOT}에 올리기`;
+  const segs = flRel(flS.path) ? flRel(flS.path).split('/') : [];
+  card.dataset.drop = `${segs[segs.length - 1] || flM.root}에 올리기`;
   card.classList.add('drop');
 });
 document.addEventListener('dragover', (e) => { if (flHasFiles(e) && flDropCard()) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
