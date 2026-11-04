@@ -250,14 +250,13 @@ const EV_X = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="
 const evDayItems = (k) => evState.data.items.filter((e) => !e.extra.estimated && evPass(e) && e.start <= k && e.end >= k).sort(evByScore);
 
 function evPopEventHTML(e, back) {
-  const st = evSt(e.id), due = evDue(e), rel = evRel(e);
+  const st = evSt(e.id), due = evDue(e);
   const row = (k, v) => (v ? `<dt>${k}</dt><dd>${v}</dd>` : '');
   const url = /^https?:\/\//i.test(e.url || '') ? e.url : /^https?:\/\//i.test(e.extra.homepage || '') ? e.extra.homepage : '';
-  return `<div class="ev-pop-hd">${back ? `<button class="iconbtn ev-pop-back" type="button" data-pop-back aria-label="뒤로">${ico('left', 'sm')}</button>` : ''}${evScore(e)}<span class="ev-pop-meta">${esc([e.type, e.region !== '미상' && e.region].filter(Boolean).join(' · '))}</span>
+  return `<div class="ev-pop-hd">${back ? `<button class="iconbtn ev-pop-back" type="button" data-pop-back aria-label="뒤로">${ico('left', 'sm')}</button>` : ''}<h3 class="ev-pop-ttl">${esc(e.title)}</h3>
       <button class="iconbtn ev-pop-x" type="button" data-pop-x aria-label="닫기">${EV_X}</button></div>
-    <h3 class="ev-pop-ttl">${esc(e.title)}</h3>
     <dl class="ev-pop-dl">
-      ${row('일시', `${evWhen(e)}${rel ? ` <span class="ev-pop-rel">${rel}</span>` : ''}`)}
+      ${row('일시', evWhen(e))}
       ${row('장소', esc(e.venue))}
       ${row('주최', esc(e.host))}
       ${row('IR 회사', esc(e.company))}

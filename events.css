@@ -186,3 +186,7 @@
   .ev-detail dl { grid-template-columns: 64px minmax(0, 1fr); gap: 6px 12px; }
   .ev-home .list .time { width: 76px; }
 }
+
+/* 요약 창 머리 = 제목 한 줄(점수·유형 뺌) */
+.ev-pop-hd:has(.ev-pop-ttl) { align-items: flex-start; margin-bottom: 12px; }
+.ev-pop-hd .ev-pop-ttl { flex: 1; min-width: 0; margin: 4px 0 0; }
