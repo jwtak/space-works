@@ -736,7 +736,7 @@ async function openEventModalInner(id, events, onDone, date) {
 }
 
 // 고칠 수 없는 일정(참석자 있는 회의·받은 초대·보기 전용 팀 일정): 내용만 보여 준다
-async function openEventView(e) {
+async function openEventView(e, onDone) {
   if (evModalBusy || document.querySelector('.ev-view')) return;
   evModalBusy = true;
   try {
@@ -758,8 +758,17 @@ async function openEventView(e) {
         ${row('참석자', esc(who.join(', ')))}
         ${row('장소', esc(e.location || ''))}
         ${row('내용', esc(note))}
-        <div class="ev-actions"><span class="sp"></span>${e.link ? `<a class="btn grey" href="${esc(e.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}${e.join ? `<a class="btn primary" href="${esc(e.join)}" target="_blank" rel="noopener">Teams 참가</a>` : '<button type="button" class="btn primary" data-close>닫기</button>'}</div>
-      </div>`, (el, close) => { const b = el.querySelector('[data-close]'); if (b) b.onclick = close; }, 'wide');
+        <div class="ev-actions">${e.cal === 'team' && !OUTLOOK.teamWritable ? '' : '<button type="button" class="btn ghost danger" data-del>삭제</button>'}<span class="sp"></span>${e.link ? `<a class="btn grey" href="${esc(e.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}${e.join ? `<a class="btn primary" href="${esc(e.join)}" target="_blank" rel="noopener">Teams 참가</a>` : '<button type="button" class="btn primary" data-close>닫기</button>'}</div>
+      </div>`, (el, close) => {
+      const b = el.querySelector('[data-close]'); if (b) b.onclick = close;
+      const del = el.querySelector('[data-del]');
+      if (del) del.onclick = async () => {
+        const msg = e.organizer_me ? `이 회의를 취소할까요?\n${who.length ? `참석자(${who.join(', ')})에게` : '참석자에게'} 취소 알림이 갑니다.` : '이 일정을 내 캘린더에서 삭제할까요?\n주최자에게는 알리지 않습니다.';
+        if (!confirm(msg)) return;
+        del.disabled = true;
+        try { await OUTLOOK.removeMeeting(e.id); close(); toast(e.organizer_me ? '회의를 취소했습니다' : 'Outlook에서 삭제했습니다'); onDone?.(); } catch (err) { del.disabled = false; toast(err.message); }
+      };
+    }, 'wide');
   } finally { evModalBusy = false; }
 }
 
@@ -910,7 +919,7 @@ async function mountMonth(el) {
         || (kind === 'ev' && (events || []).some((x) => x.id === id) ? { type: 'ev', id, editable: events.find((x) => x.id === id).editable } : null);
       if (kind === 'ev' && it?.editable) { ui.calEdit = null; draw(); return openEventModal(id, events, refetch); }
       const ev = kind === 'ev' && (events || []).find((y) => y.id === id);
-      if (ev) { ui.calEdit = null; draw(); return openEventView(ev); }
+      if (ev) { ui.calEdit = null; draw(); return openEventView(ev, refetch); }
       ui.calEdit = it && it.editable && kind !== 'ev' ? { kind, id } : null;
       draw();
     }));

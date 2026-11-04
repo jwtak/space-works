@@ -287,4 +287,9 @@ const OUTLOOK = {
   },
   async update(id, b) { await OUTLOOK.checkEditable(id); return G.patch(`/me/events/${encodeURIComponent(id)}`, OUTLOOK.body(b), { headers: G.KST }); },
   async remove(id) { await OUTLOOK.checkEditable(id); return G.del(`/me/events/${encodeURIComponent(id)}`); },
+  async removeMeeting(id) { // 내가 연 회의는 참석자에게 취소 알림을 보내며 지우고, 받은 초대는 내 캘린더에서만 지운다
+    const p = `/me/events/${encodeURIComponent(id)}`;
+    const e = await G.get(`${p}?$select=isOrganizer`);
+    return e.isOrganizer ? G.post(`${p}/cancel`, { comment: '' }) : G.del(p);
+  },
 };
