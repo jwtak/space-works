@@ -96,6 +96,26 @@ function ipoSetNote(code, v) {
   ipoSaveMarks();
 }
 
+/* 엑셀 다운로드: 매일 PC 작업이 만든 컨택리스트(목록 + 회사별 Fact Sheet)를 OneDrive data/ipo_contact.xlsx 에서 받는다 */
+const IPO_XLSX = 'data/ipo_contact.xlsx';
+async function ipoDownload(btn) {
+  if (btn.disabled) return;
+  btn.disabled = true;
+  try {
+    const m = await STORE.meta(IPO_XLSX);
+    if (!m) { toast('아직 올라간 엑셀이 없습니다.'); return; }
+    const sh = STORE.sharedItem(IPO_XLSX);
+    const blob = await G.get(sh ? `${sh}/content` : `${STORE.path(IPO_XLSX)}:/content`, { type: 'blob' });
+    const d = new Date(m.lastModifiedDateTime);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `[스페이스인베스트먼트] 신규상장 컨택리스트_${String(d.getFullYear()).slice(2)}${pad(d.getMonth() + 1)}${pad(d.getDate())}.xlsx`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 30000);
+  } catch (e) { toast(e.message); }
+  finally { btn.disabled = false; }
+}
+
 /* ---------- 표시 형식 ---------- */
 const ipoMd = (s) => { const d = parse(s); return s.slice(0, 4) === today().slice(0, 4) ? md(s) : `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`; };
 const ipoEok = (v) => (v == null || v === '' ? '–' : `${Number(v).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억`);
@@ -275,6 +295,7 @@ function ipoBind(root) {
     const fb = t.closest('[data-ipo-f]');
     if (fb) { ipoState.f = fb.dataset.ipoF; root.querySelectorAll('[data-ipo-f]').forEach((b) => b.classList.toggle('on', b === fb)); ipoDraw(); return; }
     if (t.closest('#ipo-ref')) { ipoLoad(true).then(ipoDraw).catch((e) => toast(e.message)); return; }
+    if (t.closest('#ipo-xlsx')) { ipoDownload(t.closest('#ipo-xlsx')); return; }
     const tb = t.closest('[data-ipo-tab]');
     if (tb) { ipoState.tab = tb.dataset.ipoTab; ipoRefreshRow(tb.closest('.ipo-row').dataset.code); return; }
     const sb = t.closest('[data-ipo-st]');
@@ -298,6 +319,7 @@ async function renderIpo(host) {
   ipoState.host = host;
   host.innerHTML = `<div class="ipo-page" id="ipo-root">
     <div class="ipo-top"><div class="ipo-sumrow" id="ipo-sum"></div>
+      <button class="btn ghost" type="button" id="ipo-xlsx">${ico('file', 'sm')}엑셀 다운로드</button>
       <button class="btn ghost" type="button" id="ipo-ref">${ico('refresh', 'sm')}새로고침</button></div>
     <section class="card ipo-card">
       <div class="ipo-filter">

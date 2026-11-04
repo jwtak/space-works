@@ -4,7 +4,7 @@
 .ipo-sumrow { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--text3); font-size: 13px; }
 .ipo-sumrow b { color: var(--ink); font-weight: 600; }
 .ipo-sumrow .ipo-stale { color: var(--danger); }
-.ipo-top .btn { margin-left: auto; }
+.ipo-top .btn:first-of-type { margin-left: auto; }
 
 .ipo-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 16px 24px; border-bottom: 1px solid var(--line); }
 .ipo-search { position: relative; flex: 1 1 240px; max-width: 320px; }
