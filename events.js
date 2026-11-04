@@ -507,6 +507,13 @@ async function evRender(el, force) {
   if (root.isConnected) evDraw();
 }
 
+// 홈 카드 맨 위 시사점: 점수 높은 3건의 일정·장소와 가서 할 일(채점 때 쓴 tip, 없으면 reason)
+function evHomeBrief(all) {
+  if (typeof homeBrief !== 'function') return '';
+  return homeBrief([...all].sort((a, b) => b.score - a.score).slice(0, 3)
+    .map((e) => homeBriefLine(e.title, [evRange(e), (e.venue || '').split(/[\s,(]/)[0]].filter(Boolean).join(' '), e.tip || e.reason || '', `data-ev-go="${esc(e.id)}"`)));
+}
+
 /* 홈 카드: 2주 안 60점 이상 최대 5건. events.json 이 없거나 못 읽으면 '' */
 async function eventsHomeBlock() {
   try { await evLoad(); } catch { return ''; }
@@ -517,7 +524,7 @@ async function eventsHomeBlock() {
       <div class="t"><div class="ttl">${esc(e.title)}</div><div class="meta">${[evRel(e), e.venue].filter(Boolean).map(esc).join(' · ')}</div></div>${evScore(e)}</li>`;
   return `<section class="card ev-home">
     <div class="card-head"><h2>다가오는 행사 <span class="n">${all.length}</span></h2><a class="btn sm act" href="${evLink}">전체 보기</a></div>
-    <div class="card-body">${all.length ? `<ul class="list">${all.slice(0, 5).map(li).join('')}</ul>` : '<div class="empty">2주 안에 갈 만한 행사가 없습니다.</div>'}</div></section>`;
+    <div class="card-body">${all.length ? `${evHomeBrief(all)}<ul class="list">${all.slice(0, 5).map(li).join('')}</ul>` : '<div class="empty">2주 안에 갈 만한 행사가 없습니다.</div>'}</div></section>`;
 }
 
 document.addEventListener('click', (ev) => {

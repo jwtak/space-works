@@ -338,7 +338,7 @@ function renderHome() {
   PAGE.querySelectorAll('[data-tab-link]').forEach((el) => el.addEventListener('click', () => { ui.todoTab = el.dataset.tabLink; }));
   homeCalendar();
   mountMonth($('#home-month'));
-  if (typeof ipoHomeBlock === 'function') ipoHomeBlock().then((h) => { const box = $('#home-ipo'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
+  if (typeof ipoHomeBlock === 'function') ipoHomeBlock().then((h) => { const box = $('#home-ipo'); if (box) { if (h) { box.outerHTML = h; if (typeof ipoHomeBrief === 'function') $('.ipo-home .card-body')?.insertAdjacentHTML('afterbegin', ipoHomeBrief()); } else box.remove(); } }).catch(() => {});
   if (typeof eventsHomeBlock === 'function') eventsHomeBlock().then((h) => { const box = $('#home-ev'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
   if (typeof newsHomeBlock === 'function') newsHomeBlock().then((h) => { const box = $('#home-news'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
 }
