@@ -2,7 +2,7 @@
    계정마다 한 번만 자동으로 뜨고, 다시 보기는 오른쪽 위 이름 메뉴의 '사용 안내'. */
 const GD_KEY = () => `guide1:${(G.account?.username || '').toLowerCase()}`;
 const GD_STEPS = [
-  { t: '대시보드', d: '이번 달 일정과 할 일을 한 화면에서 봅니다. 날짜 칸을 누르면 바로 일정을 추가할 수 있습니다.', pc: '.nav [data-r="home"]', m: '.mh-it[href="#calendar"]' },
+  { t: '대시보드', d: '이번 달 일정과 할 일을 한 화면에서 봅니다. 날짜 칸을 누르면 바로 일정을 추가할 수 있고, 딜 뉴스 카드 맨 위에는 오늘 챙길 시사점이 정리됩니다.', pc: '.nav [data-r="home"]', m: '.mh-it[href="#calendar"]' },
   { t: '메일', d: '회사 메일을 그대로 읽고 씁니다. 옆 숫자는 안 읽은 메일 수입니다.', pc: '.nav [data-r="mail"]', m: '.mh-it[href="#mail"]' },
   { t: '딜소싱', d: '행사·IR 일정, 신규상장 기업 정보, 딜 뉴스를 매일 아침 자동으로 모읍니다. 뉴스는 맨 위에 주요 기사와 우리가 할 일(시사점)을 정리해 두고 우주·항공·방산을 따로 모아 볼 수 있으며, 관심 표시·연락 상태·메모는 세 분이 함께 봅니다.', pc: '.nav [data-r="deals"]', m: '.mh-it[href="#deals"], .mh-it[href="#deals/ipo"], .mh-it[href="#deals/news"]' },
   { t: '주간회의 · 공용 폴더', d: '팀 파일함입니다. 파일을 끌어다 놓으면 올라가고, PPT·엑셀은 누르면 바로 열립니다. ‘링크 복사’로 폴더 주소를 보내면 받는 분은 그 폴더가 바로 열립니다.', pc: '.nav [data-r="weekly"], .nav [data-r="files"]', m: '.mh-it[href="#weekly"], .mh-it[href="#files"]' },

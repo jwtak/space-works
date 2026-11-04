@@ -46,6 +46,7 @@
 .nw-hl .ttl { font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nw-hl:hover .ttl { color: var(--primary); }
 .nw-hl .meta { font-size: 12px; color: var(--text3); }
+.nw-home .nw-brief { margin: 16px 0 6px; background: var(--t-blue); border-color: var(--t-blue-i); }
 
 @container (max-width: 760px) { .nw-sum { margin-left: 0; width: 100%; order: 9; } }
 @media (max-width: 760px) {

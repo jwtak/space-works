@@ -104,16 +104,19 @@ async function renderNews(host) {
   nwDraw();
 }
 
-// 대시보드: 최근 이틀 중요한 기사 5개 + 우주·항공·방산 3개
+// 대시보드: 맨 위 시사점 + 최근 이틀 중요한 기사 5개 + 우주·항공·방산 3개 (시사점에 나온 기사 먼저)
 async function newsHomeBlock() {
   try { await nwLoad(); } catch { return ''; }
   const d = nwS.data; if (!d) return '';
-  const from = ymd(addDays(new Date(), -1)), recent = d.items.filter((x) => nwDay(x.published) >= from).sort((a, b) => (b.score || 0) - (a.score || 0));
+  const lines = (Array.isArray(d.brief?.lines) ? d.brief.lines : []).filter((l) => l && l.text);
+  const lead = new Set(lines.flatMap((l) => l.ids || []));
+  const from = ymd(addDays(new Date(), -1)), recent = d.items.filter((x) => nwDay(x.published) >= from)
+    .sort((a, b) => (lead.has(b.id) - lead.has(a.id)) || (b.score || 0) - (a.score || 0));
   const deal = recent.filter((x) => x.cat !== 'space').slice(0, 5), space = recent.filter((x) => x.cat === 'space').slice(0, 3);
-  if (!deal.length && !space.length) return '';
+  if (!deal.length && !space.length && !lines.length) return '';
   const li = (x) => `<li><a class="nw-hl" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><span class="ttl">${esc(x.title)}</span><span class="meta">${esc([x.source, `${nwDay(x.published) === today() ? '' : '어제 '}${nwTime(x.published)}`].filter(Boolean).join(' · '))}</span></a></li>`;
   return `<section class="card nw-home">
     <div class="card-head"><h2>딜 뉴스</h2><a class="btn sm act" href="#deals/news">전체 보기</a></div>
-    <div class="card-body">${deal.length ? `<ul class="list">${deal.map(li).join('')}</ul>` : ''}
+    <div class="card-body">${lines.length ? `<ul class="nw-brief">${lines.map(nwBriefLine).join('')}</ul>` : ''}${deal.length ? `<ul class="list">${deal.map(li).join('')}</ul>` : ''}
       ${space.length ? `<div class="sec-label">우주·항공·방산</div><ul class="list">${space.map(li).join('')}</ul>` : ''}</div></section>`;
 }
