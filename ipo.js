@@ -12,7 +12,7 @@ const IPO_FUND = /전환사채|교환사채|신주인수권부사채|유상증�
 
 const ipoState = {
   data: null, marks: { items: [], version: null }, at: 0, loading: null,
-  q: '', f: 'all', sort: 'listed', tab: 'contact', open: new Set(), saving: Promise.resolve(), focus: null, host: null,
+  q: '', f: 'all', sort: 'listed', tab: 'contact', open: new Set(), dirty: new Map(), saving: Promise.resolve(), focus: null, host: null,
 };
 
 /* ---------- 데이터 ---------- */
@@ -48,35 +48,51 @@ const ipoMark = (code) => ipoState.marks.items.find((m) => m.code === code);
 const ipoSt = (code) => ipoMark(code)?.status || '미접촉';
 const ipoNow = () => { const d = new Date(); return `${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
+/* 표시 저장: ipo_marks.json 은 탁지원·대표님 두 분이 같이 쓴다(편집 공유).
+   다른 사람이 먼저 저장했으면(409) 최신본을 다시 읽고, 이번에 바꾼 회사만 덮어 합쳐 한 번 더 저장한다. */
 function ipoSaveMarks() {
+  let merged = false;
   ipoState.saving = ipoState.saving.then(async () => {
-    try { ipoState.marks.version = await STORE.writeJSON('ipo_marks', ipoState.marks.items, ipoState.marks.version); }
-    catch (e) {
-      toast(e.message);
-      if (e.status !== 409) return;
-      try { const r = await STORE.readJSON('ipo_marks'); ipoState.marks = { items: r.items || [], version: r.version }; } catch { /* 다음 저장 때 다시 */ }
-      ipoDraw();
+    for (let i = 0; i < 3; i++) {
+      try {
+        ipoState.marks.version = await STORE.writeJSON('ipo_marks', ipoState.marks.items, ipoState.marks.version);
+        ipoState.dirty.clear();
+        return;
+      } catch (e) {
+        if (e.status !== 409) { toast(e.message); return; }
+        try {
+          const r = await STORE.readJSON('ipo_marks');
+          const items = Array.isArray(r.items) ? r.items : [];
+          ipoState.dirty.forEach((m, code) => { const k = items.findIndex((x) => x.code === code); if (k >= 0) items[k] = m; else items.push(m); });
+          ipoState.marks = { items, version: r.version };
+          merged = true;
+        } catch { toast('저장하지 못했습니다. 새로고침 후 다시 시도해 주세요.'); return; }
+      }
     }
-  });
+    toast('다른 분이 동시에 수정 중입니다. 잠시 후 다시 시도해 주세요.');
+  }).finally(() => { if (merged) ipoDraw(); }); // 다른 분이 바꾼 내용도 화면에 반영
   return ipoState.saving;
 }
 
-function ipoSetStatus(code, status) {
+function ipoTouch(code, patch) {
   const x = ipoFind(code); if (!x) return;
-  const m = ipoMark(code);
-  if (m) Object.assign(m, { status, at: ipoNow(), name: x.name });
-  else ipoState.marks.items.push({ code, name: x.name, status, note: '', at: ipoNow() });
+  let m = ipoMark(code);
+  if (!m) { m = { code, name: x.name, status: '미접촉', note: '' }; ipoState.marks.items.push(m); }
+  Object.assign(m, patch, { name: x.name, at: ipoNow(), by: G.account?.name || '' });
+  ipoState.dirty.set(code, m);
+}
+
+function ipoSetStatus(code, status) {
+  ipoTouch(code, { status });
   ipoRefreshRow(code);
   const s = $('#ipo-sum'); if (s) s.innerHTML = ipoSummary();
   ipoSaveMarks();
 }
 
 function ipoSetNote(code, v) {
-  const x = ipoFind(code); if (!x) return;
-  const note = v.trim(), m = ipoMark(code);
-  if ((m?.note || '') === note) return;
-  if (m) Object.assign(m, { note, at: ipoNow() });
-  else ipoState.marks.items.push({ code, name: x.name, status: '미접촉', note, at: ipoNow() });
+  const note = v.trim();
+  if ((ipoMark(code)?.note || '') === note) return;
+  ipoTouch(code, { note });
   ipoSaveMarks();
 }
 
@@ -150,7 +166,8 @@ function ipoDetail(x) {
     <div class="ipo-dhead">
       ${x.summary ? `<p class="ipo-sum1">${esc(x.summary)}</p>` : '<p></p>'}
       <div class="ipo-acts"><div class="seg ipo-seg">${IPO_STATUS.map((s) => `<button type="button" class="${s === st ? 'on' : ''}" data-ipo-st="${s}">${s}</button>`).join('')}</div>
-        <input class="input ipo-note" data-ipo-note placeholder="메모" maxlength="300" value="${esc(m?.note || '')}" aria-label="메모"></div>
+        <input class="input ipo-note" data-ipo-note placeholder="메모" maxlength="300" value="${esc(m?.note || '')}" aria-label="메모">
+        ${m?.at ? `<span class="ipo-by">${esc(m.by || '')} ${esc(ipoMd(m.at.slice(0, 10)))} ${esc(m.at.slice(11, 16))}</span>` : ''}</div>
     </div>
     <div class="ipo-tabs" role="tablist">${tabs}</div>
     <div class="ipo-pane">${({ contact: ipoPaneContact, signal: ipoPaneSignal, fin: ipoPaneFin, holders: ipoPaneHolders, disc: ipoPaneDisc }[tab] || ipoPaneContact)(x)}</div>
