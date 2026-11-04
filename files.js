@@ -77,6 +77,7 @@ async function renderFiles(host) {
   $('#fl-upbtn').onclick = filesUpload;
   $('#fl-file').addEventListener('change', (e) => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) flUpload(fs); });
   flDraw();
+  flCheckApps();
   // 같은 경로를 다시 열면 1분 동안은 받아 둔 목록을 그대로 쓴다
   if (!flS.results && (Date.now() - flS.at > 60000 || !flS.items.length)) flLoad();
 }
@@ -170,7 +171,7 @@ function flSelBar() {
 function flActions(sel) {
   const one = sel.length === 1 ? sel[0] : null, files = sel.filter((it) => !it.folder), locked = sel.some(flLocked);
   return [
-    one && { k: 'open', label: one.folder ? '열기' : FL_APP[flExt(one.name)] && !isMobile() ? '웹에서 열기' : '새 창에서 열기', run: () => (one.folder ? flOpen(one) : window.open(one.webUrl, '_blank', 'noopener')) },
+    one && { k: 'open', label: one.folder ? '열기' : FL_APP[flExt(one.name)] && flDesk() ? '웹에서 열기' : '새 창에서 열기', run: () => (one.folder ? flOpen(one) : window.open(one.webUrl, '_blank', 'noopener')) },
     files.length === sel.length && { k: 'down', label: '다운로드', run: () => flDownload(files) },
     one && { k: 'link', label: '링크 복사', run: () => flCopyLink(one) },
     one && !locked && { k: 'ren', label: '이름 바꾸기', run: () => flRename(one) },
@@ -204,7 +205,14 @@ function flMenu(anchor, sel) {
 
 /* ---------- 열기·미리보기·다운로드 ---------- */
 // PC는 설치된 Word·Excel·PowerPoint로 바로 연다. 파일함 원본을 직접 열어서 앱에서 저장하면 그대로 반영된다
-let flLib = '';
+// 설치형 Office가 라이선스에 없는 계정(Business Basic: 대표님들)은 웹 오피스로 연다
+let flLib = '', flApps = null;
+const flDesk = () => flApps === true && !isMobile();
+async function flCheckApps() {
+  if (flApps !== null) return;
+  try { flApps = (await G.get('/me/licenseDetails?$select=servicePlans')).value.some((l) => l.servicePlans.some((p) => ['OFFICE_BUSINESS', 'OFFICESUBSCRIPTION'].includes(p.servicePlanName) && p.provisioningStatus === 'Success')); }
+  catch { flApps = false; }
+}
 async function flAppOpen(it, app) {
   try {
     flLib ||= (await G.get(`/drives/${flDrive()}?$select=webUrl`)).webUrl;
@@ -219,7 +227,7 @@ window.addEventListener('focus', () => { if (document.body.dataset.route === 'fi
 function flOpen(it) {
   if (it.folder) { flGo(flS.results ? [flPathOf(it), it.name].filter(Boolean).join('/') : [flS.path, it.name].filter(Boolean).join('/')); return; }
   const e = flExt(it.name);
-  if (FL_APP[e] && !isMobile()) { flAppOpen(it, FL_APP[e]); return; }
+  if (FL_APP[e] && flDesk()) { flAppOpen(it, FL_APP[e]); return; }
   if (FL_OFFICE.includes(e) || e === 'loop') { window.open(it.webUrl, '_blank', 'noopener'); return; }
   if (flKind(it)) { flPreview(it); return; }
   flDownload([it]);
