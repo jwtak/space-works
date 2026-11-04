@@ -156,10 +156,11 @@ function evWhen(e) {
   return `${y}${mdw(e.start)}${e.end !== e.start ? ` ~ ${mdw(e.end)}` : ''}${e.time ? ` ${esc(e.time)}` : ''}`;
 }
 
-function evDateCell(e) {
-  if (e.extra.estimated) return `<span class="ev-d">${Number((e.extra.month || e.start).slice(5, 7))}월</span><span class="ev-d2">예상</span>`;
-  const rel = evRel(e), due = evDue(e);
-  const d2 = [rel && `<span class="${rel === '오늘' || rel === '진행 중' ? 'now' : ''}">${rel}</span>`, e.time && esc(e.time)].filter(Boolean).join(' · ');
+function evDateCell(e) { // 올해가 아니면 둘째 줄에 연도(점수순 정렬 때 내년 행사와 섞여도 구분되게)
+  const yr = (d) => (d.slice(0, 4) !== String(new Date().getFullYear()) ? `${d.slice(0, 4)}년` : '');
+  if (e.extra.estimated) { const m = e.extra.month || e.start; return `<span class="ev-d">${Number(m.slice(5, 7))}월</span><span class="ev-d2">${[yr(m), '예상'].filter(Boolean).join(' ')}</span>`; }
+  const due = evDue(e);
+  const d2 = [yr(e.start), e.time && esc(e.time)].filter(Boolean).join(' · ');
   return `<span class="ev-d">${evRange(e)}</span>${d2 ? `<span class="ev-d2">${d2}</span>` : ''}${due && due.n >= 0 && due.n <= 7 && e.end >= today() ? `<span class="ev-d2 ev-due">등록 ${due.txt}</span>` : ''}`;
 }
 
