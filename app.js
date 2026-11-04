@@ -62,7 +62,7 @@ async function load() {
   const me = S?.me || await G.get('/me?$select=displayName,jobTitle,department').catch(() => ({}));
   S = { todos, programs, milestones, briefing: { text: brief.text, mtime: brief.mtime }, notes, me, auth: { connected: true, upn: G.account.username } };
   meChrome();
-  counts(); foot();
+  counts(); foot(); mailUnread();
 }
 
 /* 로그인한 사람 이름·직급 (대표님도 각자 계정으로 쓴다) */
@@ -95,6 +95,17 @@ async function save(coll) {
     if (e.status === 409) { await load(); render(); }
   }
 }
+
+// 왼쪽 메뉴 '메일' 옆 숫자 = 받은편지함 안 읽은 메일 (1분마다, 메일 화면에선 폴더 개수와 같이 갱신)
+function setMailCnt(n) {
+  document.querySelectorAll('[data-cnt=mail]').forEach((el) => { el.textContent = n ? (n > 999 ? '999+' : n) : ''; });
+}
+async function mailUnread() {
+  if (!S || document.hidden) return;
+  try { setMailCnt((await G.get('/me/mailFolders/inbox?$select=unreadItemCount')).unreadItemCount); } catch { /* 숫자는 없어도 된다 */ }
+}
+setInterval(mailUnread, 60000);
+document.addEventListener('visibilitychange', mailUnread);
 
 function counts() {
   const open = S.todos.items.filter((t) => !t.done).length;

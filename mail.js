@@ -267,8 +267,9 @@ function mailBackToList() {
 }
 
 function mailDrawFolders() {
-  const nav = $('#mail-fnav'); if (!nav) return;
   const m = ui.mail;
+  if (m.counts.inbox && typeof setMailCnt === 'function') setMailCnt(m.counts.inbox.unread);
+  const nav = $('#mail-fnav'); if (!nav) return;
   nav.innerHTML = MAIL_FOLDERS.map((f) => {
     const c = m.counts[f.id];
     const n = f.id === 'drafts' ? c?.total : c?.unread;
