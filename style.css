@@ -635,3 +635,35 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 /* 딜소싱 하위 탭 */
 .deal-tabs { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); margin: 0 0 12px; }
 @media (max-width: 760px) { .deal-tabs { border: 0; border-radius: 0; } }
+
+/* ---------- 폰 첫 화면: 메뉴 모음(하이웍스 앱형) + 오늘 ---------- */
+.mhome { display: flex; flex-direction: column; }
+.mh-hello { padding: 12px 20px 18px; }
+.mh-hello .dt { font-size: 22px; line-height: 30px; font-weight: 700; letter-spacing: -0.03em; }
+.mh-hello .sub { margin-top: 2px; font-size: 14px; line-height: 20px; color: var(--text3); }
+.mh-hello .sub b { color: var(--primary); font-weight: 600; }
+.mh-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); row-gap: 20px; padding: 4px 12px 24px; border-bottom: 8px solid #F2F4F6; }
+.mh-it { display: flex; flex-direction: column; align-items: center; gap: 8px; min-height: 44px; color: var(--ink); text-decoration: none; -webkit-tap-highlight-color: transparent; }
+.mh-ic { position: relative; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 16px; background: #F0F5FC; color: var(--primary); transition: transform .12s ease; }
+.mh-it:active .mh-ic { transform: scale(.94); }
+.mh-ic .i { width: 24px; height: 24px; }
+.mh-t { font-size: 13px; line-height: 18px; font-weight: 500; color: var(--text2); white-space: nowrap; }
+.mh-n { position: absolute; top: -5px; right: -7px; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; border: 2px solid #fff; background: var(--primary); color: #fff; font-size: 11px; line-height: 16px; font-weight: 700; font-style: normal; text-align: center; font-variant-numeric: tabular-nums; }
+.mh-n.red { background: var(--danger); }
+.mh-n.grey { background: #8B95A1; }
+.mh-n[hidden] { display: none; }
+.mh-today { padding: 20px 20px 24px; }
+.mh-head h2 { margin: 0 0 8px; font-size: 18px; line-height: 26px; font-weight: 700; }
+.mh-sub { margin: 16px 0 4px; font-size: 13px; font-weight: 600; color: var(--text3); }
+.mh-list { list-style: none; margin: 0; padding: 0; }
+.mh-list li { display: flex; align-items: center; gap: 12px; min-height: 48px; border-bottom: 1px solid var(--row); }
+.mh-list li:last-child { border-bottom: 0; }
+.mh-list li.click { cursor: pointer; }
+.mh-time { flex: none; width: 44px; font-size: 14px; font-weight: 600; color: var(--primary); font-variant-numeric: tabular-nums; }
+.mh-tt { flex: 1; min-width: 0; font-size: 15px; line-height: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mh-loc { flex: none; max-width: 30%; font-size: 13px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mh-due { flex: none; font-size: 13px; font-weight: 600; }
+.mh-due.red { color: var(--danger); }
+.mh-due.blue { color: var(--primary); }
+.mh-empty { color: var(--text3); font-size: 14px; }
+.mh-more { display: block; padding-top: 12px; font-size: 14px; font-weight: 500; color: var(--primary); text-decoration: none; }

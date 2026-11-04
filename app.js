@@ -144,6 +144,7 @@ function toggleTodo(id) {
 function greet(h) { return h < 6 ? '늦은 시간까지 수고 많으십니다' : h < 12 ? '좋은 아침입니다' : h < 18 ? '좋은 오후입니다' : '오늘도 수고 많으셨습니다'; }
 
 function renderHome() {
+  if (isMobile()) return renderHomeMobile();
   const td = today(), d = new Date();
   const open = S.todos.items.filter((t) => !t.done);
   const over = open.filter((t) => t.due && t.due < td).sort(sortTodos);
@@ -235,6 +236,58 @@ function renderHome() {
   if (typeof ipoHomeBlock === 'function') ipoHomeBlock().then((h) => { const box = $('#home-ipo'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
   if (typeof eventsHomeBlock === 'function') eventsHomeBlock().then((h) => { const box = $('#home-ev'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
 }
+
+// ---------- 폰 첫 화면: 하이웍스 앱처럼 메뉴 모음 + 오늘 한 묶음 ----------
+function renderHomeMobile() {
+  const td = today(), d = new Date();
+  const open = S.todos.items.filter((t) => !t.done);
+  const over = open.filter((t) => t.due && t.due < td).sort(sortTodos);
+  const dueToday = open.filter((t) => t.due === td);
+  const ms = S.milestones.items.filter((m) => m.date >= td).sort((x, y) => x.date.localeCompare(y.date)).slice(0, 2);
+  const prog = S.programs.items.filter((p) => ['설계', '개발 중'].includes(p.status)).length;
+  const menu = [
+    ['#mail', 'mail', '메일', '<i class="mh-n" id="mh-mail" hidden></i>'],
+    ['#calendar', 'cal', '일정', '<i class="mh-n" id="mh-cal" hidden></i>'],
+    ['#todos', 'check', '할 일', over.length + dueToday.length ? `<i class="mh-n ${over.length ? 'red' : ''}">${over.length + dueToday.length}</i>` : ''],
+    ['#notes', 'file', '업무일지', ''],
+    ['#deals', 'ticket', '행사·IR', ''],
+    ['#deals/ipo', 'chart', '신규상장', ''],
+    ['#programs', 'box', '프로그램', prog ? `<i class="mh-n grey">${prog}</i>` : ''],
+    ['', 'spark', 'AI 브리핑', ''],
+  ];
+  PAGE.innerHTML = `<div class="mhome">
+    <section class="mh-hello">
+      <div class="dt">${d.getMonth() + 1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일</div>
+      <div class="sub">${greet(d.getHours())}${ms.length ? ` · ${ms.map((m) => `${esc(m.title.replace(/\s*\(.*\)$/, ''))} <b>D-${diffDays(m.date, td)}</b>`).join(' · ')}` : ''}</div>
+    </section>
+    <nav class="mh-grid">${menu.map(([h, i, t, n]) => `<a ${h ? `href="${h}"` : 'href="#" data-brief'} class="mh-it"><span class="mh-ic">${ico(i)}${n}</span><span class="mh-t">${t}</span></a>`).join('')}</nav>
+    <section class="mh-today">
+      <div class="mh-head"><h2>오늘</h2></div>
+      <ul class="mh-list" id="mh-ev"><li class="mh-empty">불러오는 중…</li></ul>
+      ${over.length || dueToday.length ? `<div class="mh-sub">할 일</div><ul class="mh-list">${[...over, ...dueToday].slice(0, 5).map((t) => `
+        <li><input type="checkbox" class="check" data-toggle="${t.id}" aria-label="완료"><span class="mh-tt">${esc(t.title)}</span><span class="mh-due ${t.due < td ? 'red' : 'blue'}">${t.due < td ? `${diffDays(td, t.due)}일 지남` : '오늘'}</span></li>`).join('')}</ul>
+        ${over.length + dueToday.length > 5 ? `<a class="mh-more" href="#todos">할 일 ${over.length + dueToday.length}건 모두 보기</a>` : ''}` : ''}
+    </section>
+  </div>`;
+  PAGE.querySelectorAll('[data-toggle]').forEach((el) => el.addEventListener('change', () => toggleTodo(el.dataset.toggle)));
+  PAGE.querySelector('[data-brief]').addEventListener('click', (e) => {
+    e.preventDefault();
+    const b = S.briefing, bt = b.mtime ? new Date(b.mtime * 1000) : null;
+    openSheet(`<h3>AI 브리핑</h3>${bt ? `<div class="meta" style="margin:-6px 0 12px">${bt.getMonth() + 1}/${bt.getDate()} ${pad(bt.getHours())}:${pad(bt.getMinutes())} 갱신</div>` : ''}<div class="brief">${b.text ? mdRender(b.text) : '<div class="empty">브리핑 없음</div>'}</div>`);
+  });
+  const s0 = new Date(); s0.setHours(0, 0, 0, 0);
+  fetchCal(ymd(s0), ymd(addDays(s0, 1))).then((r) => {
+    const box = $('#mh-ev'); if (!box) return;
+    const ev = r.events.filter((e) => !e.cancelled);
+    const n = $('#mh-cal'); if (n && ev.length) { n.textContent = ev.length; n.hidden = false; }
+    box.innerHTML = ev.map((e) => `<li class="click" ${e.editable ? `data-ev="${esc(e.id)}"` : 'data-go="#calendar"'}><span class="mh-time">${e.allDay ? '종일' : e.start.slice(11, 16)}</span><span class="mh-tt">${esc(e.subject)}</span>${e.location ? `<span class="mh-loc">${esc(e.location)}</span>` : ''}</li>`).join('') || '<li class="mh-empty">오늘 일정이 없습니다.</li>';
+    box.querySelectorAll('[data-go]').forEach((li) => li.addEventListener('click', () => { location.hash = li.dataset.go; }));
+    box.querySelectorAll('[data-ev]').forEach((li) => li.addEventListener('click', () => openEventModal(li.dataset.ev, r.events, () => { delete CALC[`${ymd(s0)}|${ymd(addDays(s0, 1))}`]; renderHome(); })));
+  }).catch((e) => { const box = $('#mh-ev'); if (box) box.innerHTML = `<li class="mh-empty">${esc(e.message)}</li>`; });
+  G.get('/me/mailFolders/inbox?$select=unreadItemCount').then((j) => { const n = $('#mh-mail'); if (n && j.unreadItemCount) { n.textContent = j.unreadItemCount > 99 ? '99+' : j.unreadItemCount; n.hidden = false; } }).catch(() => {});
+}
+// 폰↔PC 폭이 바뀌면 홈을 그 폭에 맞는 구성으로 다시 그린다
+matchMedia('(max-width: 760px)').addEventListener('change', () => { if (S && route() === 'home') render(); });
 
 // ---------- 딜소싱: 행사·IR / 신규상장 (각 화면은 events.js·ipo.js가 host 안에 그린다) ----------
 function renderDeals() {
