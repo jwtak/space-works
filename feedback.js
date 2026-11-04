@@ -1,6 +1,6 @@
 /* 요청사항: 화면마다 대표님·팀원이 "이런 게 있으면 좋겠다"를 남기고, 고친 뒤 그 아래 의견(답글)을 단다.
    데이터는 팀 파일함 '_웍스/요청사항.json' 하나(세 사람 모두 쓰기 가능). 저장은 eTag로 충돌을 막고, 겹치면 다시 읽어 다시 적용한다.
-   넓은 화면(1680px 이상)은 각 화면 본문 오른쪽에 붙여 두고, 그보다 좁으면 오른쪽 가장자리 '요청사항' 탭으로 연다. */
+   PC는 각 화면 본문 오른쪽에 고정된 칸으로 열어 두고(메뉴를 옮겨도 유지, X로 닫으면 오른쪽 가장자리 탭), 폰은 덮는 패널. */
 const RQ_PATH = '_웍스/요청사항.json';
 const RQ_HINT = {
   home: '예: 대시보드에 이번 주 딜 미팅 일정도 같이 보이면 좋겠습니다',
@@ -17,7 +17,7 @@ const RQ_HINT = {
 const rqS = { items: [], etag: null, at: 0, scope: 'page', open: null, reply: null, replyDraft: '', busy: false, loaded: false, gen: 0 };
 const rqUrl = () => `/drives/${CFG.teamDrive}/root:/${RQ_PATH.split('/').map(encodeURIComponent).join('/')}:`;
 const rqPage = () => (document.body.dataset.route || 'home');
-const RQ_MQ = '(min-width: 1680px)';
+const RQ_MQ = '(min-width: 761px)'; // PC = 붙여 두기
 const rqWide = () => matchMedia(RQ_MQ).matches;
 const rqWhen = (s) => { const d = new Date(s); return isNaN(d) ? '' : `${d.getMonth() + 1}.${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const rqWho = () => [myName(), myTitle()].filter(Boolean).join(' ');
@@ -165,7 +165,8 @@ function rqClose(viaBack) {
   if (viaBack !== true && rqOff) { rqOff(); rqOff = null; }
 }
 function rqToggle() { $('#req')?.hidden ? rqOpen() : rqClose(); }
-const rqDock = () => { let d = '1'; try { d = localStorage.getItem('reqDock') ?? '1'; } catch { /* 기본은 붙여 둠 */ } return d === '1'; };
+// 붙여 둘지: 한 번 열거나 닫은 뒤로는 그대로, 처음엔 넓은 화면(1680px↑)만 열어 둔다(노트북은 본문이 좁아지지 않게 탭으로 시작)
+const rqDock = () => { let d = null; try { d = localStorage.getItem('reqDock'); } catch { /* 처음처럼 */ } return d ? d === '1' : matchMedia('(min-width: 1680px)').matches; };
 
 // 앱 시작 후(로그인·데이터 읽은 뒤) app.js load()가 부른다
 async function rqInit() {
@@ -174,7 +175,7 @@ async function rqInit() {
   box.dataset.bound = '1'; rqBind(box);
   $('#req-btn')?.addEventListener('click', rqToggle);
   if (rqWide() && rqDock()) rqOpen();
-  // 1680px을 넘나들 때: 넓어지면 덮는 겹을 없애고 붙여 두기, 좁아지면 붙여 둔 패널을 닫는다(겹 없이 덮어 두지 않게)
+  // PC↔폰 폭을 넘나들 때: PC가 되면 덮는 겹을 없애고 붙여 두기, 폰이 되면 붙여 둔 패널을 닫는다(겹 없이 덮어 두지 않게)
   matchMedia(RQ_MQ).addEventListener?.('change', (e) => {
     if (e.matches) {
       if (rqOff) { rqOff(); rqOff = null; }

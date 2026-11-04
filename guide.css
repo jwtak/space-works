@@ -10,6 +10,9 @@
 .gd-card h2 { margin: 10px 0 6px; font-size: 20px; line-height: 28px; font-weight: 700; }
 .gd-card h3 { margin: 4px 0 6px; font-size: 16px; line-height: 24px; font-weight: 700; }
 .gd-card p { margin: 0; font-size: 14px; line-height: 22px; color: var(--text2); }
+.gd-inst { margin-top: 14px; width: 100%; justify-content: center; border-color: #D6E2FB; background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+.gd-card.center:not(:has(h2)) { text-align: left; }
+.gd-card.center:not(:has(h2)) .gd-act { justify-content: flex-start; }
 .gd-step { font-size: 12px; font-weight: 600; color: var(--primary); }
 .gd-act { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
 .gd-card.center .gd-act { justify-content: center; }

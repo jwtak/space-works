@@ -8,14 +8,15 @@ body.req-on .req-tab, body.signed-out .req-tab { display: none; }
 
 .req { display: flex; flex-direction: column; background: var(--card); min-width: 0; overflow-y: auto; scrollbar-width: thin; }
 .req[hidden] { display: none; }
-@media (min-width: 1680px) {
+@media (min-width: 761px) {
   body.req-on .scroll { display: flex; align-items: flex-start; }
   body.req-on .scroll > .page { flex: 1 1 auto; min-width: 0; }
   .req { position: sticky; top: 28px; flex: none; width: 320px; margin: 78px 32px 32px 0; max-height: calc(100vh - 64px - 60px); border: 1px solid var(--line); border-radius: var(--r-lg); }
   .req .rq-hd { border-radius: var(--r-lg) var(--r-lg) 0 0; height: 56px; }
 }
-@media (max-width: 1679.98px) {
-  .req { position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 100%); z-index: 60; border-left: 1px solid var(--line); box-shadow: -12px 0 32px rgba(15, 23, 42, .12); }
+@media (min-width: 761px) and (max-width: 1439.98px) { .req { width: 280px; margin-right: 24px; } }
+@media (max-width: 760px) {
+  .req { position: fixed; top: 0; right: 0; bottom: 0; width: 100%; z-index: 60; }
 }
 
 .rq-hd { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px; height: 64px; flex: none; padding: 0 12px 0 20px; background: var(--card); border-bottom: 1px solid var(--line); }
