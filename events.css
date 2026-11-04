@@ -37,6 +37,41 @@
 .ev-mcal .it.ev-on::before { content: '★ '; color: #FDC036; }
 .ev-mcal .it.more { color: var(--primary); font-weight: 600; }
 
+/* ---------- 달력 요약 창 (PC: 누른 날 옆 / 휴대폰: .sheet 안) ---------- */
+.ev-float {
+  position: fixed; z-index: 50; width: 360px; max-height: calc(100vh - 32px); overflow-y: auto;
+  padding: 12px 20px 16px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg);
+  box-shadow: 0 12px 32px rgba(17, 24, 39, .14), 0 2px 6px rgba(17, 24, 39, .06);
+}
+.ev-pop-hd { display: flex; align-items: center; gap: 8px; min-height: 32px; }
+.ev-pop-back { margin-left: -8px; }
+.ev-pop-x { margin-left: auto; margin-right: -8px; }
+.ev-pop-day { font-size: 15px; font-weight: 600; color: var(--ink); }
+.ev-pop-meta { font-size: 12px; color: var(--text3); }
+.ev-pop-ttl { margin: 4px 0 12px; font-size: 16px; line-height: 24px; font-weight: 700; color: var(--ink); word-break: keep-all; overflow-wrap: anywhere; }
+.ev-pop-dl { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 6px 12px; margin: 0; font-size: 13px; line-height: 20px; }
+.ev-pop-dl dt { color: var(--text3); }
+.ev-pop-dl dd { margin: 0; min-width: 0; color: var(--text2); overflow-wrap: anywhere; }
+.ev-pop-rel { margin-left: 4px; color: var(--primary); font-weight: 600; }
+.ev-pop-why { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--row); font-size: 13px; line-height: 20px; color: var(--text2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; word-break: keep-all; overflow-wrap: anywhere; }
+.ev-pop-act { display: flex; align-items: center; gap: 8px; margin: 16px 0 0 -8px; }
+.ev-pop-act .sp { flex: 1; }
+.ev-pop-act .iconbtn + .iconbtn { margin-left: -6px; }
+.ev-pop-act .btn { gap: 4px; padding: 0 10px; }
+.ev-pop-act .btn .i { color: var(--text3); }
+.ev-pop-star.on { color: #FDC036; }
+.ev-pop-star.on .i { fill: currentColor; }
+.ev-pop-list { list-style: none; margin: 4px -8px 0; padding: 0; }
+.ev-pop-list button {
+  display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; width: 100%;
+  padding: 8px; border: 0; background: none; border-radius: var(--r); font: inherit; text-align: left; cursor: pointer;
+}
+.ev-pop-list button:hover { background: var(--hover); }
+.ev-pop-list button:hover .t { color: var(--primary); }
+.ev-pop-list .t { min-width: 0; font-size: 13px; line-height: 20px; font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev-pop-list .d { font-size: 12px; color: var(--text3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ev-pop-none { padding: 24px 0 8px; font-size: 13px; color: var(--text3); }
+
 /* ---------- 목록 (ipo-cols 와 같은 방식) ---------- */
 .ev-list { border-top: 1px solid var(--line); }
 .ev-cols { display: grid; grid-template-columns: 24px 104px 40px repeat(3, minmax(0, 1fr)) 32px; gap: 16px; align-items: start; padding: 0 24px; }
@@ -141,6 +176,11 @@
   .ev-hide { grid-area: hide; margin-top: -4px; color: #B6BCC6; }
   .ev-ttl { display: block; font-size: 15px; line-height: 22px; }
   .ev-sub { white-space: normal; }
+
+  .ev-sheet .ev-pop-ttl { font-size: 17px; line-height: 26px; }
+  .ev-sheet .ev-pop-list button { min-height: 48px; align-items: center; }
+  .ev-sheet .ev-pop-list .t { font-size: 15px; line-height: 22px; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+  .ev-sheet .ev-pop-act .btn { height: 40px; }
 
   .ev-detail { padding: 0 16px 16px; }
   .ev-detail dl { grid-template-columns: 64px minmax(0, 1fr); gap: 6px 12px; }

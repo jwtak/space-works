@@ -23,7 +23,7 @@ const evDefaults = () => ({ period: '12m', type: '', ind: '', region: '', min: 4
 const evState = {
   data: null, marks: { items: [], version: null }, at: 0, loading: null,
   f: evLoadFilter(), q: '', open: new Set(), month: null, day: null, mOpen: false,
-  saving: Promise.resolve(), focus: null, el: null,
+  saving: Promise.resolve(), focus: null, el: null, pop: null,
 };
 
 /* ---------- 상태·데이터 ---------- */
@@ -240,6 +240,97 @@ function evCalHTML() {
 }
 function evDrawCal() { const c = $('#ev-cal'); if (c && evState.data) c.innerHTML = evCalHTML(); }
 
+/* ---------- 달력 요약 창: PC는 누른 날 옆에 뜨는 창, 휴대폰은 아래에서 올라오는 패널 ---------- */
+const EV_X = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+const evDayItems = (k) => evState.data.items.filter((e) => !e.extra.estimated && evPass(e) && e.start <= k && e.end >= k).sort(evByScore);
+
+function evPopEventHTML(e, back) {
+  const st = evSt(e.id), due = evDue(e), rel = evRel(e);
+  const row = (k, v) => (v ? `<dt>${k}</dt><dd>${v}</dd>` : '');
+  const url = /^https?:\/\//i.test(e.url || '') ? e.url : /^https?:\/\//i.test(e.extra.homepage || '') ? e.extra.homepage : '';
+  return `<div class="ev-pop-hd">${back ? `<button class="iconbtn ev-pop-back" type="button" data-pop-back aria-label="뒤로">${ico('left', 'sm')}</button>` : ''}${evScore(e)}<span class="ev-pop-meta">${esc([e.type, e.region !== '미상' && e.region].filter(Boolean).join(' · '))}</span>
+      <button class="iconbtn ev-pop-x" type="button" data-pop-x aria-label="닫기">${EV_X}</button></div>
+    <h3 class="ev-pop-ttl">${esc(e.title)}</h3>
+    <dl class="ev-pop-dl">
+      ${row('일시', `${evWhen(e)}${rel ? ` <span class="ev-pop-rel">${rel}</span>` : ''}`)}
+      ${row('장소', esc(e.venue))}
+      ${row('주최', esc(e.host))}
+      ${row('IR 회사', esc(e.company))}
+      ${row('등록 마감', due ? `${mdw(e.reg_deadline)} · ${due.txt}` : '')}
+    </dl>
+    ${e.reason ? `<p class="ev-pop-why">${esc(e.reason)}</p>` : ''}
+    <div class="ev-pop-act">
+      <button type="button" class="iconbtn ev-pop-star${st === 'star' ? ' on' : ''}" data-mark="star" aria-pressed="${st === 'star'}" aria-label="관심" title="관심">${EV_STAR}</button>
+      <button type="button" class="iconbtn" data-mark="pass" aria-label="${st === 'pass' ? '다시 보이기' : '숨기기'}" title="${st === 'pass' ? '다시 보이기' : '숨기기'}">${st === 'pass' ? EV_SHOW : EV_HIDE}</button>
+      <span class="sp"></span>
+      ${url ? `<a class="btn sm" href="${esc(url)}" target="_blank" rel="noopener">상세 페이지${ico('ext', 'sm')}</a>` : ''}
+      <button type="button" class="btn sm" data-pop-list>목록에서 보기</button>
+    </div>`;
+}
+
+function evPopDayHTML(k) {
+  const its = evDayItems(k), d = parse(k);
+  return `<div class="ev-pop-hd"><strong class="ev-pop-day">${d.getMonth() + 1}월 ${d.getDate()}일 (${WD[d.getDay()]})</strong><span class="ev-pop-meta">${its.length}건</span>
+      <button class="iconbtn ev-pop-x" type="button" data-pop-x aria-label="닫기">${EV_X}</button></div>
+    ${its.length ? `<ul class="ev-pop-list">${its.map((e) => `<li><button type="button" data-pop-ev="${esc(e.id)}">${evScore(e)}<span class="t">${esc(e.title)}</span><span class="d">${evRange(e)}</span></button></li>`).join('')}</ul>` : '<div class="ev-pop-none">행사가 없습니다.</div>'}`;
+}
+
+function evPopDraw() {
+  const p = evState.pop; if (!p) return;
+  const e = p.id && evFind(p.id);
+  p.box.innerHTML = e ? evPopEventHTML(e, p.fromDay) : evPopDayHTML(p.day);
+  if (!p.cell) return;
+  // 누른 날 오른쪽(자리 없으면 왼쪽)에, 위아래는 화면 안으로
+  const r = p.cell, w = p.box.offsetWidth, h = p.box.offsetHeight, W = innerWidth, H = innerHeight, gap = 8;
+  const left = r.right + gap + w <= W - 16 ? r.right + gap : r.left - gap - w >= 16 ? r.left - gap - w : Math.max(16, Math.min(r.left, W - w - 16));
+  p.box.style.left = `${left}px`;
+  p.box.style.top = `${Math.max(16, Math.min(r.top, H - h - 16))}px`;
+}
+
+function evPopClose() {
+  const p = evState.pop; if (!p) return;
+  evState.pop = null; p.close();
+}
+
+function evPopOpen(day, id) {
+  evPopClose();
+  evState.day = day; evDrawCal();
+  const p = { day, id, fromDay: !id };
+  if (isMobile()) {
+    openSheet('<div class="ev-pop"></div>', (sh, close) => { p.box = sh.querySelector('.ev-pop'); p.close = close; }, 'ev-sheet');
+  } else {
+    p.box = document.createElement('div');
+    p.box.className = 'ev-pop ev-float';
+    p.box.setAttribute('role', 'dialog');
+    document.body.appendChild(p.box);
+    p.close = () => p.box.remove();
+    p.cell = document.querySelector(`#ev-cal [data-day="${day}"]`)?.getBoundingClientRect();
+  }
+  p.box.addEventListener('click', (ev) => evPopClick(ev, p));
+  evState.pop = p; evPopDraw();
+}
+
+function evPopClick(ev, p) {
+  const hit = (s) => ev.target.closest(s);
+  let el;
+  if ((el = hit('[data-mark]'))) { evToggleMark(p.id, el.dataset.mark); return evPopDraw(); }
+  if ((el = hit('[data-pop-ev]'))) { p.id = el.dataset.popEv; return evPopDraw(); }
+  if (hit('[data-pop-back]')) { p.id = null; return evPopDraw(); }
+  if (hit('[data-pop-x]')) return evPopClose();
+  if (hit('[data-pop-list]')) {
+    const id = p.id; evPopClose();
+    evState.open.add(id); evRefreshRow(id); evScrollTo(p.day, id);
+  }
+}
+
+// PC 창은 바깥을 누르거나, 스크롤·창 크기 변경·화면 이동·Esc 때 닫는다(휴대폰 패널은 openSheet 가 닫는다)
+const evPopAway = (ev) => { const p = evState.pop; if (p?.cell && !p.box.contains(ev.target)) evPopClose(); };
+document.addEventListener('mousedown', evPopAway, true);
+document.addEventListener('scroll', evPopAway, true);
+addEventListener('resize', () => { if (evState.pop?.cell) evPopClose(); });
+addEventListener('hashchange', evPopClose);
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && evState.pop?.cell) evPopClose(); });
+
 /* ---------- 목록 ---------- */
 const evNoneHTML = () => `<div class="empty">조건에 맞는 행사가 없습니다.${evIsDefault() ? '' : '<div class="ev-retry"><button class="btn sm" type="button" data-reset>초기화</button></div>'}</div>`;
 
@@ -322,12 +413,10 @@ function evBind(root) {
       else { evState.month = new Date(evState.month.getFullYear(), evState.month.getMonth() + v, 1); }
       return evDrawCal();
     }
-    if ((el = hit('.ev-mcal [data-evid]'))) {
-      const id = el.dataset.evid;
-      evState.day = el.closest('[data-day]').dataset.day; evState.open.add(id);
-      evDrawCal(); evRefreshRow(id); return evScrollTo(evState.day, id);
+    if ((el = hit('.ev-mcal [data-day]'))) { // 휴대폰은 칸 전체가 하루 목록, PC는 행사를 누르면 그 행사 요약
+      const it = !isMobile() && hit('.ev-mcal [data-evid]');
+      return evPopOpen(el.dataset.day, it ? it.dataset.evid : null);
     }
-    if ((el = hit('.ev-mcal [data-day]'))) { evState.day = el.dataset.day; evDrawCal(); return evScrollTo(evState.day); }
   });
   root.addEventListener('change', (ev) => {
     const t = ev.target, k = t.dataset.f; if (!k) return;
@@ -347,7 +436,7 @@ function renderEvents(el) { return evRender(el, false); }
 
 async function evRender(el, force) {
   const host = el && el.nodeType === 1 ? el : PAGE;
-  evState.el = host;
+  evState.el = host; evPopClose();
   host.innerHTML = `<div class="ev-page" id="ev-root">${host === PAGE ? '<div class="page-head"><h1>행사·IR</h1></div>' : ''}
     <section class="card ev-card" id="ev-card">
       <div class="ev-filter" id="ev-filter"></div>
