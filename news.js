@@ -88,7 +88,7 @@ async function newsHomeBlock() {
   const from = ymd(addDays(new Date(), -1)), recent = d.items.filter((x) => nwDay(x.published) >= from).sort((a, b) => (b.score || 0) - (a.score || 0));
   const deal = recent.filter((x) => x.cat !== 'space').slice(0, 5), space = recent.filter((x) => x.cat === 'space').slice(0, 3);
   if (!deal.length && !space.length) return '';
-  const li = (x) => `<li><a class="nw-hl" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><span class="ttl">${esc(x.title)}</span><span class="meta">${esc([x.source, nwTime(x.published)].filter(Boolean).join(' · '))}</span></a>${nwSc(x.score)}</li>`;
+  const li = (x) => `<li><a class="nw-hl" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><span class="ttl">${esc(x.title)}</span><span class="meta">${esc([x.source, `${nwDay(x.published) === today() ? '' : '어제 '}${nwTime(x.published)}`].filter(Boolean).join(' · '))}</span></a>${nwSc(x.score)}</li>`;
   return `<section class="card nw-home">
     <div class="card-head"><h2>딜 뉴스</h2><a class="btn sm act" href="#deals/news">전체 보기</a></div>
     <div class="card-body">${deal.length ? `<ul class="list">${deal.map(li).join('')}</ul>` : ''}
