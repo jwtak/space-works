@@ -197,6 +197,24 @@ function ipoDetail(x) {
 const ipoKv = (k, v) => (v ? `<div class="ipo-kv"><div class="k">${k}</div><div class="v">${v}</div></div>` : '');
 const ipoPerson = (p) => [p?.['직책'], p?.['성명']].filter((s) => s && s !== '확인 필요').map(esc).join(' ');
 
+/* 연락처 탭 요약: 3개년(+반기) 매출·영익·순이익과 이익률. 억 원, 숫자는 오른쪽 정렬 */
+function ipoPnl(x) {
+  const fin = x.fin || {}, h = fin.half && fin.half.label ? fin.half : null;
+  const cols = [...['2023', '2024', '2025'].map((y) => [y, ...(fin.years?.[y] || [])]), ...(h ? [[h.label, h.rev, h.op, h.ni]] : [])];
+  if (!cols.some((c) => c.slice(1).some((v) => v != null))) return '';
+  const n = (v) => (v == null || v === '' ? '–' : Number(v).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
+  const pct = (a, b) => (a == null || !b ? '–' : `${(a / b * 100).toFixed(1)}%`);
+  const row = (k, f, cls = '') => `<tr class="${cls}"><td>${k}</td>${cols.map((c) => `<td>${f(c)}</td>`).join('')}</tr>`;
+  return `<div class="ipo-h">주요 손익${fin.basis ? ` <span class="muted">${esc(fin.basis)}</span>` : ''}</div>
+    <table class="ipo-pnl"><thead><tr><th>억 원</th>${cols.map((c) => `<th>${esc(c[0])}</th>`).join('')}</tr></thead><tbody>
+    ${row('매출액', (c) => n(c[1]))}
+    ${row('영업이익', (c) => n(c[2]))}
+    ${row('OPM', (c) => pct(c[2], c[1]), 'r')}
+    ${row('당기순이익', (c) => n(c[3]))}
+    ${row('NPM', (c) => pct(c[3], c[1]), 'r')}
+    </tbody></table>`;
+}
+
 function ipoPaneContact(x) {
   const w = x.writer || {};
   const staff = (x.staff || []).map((s) => [s['구분'], s['성명'], s['직책']].filter(Boolean).map(esc).join(' ')).filter(Boolean).join('<br>');
@@ -216,7 +234,7 @@ function ipoPaneContact(x) {
       ${ipoKv('주관사', esc(x.broker))}
       ${links ? `<div class="ipo-links">${links}</div>` : ''}
     </div>
-    <div>${route.length ? `<div class="ipo-h">접촉 경로</div><ol class="ipo-ol">${route.map((r) => `<li>${esc(r)}</li>`).join('')}</ol>` : ''}</div>
+    <div>${ipoPnl(x)}${route.length ? `<div class="ipo-h">접촉 경로</div><ol class="ipo-ol">${route.map((r) => `<li>${esc(r)}</li>`).join('')}</ol>` : ''}</div>
   </div>`;
 }
 

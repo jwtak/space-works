@@ -87,6 +87,17 @@
 .ipo-fin td:first-child { color: var(--text3); font-size: 13px; }
 .ipo-fin tr:last-child td, .ipo-tbl tr:last-child td { border-bottom: 0; }
 .ipo-tbl { max-width: none; }
+
+/* 연락처 탭 주요 손익: 엑셀 요약표 모양. 라벨 열 고정 + 숫자 열 같은 폭, 머리글·값 모두 오른쪽 끝선(패딩 12) 일치 */
+.ipo-pnl { width: 100%; max-width: 560px; border-collapse: collapse; table-layout: fixed; font-size: 14px; line-height: 20px; font-variant-numeric: tabular-nums; }
+.ipo-pnl th, .ipo-pnl td { padding: 8px 12px; text-align: right; white-space: nowrap; border-bottom: 1px solid var(--row); }
+.ipo-pnl th:first-child, .ipo-pnl td:first-child { width: 104px; text-align: left; }
+.ipo-pnl th { background: #5B8DEF; color: #fff; font-size: 13px; font-weight: 700; border-bottom: 0; }
+.ipo-pnl th:first-child { font-weight: 600; }
+.ipo-pnl td { font-weight: 600; color: var(--ink); }
+.ipo-pnl tr.r td { font-weight: 400; font-style: italic; color: var(--danger); }
+.ipo-pnl tr.r td:first-child { padding-left: 24px; }
+.ipo-pnl tr:last-child td { border-bottom: 0; }
 .ipo-tbl th:nth-child(1) { width: 104px; }
 .ipo-tbl th:nth-child(2) { width: 72px; }
 .ipo-tbl-2 th:nth-child(2) { width: auto; }
@@ -125,4 +136,8 @@
   .ipo-note { flex: 1 1 100%; }
   .ipo-tabs { gap: 20px; }
   .ipo-kv { grid-template-columns: 84px minmax(0, 1fr); }
+  .ipo-pnl { font-size: 13px; }
+  .ipo-pnl th, .ipo-pnl td { padding: 8px 6px; }
+  .ipo-pnl th:first-child, .ipo-pnl td:first-child { width: 76px; padding-left: 8px; }
+  .ipo-pnl tr.r td:first-child { padding-left: 16px; }
 }
