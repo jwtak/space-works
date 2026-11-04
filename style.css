@@ -634,6 +634,16 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 }
 
 /* 딜소싱 하위 탭 */
+/* 홈페이지 미리보기 */
+.hp-when { font-size: 13px; color: var(--text3); }
+.hp-seg { display: inline-flex; gap: 2px; padding: 3px; background: #E9EDF3; border-radius: 10px; }
+.hp-seg button { height: 32px; padding: 0 14px; border: 0; border-radius: 7px; background: none; color: var(--text2); font-weight: 600; cursor: pointer; }
+.hp-seg button.on { background: var(--card); color: var(--primary); box-shadow: 0 1px 2px rgba(15, 23, 42, .12); }
+.hp-card { overflow: hidden; height: calc(100dvh - 190px); min-height: 480px; display: flex; justify-content: center; background: #F1F3F6; }
+.hp-frame { width: 100%; height: 100%; border: 0; background: #fff; }
+.hp-card.m .hp-frame { width: 390px; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+@media (max-width: 760px) { .hp-seg { display: none; } .hp-card { height: calc(100dvh - 200px); border-radius: 0; } .hp-card.m .hp-frame { width: 100%; border: 0; } }
+
 /* 딜소싱 행사·IR / 신규상장 전환: 회색 트랙 위 흰 알약 */
 .deal-seg { display: inline-flex; gap: 4px; padding: 4px; margin: 0 0 16px; background: #E9EDF3; border-radius: 12px; }
 .deal-seg button { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 22px; border: 0; border-radius: 9px; background: none; color: var(--text2); font-size: 16px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s, box-shadow .15s; }

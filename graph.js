@@ -24,6 +24,11 @@ const CFG = {
 };
 const APP_URL = location.origin + location.pathname.replace(/[^/]*$/, ''); // 앱 폴더 주소 = 로그인 리디렉션 주소
 
+// 서비스워커가 홈페이지 미리보기 파일을 읽을 때 토큰을 달라고 하면 넘겨준다(sw.js hpToken)
+navigator.serviceWorker?.addEventListener('message', async (e) => {
+  if (e.data?.type !== 'need-token' || !e.ports[0]) return;
+  try { const r = await MS.acquireTokenSilent({ scopes: CFG.scopes, account: G.account }); e.ports[0].postMessage({ token: r.accessToken, exp: r.expiresOn.getTime() }); } catch { e.ports[0].postMessage(null); }
+});
 const MS = new msal.PublicClientApplication({
   auth: { clientId: CFG.clientId, authority: CFG.authority, redirectUri: APP_URL, postLogoutRedirectUri: APP_URL, navigateToLoginRequestUrl: false },
   cache: { cacheLocation: 'localStorage' },

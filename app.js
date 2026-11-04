@@ -136,7 +136,7 @@ function foot() {
 
 // ---------- 라우팅 ----------
 const route = () => (location.hash || '#home').slice(1);
-const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', deals: '딜소싱', weekly: '주간회의', files: '공용 폴더', notes: '업무일지·회의록', programs: '프로그램' };
+const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', deals: '딜소싱', weekly: '주간회의', files: '공용 폴더', notes: '업무일지·회의록', programs: '프로그램', homepage: '홈페이지' };
 function render() {
   if (!S) return; // 로그인·데이터 읽기 전 hashchange
   let r = route();
@@ -158,7 +158,7 @@ function render() {
   }
   if (r !== 'notes') document.body.classList.remove('note-open');
   $('#crumb').textContent = CRUMB[r];
-  ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, deals: renderDeals, weekly: () => renderFiles(PAGE, 'weekly'), files: () => (typeof renderFiles === 'function' ? renderFiles(PAGE) : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), programs: renderPrograms, notes: renderNotes }[r] || renderHome)();
+  ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, deals: renderDeals, weekly: () => renderFiles(PAGE, 'weekly'), files: () => (typeof renderFiles === 'function' ? renderFiles(PAGE) : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), programs: renderPrograms, notes: renderNotes, homepage: renderHomepage }[r] || renderHome)();
 }
 window.addEventListener('hashchange', render);
 
@@ -993,6 +993,20 @@ function renderPrograms() {
       save('programs'); renderPrograms(); toast('저장했습니다');
     });
   }
+}
+
+// ---------- 홈페이지 미리보기 (sw.js가 hp/를 팀 파일함 '_홈페이지 미리보기'에서 읽어 준다) ----------
+function renderHomepage() {
+  ui.hpView ||= 'pc';
+  PAGE.innerHTML = `<div class="page-head"><h1>홈페이지</h1><span class="hp-when" id="hp-when"></span>
+      <div class="tools"><div class="hp-seg" role="tablist">${[['pc', 'PC'], ['m', '모바일']].map(([k, t]) => `<button type="button" role="tab" data-hpv="${k}" aria-selected="${ui.hpView === k}" class="${ui.hpView === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+      <a class="btn" href="hp/" target="_blank" rel="noopener">${ico('ext', 'sm')}새 창</a></div></div>
+    <div class="card hp-card ${ui.hpView === 'm' ? 'm' : ''}">${navigator.serviceWorker?.controller ? '<iframe class="hp-frame" src="hp/" title="홈페이지 미리보기"></iframe>' : '<div class="empty">한 번 새로 고침한 뒤 다시 열어 주세요.</div>'}</div>`;
+  PAGE.querySelectorAll('[data-hpv]').forEach((b) => b.addEventListener('click', () => { ui.hpView = b.dataset.hpv; renderHomepage(); }));
+  G.get(`/drives/${CFG.teamDrive}/root:/${encodeURIComponent('_홈페이지 미리보기')}?$select=lastModifiedDateTime`).then((j) => {
+    const d = new Date(j.lastModifiedDateTime), el = $('#hp-when');
+    if (el) el.textContent = `${d.getMonth() + 1}.${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())} 반영`;
+  }).catch(() => {});
 }
 
 // ---------- 기록 ----------
