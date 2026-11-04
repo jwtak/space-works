@@ -14,13 +14,19 @@
 .ipo-filter .seg button { white-space: nowrap; }
 
 /* 목록: 상장일·상태는 고정, 나머지 5칸은 같은 폭 */
-.ipo-cols { display: grid; grid-template-columns: 72px repeat(5, minmax(0, 1fr)) 76px; gap: 16px; align-items: start; padding: 0 24px; }
+.ipo-cols { display: grid; grid-template-columns: 72px repeat(5, minmax(0, 1fr)) 100px; gap: 16px; align-items: start; padding: 0 24px; }
 .ipo-head { min-height: 40px; align-items: center; font-size: 13px; font-weight: 600; color: var(--text2); border-bottom: 1px solid var(--line); }
 .ipo-row { border-top: 1px solid var(--row); }
 .ipo-head + .ipo-row { border-top: 0; }
 .ipo-line { padding-top: 12px; padding-bottom: 12px; cursor: pointer; font-variant-numeric: tabular-nums; }
 .ipo-line:hover { background: var(--hover); }
-.ipo-row.open > .ipo-line { background: var(--primary-soft); }
+/* 펼친 행 = 머리(연파랑) + 상세(흰 면)를 한 장의 떠 있는 카드로. 머리 글자 시작선은 목록 열과 그대로 맞춤(12 + 1 + 11 = 24) */
+.ipo-row.open { margin: 8px 12px 12px; border: 1px solid #C9D9F7; border-radius: var(--r-lg); box-shadow: 0 4px 16px rgba(17, 24, 39, .06); overflow: hidden; }
+.ipo-row.open + .ipo-row { border-top: 0; }
+.ipo-row.open > .ipo-line { padding: 12px 11px; background: var(--primary-soft); }
+.ipo-c-st { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.ipo-chev { display: flex; color: var(--text3); transition: transform .15s ease; }
+.ipo-row.open .ipo-chev { transform: rotate(90deg); color: var(--primary); }
 .ipo-sub { margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ipo-ttl { padding: 0; border: 0; background: none; cursor: pointer; font-weight: 600; text-align: left; }
 .ipo-line:hover .ipo-ttl, .ipo-row.open .ipo-ttl { color: var(--primary); }
@@ -36,7 +42,7 @@
 .ipo-st.s-3 { background: var(--t-amber); color: var(--t-amber-c); }
 
 /* 펼침 상세: 요약·상태 → 하위 탭 → 한 묶음씩 */
-.ipo-detail { padding: 16px 24px 24px; border-top: 1px solid var(--line); background: var(--card); }
+.ipo-detail { padding: 20px 23px 24px; border-top: 1px solid #DCE6FA; background: var(--card); cursor: default; }
 .ipo-dhead { display: flex; align-items: center; gap: 24px; }
 .ipo-sum1 { flex: 1; min-width: 0; margin: 0; font-size: 14px; line-height: 20px; color: var(--text2); }
 .ipo-acts { display: flex; align-items: center; gap: 8px; flex: none; }
@@ -110,7 +116,9 @@
   .ipo-c-writer, .ipo-c-lock { grid-column: 1 / -1; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
   .ipo-c-writer .ipo-sub, .ipo-c-lock .ipo-sub { margin-top: 0; }
   .ipo-c-lock::before { content: '락업'; font-size: 12px; color: var(--text3); }
-  .ipo-detail { padding: 16px; }
+  .ipo-row.open { margin: 8px; }
+  .ipo-row.open > .ipo-line { padding: 16px 7px; }
+  .ipo-detail { padding: 16px 15px; }
   .ipo-seg { flex: 1 1 100%; display: flex; }
   .ipo-seg button { flex: 1; padding: 0 4px; white-space: nowrap; }
   .ipo-note { flex: 1 1 100%; }

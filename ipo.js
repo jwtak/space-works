@@ -133,7 +133,7 @@ function ipoRow(x) {
       <div>${ipoEok(f25[0])}<div class="ipo-sub">영업이익 ${ipoEok(f25[1])}</div></div>
       <div class="ipo-c-writer">${ipoWriterCell(x)}</div>
       <div class="ipo-c-lock">${ipoLockCell(x)}</div>
-      <div class="ipo-c-st"><span class="ipo-st s-${IPO_STATUS.indexOf(st)}">${esc(st)}</span></div>
+      <div class="ipo-c-st"><span class="ipo-st s-${IPO_STATUS.indexOf(st)}">${esc(st)}</span><span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span></div>
     </div>${open ? ipoDetail(x) : ''}</div>`;
 }
 
