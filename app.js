@@ -647,6 +647,28 @@ const REM_OPTS = [['', '없음'], ['0', '정시'], ['10', '10분 전'], ['15', '
 const REP_OPTS = [['', '반복 안 함'], ['daily', '매일'], ['weekly', '매주'], ['monthly', '매월'], ['yearly', '매년']];
 
 let evModalBusy = false;
+// 일정 시작을 바꾸면 끝도 같은 길이(처음엔 1시간)만큼 따라 움직인다. 끝을 직접 고치면 그 길이를 기억
+function linkEventEnd(f) {
+  if (!f.startDate || !f.endDate) return;
+  const ad = () => !!f.allDay?.checked;
+  const at = (d, t) => new Date(`${fixYmd(d)}T${ad() ? '00:00' : t || '00:00'}`);
+  const span = () => at(f.endDate.value, f.endTime?.value) - at(f.startDate.value, f.startTime?.value);
+  let dur;
+  const remember = () => { const d = span(); dur = d > 0 || (ad() && d === 0) ? d : ad() ? 0 : 3600000; };
+  remember();
+  const follow = () => {
+    const st = at(f.startDate.value, f.startTime?.value); if (isNaN(st)) return;
+    const en = new Date(st.getTime() + dur);
+    f.endDate.value = ymd(en);
+    if (!ad() && f.endTime) f.endTime.value = hhmm(en);
+  };
+  f.startDate.addEventListener('change', follow);
+  f.startTime?.addEventListener('change', follow);
+  f.endDate.addEventListener('change', remember);
+  f.endTime?.addEventListener('change', remember);
+  f.allDay?.addEventListener('change', () => { if (!ad() && span() <= 0) { dur = 3600000; follow(); } else remember(); });
+}
+
 async function openEventModal(id, events, onDone, date) {
   if (!S.auth.connected) return toast('Outlook이 연결되지 않았습니다');
   if (evModalBusy || document.querySelector('#evf')) return; // 더블클릭·느린 망에서 두 번 눌러도 창은 하나
@@ -687,6 +709,7 @@ async function openEventModalInner(id, events, onDone, date) {
     const f = el.querySelector('#evf'), save = f.querySelector('[data-save]'), allDay = f.allDay;
     const sync = () => { save.disabled = !f.subject.value.trim(); f.querySelectorAll('input.t').forEach((t) => { t.disabled = allDay.checked; }); };
     f.subject.addEventListener('input', sync); allDay.addEventListener('change', sync); sync();
+    linkEventEnd(f);
     setTimeout(() => f.subject.focus(), 50);
     f.querySelector('[data-cancel]').onclick = close;
     const del = f.querySelector('[data-del]');
@@ -906,6 +929,7 @@ async function mountMonth(el) {
     const allDay = form.querySelector('[name=allDay]');
     const syncAllDay = () => form.querySelectorAll('input.t').forEach((t) => { t.disabled = allDay.checked; });
     if (allDay) { allDay.addEventListener('change', syncAllDay); syncAllDay(); }
+    if (form.dataset.kind === 'ev') linkEventEnd(form);
     form.querySelector('input').focus();
     form.addEventListener('keydown', (e) => { if (e.key === 'Escape') { ui.calEdit = null; draw(); } });
     form.querySelector('[data-cf=cancel]').onclick = () => { ui.calEdit = null; draw(); };
