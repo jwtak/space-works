@@ -194,6 +194,9 @@ function ipoDetail(x) {
   </div>`;
 }
 
+/* 묶음 = 제목 줄 + 본문의 라운드 박스 (모든 하위 탭 공통) */
+const ipoBox = (t, body, sub = '') => `<section class="ipo-box"><div class="ipo-box-h">${t}${sub ? `<span class="muted">${sub}</span>` : ''}</div><div class="ipo-box-b">${body}</div></section>`;
+const ipoNone = '<p class="ipo-p muted">없음</p>';
 const ipoKv = (k, v) => (v ? `<div class="ipo-kv"><div class="k">${k}</div><div class="v">${v}</div></div>` : '');
 const ipoPerson = (p) => [p?.['직책'], p?.['성명']].filter((s) => s && s !== '확인 필요').map(esc).join(' ');
 
@@ -205,14 +208,13 @@ function ipoPnl(x) {
   const n = (v) => (v == null || v === '' ? '–' : Number(v).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
   const pct = (a, b) => (a == null || !b ? '–' : `${(a / b * 100).toFixed(1)}%`);
   const row = (k, f, cls = '') => `<tr class="${cls}"><td>${k}</td>${cols.map((c) => { const t = f(c); return `<td${t.startsWith('-') ? ' class="neg"' : ''}>${t}</td>`; }).join('')}</tr>`;
-  return `<div class="ipo-h">주요 손익${fin.basis ? ` <span class="muted">${esc(fin.basis)}</span>` : ''}</div>
-    <table class="ipo-pnl"><thead><tr><th>억 원</th>${cols.map((c) => `<th>${esc(c[0])}</th>`).join('')}</tr></thead><tbody>
+  return ipoBox('주요 손익', `<table class="ipo-pnl"><thead><tr><th>억 원</th>${cols.map((c) => `<th>${esc(c[0])}</th>`).join('')}</tr></thead><tbody>
     ${row('매출액', (c) => n(c[1]))}
     ${row('영업이익', (c) => n(c[2]))}
     ${row('OPM', (c) => pct(c[2], c[1]), 'r')}
     ${row('당기순이익', (c) => n(c[3]))}
     ${row('NPM', (c) => pct(c[3], c[1]), 'r')}
-    </tbody></table>`;
+    </tbody></table>`, esc(fin.basis || ''));
 }
 
 function ipoPaneContact(x) {
@@ -221,9 +223,7 @@ function ipoPaneContact(x) {
   const links = [[x.home, '홈페이지'], [x.ir, 'IR'], [x.contactPage, '문의'], [x.dartUrl, 'DART 원문']]
     .filter(([u]) => u).map(([u, l]) => `<a class="ipo-a" href="${esc(ipoUrl(u))}" target="_blank" rel="noopener">${l}${ico('ext', 'sm')}</a>`).join('');
   const route = ipoSplitNum(x.route);
-  return `<div class="ipo-two-col">
-    <div>
-      ${w.name ? `<div class="ipo-lead"><div class="ipo-lead-k">작성책임자</div>
+  const people = `${w.name ? `<div class="ipo-lead"><div class="ipo-lead-k">작성책임자</div>
         <div class="ipo-lead-v">${esc(w.title)} ${esc(w.name)}</div>
         <div class="ipo-lead-s">${ipoTel(w.phone)}${w.direct ? '<span class="ipo-direct">직통</span>' : ''}</div></div>` : ''}
       ${ipoKv('공시책임자', ipoPerson(x.discloser))}
@@ -232,47 +232,46 @@ function ipoPaneContact(x) {
       ${ipoKv('대표전화', x.phone ? ipoTel(x.phone) : '')}
       ${ipoKv('팩스', esc(x.fax))}
       ${ipoKv('주관사', esc(x.broker))}
-      ${links ? `<div class="ipo-links">${links}</div>` : ''}
-    </div>
-    <div>${ipoPnl(x)}${route.length ? `<div class="ipo-h">접촉 경로</div><ol class="ipo-ol">${route.map((r) => `<li>${esc(r)}</li>`).join('')}</ol>` : ''}</div>
+      ${links ? `<div class="ipo-links">${links}</div>` : ''}`;
+  return `<div class="ipo-two-col">
+    ${ipoBox('컨택 포인트', people)}
+    <div class="ipo-stack">${ipoPnl(x)}${route.length ? ipoBox('접촉 경로', `<ol class="ipo-ol">${route.map((r) => `<li>${esc(r)}</li>`).join('')}</ol>`) : ''}</div>
   </div>`;
 }
 
 function ipoPaneSignal(x) {
   const lst = (a) => (a || []).map((s) => `<li>${esc(s)}</li>`).join('');
-  return `<div class="ipo-h">자금수요 신호</div><p class="ipo-p">${esc(x.signal || '–')}</p>
+  return `<div class="ipo-stack">${ipoBox('자금수요 신호', `<p class="ipo-p">${esc(x.signal || '–')}</p>`)}
     <div class="ipo-two-col">
-      <div><div class="ipo-h">투자 포인트</div><ul class="ipo-ul">${lst(x.points)}</ul></div>
-      <div><div class="ipo-h">리스크</div><ul class="ipo-ul">${lst(x.risks)}</ul></div>
-    </div>`;
+      ${ipoBox('투자 포인트', x.points?.length ? `<ul class="ipo-ul">${lst(x.points)}</ul>` : ipoNone)}
+      ${ipoBox('리스크', x.risks?.length ? `<ul class="ipo-ul">${lst(x.risks)}</ul>` : ipoNone)}
+    </div></div>`;
 }
 
 function ipoPaneFin(x) {
   const fin = x.fin || {}, years = ['2023', '2024', '2025'], half = fin.half && fin.half.label;
   const fv = (y, i) => ipoEok((fin.years?.[y] || [])[i]);
-  return `<div class="ipo-h">손익 <span class="muted">${esc(fin.basis || '')} · 억원</span></div>
-    <table class="ipo-fin"><thead><tr><th></th>${years.map((y) => `<th>${y}</th>`).join('')}${half ? `<th>${esc(half)}</th>` : ''}</tr></thead>
+  return `<div class="ipo-stack">${ipoBox('손익', `<table class="ipo-fin"><thead><tr><th></th>${years.map((y) => `<th>${y}</th>`).join('')}${half ? `<th>${esc(half)}</th>` : ''}</tr></thead>
     <tbody><tr><td>매출</td>${years.map((y) => `<td>${fv(y, 0)}</td>`).join('')}${half ? `<td>${ipoEok(fin.half.rev)}</td>` : ''}</tr>
-    <tr><td>영업이익</td>${years.map((y) => `<td>${fv(y, 1)}</td>`).join('')}${half ? `<td>${ipoEok(fin.half.op)}</td>` : ''}</tr></tbody></table>
-    <div class="ipo-h">유동성</div>
-    ${ipoKv('현금성자산', esc(fin.cash))}${ipoKv('차입금', esc(fin.debt))}${ipoKv('부채비율', esc(fin.lev))}
-    ${ipoKv('시가총액', `${ipoEok(x.mcapNow)} · 공모가 기준 ${ipoEok(x.mcapOffer)} ${ipoChange(x)}`)}
-    ${fin.note ? `<div class="ipo-h">재무 특징</div><p class="ipo-p">${esc(fin.note)}</p>` : ''}`;
+    <tr><td>영업이익</td>${years.map((y) => `<td>${fv(y, 1)}</td>`).join('')}${half ? `<td>${ipoEok(fin.half.op)}</td>` : ''}</tr></tbody></table>`, `${esc(fin.basis || '')} · 억원`)}
+    ${ipoBox('유동성', `${ipoKv('현금성자산', esc(fin.cash))}${ipoKv('차입금', esc(fin.debt))}${ipoKv('부채비율', esc(fin.lev))}
+    ${ipoKv('시가총액', `${ipoEok(x.mcapNow)} · 공모가 기준 ${ipoEok(x.mcapOffer)} ${ipoChange(x)}`)}`)}
+    ${fin.note ? ipoBox('재무 특징', `<p class="ipo-p">${esc(fin.note)}</p>`) : ''}</div>`;
 }
 
 function ipoPaneHolders(x) {
   const fi = ipoSplitDot(x.fi);
   const locks = x.locks.map((l) => `<tr class="${l.d < today() ? 'past' : ''}"><td>${esc(l.d)}</td><td>${esc(l['지분율'] || '')}</td><td>${esc(l['대상'] || '')}</td></tr>`).join('');
   return `<div class="ipo-two-col">
-    <div><div class="ipo-h">주요 FI</div>${fi.length ? `<ul class="ipo-ul">${fi.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : '<p class="ipo-p muted">없음</p>'}</div>
-    <div><div class="ipo-h">락업 해제</div>${locks ? `<table class="ipo-tbl"><thead><tr><th>해제일</th><th>지분율</th><th>대상</th></tr></thead><tbody>${locks}</tbody></table>` : '<p class="ipo-p muted">없음</p>'}</div>
+    ${ipoBox('주요 FI', fi.length ? `<ul class="ipo-ul">${fi.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ipoNone)}
+    ${ipoBox('락업 해제', locks ? `<table class="ipo-tbl"><thead><tr><th>해제일</th><th>지분율</th><th>대상</th></tr></thead><tbody>${locks}</tbody></table>` : ipoNone)}
   </div>`;
 }
 
 function ipoPaneDisc(x) {
   const evs = (x.events || []).map((e) => `<tr><td>${esc(e.dt.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'))}</td><td><a class="ipo-a" href="${esc(ipoUrl(e.url))}" target="_blank" rel="noopener">${esc(e.nm)}</a></td></tr>`).join('');
-  return `<div class="ipo-h">상장 후 공시</div>${evs ? `<table class="ipo-tbl ipo-tbl-2"><thead><tr><th>접수일</th><th>보고서</th></tr></thead><tbody>${evs}</tbody></table>` : '<p class="ipo-p muted">없음</p>'}
-    ${x.dartUrl ? `<div class="ipo-links"><a class="ipo-a" href="${esc(ipoUrl(x.dartUrl))}" target="_blank" rel="noopener">투자설명서 원문${ico('ext', 'sm')}</a></div>` : ''}`;
+  return ipoBox('상장 후 공시', `${evs ? `<table class="ipo-tbl ipo-tbl-2"><thead><tr><th>접수일</th><th>보고서</th></tr></thead><tbody>${evs}</tbody></table>` : ipoNone}
+    ${x.dartUrl ? `<div class="ipo-links"><a class="ipo-a" href="${esc(ipoUrl(x.dartUrl))}" target="_blank" rel="noopener">투자설명서 원문${ico('ext', 'sm')}</a></div>` : ''}`);
 }
 
 function ipoSummary() {

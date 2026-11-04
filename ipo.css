@@ -56,11 +56,15 @@
 .ipo-tabs button.on { color: var(--ink); font-weight: 600; }
 .ipo-tabs button.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--primary); }
 .ipo-pane { padding-top: 20px; max-width: 1120px; }
-.ipo-two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 48px; }
+.ipo-two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.ipo-stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
 
-.ipo-h { margin: 24px 0 8px; font-size: 13px; line-height: 20px; font-weight: 600; color: var(--text2); }
-.ipo-pane > .ipo-h:first-child, .ipo-two-col > div > .ipo-h:first-child { margin-top: 0; }
-.ipo-h .muted { font-weight: 400; margin-left: 4px; }
+/* 묶음 박스: 제목 줄(연회색 면 + 아래 선) + 흰 본문. 본문 글자 시작선 = 제목 시작선(16) */
+.ipo-box { min-width: 0; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); overflow: hidden; }
+.ipo-box-h { display: flex; align-items: baseline; gap: 8px; padding: 12px 16px; font-size: 14px; line-height: 20px; font-weight: 600; color: var(--ink); background: var(--hover); border-bottom: 1px solid var(--line); }
+.ipo-box-h .muted { font-size: 13px; font-weight: 400; }
+.ipo-box-b { padding: 12px 16px 16px; }
+.ipo-box-b > .ipo-links:first-child { margin-top: 0; }
 .ipo-p { margin: 0; font-size: 14px; line-height: 22px; max-width: 880px; }
 
 .ipo-lead { padding-bottom: 12px; margin-bottom: 4px; border-bottom: 1px solid var(--row); }
@@ -108,7 +112,7 @@
   .ipo-dhead { flex-direction: column; align-items: stretch; gap: 12px; }
   .ipo-acts { flex-wrap: wrap; }
   .ipo-note { flex: 1 1 200px; width: auto; }
-  .ipo-two-col { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .ipo-two-col { grid-template-columns: minmax(0, 1fr); gap: 16px; }
 }
 @media (max-width: 760px) {
   .ipo-top { margin: 0 16px 8px; }
@@ -137,6 +141,8 @@
   .ipo-note { flex: 1 1 100%; }
   .ipo-tabs { gap: 20px; }
   .ipo-kv { grid-template-columns: 84px minmax(0, 1fr); }
+  .ipo-box-h { padding: 12px; }
+  .ipo-box-b { padding: 8px 12px 12px; }
   .ipo-pnl { font-size: 13px; }
   .ipo-pnl th, .ipo-pnl td { padding: 8px 0 8px 6px; }
   .ipo-pnl th:first-child, .ipo-pnl td:first-child { width: 72px; padding-left: 0; }
