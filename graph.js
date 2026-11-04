@@ -53,6 +53,15 @@ const G = {
     }
   },
 
+  /* 동시 요청 줄 세우기: Graph는 앱 하나가 한 메일함에 동시에 4개까지만 받는다(MailboxConcurrency).
+     같은 앱으로 PC·폰이 함께 붙으므로 기기마다 3개로 묶는다. */
+  busy: 0, waiting: [],
+  async slot(fn) {
+    if (G.busy >= 3) await new Promise((res) => G.waiting.push(res));
+    G.busy++;
+    try { return await fn(); } finally { G.busy--; G.waiting.shift()?.(); }
+  },
+
   /* type: 'json'(기본) | 'text' | 'blob' | 'none' */
   async raw(method, path, { body, headers = {}, type = 'json' } = {}) {
     const url = path.startsWith('https://') ? path : `https://graph.microsoft.com/v1.0${path}`;
@@ -62,10 +71,18 @@ const G = {
       b = JSON.stringify(body);
       h['Content-Type'] = h['Content-Type'] || 'application/json';
     }
-    const r = await fetch(url, { method, headers: h, body: b });
+    // 429(요청 과다)·503·504는 서버가 알려 준 시간만큼 기다렸다 다시(최대 4번)
+    let r;
+    for (let i = 0; ; i++) {
+      r = await G.slot(() => fetch(url, { method, headers: h, body: b }));
+      if (![429, 503, 504].includes(r.status) || i >= 4) break;
+      const wait = Math.min(Number(r.headers.get('Retry-After')) || 2 ** i, 20) * 1000 + Math.random() * 400;
+      await new Promise((res) => setTimeout(res, wait));
+    }
     if (!r.ok) {
       let msg = `오류 ${r.status}`;
       try { const j = await r.json(); msg = j.error?.message || msg; } catch { /* 본문 없음 */ }
+      if (r.status === 429 || /concurrency|throttl/i.test(msg)) msg = '요청이 많아 잠시 지연되고 있습니다. 잠시 후 새로고침해 주세요.';
       const err = new Error(msg); err.status = r.status; throw err;
     }
     if (r.status === 204 || type === 'none') return null;
