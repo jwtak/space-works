@@ -58,6 +58,7 @@ async function renderFiles(host) {
         <div class="fl-tools">
           <label class="fl-search">${ico('search', 'sm')}<input class="input" id="fl-q" type="search" placeholder="공용 폴더 검색" value="${esc(flS.q)}" enterkeyhint="search"></label>
           <button class="btn" type="button" id="fl-mkdir">${ico('plus', 'sm')}<span>새 폴더</span></button>
+          <button class="btn primary fl-upbtn" type="button" id="fl-upbtn">${ico('upload', 'sm')}<span>파일 올리기</span></button>
           <button class="iconbtn fl-ref" type="button" id="fl-ref" aria-label="새로고침">${ico('refresh')}</button>
         </div>
       </div>
@@ -72,8 +73,8 @@ async function renderFiles(host) {
   $('#fl-mkdir').onclick = flMkdir;
   $('#fl-ref').onclick = () => { flS.at = 0; flLoad(true); };
   $('#fl-fab').onclick = filesUpload;
+  $('#fl-upbtn').onclick = filesUpload;
   $('#fl-file').addEventListener('change', (e) => { const fs = [...e.target.files]; e.target.value = ''; if (fs.length) flUpload(fs); });
-  flBindDrop($('#fl-card'));
   flDraw();
   // 같은 경로를 다시 열면 1분 동안은 받아 둔 목록을 그대로 쓴다
   if (!flS.results && (Date.now() - flS.at > 60000 || !flS.items.length)) flLoad();
@@ -340,21 +341,28 @@ function filesUpload() {
   inp.click();
 }
 
-function flBindDrop(card) {
-  let depth = 0;
-  const has = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
-  card.addEventListener('dragenter', (e) => { if (!has(e)) return; e.preventDefault(); depth++; card.classList.add('drop'); });
-  card.addEventListener('dragover', (e) => { if (has(e)) e.preventDefault(); });
-  card.addEventListener('dragleave', () => { depth = Math.max(0, depth - 1); if (!depth) card.classList.remove('drop'); });
-  card.addEventListener('drop', (e) => {
-    if (!has(e)) return;
-    e.preventDefault(); depth = 0; card.classList.remove('drop');
-    const entries = [...(e.dataTransfer.items || [])].map((x) => x.webkitGetAsEntry?.());
-    const files = [...e.dataTransfer.files].filter((f, i) => !entries[i]?.isDirectory);
-    if (files.length < e.dataTransfer.files.length) toast('폴더는 끌어놓을 수 없습니다. 파일만 올립니다');
-    if (files.length) flUpload(files);
-  });
-}
+// 공용 폴더 화면이면 카드 밖 빈 곳에 놓아도 지금 폴더에 올린다
+let flDepth = 0;
+const flHasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+const flDropCard = () => (document.body.dataset.route === 'files' && !document.querySelector('.fl-pv-wrap') ? $('#fl-card') : null);
+const flDropEnd = () => { flDepth = 0; $('#fl-card')?.classList.remove('drop'); };
+document.addEventListener('dragenter', (e) => {
+  const card = flHasFiles(e) && flDropCard(); if (!card) return;
+  e.preventDefault(); flDepth++;
+  const segs = flS.path ? flS.path.split('/') : [];
+  card.dataset.drop = `${segs[segs.length - 1] || FL_ROOT}에 올리기`;
+  card.classList.add('drop');
+});
+document.addEventListener('dragover', (e) => { if (flHasFiles(e) && flDropCard()) { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; } });
+document.addEventListener('dragleave', () => { if (flDepth && !--flDepth) flDropEnd(); });
+document.addEventListener('drop', (e) => {
+  if (!flHasFiles(e) || !flDropCard()) return;
+  e.preventDefault(); flDropEnd();
+  const entries = [...(e.dataTransfer.items || [])].map((x) => x.webkitGetAsEntry?.());
+  const files = [...e.dataTransfer.files].filter((f, i) => !entries[i]?.isDirectory);
+  if (files.length < e.dataTransfer.files.length) toast('폴더는 끌어놓을 수 없습니다. 파일만 올립니다');
+  if (files.length) flUpload(files);
+});
 
 async function flUpload(files) {
   const path = flS.path || '';

@@ -1,6 +1,7 @@
 /* 공용 폴더(팀 파일함) — 하이웍스형 목록: 흰 카드, 연한 구분선, 파랑 포인트 하나 */
 .fl-card { position: relative; overflow: hidden; }
-.fl-card.drop::after { content: ''; position: absolute; inset: 0; border: 2px dashed var(--primary); border-radius: var(--r-lg); background: rgba(37, 99, 235, .05); pointer-events: none; }
+.fl-card { min-height: calc(100dvh - 206px); }
+.fl-card.drop::after { content: attr(data-drop); position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; border: 2px dashed var(--primary); border-radius: var(--r-lg); background: rgba(37, 99, 235, .06); color: var(--primary); font-size: 16px; font-weight: 700; pointer-events: none; }
 
 .fl-top { display: flex; align-items: center; gap: 16px; min-height: 64px; padding: 12px 24px; border-bottom: 1px solid var(--line); }
 .fl-crumb { display: flex; align-items: center; gap: 4px; min-width: 0; flex: 1; overflow-x: auto; scrollbar-width: none; white-space: nowrap; }
@@ -111,6 +112,8 @@
   .fl-tools { gap: 4px; }
   .fl-search { flex: 1; }
   .fl-search .input { width: 100%; height: 44px; font-size: 16px; }
+  .fl-card { min-height: 0; }
+  .fl-upbtn { display: none; }
   #fl-mkdir { width: 44px; height: 44px; padding: 0; }
   #fl-mkdir span { display: none; }
   .fl-ref { width: 44px; height: 44px; }

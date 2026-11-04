@@ -128,9 +128,8 @@ function render() {
       home: ['일정 추가', () => openEventModal(null, [], done)], calendar: ['일정 추가', () => openEventModal(null, [], done)],
       todos: ['할 일 추가', () => addTodoSheet()], notes: ['업무일지 쓰기', () => newNote('daily')],
       programs: ['새 프로그램', () => { ui.progSel = 'new'; renderPrograms(); }],
-      files: ['파일 올리기', () => typeof filesUpload === 'function' && filesUpload()],
     }[r];
-    cta.hidden = !act; // 메일은 메일 화면 안에 "메일 쓰기"가 있다
+    cta.hidden = !act; // 메일은 메일 화면 안에 "메일 쓰기", 공용 폴더는 목록 위에 "파일 올리기"가 있다
     if (act) { cta.innerHTML = `${ico('plus')}${act[0]}`; cta.onclick = act[1]; }
   }
   if (r !== 'notes') document.body.classList.remove('note-open');
