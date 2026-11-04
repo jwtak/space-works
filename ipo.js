@@ -270,9 +270,9 @@ function ipoPaneHolders(x) {
 }
 
 function ipoPaneDisc(x) {
-  const evs = (x.events || []).map((e) => `<tr><td>${esc(e.dt.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'))}</td><td><a class="ipo-a" href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.nm)}</a></td></tr>`).join('');
+  const evs = (x.events || []).map((e) => `<tr><td>${esc(e.dt.replace(/(\d{4})(\d{2})(\d{2})/, '$1-$2-$3'))}</td><td><a class="ipo-a" href="${esc(ipoUrl(e.url))}" target="_blank" rel="noopener">${esc(e.nm)}</a></td></tr>`).join('');
   return `<div class="ipo-h">상장 후 공시</div>${evs ? `<table class="ipo-tbl ipo-tbl-2"><thead><tr><th>접수일</th><th>보고서</th></tr></thead><tbody>${evs}</tbody></table>` : '<p class="ipo-p muted">없음</p>'}
-    ${x.dartUrl ? `<div class="ipo-links"><a class="ipo-a" href="${esc(x.dartUrl)}" target="_blank" rel="noopener">투자설명서 원문${ico('ext', 'sm')}</a></div>` : ''}`;
+    ${x.dartUrl ? `<div class="ipo-links"><a class="ipo-a" href="${esc(ipoUrl(x.dartUrl))}" target="_blank" rel="noopener">투자설명서 원문${ico('ext', 'sm')}</a></div>` : ''}`;
 }
 
 function ipoSummary() {

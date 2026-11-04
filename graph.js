@@ -67,6 +67,7 @@ const G = {
   /* type: 'json'(기본) | 'text' | 'blob' | 'none' */
   async raw(method, path, { body, headers = {}, type = 'json' } = {}) {
     const url = path.startsWith('https://') ? path : `https://graph.microsoft.com/v1.0${path}`;
+    if (!url.startsWith('https://graph.microsoft.com/')) throw new Error('허용되지 않은 주소입니다'); // 토큰은 Graph에만 보낸다(nextLink 포함)
     const h = { Authorization: `Bearer ${await G.token()}`, ...headers };
     let b = body;
     if (body !== undefined && typeof body !== 'string' && !(body instanceof Blob)) {

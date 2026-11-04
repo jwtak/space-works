@@ -332,7 +332,7 @@ function renderHomeMobile() {
       <div class="mh-head"><h2>오늘</h2></div>
       <ul class="mh-list" id="mh-ev"><li class="mh-empty">불러오는 중…</li></ul>
       ${over.length || dueToday.length ? `<div class="mh-sub">할 일</div><ul class="mh-list">${[...over, ...dueToday].slice(0, 5).map((t) => `
-        <li><input type="checkbox" class="check" data-toggle="${t.id}" aria-label="완료"><span class="mh-tt">${esc(t.title)}</span><span class="mh-due ${t.due < td ? 'red' : 'blue'}">${t.due < td ? `${diffDays(td, t.due)}일 지남` : '오늘'}</span></li>`).join('')}</ul>
+        <li><input type="checkbox" class="check" data-toggle="${esc(t.id)}" aria-label="완료"><span class="mh-tt">${esc(t.title)}</span><span class="mh-due ${t.due < td ? 'red' : 'blue'}">${t.due < td ? `${diffDays(td, t.due)}일 지남` : '오늘'}</span></li>`).join('')}</ul>
         ${over.length + dueToday.length > 5 ? `<a class="mh-more" href="#todos">할 일 ${over.length + dueToday.length}건 모두 보기</a>` : ''}` : ''}
     </section>
   </div>`;
@@ -373,7 +373,7 @@ function homeTodoBlock(label, items) {
   if (!items.length) return '';
   return `<div class="sec-label">${label} ${items.length}</div><ul class="list">${items.map((t) => {
     const di = dueInfo(t);
-    return `<li><input type="checkbox" class="check" data-toggle="${t.id}" aria-label="완료"><div class="t"><div class="ttl">${esc(t.title)}</div>${t.note ? `<div class="meta">${esc(t.note)}</div>` : ''}</div>
+    return `<li><input type="checkbox" class="check" data-toggle="${esc(t.id)}" aria-label="완료"><div class="t"><div class="ttl">${esc(t.title)}</div>${t.note ? `<div class="meta">${esc(t.note)}</div>` : ''}</div>
       <span class="chip line">${esc(t.cat)}</span><span class="due-s ${di.cls}">${di.txt}</span></li>`;
   }).join('')}</ul>`;
 }
@@ -387,7 +387,7 @@ async function homeCalendar() {
     const ev = r.events.filter((e) => !e.cancelled);
     if (!ev.length) { box.innerHTML = '<div class="empty">오늘·내일 일정이 없습니다.</div>'; return; }
     box.innerHTML = `<ul class="list">${ev.map((e) => `<li><span class="time">${e.allDay ? '종일' : e.start.slice(11, 16)}</span>
-      <div class="t"><div class="ttl">${esc(e.subject)}</div><div class="meta">${e.start.slice(0, 10) === today() ? '오늘' : '내일'}${e.location || e.organizer ? ' · ' + esc(e.location || e.organizer) : ''}</div></div>${e.join ? `<a class="btn sm" href="${esc(e.join)}" target="_blank">참가</a>` : ''}</li>`).join('')}</ul>`;
+      <div class="t"><div class="ttl">${esc(e.subject)}</div><div class="meta">${e.start.slice(0, 10) === today() ? '오늘' : '내일'}${e.location || e.organizer ? ' · ' + esc(e.location || e.organizer) : ''}</div></div>${e.join ? `<a class="btn sm" href="${esc(e.join)}" target="_blank" rel="noopener">참가</a>` : ''}</li>`).join('')}</ul>`;
   } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
@@ -481,16 +481,16 @@ function todoRow(t) {
       <div style="display:flex;flex-direction:column;gap:6px;padding:4px 0"><input class="edit-input" id="te-title" value="${esc(t.title)}"><input class="edit-input" id="te-note" style="border-color:var(--line2)" value="${esc(t.note)}" placeholder="메모 (선택)"></div>
       <select class="select" id="te-cat">${CATS.map((c) => `<option ${c === t.cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
       <input class="input" type="date" id="te-due" value="${t.due || ''}">
-      <div style="display:flex;gap:6px"><button class="btn primary" type="submit">저장</button><button class="btn" type="button" id="te-cancel">취소</button><button class="btn ghost" type="button" data-del="${t.id}">삭제</button></div>
+      <div style="display:flex;gap:6px"><button class="btn primary" type="submit">저장</button><button class="btn" type="button" id="te-cancel">취소</button><button class="btn ghost" type="button" data-del="${esc(t.id)}">삭제</button></div>
     </form>`;
   }
   const di = dueInfo(t);
   return `<div class="todo ${t.done ? 'done' : ''}">
-    <input type="checkbox" class="check" data-toggle="${t.id}" ${t.done ? 'checked' : ''} aria-label="완료">
-    <div data-edit="${t.id}" style="min-width:0;cursor:text"><div class="ttl">${esc(t.title)}</div>${t.note ? `<div class="note">${esc(t.note)}</div>` : ''}</div>
+    <input type="checkbox" class="check" data-toggle="${esc(t.id)}" ${t.done ? 'checked' : ''} aria-label="완료">
+    <div data-edit="${esc(t.id)}" style="min-width:0;cursor:text"><div class="ttl">${esc(t.title)}</div>${t.note ? `<div class="note">${esc(t.note)}</div>` : ''}</div>
     <span>${ui.todoTab === 'done' ? `<span class="chip line">${esc(t.cat)}</span>` : ''}</span>
     <span class="due ${di.cls}">${t.done && t.doneAt ? `${md(t.doneAt)} 완료` : di.txt}</span>
-    <button class="iconbtn del" data-del="${t.id}" title="삭제">${ico('trash', 'sm')}</button>
+    <button class="iconbtn del" data-del="${esc(t.id)}" title="삭제">${ico('trash', 'sm')}</button>
   </div>`;
 }
 
@@ -739,8 +739,8 @@ async function mountMonth(el) {
       const on = ed && ed.kind === it.type && ed.id === it.id;
       if (on) return `<li class="editing">${calForm(it.type, it.id, events)}</li>`;
       const ext = it.type === 'ev' && !it.editable
-        ? `<span class="chip line">${it.ev.organizer_me ? '참석자 있음' : '받은 초대'}</span>${it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank">Teams 참가</a>` : it.link ? `<a class="btn sm ghost" href="${esc(it.link)}" target="_blank">Outlook에서 열기</a>` : ''}`
-        : it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank">Teams 참가</a>` : '';
+        ? `<span class="chip line">${it.ev.organizer_me ? '참석자 있음' : '받은 초대'}</span>${it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank" rel="noopener">Teams 참가</a>` : it.link ? `<a class="btn sm ghost" href="${esc(it.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}`
+        : it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank" rel="noopener">Teams 참가</a>` : '';
       return `<li class="${it.editable ? 'click' : ''}" ${it.editable ? `data-item="${it.type}|${esc(it.id)}"` : ''}><span class="k c-${calKey(it)}"><i class="cdot"></i>${it.time}</span><div class="t"><div class="ttl">${esc(it.title)}</div>${it.ev ? `<div class="meta">${it.cal === 'team' ? '스페이스인베스트먼트' : '내 일정'}${evOwners(it.ev).length ? ' · 담당 ' + evOwners(it.ev).join(', ') : ''}${it.ev.location ? ' · ' + esc(it.ev.location) : ''}</div>` : ''}</div>${ext}</li>`;
     }).join('');
     const newForm = ed && ed.kind.startsWith('new-') ? `<div class="new-wrap">${calForm(ed.kind.slice(4), null, events)}</div>` : '';
@@ -925,7 +925,7 @@ async function renderCalendar(force) {
         <div>${list.length ? list.map((ev) => `<div class="ev">
           <span class="tm">${ev.allDay ? '종일' : `${ev.start.slice(11, 16)} – ${ev.end.slice(11, 16)}`}</span>
           <div><div class="s ${ev.cancelled ? 'cx' : ''}">${esc(ev.subject)}</div><div class="m">${esc([ev.location, ev.organizer].filter(Boolean).join(' · '))}</div></div>
-          <span>${ev.join && !ev.cancelled ? `<a class="btn sm" href="${esc(ev.join)}" target="_blank">Teams 참가</a>` : ev.link ? `<a class="btn sm ghost" href="${esc(ev.link)}" target="_blank">Outlook에서 열기</a>` : ''}</span>
+          <span>${ev.join && !ev.cancelled ? `<a class="btn sm" href="${esc(ev.join)}" target="_blank" rel="noopener">Teams 참가</a>` : ev.link ? `<a class="btn sm ghost" href="${esc(ev.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}</span>
         </div>`).join('') : '<div class="m muted" style="padding:6px 0;font-size:13px">일정 없음</div>'}</div></div>`;
     }
     $('#cal-body').innerHTML = `<section class="card" style="overflow:hidden">${html}</section>
