@@ -124,7 +124,7 @@ const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail
 function render() {
   if (!S) return; // 로그인·데이터 읽기 전 hashchange
   let r = route();
-  if (r.startsWith('deals/')) { ui.dealTab = r.slice(6) || 'events'; r = 'deals'; } // #deals/ipo → 딜소싱 > 신규상장
+  if (r.startsWith('deals/')) { ui.dealTab = r.slice(6) || 'events'; r = 'deals'; } else if (r === 'deals') ui.dealTab = 'events'; // #deals/ipo → 딜소싱 > 신규상장
   if (r === 'files' || r.startsWith('files/')) { ui.filesPath = decodeURIComponent(r.slice(6)); r = 'files'; } // #files/00. 전체 공유/01. 명함 → 공용 폴더의 그 폴더
   r = CRUMB[r] ? r : 'home';
   document.querySelectorAll('[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === r));
@@ -321,7 +321,7 @@ function renderDeals() {
   PAGE.innerHTML = `<div class="page-head"><h1>딜소싱</h1></div>
     <div class="deal-seg" role="tablist">${tabs.map(([k, t, , i]) => `<button type="button" role="tab" data-dt="${k}" aria-selected="${ui.dealTab === k}" class="${ui.dealTab === k ? 'on' : ''}">${ico(i)}${t}</button>`).join('')}</div>
     <div id="deal-host"></div>`;
-  PAGE.querySelectorAll('[data-dt]').forEach((b) => b.addEventListener('click', () => { ui.dealTab = b.dataset.dt; renderDeals(); }));
+  PAGE.querySelectorAll('[data-dt]').forEach((b) => b.addEventListener('click', () => { if (ui.dealTab !== b.dataset.dt) location.hash = `#deals/${b.dataset.dt}`; })); // 주소에 남겨 뒤로 가기로 탭 전환
   const host = $('#deal-host'), fn = tabs.find(([k]) => k === ui.dealTab)[2];
   if (!fn) { host.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>'; return; }
   Promise.resolve(fn(host)).catch((e) => { host.innerHTML = `<div class="card"><div class="empty">${esc(e.message)}</div></div>`; });
