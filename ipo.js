@@ -204,7 +204,7 @@ function ipoPnl(x) {
   if (!cols.some((c) => c.slice(1).some((v) => v != null))) return '';
   const n = (v) => (v == null || v === '' ? '–' : Number(v).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
   const pct = (a, b) => (a == null || !b ? '–' : `${(a / b * 100).toFixed(1)}%`);
-  const row = (k, f, cls = '') => `<tr class="${cls}"><td>${k}</td>${cols.map((c) => `<td>${f(c)}</td>`).join('')}</tr>`;
+  const row = (k, f, cls = '') => `<tr class="${cls}"><td>${k}</td>${cols.map((c) => { const t = f(c); return `<td${t.startsWith('-') ? ' class="neg"' : ''}>${t}</td>`; }).join('')}</tr>`;
   return `<div class="ipo-h">주요 손익${fin.basis ? ` <span class="muted">${esc(fin.basis)}</span>` : ''}</div>
     <table class="ipo-pnl"><thead><tr><th>억 원</th>${cols.map((c) => `<th>${esc(c[0])}</th>`).join('')}</tr></thead><tbody>
     ${row('매출액', (c) => n(c[1]))}
