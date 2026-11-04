@@ -22,6 +22,9 @@ const diffDays = (a, b) => Math.round((parse(a) - parse(b)) / 86400000);
 const md = (s) => { const d = parse(s); return `${d.getMonth() + 1}/${d.getDate()}`; };
 const mdw = (s) => { const d = parse(s); return `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`; };
 const uid = () => Math.random().toString(16).slice(2, 10);
+// 날짜 칸에 월·일만 치면 연도가 2000처럼 엉뚱하게 들어갈 수 있다: 올해 앞뒤 범위를 벗어나면 올해로 고친다
+const fixYmd = (v) => { if (!/^\d{4}-\d{2}-\d{2}$/.test(v || '')) return v; const y = +v.slice(0, 4), now = new Date().getFullYear(); return y < now - 1 || y > now + 5 ? `${now}${v.slice(4)}` : v; };
+document.addEventListener('focusout', (e) => { const el = e.target; if (el.type === 'date' && el.value && fixYmd(el.value) !== el.value) el.value = fixYmd(el.value); }, true);
 const isMobile = () => matchMedia('(max-width: 760px)').matches;
 function openSheet(html, mount, cls = '') { // 아래에서 올라오는 패널(데스크톱은 가운데 창)
   const wrap = document.createElement('div');
@@ -489,7 +492,7 @@ function renderTodos() {
     e.preventDefault();
     const title = $('#add-title').value.trim(); if (!title) return;
     ui.lastCat = $('#add-cat').value;
-    S.todos.items.push({ id: uid(), title, cat: ui.lastCat, due: $('#add-due').value || null, done: false, doneAt: null, created: today(), note: '' });
+    S.todos.items.push({ id: uid(), title, cat: ui.lastCat, due: fixYmd($('#add-due').value) || null, done: false, doneAt: null, created: today(), note: '' });
     save('todos'); renderTodos(); $('#add-title').focus();
   });
   PAGE.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { ui.todoTab = b.dataset.tab; ui.todoEdit = null; renderTodos(); }));
@@ -505,7 +508,7 @@ function renderTodos() {
     ef.addEventListener('submit', (e) => {
       e.preventDefault();
       const t = S.todos.items.find((x) => x.id === ui.todoEdit);
-      Object.assign(t, { title: $('#te-title').value.trim() || t.title, note: $('#te-note').value.trim(), cat: $('#te-cat').value, due: $('#te-due').value || null });
+      Object.assign(t, { title: $('#te-title').value.trim() || t.title, note: $('#te-note').value.trim(), cat: $('#te-cat').value, due: fixYmd($('#te-due').value) || null });
       ui.todoEdit = null; save('todos'); renderTodos();
     });
     ef.addEventListener('keydown', (e) => { if (e.key === 'Escape') { ui.todoEdit = null; renderTodos(); } });
@@ -549,7 +552,7 @@ function addTodoSheet(due) {
       const v = Object.fromEntries(new FormData(f));
       if (!v.title.trim()) return;
       ui.lastCat = v.cat;
-      S.todos.items.push({ id: uid(), title: v.title.trim(), cat: v.cat, due: v.due || null, done: false, doneAt: null, created: today(), note: '' });
+      S.todos.items.push({ id: uid(), title: v.title.trim(), cat: v.cat, due: fixYmd(v.due) || null, done: false, doneAt: null, created: today(), note: '' });
       close(); save('todos'); render(); toast('추가했습니다');
     });
   });
@@ -694,14 +697,14 @@ async function openEventModalInner(id, events, onDone, date) {
     f.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const v = Object.fromEntries(new FormData(f));
-      const body = { subject: v.subject, startDate: v.startDate, endDate: v.endDate, startTime: v.startTime, endTime: v.endTime, allDay: allDay.checked, location: v.location, calendar: v.calendar || 'team', important: !!v.important, reminder: v.reminder };
+      const body = { subject: v.subject, startDate: fixYmd(v.startDate), endDate: fixYmd(v.endDate), startTime: v.startTime, endTime: v.endTime, allDay: allDay.checked, location: v.location, calendar: v.calendar || 'team', important: !!v.important, reminder: v.reminder };
       if ((v.note || '').trim() !== noteNow) body.note = v.note;
       body.categories = [...(e?.categories || []).filter((c) => !PEOPLE.includes(c)), ...new FormData(f).getAll('owner')];
       if (!series && v.repeat && v.repeat !== repNow) body.repeat = v.repeat;
       save.disabled = true;
       try {
         await (id ? OUTLOOK.update(id, body) : OUTLOOK.create(body));
-        close(); ui.selDay = v.startDate;
+        close(); ui.selDay = body.startDate;
         toast(id ? 'Outlook 일정을 고쳤습니다' : body.calendar === 'team' ? '스페이스인베스트먼트 캘린더에 추가했습니다' : '내 일정에 추가했습니다');
         onDone?.();
       } catch (err) { save.disabled = false; toast(err.message); }
@@ -890,14 +893,14 @@ async function mountMonth(el) {
       const btn = form.querySelector('[type=submit]'); btn.disabled = true;
       try {
         if (kind === 'ev') {
-          const body = { subject: val.subject, startDate: val.startDate, endDate: val.endDate, startTime: val.startTime, endTime: val.endTime, allDay: !!allDay.checked, location: val.location, calendar: val.calendar || 'team' };
+          const body = { subject: val.subject, startDate: fixYmd(val.startDate), endDate: fixYmd(val.endDate), startTime: val.startTime, endTime: val.endTime, allDay: !!allDay.checked, location: val.location, calendar: val.calendar || 'team' };
           await (id ? OUTLOOK.update(id, body) : OUTLOOK.create(body));
-          ui.calEdit = null; ui.selDay = val.startDate; toast(id ? 'Outlook 일정을 고쳤습니다' : body.calendar === 'team' ? '스페이스인베스트먼트 캘린더에 추가했습니다' : '내 일정에 추가했습니다'); return refetch();
+          ui.calEdit = null; ui.selDay = body.startDate; toast(id ? 'Outlook 일정을 고쳤습니다' : body.calendar === 'team' ? '스페이스인베스트먼트 캘린더에 추가했습니다' : '내 일정에 추가했습니다'); return refetch();
         }
         if (kind === 'td') {
           ui.lastCat = val.cat;
           const t = id ? S.todos.items.find((x) => x.id === id) : null;
-          const fields = { title: val.title.trim(), cat: val.cat, due: val.due || null, note: val.note.trim() };
+          const fields = { title: val.title.trim(), cat: val.cat, due: fixYmd(val.due) || null, note: val.note.trim() };
           if (t) Object.assign(t, fields); else S.todos.items.push({ id: uid(), ...fields, done: false, doneAt: null, created: today() });
           if (val.due) ui.selDay = val.due;
           ui.calEdit = null; await save('todos'); return draw();
