@@ -156,12 +156,16 @@ function evWhen(e) {
   return `${y}${mdw(e.start)}${e.end !== e.start ? ` ~ ${mdw(e.end)}` : ''}${e.time ? ` ${esc(e.time)}` : ''}`;
 }
 
-function evDateCell(e) { // 올해가 아니면 둘째 줄에 연도(점수순 정렬 때 내년 행사와 섞여도 구분되게)
-  const yr = (d) => (d.slice(0, 4) !== String(new Date().getFullYear()) ? `${d.slice(0, 4)}년` : '');
-  if (e.extra.estimated) { const m = e.extra.month || e.start; return `<span class="ev-d">${Number(m.slice(5, 7))}월</span><span class="ev-d2">${[yr(m), '예상'].filter(Boolean).join(' ')}</span>`; }
+// 목록 날짜는 연도까지 한 줄로(점수순 정렬 때 내년 행사와 섞여도 바로 구분): 26.11.4~11.6, 27.3.10(수)
+const evYmd = (d) => `${d.slice(2, 4)}.${Number(d.slice(5, 7))}.${Number(d.slice(8, 10))}`;
+const evMd = (d) => `${Number(d.slice(5, 7))}.${Number(d.slice(8, 10))}`;
+function evDateCell(e) {
+  if (e.extra.estimated) { const m = e.extra.month || e.start; return `<span class="ev-d">${m.slice(2, 4)}년 ${Number(m.slice(5, 7))}월</span><span class="ev-d2">예상</span>`; }
   const due = evDue(e);
-  const d2 = [yr(e.start), e.time && esc(e.time)].filter(Boolean).join(' · ');
-  return `<span class="ev-d">${evRange(e)}</span>${d2 ? `<span class="ev-d2">${d2}</span>` : ''}${due && due.n >= 0 && due.n <= 7 && e.end >= today() ? `<span class="ev-d2 ev-due">등록 ${due.txt}</span>` : ''}`;
+  const d2 = e.time ? esc(e.time) : '';
+  const range = e.start === e.end ? `${evYmd(e.start)}(${WD[parse(e.start).getDay()]})`
+    : `${evYmd(e.start)}~${e.end.slice(0, 4) === e.start.slice(0, 4) ? evMd(e.end) : evYmd(e.end)}`;
+  return `<span class="ev-d">${range}</span>${d2 ? `<span class="ev-d2">${d2}</span>` : ''}${due && due.n >= 0 && due.n <= 7 && e.end >= today() ? `<span class="ev-d2 ev-due">등록 ${due.txt}</span>` : ''}`;
 }
 
 function evRow(e) {

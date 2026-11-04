@@ -74,7 +74,7 @@
 
 /* ---------- 목록 (ipo-cols 와 같은 방식) ---------- */
 .ev-list { border-top: 1px solid var(--line); }
-.ev-cols { display: grid; grid-template-columns: 24px 104px 40px repeat(3, minmax(0, 1fr)) 32px; gap: 16px; align-items: start; padding: 0 24px; }
+.ev-cols { display: grid; grid-template-columns: 24px 120px 40px repeat(3, minmax(0, 1fr)) 32px; gap: 16px; align-items: start; padding: 0 24px; }
 .ev-head { min-height: 40px; align-items: center; font-size: 13px; font-weight: 600; color: var(--text2); border-bottom: 1px solid var(--line2); }
 .ev-sort { display: inline-flex; align-items: center; gap: 2px; width: max-content; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
 .ev-sort:hover, .ev-sort.on { color: var(--primary); }
@@ -134,11 +134,11 @@
   .ev-sels .select { flex: 1 1 0; max-width: 160px; }
 }
 @media (max-width: 1280px) {
-  .ev-cols { grid-template-columns: 24px 104px 40px repeat(2, minmax(0, 1fr)) 32px; }
+  .ev-cols { grid-template-columns: 24px 120px 40px repeat(2, minmax(0, 1fr)) 32px; }
   .ev-c-ind { display: none; }
 }
 @media (max-width: 1024px) {
-  .ev-cols { grid-template-columns: 24px 104px 40px minmax(0, 1fr) 32px; }
+  .ev-cols { grid-template-columns: 24px 120px 40px minmax(0, 1fr) 32px; }
   .ev-c-place { display: none; }
   .ev-mplace { display: block; }
 }
