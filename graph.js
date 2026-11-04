@@ -14,8 +14,9 @@ const CFG = {
       'data/events.json': '012DPUXZQFZYHRAN7BNVG2IILT52OAVGS5', 'data/ipo.json': '012DPUXZU5TGCSCOXN4ZBZVZDWZC2NNGOE',
       'data/event_marks.json': '012DPUXZVI2AS22PVZMJGZP7MQLZDQU6F7', 'data/ipo_marks.json': '012DPUXZTFV2MMH3PHJRDYVR6J6BGIVZCX',
       'data/ipo_contact.xlsx': '012DPUXZUK5SFDL7IV5JAKFMWLNTENY6FT', 'data/news.json': '012DPUXZSPICTCTSCMJVD3JB5NCM76N4F5',
+      'data/news_marks.json': '012DPUXZTBIISWY6YANNCKXELXPL2NBMBW',
     },
-    writable: ['data/event_marks.json', 'data/ipo_marks.json'], // 수집기는 같은 파일을 덮어쓰므로 id가 바뀌지 않는다
+    writable: ['data/event_marks.json', 'data/ipo_marks.json', 'data/news_marks.json'], // 수집기는 같은 파일을 덮어쓰므로 id가 바뀌지 않는다
   },
   teamDrive: 'b!j-FPAIUPjU6AnBcIJNprMgAfPOR1jCVOvR6mVssjMWkyr34wYSj7Rp-_wJU9Subr', // 팀 '스페이스인베스트먼트' 파일함(공용 폴더) — 팀원이면 누구나 읽고 쓴다
   teamCalendarId: 'AAMkAGY5ZWRkMzlmLTNmYjUtNDE3NC04YTUxLTliZjgyYjU0Yjc1NQBGAAAAAAB2D1ON4THdQYUFMZAr45FEBwA217gkwboaRqzQAV2p_lEqAAAAAAEGAAA217gkwboaRqzQAV2p_lEqAAAAE7aBAAA=',
