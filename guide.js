@@ -7,7 +7,7 @@ const GD_STEPS = [
   { t: '딜소싱', d: '행사·IR 일정과 신규상장 기업 정보를 매일 아침 자동으로 모읍니다. 관심 표시·연락 상태·메모는 세 분이 함께 봅니다.', pc: '.nav [data-r="deals"]', m: '.mh-it[href="#deals"], .mh-it[href="#deals/ipo"]' },
   { t: '주간회의 · 공용 폴더', d: '팀 파일함입니다. 파일을 끌어다 놓으면 올라가고, PPT·엑셀은 누르면 바로 열립니다.', pc: '.nav [data-r="weekly"], .nav [data-r="files"]', m: '.mh-it[href="#weekly"], .mh-it[href="#files"]' },
   { t: '홈페이지', d: '만들고 있는 회사 홈페이지를 미리 봅니다. 공개 전이라 웍스 안에서만 보입니다.', pc: '.nav [data-r="homepage"]' },
-  { t: '요청사항', d: '불편한 점이나 있었으면 하는 기능을 화면마다 남겨 주세요. 반영하면 그 아래에 답을 달아 드립니다.', pc: '#req:not([hidden]), #req-btn', m: '#me', mt: '요청사항 (이름 메뉴 안)' },
+  { t: '요청사항', d: '불편한 점이나 있었으면 하는 기능을 화면마다 남겨 주세요. 반영하면 그 아래에 답을 달아 드립니다.', pc: '#req:not([hidden])', m: '#me', mt: '요청사항 (이름 메뉴 안)' },
   { t: '앱으로 설치', install: true },
 ];
 // 앱 설치: Chrome·Edge는 설치 창을 바로 띄울 수 있다(beforeinstallprompt), 아이폰은 Safari 공유 → 홈 화면에 추가

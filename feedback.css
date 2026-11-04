@@ -1,11 +1,4 @@
 /* 요청사항: 넓은 화면은 본문 오른쪽 박스(첫 카드와 같은 높이에서 시작, 스크롤해도 따라옴), 좁으면 오른쪽 가장자리 탭 → 덮는 패널 */
-.req-tab { position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 55; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 9px; border: 0; border-radius: 10px 0 0 10px; background: var(--primary); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: -4px 4px 16px rgba(37, 99, 235, .25); }
-.req-tab span { writing-mode: vertical-rl; letter-spacing: .08em; }
-.req-tab:hover { padding-right: 12px; }
-.req-tab .cnt { min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: #fff; color: var(--primary); font-size: 11px; font-weight: 700; font-style: normal; line-height: 18px; text-align: center; }
-.req-tab .cnt:empty { display: none; }
-body.req-on .req-tab, body.signed-out .req-tab { display: none; }
-
 .req { display: flex; flex-direction: column; background: var(--card); min-width: 0; overflow-y: auto; scrollbar-width: thin; }
 .req[hidden] { display: none; }
 @media (min-width: 761px) {
@@ -13,6 +6,7 @@ body.req-on .req-tab, body.signed-out .req-tab { display: none; }
   body.req-on .scroll > .page { flex: 1 1 auto; min-width: 0; }
   .req { position: sticky; top: 28px; flex: none; width: 320px; margin: 78px 32px 32px 0; max-height: calc(100vh - 64px - 60px); border: 1px solid var(--line); border-radius: var(--r-lg); }
   .req .rq-hd { border-radius: var(--r-lg) var(--r-lg) 0 0; height: 56px; }
+  .req .rq-x { display: none; } /* PC는 항상 고정 */
 }
 @media (min-width: 761px) and (max-width: 1439.98px) { .req { width: 280px; margin-right: 24px; } }
 @media (max-width: 760px) {
@@ -47,7 +41,6 @@ body.req-on .req-tab, body.signed-out .req-tab { display: none; }
 .rq-tools .rq-del:hover { color: var(--danger); }
 
 @media (max-width: 760px) {
-  .req-tab { display: none; }
   .req { width: 100%; padding-top: env(safe-area-inset-top); }
   .rq-hd { height: 56px; padding-left: 16px; }
   .rq-new, .rq-it { padding-left: 16px; padding-right: 16px; }
