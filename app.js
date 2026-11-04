@@ -170,7 +170,9 @@ window.addEventListener('hashchange', () => {
   LAYERS.filter((L) => L.route !== r).forEach((L) => { LAYERS.splice(LAYERS.indexOf(L), 1); L.leave?.(); });
 });
 window.addEventListener('popstate', async (e) => {
-  const st = e.state || {}, d = st.layer || 0, r = route(), crossed = r !== hRoute;
+  // 번호 없는 기록 = 방금 링크·주소로 새로 이동한 것(같은 주소 링크를 다시 눌러도 온다). 뒤로 가기가 아니다
+  if (!e.state) { history.replaceState(hStamp(0), ''); hRoute = route(); hSkipping = false; return; }
+  const st = e.state, d = st.layer || 0, r = route(), crossed = r !== hRoute;
   const back = !st.seq || st.seq < hCur;
   hCur = st.seq || hCur; hRoute = r;
   if (!back) { hSkipping = false; return; } // 앞으로 가기는 그대로
