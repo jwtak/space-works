@@ -39,10 +39,10 @@ function nwPicks(list) {
     .sort((a, b) => (b.score || 0) - (a.score || 0)).slice(0, NW_PICK);
 }
 
-function nwRow(x, pick) {
+function nwRow(x, pick, rank) {
   const meta = [x.source, `${pick && nwDay(x.published) !== today() ? '어제 ' : ''}${nwTime(x.published)}`, (x.also || []).length ? `외 ${x.also.length}곳` : ''].filter(Boolean);
   const tags = [...(nwS.cat === 'all' && x.cat === 'space' ? ['우주·항공·방산'] : []), ...(x.tags || [])].slice(0, 4);
-  return `<li class="nw-row">
+  return `<li class="nw-row">${rank ? `<span class="nw-rank">${rank}</span>` : ''}
     <div class="nw-main"><a class="nw-ttl" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title)}</a>
       ${x.why ? `<div class="nw-why">${esc(x.why)}</div>` : ''}
       <div class="nw-meta"><span title="${esc((x.also || []).join(', '))}">${meta.map(esc).join(' · ')}</span>${tags.map((t) => `<span class="chip ${t === '우주·항공·방산' ? 'blue' : 'line'}">${esc(t)}</span>`).join('')}</div></div></li>`;
@@ -63,7 +63,7 @@ function nwDraw() {
   const picks = nwPicks(list), picked = new Set(picks), rest = list.filter((x) => !picked.has(x));
   const by = (a, b) => String(b.published).localeCompare(String(a.published));
   const days = [...new Set(rest.map((x) => nwDay(x.published)))].sort().reverse();
-  body.innerHTML = (picks.length ? `<div class="nw-grp nw-pick-h"><b>주요 기사</b></div><ul class="nw-list nw-pick">${picks.map((x) => nwRow(x, true)).join('')}</ul>` : '') + days.map((k) => {
+  body.innerHTML = (picks.length ? `<section class="nw-pick"><div class="nw-pick-h">${ico('spark', 'sm')}<b>주요 기사</b></div><ul class="nw-list">${picks.map((x, i) => nwRow(x, true, i + 1)).join('')}</ul></section>` : '') + days.map((k) => {
     const its = rest.filter((x) => nwDay(x.published) === k).sort(by), dd = parse(k);
     const lbl = k === td ? '오늘' : k === ymd(addDays(new Date(), -1)) ? '어제' : '';
     return `<div class="nw-grp"><b>${dd.getMonth() + 1}월 ${dd.getDate()}일 (${WD[dd.getDay()]})</b>${lbl ? `<span>${lbl}</span>` : ''}<span class="n">${its.length}건</span></div><ul class="nw-list">${its.map((x) => nwRow(x)).join('')}</ul>`;
