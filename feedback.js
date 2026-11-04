@@ -1,6 +1,6 @@
 /* 요청사항: 화면마다 대표님·팀원이 "이런 게 있으면 좋겠다"를 남기고, 고친 뒤 그 아래 의견(답글)을 단다.
    데이터는 팀 파일함 '_웍스/요청사항.json' 하나(세 사람 모두 쓰기 가능). 저장은 eTag로 충돌을 막고, 겹치면 다시 읽어 다시 적용한다.
-   넓은 화면(1800px 이상)은 오른쪽에 붙여 두고, 그보다 좁으면 위쪽 '요청사항' 버튼으로 연다. */
+   넓은 화면(1680px 이상)은 각 화면 본문 오른쪽에 붙여 두고, 그보다 좁으면 오른쪽 가장자리 '요청사항' 탭으로 연다. */
 const RQ_PATH = '_웍스/요청사항.json';
 const RQ_HINT = {
   home: '예: 대시보드에 이번 주 딜 미팅 일정도 같이 보이면 좋겠습니다',
@@ -17,7 +17,7 @@ const RQ_HINT = {
 const rqS = { items: [], etag: null, at: 0, scope: 'page', open: null, reply: null, replyDraft: '', busy: false, loaded: false, gen: 0 };
 const rqUrl = () => `/drives/${CFG.teamDrive}/root:/${RQ_PATH.split('/').map(encodeURIComponent).join('/')}:`;
 const rqPage = () => (document.body.dataset.route || 'home');
-const RQ_MQ = '(min-width: 1800px)';
+const RQ_MQ = '(min-width: 1680px)';
 const rqWide = () => matchMedia(RQ_MQ).matches;
 const rqWhen = (s) => { const d = new Date(s); return isNaN(d) ? '' : `${d.getMonth() + 1}.${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const rqWho = () => [myName(), myTitle()].filter(Boolean).join(' ');
@@ -174,7 +174,7 @@ async function rqInit() {
   box.dataset.bound = '1'; rqBind(box);
   $('#req-btn')?.addEventListener('click', rqToggle);
   if (rqWide() && rqDock()) rqOpen();
-  // 1800px을 넘나들 때: 넓어지면 덮는 겹을 없애고 붙여 두기, 좁아지면 붙여 둔 패널을 닫는다(겹 없이 덮어 두지 않게)
+  // 1680px을 넘나들 때: 넓어지면 덮는 겹을 없애고 붙여 두기, 좁아지면 붙여 둔 패널을 닫는다(겹 없이 덮어 두지 않게)
   matchMedia(RQ_MQ).addEventListener?.('change', (e) => {
     if (e.matches) {
       if (rqOff) { rqOff(); rqOff = null; }

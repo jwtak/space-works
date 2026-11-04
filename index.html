@@ -49,11 +49,11 @@
   <main class="main">
     <header class="topbar">
       <div class="crumb"><span>내 업무</span><svg class="i sm"><use href="#i-right"/></svg><b id="crumb">대시보드</b></div>
-      <div class="right"><button class="req-btn" type="button" id="req-btn">요청사항<span class="cnt" data-cnt="req"></span></button><span class="clock" id="clock"></span><button class="me" type="button" id="me" aria-label="메뉴" style="border:0;background:none;padding:0"><span class="avatar"></span></button></div>
+      <div class="right"><span class="clock" id="clock"></span><button class="me" type="button" id="me" aria-label="메뉴" style="border:0;background:none;padding:0"><span class="avatar"></span></button></div>
     </header>
-    <div class="scroll"><div class="page" id="page"></div></div>
+    <div class="scroll"><div class="page" id="page"></div><aside class="req" id="req" hidden aria-label="요청사항"></aside></div>
   </main>
-  <aside class="req" id="req" hidden aria-label="요청사항"></aside>
+  <button class="req-tab" type="button" id="req-btn" aria-label="요청사항"><span>요청사항</span><i class="cnt" data-cnt="req"></i></button>
   <nav class="tabbar" aria-label="메뉴">
     <a href="#home" data-r="home"><svg class="i"><use href="#i-grid"/></svg><span>홈</span></a>
     <a href="#mail" data-r="mail"><svg class="i"><use href="#i-mail"/></svg><span>메일</span></a>

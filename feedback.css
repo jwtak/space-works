@@ -1,15 +1,21 @@
-/* 요청사항 패널: 넓은 화면은 오른쪽 세 번째 열, 좁으면 오른쪽에서 덮는 패널 */
-.req-btn { display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border: 1px solid var(--line2); border-radius: var(--r); background: var(--card); color: var(--ink); font-weight: 500; cursor: pointer; }
-.req-btn:hover { background: var(--hover); }
-.req-btn .cnt { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--primary); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
-.req-btn .cnt:empty { display: none; }
-body.req-on .req-btn { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+/* 요청사항: 넓은 화면은 본문 오른쪽 박스(첫 카드와 같은 높이에서 시작, 스크롤해도 따라옴), 좁으면 오른쪽 가장자리 탭 → 덮는 패널 */
+.req-tab { position: fixed; right: 0; top: 50%; transform: translateY(-50%); z-index: 55; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 14px 9px; border: 0; border-radius: 10px 0 0 10px; background: var(--primary); color: #fff; font-size: 13px; font-weight: 600; cursor: pointer; box-shadow: -4px 4px 16px rgba(37, 99, 235, .25); }
+.req-tab span { writing-mode: vertical-rl; letter-spacing: .08em; }
+.req-tab:hover { padding-right: 12px; }
+.req-tab .cnt { min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: #fff; color: var(--primary); font-size: 11px; font-weight: 700; font-style: normal; line-height: 18px; text-align: center; }
+.req-tab .cnt:empty { display: none; }
+body.req-on .req-tab, body.signed-out .req-tab { display: none; }
 
-.req { display: flex; flex-direction: column; background: var(--card); border-left: 1px solid var(--line); min-width: 0; overflow-y: auto; scrollbar-width: thin; }
+.req { display: flex; flex-direction: column; background: var(--card); min-width: 0; overflow-y: auto; scrollbar-width: thin; }
 .req[hidden] { display: none; }
-@media (min-width: 1800px) { body.req-on .app { grid-template-columns: 248px minmax(0, 1fr) 360px; } }
-@media (max-width: 1799.98px) {
-  .req { position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 100%); z-index: 60; box-shadow: -12px 0 32px rgba(15, 23, 42, .12); }
+@media (min-width: 1680px) {
+  body.req-on .scroll { display: flex; align-items: flex-start; }
+  body.req-on .scroll > .page { flex: 1 1 auto; min-width: 0; }
+  .req { position: sticky; top: 28px; flex: none; width: 320px; margin: 78px 32px 32px 0; max-height: calc(100vh - 64px - 60px); border: 1px solid var(--line); border-radius: var(--r-lg); }
+  .req .rq-hd { border-radius: var(--r-lg) var(--r-lg) 0 0; height: 56px; }
+}
+@media (max-width: 1679.98px) {
+  .req { position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 100%); z-index: 60; border-left: 1px solid var(--line); box-shadow: -12px 0 32px rgba(15, 23, 42, .12); }
 }
 
 .rq-hd { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px; height: 64px; flex: none; padding: 0 12px 0 20px; background: var(--card); border-bottom: 1px solid var(--line); }
@@ -40,7 +46,7 @@ body.req-on .req-btn { border-color: var(--primary); color: var(--primary); back
 .rq-tools .rq-del:hover { color: var(--danger); }
 
 @media (max-width: 760px) {
-  .req-btn { display: none; }
+  .req-tab { display: none; }
   .req { width: 100%; padding-top: env(safe-area-inset-top); }
   .rq-hd { height: 56px; padding-left: 16px; }
   .rq-new, .rq-it { padding-left: 16px; padding-right: 16px; }
