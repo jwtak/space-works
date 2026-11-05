@@ -165,8 +165,10 @@ const route = () => (location.hash || '#home').slice(1);
 const TAB_INFO = {};
 function infoOpen(k) {
   const x = TAB_INFO[k]; if (!x) return;
-  const body = (t) => (Array.isArray(t) ? `<ul>${t.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>` : esc(t));
-  openSheet(`<h3>${esc(x.title)}</h3><dl class="info-dl">${x.rows.map(([h, t]) => `<dt>${esc(h)}</dt><dd>${body(t)}</dd>`).join('')}</dl>`, null, 'info');
+  // 글: 문자열 = 문단, 배열 = 목록, {table: [[머리...], [행...], ...]} = 표. 배열 안에 표·문단을 섞어도 된다
+  const one = (t) => (t && t.table ? `<div class="info-tbl"><table><thead><tr>${t.table[0].map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${t.table.slice(1).map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : `<p>${esc(t)}</p>`);
+  const body = (t) => (Array.isArray(t) ? `<ul>${t.map((s) => (typeof s === 'string' ? `<li>${esc(s)}</li>` : `</ul>${one(s)}<ul>`)).join('')}</ul>`.replace(/<ul><\/ul>/g, '') : one(t));
+  openSheet(`<h3>${esc(x.title)}</h3>${x.asof ? `<div class="info-asof">${esc(x.asof)}</div>` : ''}<dl class="info-dl">${x.rows.map(([h, t]) => `<dt>${esc(h)}</dt><dd>${body(t)}</dd>`).join('')}</dl>`, null, 'info');
 }
 const infoBtn = (k) => (TAB_INFO[k] ? `<button class="btn ghost info-btn" type="button" data-info="${esc(k)}" aria-label="화면 설명">${ico('info', 'sm')}<span class="info-txt">화면 설명</span></button>` : '');
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-info]'); if (b) infoOpen(b.dataset.info); });

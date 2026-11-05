@@ -69,13 +69,24 @@ svg.i.lg { width: 22px; height: 22px; }
 .topbar { height: 64px; flex: none; display: flex; align-items: center; gap: 12px; padding: 0 32px; background: var(--card); border-bottom: 1px solid var(--line); }
 .crumb { display: flex; align-items: center; gap: 6px; color: var(--text3); }
 .crumb b { color: var(--ink); font-weight: 600; }
-/* 머리줄 ⓘ: 지금 화면 설명(app.js infoOpen) */
-.sheet.info { max-width: 560px; }
+/* 화면 설명 창(app.js infoOpen): 자세히 읽으려고 연 창이라 넓게. 표는 칸이 넘치면 표만 옆으로 민다 */
+.sheet.info { max-width: 880px; }
+.sheet.info h3 { margin-bottom: 4px; font-size: 20px; line-height: 28px; }
+.info-asof { margin-bottom: 20px; font-size: 14px; line-height: 20px; color: var(--text3); }
 .info-dl { margin: 0; }
-.info-dl dt { margin: 18px 0 4px; font-size: 14px; line-height: 20px; font-weight: 700; color: var(--ink); }
-.info-dl dt:first-child { margin-top: 0; }
+.info-dl dt { margin: 24px 0 6px; padding-top: 20px; border-top: 1px solid var(--line); font-size: 16px; line-height: 24px; font-weight: 700; color: var(--ink); }
+.info-dl dt:first-child { margin-top: 0; padding-top: 0; border-top: 0; }
 .info-dl dd { margin: 0; font-size: 14px; line-height: 22px; color: var(--text2); }
-.info-dl ul { margin: 0; padding-left: 18px; }
+.info-dl p { margin: 0 0 6px; }
+.info-dl ul { margin: 0 0 6px; padding-left: 18px; }
+.info-dl li + li { margin-top: 2px; }
+.info-tbl { overflow-x: auto; margin: 8px 0 10px; border: 1px solid var(--line); border-radius: 8px; }
+.info-tbl table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 20px; }
+.info-tbl th, .info-tbl td { padding: 8px 12px; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); }
+.info-tbl th { background: var(--row); color: var(--ink); font-weight: 600; white-space: nowrap; }
+.info-tbl td:first-child { color: var(--ink); font-weight: 500; min-width: 120px; }
+.info-tbl tr:last-child td { border-bottom: 0; }
+@media (max-width: 760px) { .info-tbl table { min-width: 560px; } }
 .topbar .right { margin-left: auto; display: flex; align-items: center; gap: 20px; color: var(--text2); }
 .topbar .clock { font-variant-numeric: tabular-nums; }
 .topbar .me { display: flex; align-items: center; gap: 8px; font-weight: 500; color: var(--ink); }
