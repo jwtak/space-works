@@ -479,6 +479,9 @@ function mdRender(text) {
 }
 
 // ---------- 할 일 ----------
+// 보기: cat = 분류별(분류 안에서 기한순) · due = 기한순(남은 기간으로 묶고 분류는 제목 아래에). 마지막 선택을 기억한다
+ui.todoView = (() => { try { return localStorage.getItem('todoView') === 'due' ? 'due' : 'cat'; } catch { return 'cat'; } })();
+const DUE_GROUPS = [['기한 지남', (d) => d < 0], ['오늘', (d) => d === 0], ['7일 이내', (d) => d > 0 && d <= 7], ['그 뒤', (d) => d > 7], ['기한 없음', (d) => d === null]];
 function renderTodos() {
   const td = today(), all = S.todos.items;
   const tabs = {
@@ -492,10 +495,10 @@ function renderTodos() {
   if (ui.todoTab === 'done') {
     body = items.sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || '')).map(todoRow).join('');
   } else {
-    body = CATS.map((c) => {
-      const g = items.filter((t) => (t.cat || '기타') === c).sort(sortTodos);
-      return g.length ? `<div class="todo-group"><h3>${c} <span class="muted" style="font-weight:500">${g.length}</span></h3>${g.map(todoRow).join('')}</div>` : '';
-    }).join('');
+    const grp = (h, g) => (g.length ? `<div class="todo-group"><h3>${h} <span class="muted" style="font-weight:500">${g.length}</span></h3>${g.map(todoRow).join('')}</div>` : '');
+    body = ui.todoView === 'due'
+      ? DUE_GROUPS.map(([h, f]) => grp(h, items.filter((t) => f(t.due ? diffDays(t.due, td) : null)).sort(sortTodos))).join('')
+      : CATS.map((c) => grp(c, items.filter((t) => (t.cat || '기타') === c).sort(sortTodos))).join('');
   }
   PAGE.innerHTML = `
     <div class="page-head"><h1>할 일</h1></div>
@@ -506,7 +509,8 @@ function renderTodos() {
       <input class="input" type="date" id="add-due" style="width:150px">
       <button class="btn primary" type="submit">${ico('plus', 'sm')}추가</button>
     </form>
-    <div class="tabs">${Object.entries(tabs).map(([k, [lbl, arr]]) => `<button data-tab="${k}" class="${ui.todoTab === k ? 'on' : ''}">${lbl}<span class="n">${arr.length}</span></button>`).join('')}</div>
+    <div class="todo-bar"><div class="tabs">${Object.entries(tabs).map(([k, [lbl, arr]]) => `<button data-tab="${k}" class="${ui.todoTab === k ? 'on' : ''}">${lbl}<span class="n">${arr.length}</span></button>`).join('')}</div>
+      ${ui.todoTab === 'done' ? '' : `<div class="seg todo-view">${[['cat', '분류별'], ['due', '기한순']].map(([k, l]) => `<button type="button" data-view="${k}" class="${ui.todoView === k ? 'on' : ''}" aria-pressed="${ui.todoView === k}">${l}</button>`).join('')}</div>`}</div>
     <div id="todo-list" style="padding-bottom:8px">${body || '<div class="empty">해당하는 할 일이 없습니다.</div>'}</div></section>
     <button class="fab" type="button" id="todo-fab" aria-label="할 일 추가">${ico('plus')}</button>`;
   $('#todo-fab').onclick = () => addTodoSheet();
@@ -520,6 +524,10 @@ function renderTodos() {
     save('todos'); renderTodos(); $('#add-title').focus();
   });
   PAGE.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { ui.todoTab = b.dataset.tab; ui.todoEdit = null; renderTodos(); }));
+  PAGE.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => {
+    ui.todoView = b.dataset.view; try { localStorage.setItem('todoView', ui.todoView); } catch { /* 이번 화면엔 적용 */ }
+    renderTodos();
+  }));
   PAGE.querySelectorAll('[data-toggle]').forEach((el) => el.addEventListener('change', () => toggleTodo(el.dataset.toggle)));
   PAGE.querySelectorAll('[data-edit]').forEach((el) => el.addEventListener('click', () => { ui.todoEdit = el.dataset.edit; renderTodos(); }));
   PAGE.querySelectorAll('[data-del]').forEach((el) => el.addEventListener('click', () => {
@@ -553,7 +561,7 @@ function todoRow(t) {
   const di = dueInfo(t);
   return `<div class="todo ${t.done ? 'done' : ''}">
     <input type="checkbox" class="check" data-toggle="${esc(t.id)}" ${t.done ? 'checked' : ''} aria-label="완료">
-    <div data-edit="${esc(t.id)}" style="min-width:0;cursor:text"><div class="ttl">${esc(t.title)}</div>${t.note ? `<div class="note">${esc(t.note)}</div>` : ''}</div>
+    <div data-edit="${esc(t.id)}" style="min-width:0;cursor:text"><div class="ttl">${esc(t.title)}</div>${ui.todoView === 'due' && ui.todoTab !== 'done' ? `<div class="note">${esc(t.cat || '기타')}${t.note ? ` · ${esc(t.note)}` : ''}</div>` : t.note ? `<div class="note">${esc(t.note)}</div>` : ''}</div>
     <span>${ui.todoTab === 'done' ? `<span class="chip line">${esc(t.cat)}</span>` : ''}</span>
     <span class="due ${di.cls}">${t.done && t.doneAt ? `${md(t.doneAt)} 완료` : di.txt}</span>
     <button class="iconbtn del" data-del="${esc(t.id)}" title="삭제">${ico('trash', 'sm')}</button>
