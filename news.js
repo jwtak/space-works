@@ -169,7 +169,8 @@ async function renderNews(host) {
 }
 
 // ---------- 대시보드 카드 맨 위 시사점 칸(딜 뉴스·다가오는 행사·락업 해제 공통) ----------
-const homeBrief = (lines) => (lines.length ? `<ul class="nw-brief home-brief">${lines.join('')}</ul>` : '');
+// 칸 머리표: Claude가 쓴 칸(딜 뉴스·행사)은 별+AI 요약, 규칙으로 만든 칸(락업 해제)은 체크+할 일 요약
+const homeBrief = (lines, [ic, lbl] = ['spark', 'AI 요약']) => (lines.length ? `<ul class="nw-brief home-brief"><li class="brief-h">${ico(ic, `sm ${ic}`)}${lbl}</li>${lines.join('')}</ul>` : '');
 const homeBriefLine = (subj, body, act, attr) => `<li><span class="lnk" ${attr}><b>${esc(subj)}</b> ${esc(body)}${act ? ` <span class="act">— ${esc(act)}</span>` : ''}</span></li>`;
 // 락업 해제 카드: 2주 안에 풀리는 3곳과 컨택 상태별 할 일 (카드 자체는 ipo.js, 여기서는 맨 위 칸만)
 function ipoHomeBrief() {
@@ -181,7 +182,7 @@ function ipoHomeBrief() {
     const tag = /최대주주/.test(who) ? ' (최대주주)' : /FI|벤처|조합|펀드|투자/.test(who) ? ' (FI)' : '';
     const act = { 미접촉: `${w ? `${w} ` : ''}컨택, 블록딜·구주 물량 확인`, 연락함: '후속 연락, 블록딜 물량 확인', 미팅: '미팅 후속, 물량 확인', 보류: '보류 중' }[st] || '';
     return homeBriefLine(x.name, `${ipoMd(x.next.d)} ${x.next['지분율'] || ''} 해제${tag}`, act, `data-ipo-go="${esc(x.code)}"`);
-  }));
+  }), ['check', '할 일 요약']);
 }
 
 // 대시보드: 맨 위 시사점 + 주요 기사 1~5위 + 우주·항공·방산 3개(위에 나온 기사 빼고)

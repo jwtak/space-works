@@ -25,6 +25,11 @@
 .nw-brief { list-style: none; margin: 6px 20px 10px; padding: 12px 16px; background: var(--card); border: 1px solid var(--t-blue-i); border-radius: var(--r); }
 .nw-brief li { position: relative; padding-left: 14px; font-size: 14px; line-height: 22px; color: var(--text2); }
 .nw-brief li + li { margin-top: 6px; }
+/* 대시보드 시사점 칸 머리표(news.js homeBrief) */
+.nw-brief li.brief-h { display: flex; align-items: center; gap: 6px; padding-left: 0; margin-bottom: 8px; font-size: 13px; line-height: 18px; font-weight: 700; color: var(--primary); }
+.nw-brief li.brief-h::before { display: none; }
+.nw-brief li.brief-h + li { margin-top: 0; }
+.nw-brief li.brief-h svg.spark { fill: currentColor; stroke-width: 1.2; }
 .nw-brief li::before { content: ''; position: absolute; left: 2px; top: 10px; width: 4px; height: 4px; border-radius: 50%; background: var(--primary); }
 .nw-brief b { font-weight: 700; color: var(--ink); }
 .nw-brief .act { font-weight: 600; color: var(--primary); }
