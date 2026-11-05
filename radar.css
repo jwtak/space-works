@@ -159,6 +159,10 @@
 
 @media (max-width: 760px) {
   .rd-page .ipo-top { flex-wrap: wrap; row-gap: 4px; }
+  /* 필터 버튼(매각희망 7개)은 폰에서도 옆으로 숨기지 않고 줄을 바꾼다(390 폭은 한 줄, 더 좁으면 두 줄) */
+  .rd-page .ipo-filter .seg { flex-wrap: wrap; gap: 1px; background: var(--line2); overflow: hidden; }
+  .rd-page .ipo-filter .seg button { flex: 1 1 auto; padding: 0 8px; }
+  .rd-page .ipo-filter .seg button + button { border-left: 0; }
   .rd-page .ipo-sumrow { flex: 1 1 100%; }
   .rd-page .ipo-line > .rd-mh { display: none; }
   .rd-page .ipo-line > .rd-span3 { display: block; grid-column: 1 / -1; font-size: 14px; line-height: 20px; }

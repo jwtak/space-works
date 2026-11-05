@@ -15,7 +15,7 @@ const RD_TAB = {
 };
 const RD_YS_F = [['all', '전체'], ['review', '심사 중'], ['ok', '승인'], ['drop', '철회·미승인'], ['new', '새 소식']];
 const RD_YS_SORT = [['filed', '청구일순'], ['decided', '결과일순'], ['rev', '매출순']];
-const RD_KINDS = ['철회', '만기', '지분축소', '락업', '뉴스'];
+const RD_KINDS = ['철회', '만기', '지분축소', '락업', 'EB', '뉴스'];
 const RD_SELL_SORT = [['near', '가까운 날짜순'], ['pct', '지분율순'], ['name', '회사명순']];
 const RD_STAGES = ['매각 추진', '주관사 선정', '예비입찰', '숏리스트', '본입찰', '우선협상', '계약', '무산', '공시 검토', '회생 M&A'];
 const RD_FITS = ['상', '중', '하'];
