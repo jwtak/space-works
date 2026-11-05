@@ -161,11 +161,12 @@ function foot() {
 
 // ---------- 라우팅 ----------
 const route = () => (location.hash || '#home').slice(1);
-const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', deals: '딜소싱', weekly: '주간회의', files: '공용 폴더', notes: '업무일지·회의록', programs: '프로그램', homepage: '홈페이지' };
+const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', deals: '딜소싱', market: '시장동향', weekly: '주간회의', files: '공용 폴더', notes: '업무일지·회의록', programs: '프로그램', homepage: '홈페이지' };
 function render() {
   if (!S) return; // 로그인·데이터 읽기 전 hashchange
   let r = route();
   if (r.startsWith('deals/')) { ui.dealTab = r.slice(6) || 'events'; r = 'deals'; } else if (r === 'deals') ui.dealTab = 'events'; // #deals/ipo → 딜소싱 > 신규상장
+  if (r.startsWith('market/')) r = 'market'; // 시장동향 > 공모주 통계·PE 동향
   for (const k of ['files', 'weekly']) if (r === k || r.startsWith(`${k}/`)) { try { ui.filesPath = decodeURIComponent(r.slice(k.length + 1)); } catch { ui.filesPath = ''; } r = k; } // #files/00. 전체 공유/01. 명함 → 공용 폴더의 그 폴더
   r = CRUMB[r] ? r : 'home';
   document.querySelectorAll('[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === r));
@@ -183,7 +184,7 @@ function render() {
   }
   if (r !== 'notes') { document.body.classList.remove('note-open'); if (cur?.dirty) flushNote(); } // 업무일지를 쓰다 다른 메뉴로 가도 저장
   $('#crumb').textContent = CRUMB[r];
-  ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, deals: renderDeals, weekly: () => renderFiles(PAGE, 'weekly'), files: () => (typeof renderFiles === 'function' ? renderFiles(PAGE) : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), programs: renderPrograms, notes: renderNotes, homepage: renderHomepage }[r] || renderHome)();
+  ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, deals: renderDeals, market: () => (typeof renderMarket === 'function' ? renderMarket() : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), weekly: () => renderFiles(PAGE, 'weekly'), files: () => (typeof renderFiles === 'function' ? renderFiles(PAGE) : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), programs: renderPrograms, notes: renderNotes, homepage: renderHomepage }[r] || renderHome)();
 }
 window.addEventListener('hashchange', render);
 
@@ -359,6 +360,7 @@ function renderHomeMobile() {
     ['#deals', 'ticket', '행사·IR', ''],
     ['#deals/ipo', 'chart', '신규상장', ''],
     ['#deals/news', 'news', '딜 뉴스', ''],
+    ['#market', 'chart', '시장동향', ''],
     ['#weekly', 'week', '주간회의', ''],
     ['#files', 'folder', '공용 폴더', ''],
     ['#programs', 'box', '프로그램', prog ? `<i class="mh-n grey">${prog}</i>` : ''],

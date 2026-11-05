@@ -1,0 +1,146 @@
+/* 시장동향 — 표·차트 카드. 상승 빨강 / 하락 파랑(국내 관행) */
+.mk { --mk-up: #DC2626; --mk-dn: #2563EB; display: flex; flex-direction: column; gap: 16px; }
+.mk .up { color: var(--mk-up); font-weight: 600; }
+.mk .dn { color: var(--mk-dn); font-weight: 600; }
+.mk-dim { color: var(--text3); }
+.mk-upd { margin-left: auto; font-size: 13px; color: var(--text3); align-self: flex-end; }
+.page-head:has(.mk-upd) { display: flex; align-items: baseline; gap: 12px; }
+
+.mk-sec .card-head { gap: 12px; flex-wrap: wrap; }
+.mk-body { padding: 16px 24px 20px; }
+.mk-seg { display: inline-flex; gap: 2px; padding: 3px; background: #E9EDF3; border-radius: 10px; }
+.mk-seg button { height: 28px; padding: 0 10px; border: 0; border-radius: 7px; background: none; color: var(--text2); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.mk-seg button.on { background: var(--card); color: var(--primary); box-shadow: 0 1px 2px rgba(15, 23, 42, .12); }
+
+/* 넓은 표는 카드 안에서만 가로로 스크롤, 첫 열은 붙어 있게 */
+/* 열 간격 균등(table-layout fixed, 첫 열만 고정 폭), 전부 왼쪽 정렬, 머리글은 글자 + 아래 진한 1px 선 */
+.mk-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.mk-tbl { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
+.mk-tbl th { padding: 10px 12px; font-size: 13px; font-weight: 600; color: var(--text2); text-align: left; white-space: nowrap; background: var(--card); border-bottom: 1px solid var(--line2); overflow: hidden; text-overflow: ellipsis; }
+.mk-tbl td { padding: 11px 12px; font-size: 13px; white-space: nowrap; text-align: left; border-bottom: 1px solid var(--row); color: var(--text2); overflow: hidden; text-overflow: ellipsis; }
+.mk-tbl tr:last-child td { border-bottom: 0; }
+.mk-tbl .st { position: sticky; left: 0; z-index: 1; width: 150px; background: var(--card); box-shadow: 1px 0 0 var(--row); }
+.mk-tbl th.st { z-index: 2; }
+.mk-tbl td.st b { color: var(--ink); font-weight: 600; }
+.mk-tbl td.st small, .mk-tbl td small { display: block; font-size: 11px; color: var(--text3); margin-top: 1px; font-weight: 400; }
+.mk-tbl .strong { color: var(--ink); font-weight: 600; }
+.mk-tbl .bl { border-left: 1px solid var(--line); }
+.mk-ref td { white-space: normal; text-overflow: clip; }
+.mk-ref a { color: var(--primary); text-decoration: none; }
+.mk-ref a:hover { text-decoration: underline; }
+
+.mk-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.mk-grid3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.mk-card { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px 18px 12px; min-width: 0; }
+.mk-card-h { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.mk-card-h b { font-size: 14px; font-weight: 700; color: var(--ink); }
+.mk-card-h p { margin: 4px 0 0; font-size: 12px; color: var(--text3); }
+.mk-card-h .mk-dim { font-size: 12px; }
+.mk-big { text-align: right; flex: none; }
+.mk-big small { display: block; font-size: 11px; color: var(--text3); }
+.mk-big strong { font-size: 24px; line-height: 1.15; font-weight: 700; color: var(--ink); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.mk-big strong.ath { color: var(--ok); }
+
+.mk-chart .plot { position: relative; margin-right: 44px; touch-action: pan-y; }
+.mk-chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.mk-chart svg line { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; }
+.mk-chart svg line.z { stroke: var(--text3); stroke-dasharray: none; }
+.mk-chart .mk-area { fill: var(--mk-up); fill-opacity: .45; }
+.mk-chart .yl { position: absolute; left: 100%; margin-left: 6px; transform: translateY(-50%); font-size: 10px; color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mk-chart .dot { position: absolute; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--card); transform: translate(-50%, -50%); pointer-events: none; }
+.mk-chart .xt { position: relative; height: 14px; margin: 4px 44px 0 0; }
+.mk-chart .xt span { position: absolute; transform: translateX(-50%); font-size: 10px; color: var(--text3); white-space: nowrap; }
+.mk-chart .hv { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--text3); pointer-events: none; }
+.mk-chart .tip { position: absolute; top: 4px; z-index: 2; padding: 6px 9px; border-radius: 8px; background: rgba(17, 24, 39, .92); color: #fff; font-size: 11px; white-space: nowrap; pointer-events: none; }
+.mk-chart .tip .d { color: #B0B8C1; margin-bottom: 2px; }
+.mk-chart .tip div { display: flex; align-items: center; gap: 5px; }
+.mk-chart .tip i { width: 6px; height: 6px; border-radius: 50%; display: inline-block; }
+.mk-chart .tip b { margin-left: auto; padding-left: 8px; font-variant-numeric: tabular-nums; }
+.mk-mark { position: absolute; top: 0; bottom: 0; border-left: 1px dashed var(--mk-up); pointer-events: none; }
+.mk-mark span { position: absolute; bottom: 2px; padding: 0 4px; font-size: 10px; font-weight: 700; color: var(--mk-up); white-space: nowrap; }
+.mk-mark span.r { transform: translateX(-100%); }
+.mk-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--text2); }
+.mk-legend i, .mk-fx i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+.mk-legend b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.mk-fx { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; margin-top: 10px; font-size: 12px; color: var(--text3); }
+.mk-fx b { font-size: 16px; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+.mk-sub { margin: 20px 0 8px; font-size: 12px; font-weight: 600; color: var(--text2); }
+.mk-tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.mk-tiles4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.mk-tile { padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); }
+.mk-tile small { font-size: 12px; font-weight: 600; color: var(--text2); }
+.mk-tile strong { display: block; margin-top: 4px; font-size: 22px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.mk-tile em { font-style: normal; font-size: 13px; font-weight: 600; color: var(--text2); margin-left: 2px; }
+.mk-tile p { margin: 2px 0 0; font-size: 12px; color: var(--text3); }
+
+.mk-more { align-self: center; }
+.mk-more.in { display: block; margin: 12px auto 0; }
+.mk-foot { margin: 0; font-size: 12px; color: var(--text3); }
+.mk-ipo-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.mk-ipo-bar .mk-dim { font-size: 13px; }
+.mk-q { flex: 0 1 220px; }
+.mk-q .input { height: 34px; }
+
+/* PE 동향 */
+.mk-tiles3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.mk-hd { font-size: 12px; text-decoration: none; }
+a.mk-hd:hover { color: var(--primary); }
+.mk-bars { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 8px; align-items: end; height: 140px; padding-top: 4px; }
+.mk-bars .b { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; }
+.mk-bars i { display: block; width: 100%; max-width: 28px; min-height: 2px; background: var(--t-blue-i); border-radius: 4px 4px 0 0; }
+.mk-bars .b:last-child i { background: var(--primary); }
+.mk-bars .v { font-size: 12px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.mk-bars .l { font-size: 11px; color: var(--text3); }
+.mk-two { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 0 24px; }
+.mk-rank { list-style: none; margin: 0; padding: 0; }
+.mk-rank li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--row); font-size: 13px; color: var(--text2); }
+.mk-rank li:last-child { border-bottom: 0; }
+.mk-rank b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.mk-rank a { color: var(--text2); text-decoration: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mk-rank a:hover .nm { color: var(--primary); }
+.mk-rank.mk-inline { display: flex; flex-wrap: wrap; gap: 6px 20px; }
+.mk-rank.mk-inline li { border: 0; padding: 0; gap: 6px; }
+
+@media (max-width: 760px) {
+  .mk-tabs button { white-space: nowrap; padding-left: 6px; padding-right: 6px; }
+  .mk-tabs button .i { display: none; }
+  .mk-tiles3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mk-bars { gap: 4px; }
+  .mk-body { padding: 12px 16px 16px; }
+  .mk-tiles4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .mk-upd { display: none; }
+  .mk-q { flex: 1 1 100%; }
+}
+
+/* 공모주 통계 — 보호예수 해제 곡선·공모가 확정 위치 막대 (blk_lockup.js) */
+.lk-chart .plot { position: relative; margin-right: 44px; touch-action: pan-y; }
+.lk-chart svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.lk-chart svg line { stroke: var(--line); stroke-width: 1; stroke-dasharray: 3 3; }
+.lk-chart svg line.z { stroke: var(--text3); stroke-dasharray: none; }
+.lk-chart svg line.d { stroke: var(--text3); }
+.lk-chart svg rect.hit { fill: var(--text3); fill-opacity: 0; }
+.lk-chart svg rect.hit:hover { fill-opacity: .08; }
+.lk-chart .yl { position: absolute; left: 100%; margin-left: 6px; transform: translateY(-50%); font-size: 10px; color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lk-chart .dot { position: absolute; width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid var(--card); transform: translate(-50%, -50%); pointer-events: none; }
+.lk-chart .xt { position: relative; height: 14px; margin: 4px 44px 0 0; }
+.lk-chart .xt span { position: absolute; transform: translateX(-50%); font-size: 10px; color: var(--text3); white-space: nowrap; }
+.lk-chart .xt span:first-child { transform: none; }
+.lk-chart .xt span:last-child { transform: translateX(-100%); }
+.lk-stack { display: flex; flex-direction: column; gap: 8px; }
+.lk-stack .r { display: grid; grid-template-columns: 40px minmax(0, 1fr); align-items: center; gap: 10px; }
+.lk-stack .r b { font-size: 12px; font-weight: 600; color: var(--text2); font-variant-numeric: tabular-nums; }
+.lk-stack .bar { display: flex; height: 18px; border-radius: 4px; overflow: hidden; background: var(--row); }
+.lk-stack .bar i { display: block; height: 100%; }
+.lk-stack .bar i + i { box-shadow: inset 1px 0 0 var(--card); }
+
+/* 공모주 통계 › 공모가 산정 멀티플 (blk_val.js) — 표는 market.css .mk-tbl 그대로(균등 폭·왼쪽 정렬·머리글 띠 없음) */
+.vl-dist .mk-bars { grid-template-columns: repeat(7, minmax(0, 1fr)); height: 120px; }
+.vl-dist .mk-bars .b:last-child i { background: var(--t-blue-i); }
+.vl-tbl a.vl-co { color: inherit; text-decoration: none; }
+.vl-tbl a.vl-co:hover b { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+.vl-tbl td.vl-peers { color: var(--text2); }
+.vl-tbl td.vl-flag { color: var(--text3); text-decoration: underline dotted; text-underline-offset: 3px; }
+@media (max-width: 720px) {
+  .vl-dist .mk-bars { gap: 4px; }
+}
