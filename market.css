@@ -144,3 +144,17 @@ a.mk-hd:hover { color: var(--primary); }
 @media (max-width: 720px) {
   .vl-dist .mk-bars { gap: 4px; }
 }
+
+/* PE 동향 › 메자닌 · 유상증자 (blk_mezz.js) — market.css의 mk-* 위에 얹는 것만 */
+.mz-subrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin: 20px 0 8px; }
+.mz-subrow .mk-sub { margin: 0; }
+.mz-subrow .mk-seg button { height: 26px; padding: 0 9px; font-size: 12px; }
+.mz-tbl td.st a { color: inherit; text-decoration: none; }
+.mz-tbl td.st a:hover b { color: var(--primary); }
+.mz-rank .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
+.mz-rank .nm small { margin-left: 8px; font-size: 11px; color: var(--text3); }
+.mz-rank b { flex: none; }
+@media (max-width: 760px) {
+  .mz-subrow { margin-top: 16px; }
+}
+.mk-body > .mk-sub:first-child { margin-top: 0; }

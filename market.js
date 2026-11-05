@@ -3,13 +3,13 @@
    탭: #market = 시장 지표, #market/ipo = 공모주 통계, #market/pe = PE 동향(딜레이더 yesim·bids.json 집계 + 공표 통계). 차트는 인라인 SVG(라이브러리 없음).
    국내 관행대로 상승은 빨강, 하락은 파랑. */
 const MK_TTL = 600000;
-const mkS = { market: null, ipo: null, yesim: null, bids: null, at: 0, loading: null, tab: 'market', dd: 10, rate: 3, stock: 'KOSPI', sector: 'us', more: false, ipoMk: 'ALL', ipoQ: '', ipoAll: false, ipoVal: null, valQ: '', valAll: false };
+const mkS = { market: null, ipo: null, yesim: null, bids: null, at: 0, loading: null, tab: 'market', dd: 10, rate: 3, stock: 'KOSPI', sector: 'us', more: false, ipoMk: 'ALL', ipoQ: '', ipoAll: false, ipoVal: null, valQ: '', valAll: false, mezz: null };
 
 function mkLoad(force) {
   if (!force && mkS.at && Date.now() - mkS.at < MK_TTL) return Promise.resolve();
   const read = async (rel) => { try { const r = await STORE.readText(rel); return r.text ? JSON.parse(r.text) : null; } catch { return null; } };
-  mkS.loading ||= Promise.all([read('data/market.json'), read('data/ipo_stats.json'), read('data/yesim.json'), read('data/bids.json'), read('data/ipo_val.json')])
-    .then(([m, i, y, b, v]) => { mkS.market = m; mkS.ipo = i; mkS.yesim = y; mkS.bids = b; mkS.ipoVal = v; mkS.at = Date.now(); })
+  mkS.loading ||= Promise.all([read('data/market.json'), read('data/ipo_stats.json'), read('data/yesim.json'), read('data/bids.json'), read('data/ipo_val.json'), read('data/mezz.json')])
+    .then(([m, i, y, b, v, z]) => { mkS.market = m; mkS.ipo = i; mkS.yesim = y; mkS.bids = b; mkS.ipoVal = v; mkS.mezz = z; mkS.at = Date.now(); })
     .finally(() => { mkS.loading = null; });
   return mkS.loading;
 }
@@ -533,13 +533,87 @@ function mkBidsHTML() {
     ${pick.length ? `<div class="mk-sub">눈여겨볼 딜</div><div class="mk-scroll"><table class="mk-tbl"><thead><tr><th class="st">대상</th><th>단계</th><th>매각자</th><th>자문사</th><th>최근</th></tr></thead><tbody>${pick.map((x) => `<tr><td class="st"><b>${esc(x.name)}</b><small>${esc(x.sector || '')}</small></td><td>${esc(x.stage)}</td><td>${esc(x.seller || '-')}</td><td>${esc(x.advisor || '-')}</td><td class="mk-dim">${mkMd(x.last)}</td></tr>`).join('')}</tbody></table></div>` : ''}
     ${adv.length ? `<div class="mk-sub">자문사별 딜 수</div><ul class="mk-rank mk-inline">${adv.map(([a, v]) => `<li><span>${esc(a)}</span><b>${v}</b></li>`).join('')}</ul>` : ''}`);
 }
+/* PE 동향 › 메자닌 · 유상증자 — data/mezz.json(00. 대시보드\market\mezz.py, 평일 19:00)을 mkS.mezz로 읽어 그림.
+   market.js 도우미(mkSec·mkTile·mkBars·mkSeg·mkNum·mkMd·esc)를 그대로 씀. 필터 상태는 mkS.mzBar·mzType·mzAll·mzInv
+   (market.js의 [data-mk-seg] 클릭 처리가 mkS[key]=값 → mkDraw() 하므로 따로 핸들러가 필요 없음). */
+const MZ_TYPES = [['all', '전체'], ['CB', 'CB'], ['BW', 'BW'], ['EB', 'EB'], ['유증', '유증']];
+const MZ_INV = [['all', '전체'], ['pv', 'PEF·VC'], ['fund', '자산운용'], ['sec', '증권사']];
+const mzEok = (v) => (v == null ? '-' : Math.abs(v) >= 10000 ? `${mkNum(v / 10000, 2)}조` : `${mkNum(v, 0)}억`);
+const mzTileAmt = (label, v, n) => (v != null && Math.abs(v) >= 10000 ? mkTile(label, mkNum(v / 10000, 2), '조', `${n ?? 0}건`) : mkTile(label, mkNum(v, 0), '억', `${n ?? 0}건`));
+const mzRate = (v) => (v == null ? '-' : `${mkNum(v, 1)}%`);
+
+function mzInvShort(list) {
+  if (!list?.length) return '';
+  const g = {};
+  list.forEach((i) => { const k = i.house || i.name; g[k] = (g[k] || 0) + (i.amt || 0) + 1e-6; });
+  const names = Object.entries(g).sort((a, b) => b[1] - a[1]).map(([n]) => n);
+  return `${names.slice(0, 2).join(' · ')}${names.length > 2 ? ` 외 ${names.length - 2}` : ''}`;
+}
+function mzCond(x) {
+  if (x.type === '유증') return [x.method, x.pref ? '우선주' : '', x.conv_price ? `${mkNum(x.conv_price, 0)}원` : ''].filter(Boolean).join(' · ');
+  const a = [`표면 ${mzRate(x.coupon)}`, `만기 ${mzRate(x.ytm)}`];
+  if (x.type === 'EB') a.push(x.ex?.self ? '자사주' : x.ex?.target || '');
+  else if (x.refix_pct) a.push(`하한 ${x.refix_pct}%`);
+  return a.filter(Boolean).join(' · ');
+}
+function mzCondFull(x) {
+  const a = [mzCond(x)];
+  if (x.type !== '유증' && x.conv_price) a.push(`${x.type === 'CB' ? '전환가' : x.type === 'BW' ? '행사가' : '교환가'} ${mkNum(x.conv_price, 0)}원`);
+  if (x.maturity) a.push(`만기일 ${x.maturity}`);
+  if (x.pay) a.push(`납입 ${x.pay}`);
+  if (x.ex?.shares) a.push(`교환대상 ${mkNum(x.ex.shares, 0)}주${x.ex.pct_calc ?? x.ex.pct ? ` ${mkNum(x.ex.pct_calc ?? x.ex.pct, 2)}%` : ''}`);
+  return a.join(' · ');
+}
+
+function mkMezzHTML() {
+  const d = mkS.mezz; if (!d?.summary?.last3m) return '';
+  const s = d.summary.last3m, bar = mkS.mzBar || 'mezz', ty = mkS.mzType || 'all', inv = mkS.mzInv || 'all';
+  const tiles = [
+    mzTileAmt('CB', s.cb, s.cb_n), mzTileAmt('BW', s.bw, s.bw_n), mzTileAmt('EB', s.eb, s.eb_n), mzTileAmt('제3자배정 유증', s.rights_3rd_ex ?? s.rights_3rd, s.rights_3rd_ex_n ?? s.rights_3rd_n),
+    mkTile('사모 비중', s.private_pct == null ? '-' : mkNum(s.private_pct, 0), '%', ''),
+    mkTile('평균 표면이자율', s.coupon_avg == null ? '-' : mkNum(s.coupon_avg, 2), '%', ''),
+    mkTile('평균 만기이자율', s.ytm_avg == null ? '-' : mkNum(s.ytm_avg, 2), '%', ''),
+    mkTile('리픽싱 70%', s.refix70_pct == null ? '-' : mkNum(s.refix70_pct, 0), '%', ''),
+  ].join('');
+
+  const months = (d.monthly || []).slice(-12);
+  const bars = months.map((m) => [`${+m.ym.slice(5)}월`, +(((bar === 'r3' ? (m.rights_3rd_ex ?? m.rights_3rd) : m.mezz) || 0) / 10000).toFixed(1)]);
+
+  const rows = (d.recent || []).filter((x) => ty === 'all' || x.type === ty);
+  const shown = mkS.mzAll ? rows : rows.slice(0, 20);
+  const table = rows.length ? `<div class="mk-scroll"><table class="mk-tbl mz-tbl"><thead><tr><th class="st">회사</th><th>종류</th><th>금액</th><th>조건</th><th>투자자</th><th>날짜</th></tr></thead><tbody>${shown.map((x) => `<tr>
+    <td class="st"><a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><b>${esc(x.corp)}</b></a><small>${esc(x.market || '')}</small></td>
+    <td>${esc(x.type)}<small>${esc(x.method || '')}</small></td><td class="strong">${mzEok(x.amount)}</td>
+    <td title="${esc(mzCondFull(x))}">${esc(mzCond(x))}</td><td title="${esc((x.investors || []).map((i) => i.name).join(', '))}">${esc(mzInvShort(x.investors)) || '<span class="mk-dim">-</span>'}</td>
+    <td class="mk-dim">${mkMd(x.filed || x.dt)}</td></tr>`).join('')}</tbody></table></div>
+    ${rows.length > 20 ? `<button type="button" class="btn mk-more in" data-mk-seg="mzAll" data-v="${mkS.mzAll ? '' : '1'}">${mkS.mzAll ? '최근 20건만' : `전체 ${rows.length}건 보기`}</button>` : ''}` : '<div class="empty">공시가 없습니다.</div>';
+
+  const pick = { all: () => true, pv: (a) => a.kind === 'PEF' || a.kind === '신기사·VC', fund: (a) => a.kind === '자산운용', sec: (a) => a.kind === '증권사' }[inv] || (() => true);
+  const top = (d.top_investors || []).filter(pick).slice(0, 10);
+  const mkt = (d.by_market || []).filter((m) => m.mezz_n || m.rights_3rd_n);
+  const y = d.summary.last12m || {};
+
+  return mkSec('메자닌 · 유상증자', '<span class="mk-dim mk-hd">DART 주요사항보고서</span>', `
+    <div class="mk-sub">최근 3개월</div>
+    <div class="mk-tiles mk-tiles4">${tiles}</div>
+    <div class="mz-subrow"><div class="mk-sub">월별 발행액 · 조원</div>${mkSeg('mzBar', [['mezz', '메자닌'], ['r3', '제3자배정 유증']], bar)}</div>${mkBars(bars)}
+    <div class="mz-subrow"><div class="mk-sub">최근 공시</div>${mkSeg('mzType', MZ_TYPES, ty)}</div>${table}
+    <div class="mk-two">
+      <div><div class="mz-subrow"><div class="mk-sub">최근 12개월 투자자</div>${mkSeg('mzInv', MZ_INV, inv)}</div>
+        ${top.length ? `<ul class="mk-rank mz-rank">${top.map((a) => `<li><span class="nm">${esc(a.name)}<small>${esc(a.kind)}</small></span><b>${a.n}건 · ${mzEok(a.amt)}</b></li>`).join('')}</ul>` : '<div class="empty">데이터가 없습니다.</div>'}</div>
+      <div><div class="mz-subrow"><div class="mk-sub">최근 12개월 시장별</div></div>
+        <ul class="mk-rank mz-rank">${mkt.map((m) => `<li><span class="nm">${esc(m.market)}<small>메자닌 ${m.mezz_n}건 · 제3자배정 ${m.rights_3rd_ex_n ?? m.rights_3rd_n}건</small></span><b>${mzEok(m.mezz)} · ${mzEok(m.rights_3rd_ex ?? m.rights_3rd)}</b></li>`).join('')}
+        <li><span class="nm">합계<small>메자닌 ${y.mezz_n ?? 0}건 · 제3자배정 ${y.rights_3rd_ex_n ?? y.rights_3rd_n ?? 0}건</small></span><b>${mzEok(y.mezz)} · ${mzEok(y.rights_3rd_ex ?? y.rights_3rd)}</b></li></ul></div>
+    </div>`);
+}
+
 function mkPeHTML() {
   const pef = `<div class="mk-tiles mk-tiles3">${MK_PEF.map(([l, v, u, s]) => mkTile(l, v, u, esc(s))).join('')}</div>`;
   const ref = `<div class="mk-scroll"><table class="mk-tbl mk-ref"><thead><tr><th class="st">항목</th><th>기간</th><th>수치</th><th>출처</th></tr></thead><tbody>${MK_PE_REF.map((r) => `<tr><td class="st"><b>${esc(r[0])}</b></td><td class="mk-dim">${esc(r[1])}</td><td class="strong">${esc(r[2])}</td><td class="mk-dim"><a href="${esc(r[3])}" target="_blank" rel="noopener noreferrer">${esc(r[4])}</a></td></tr>`).join('')}</tbody></table></div>`;
-  return `${mkYesimHTML()}${mkBidsHTML()}
+  return `${mkYesimHTML()}${mkBidsHTML()}${mkMezzHTML()}
     ${mkSec('PEF 시장', '<a class="mk-dim mk-hd" href="https://core.asiae.co.kr/article/2026061710083948025" target="_blank" rel="noopener noreferrer">금감원 · 2025년 말</a>', pef)}
     ${mkSec('M&A · 벤처 · 출자 동향', '', ref)}
-    <p class="mk-foot">예비심사·입찰 딜은 딜레이더가 매일 09:10 모은 목록을 집계한 것이고, 나머지는 발표 수치입니다.</p>`;
+    <p class="mk-foot">예비심사·입찰 딜은 딜레이더 목록, 메자닌·유상증자는 DART 주요사항보고서를 집계한 것이고, 나머지는 발표 수치입니다.</p>`;
 }
 
 // ---------- 화면 ----------
