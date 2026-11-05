@@ -1262,7 +1262,8 @@ function loginScreen(msg) {
     <button class="btn primary" id="login-go" style="width:100%;height:44px">회사 계정으로 로그인</button>
     ${G.wrongAccount ? '<button class="btn ghost" id="login-out" style="width:100%;margin-top:8px">다른 계정 로그아웃</button>' : ''}
   </div>`;
-  $('#login-go').onclick = () => G.login();
+  // 로그인 창으로 못 넘어가면(브라우저 저장소 막힘·MSAL 오류 등) 조용히 멈추지 않고 이유를 보여 준다
+  $('#login-go').onclick = () => G.login().catch((e) => loginScreen(`로그인 화면을 열지 못했습니다: ${e.errorCode || e.message || e}`));
   if ($('#login-out')) $('#login-out').onclick = () => G.logout();
 }
 
