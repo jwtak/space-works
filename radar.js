@@ -15,8 +15,8 @@ const RD_TAB = {
 };
 const RD_YS_F = [['all', '전체'], ['review', '심사 중'], ['ok', '승인'], ['drop', '철회·미승인'], ['new', '새 소식']];
 const RD_YS_SORT = [['filed', '청구일순'], ['decided', '결과일순'], ['rev', '매출순']];
-const RD_KINDS = ['철회', '만기', '지분축소', '락업', 'EB', '뉴스'];
-const RD_SELL_SORT = [['near', '가까운 날짜순'], ['pct', '지분율순'], ['name', '회사명순']];
+const RD_KINDS = ['철회', '만기', '뉴스'];
+const RD_SELL_SORT = [['prio', '우선순'], ['near', '가까운 날짜순'], ['pct', '지분율순'], ['name', '회사명순']];
 const RD_STAGES = ['매각 추진', '주관사 선정', '예비입찰', '숏리스트', '본입찰', '우선협상', '계약', '무산', '공시 검토', '회생 M&A'];
 const RD_FITS = ['상', '중', '하'];
 
@@ -124,19 +124,20 @@ Object.assign(TAB_INFO, {
     ]],
   ] },
   'deals/sell': { title: '매각희망', rows: [
-    ['무엇인가', '다른 PE·VC나 주주가 지분을 팔아야 하거나 팔려는 신호를 모은 목록입니다.'],
+    ['무엇인가', '다른 PE·VC가 비상장 지분(구주)을 팔아야 하거나 팔려는 신호를 모은 목록입니다. 상장 주식 블록은 사지 않으므로 지분 축소 공시, 락업 해제, 타법인 EB는 넣지 않습니다.'],
     ['왜 보나', '파는 쪽이 급할수록 구주·세컨더리를 할인된 값에 살 수 있습니다. 신생 GP가 딜을 얻는 현실적인 경로입니다.'],
     ['어떻게 보나', [
-      '만기: 만기가 2년 안인 투자조합과 그 조합이 가진 회사. 매도 후보는 그 조합입니다.',
-      '지분축소: VC·PE·조합이 상장사 지분을 줄였다는 공시입니다.',
-      'EB: 다른 회사 주식을 교환 대상으로 EB를 발행한 것으로, 그 지분을 정리하려는 신호입니다.',
-      '락업: 신규상장사 FI의 의무보유가 90일 안에 풀리는 것입니다.',
-      '뉴스: 매각 기사, 철회: 예심을 철회해 FI 회수가 늦어진 회사입니다.',
-      '펼치면 근거 한 줄, 매도 후보, DART 원문 링크가 나옵니다.',
+      '만기: 만기가 1년 안에 지났거나 2년 안에 오는 투자조합과 그 조합이 가진 회사입니다. 매도 후보는 그 조합입니다.',
+      '근거의 \'예심 주주\'는 예심을 청구한 회사의 주주, \'투자설명서 주주\'는 상장했거나 상장 직전인 회사의 주주입니다.',
+      '철회: 예심을 철회해 FI 회수가 늦어진 회사입니다. 매도 후보는 그 회사의 FI입니다.',
+      '뉴스: 매각 기사 중 우선협상 전이고 우리가 낄 여지(입찰딜 적합도 상·중)가 있는 것만 남깁니다.',
+      '기본 정렬은 우선순입니다. 만기가 지난 조합이 가진 비상장 회사, 그 밖의 비상장 회사, 나머지 순이고 같은 묶음 안에서는 날짜가 가까운 순입니다.',
+      '펼치면 근거 한 줄, 매도 후보, 원문 링크가 나옵니다.',
     ]],
     ['그래서 할 일', [
-      '매도 후보(조합 운용사·발행사)에 지분 매입 의사를 타진합니다.',
-      '만기 조합이 예심청구 회사의 주주이기도 하면 우선순위를 높입니다.',
+      '매도 후보(조합 운용사, 철회 회사의 FI)에 지분 매입 의사를 타진합니다.',
+      '만기가 지난 조합은 연장 기간이라 팔 압박이 가장 큽니다. 먼저 연락합니다.',
+      '예심을 청구한 회사의 구주를 사면 의무보유가 걸리는지 주관사에 먼저 확인합니다.',
       '연락하면 상태와 메모를 남기고, 진행할 딜은 파이프라인에 올립니다.',
     ]],
   ] },
@@ -160,7 +161,7 @@ const rdS = {
   tab: null, host: null, field: null, // field = 쓰고 있는 메모 칸 {el, tab}
   marks: { items: [], version: null }, dirty: new Map(), saving: Promise.resolve(),
   yesim: { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'filed', open: new Set(), focus: null },
-  sell: { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'near', open: new Set(), focus: null },
+  sell: { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'prio', open: new Set(), focus: null },
   bids: { data: null, at: 0, loading: null, q: '', view: 'deal', fit: '', stage: '', open: new Set(), focus: null },
 };
 
@@ -637,11 +638,15 @@ function rdSellList() {
   let list = d.items.filter((x) => !q || x.q.includes(q));
   if (s.f !== 'all') list = list.filter((x) => x.kind === s.f);
   const near = (a, b) => Math.abs(a.dd ?? 1e9) - Math.abs(b.dd ?? 1e9) || b.date.localeCompare(a.date) || a.name.localeCompare(b.name, 'ko');
+  // 우선순: 만기 지난 조합의 비상장 회사 → 그 밖의 비상장(만기·철회, 종목코드 없음) → 나머지
+  const grp = (x) => (x.kind === '뉴스' || x.code ? 2 : x.kind === '만기' && x.dd != null && x.dd < 0 ? 0 : 1);
+  const prio = (a, b) => grp(a) - grp(b) || near(a, b);
   const by = {
+    prio,
     near,
     pct: (a, b) => (b.pct ?? -1) - (a.pct ?? -1) || near(a, b),
     name: (a, b) => a.name.localeCompare(b.name, 'ko') || near(a, b),
-  }[s.sort] || near;
+  }[s.sort] || prio;
   return list.sort(by);
 }
 
