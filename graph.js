@@ -54,7 +54,15 @@ const G = {
     return !!acc;
   },
   get isOwner() { return (G.account?.username || '').toLowerCase() === CFG.owner; },
-  login() { return MS.loginRedirect({ scopes: CFG.scopes, prompt: 'select_account' }); },
+  login() {
+    const go = () => MS.loginRedirect({ scopes: CFG.scopes, prompt: 'select_account' });
+    // 앞선 로그인이 끝나지 않고 멈추면 그 탭에 '진행 중' 표시가 남아 버튼이 막힌다(11/5 실제 발생). 사용자가 직접 누른 것이니 표시를 지우고 한 번 더 연다
+    return go().catch((e) => {
+      if (e.errorCode !== 'interaction_in_progress') throw e;
+      for (const st of [sessionStorage, localStorage]) Object.keys(st).filter((k) => k.endsWith('interaction.status')).forEach((k) => st.removeItem(k));
+      return go();
+    });
+  },
   logout() { return MS.logoutRedirect({ account: G.account || undefined }); },
 
   async token(force) {
