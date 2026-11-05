@@ -18,7 +18,8 @@ const RD_YS_SORT = [['filed', '청구일순'], ['decided', '결과일순'], ['re
 const RD_KINDS = ['철회', '만기', '뉴스'];
 const RD_SELL_SORT = [['prio', '우선순'], ['near', '가까운 날짜순'], ['pct', '지분율순'], ['name', '회사명순']];
 const RD_STAGES = ['매각 추진', '주관사 선정', '예비입찰', '숏리스트', '본입찰', '우선협상', '계약', '무산', '공시 검토', '회생 M&A'];
-const RD_FITS = ['상', '중', '하'];
+const RD_FITS = ['상', '중']; // 하는 bids.json에 넣지 않음
+const RD_BIDS_DONE = ['우선협상', '계약', '무산']; // 인수자가 정해졌거나 끝난 단계 — 목록 아래로
 
 // 머리줄 ⓘ 설명(app.js infoOpen)
 Object.assign(TAB_INFO, {
@@ -142,16 +143,19 @@ Object.assign(TAB_INFO, {
     ]],
   ] },
   'deals/bids': { title: '입찰딜', rows: [
-    ['무엇인가', '회계법인·증권사가 매각 주관을 맡아 여러 인수 후보에게 입찰을 받는 딜입니다. 법원 회생 M&A 공고도 들어 있습니다.'],
+    ['무엇인가', '회계법인·증권사가 매각 주관을 맡아 여러 인수 후보에게 입찰을 받는 딜입니다. 법원 회생 M&A 공고와 회사가 매각을 검토 중이라고 답한 공시도 들어 있습니다. 대기업 대형 거래, 부동산 매각처럼 우리가 낄 여지가 없는 딜(적합도 하)은 넣지 않습니다.'],
     ['왜 보나', '혼자 사기 어려운 딜도 SI(전략적 투자자) 공동투자, 메자닌, 소수지분으로 들어갈 여지가 있습니다. 매각 자문사와 관계를 쌓는 통로이기도 합니다.'],
     ['어떻게 보나', [
       '단계: 매각 추진 → 주관사 선정 → 예비입찰 → 숏리스트 → 본입찰 → 우선협상 → 계약. 공시 검토(회사가 검토 중이라고 답한 것)와 회생 M&A는 따로 묶습니다.',
-      '적합도 상·중·하는 우리가 낄 여지입니다.',
+      '적합도 상·중은 우리가 낄 여지(메자닌·구주·소수지분·SI 공동투자)입니다.',
+      '정렬: 아직 들어갈 수 있는 딜이 위, 우선협상·계약 단계와 입찰 일정(인수의향서 마감·본입찰)이 다 지난 딜이 아래입니다. 같은 묶음 안에서는 적합도 상, 최근 소식 순입니다.',
       '\'자문사별\'로 바꾸면 어느 자문사가 어떤 딜을 맡았는지 봅니다.',
       '출처는 기사, DART 조회공시 답변, 법원 공고입니다.',
     ]],
     ['그래서 할 일', [
       '적합도가 상·중이고 예비입찰 전이면 자문사에 자료(티저·IM)를 요청하고, 함께 들어갈 SI 후보를 찾습니다.',
+      '우선협상·계약 단계나 최대주주 지분 매각처럼 인수자가 정해지는 딜은 인수자에게 공동투자나 인수 자금(CB 등 메자닌)을 제안할 수 있는지 봅니다.',
+      '회생 M&A는 공고의 입찰 마감일을 확인하고, 인수 의향이 있는 SI와 함께 들어갈지 봅니다.',
       '연락하면 상태와 메모를 남기고, 진행할 딜은 파이프라인에 올립니다.',
     ]],
   ] },
@@ -717,8 +721,14 @@ function rdFunds() {
 function rdBidsList() {
   const s = rdS.bids, d = s.data; if (!d) return [];
   const q = s.q.trim().toLowerCase();
+  // 아래로: 인수자가 정해진 단계, 또는 일정의 입찰 날짜(인수의향서 마감·예비입찰·본입찰)가 모두 지난 딜
+  const td = today(), shut = (x) => {
+    const ds = [...x.schedule.matchAll(/(\d{4}-\d{2}-\d{2}) (?:인수의향서 마감|예비입찰|본입찰)/g)].map((m) => m[1]);
+    return RD_BIDS_DONE.includes(x.stage) || (ds.length > 0 && ds.every((d) => d < td));
+  };
   return d.items.filter((x) => (!q || x.q.includes(q)) && (!s.fit || x.fit === s.fit) && (!s.stage || x.stage === s.stage))
-    .sort((a, b) => b.last.localeCompare(a.last) || RD_FITS.indexOf(a.fit) - RD_FITS.indexOf(b.fit) || a.name.localeCompare(b.name, 'ko'));
+    .sort((a, b) => shut(a) - shut(b) || RD_FITS.indexOf(a.fit) - RD_FITS.indexOf(b.fit)
+      || b.last.localeCompare(a.last) || a.name.localeCompare(b.name, 'ko'));
 }
 
 const RD_BIDS_HEAD = '<div class="ipo-head ipo-cols"><div>최근일</div><div>대상</div><div>단계</div><div class="rd-c2">매도자</div><div>자문사</div><div class="rd-c2">규모</div><div class="rd-h-st">컨택 상태</div></div>';
