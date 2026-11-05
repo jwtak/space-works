@@ -5,6 +5,10 @@
 .ipo-sumrow b { color: var(--ink); font-weight: 600; }
 .ipo-sumrow .ipo-stale { color: var(--danger); }
 .ipo-top .btn:first-of-type { margin-left: auto; }
+/* 딜소싱 화면(신규상장·예심청구·매각희망·입찰딜·파이프라인, 모두 .ipo-page)은 행을 통째로 갈아 끼우므로 브라우저 스크롤 고정을 끈다.
+   켜 두면 창 761~1000에서 펼친 행 하위 탭을 바꿀 때 화면이 수천 px 튀고, WebKit은 보기 링크로 맞춘 자리를 밀어낸다.
+   보던 자리는 행을 갈아 끼우는 곳에서 직접 지킨다(radar.js rdHold·ipo.js ipoHold·pipeline.js ppHold) */
+.ipo-page { overflow-anchor: none; }
 
 .ipo-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 16px 24px; border-bottom: 1px solid var(--line); }
 .ipo-search { position: relative; flex: 1 1 240px; max-width: 320px; }
@@ -16,6 +20,7 @@
 /* 목록: 상장일·상태는 고정, 나머지 5칸은 같은 폭 */
 .ipo-cols { display: grid; grid-template-columns: 72px repeat(5, minmax(0, 1fr)) 100px; gap: 16px; align-items: start; padding: 0 24px; }
 .ipo-head { min-height: 40px; align-items: center; font-size: 13px; font-weight: 600; color: var(--text2); border-bottom: 1px solid var(--line); }
+.ipo-head > .ipo-h-st { padding-left: 10px; } /* '컨택 상태' 머리글 = 칩 안 글자 시작선(칩 좌우 10) */
 .ipo-row { border-top: 1px solid var(--row); }
 .ipo-head + .ipo-row { border-top: 0; }
 .ipo-line { padding-top: 12px; padding-bottom: 12px; cursor: pointer; font-variant-numeric: tabular-nums; }
@@ -35,6 +40,12 @@
 .ipo-chg.dn { color: var(--primary); }
 .ipo-soon { color: var(--t-amber-c); font-weight: 600; }
 .ipo-direct { display: inline-flex; align-items: center; height: 20px; margin-left: 6px; padding: 0 8px; border-radius: 10px; font-size: 12px; font-weight: 500; background: var(--t-green); color: var(--t-green-c); vertical-align: 1px; }
+/* 작성책임자 전화번호는 말줄임 없이: 칸이 좁으면 '직통'만 다음 줄로(번호 뒤 간격을 번호 쪽에 둬서 줄이 바뀌어도 칩이 들여 쓰이지 않게) */
+.ipo-c-writer > .ipo-sub { white-space: normal; }
+.ipo-pn { margin-right: 6px; white-space: nowrap; }
+.ipo-pn + .ipo-direct { margin-left: 0; }
+.ipo-alt { display: none; } /* 접은 칸 값(카드가 좁을 때만). 줄이 바뀌면 '·'에서 바뀌게 값마다 한 덩어리 */
+.ipo-alt > span { display: inline-block; }
 
 .ipo-st { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 12px; font-size: 12px; font-weight: 500; white-space: nowrap; background: #F3F4F6; color: var(--text2); }
 .ipo-st.s-1 { background: var(--primary-soft); color: var(--primary); }
@@ -54,7 +65,7 @@
 .ipo-tabs button { position: relative; height: 40px; padding: 0; border: 0; background: none; cursor: pointer; font-size: 14px; font-weight: 500; color: var(--text3); white-space: nowrap; }
 .ipo-tabs button:hover { color: var(--ink); }
 .ipo-tabs button.on { color: var(--ink); font-weight: 600; }
-.ipo-tabs button.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--primary); }
+.ipo-tabs button.on::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: 1px; background: var(--primary); } /* 칸 안 1px — 아래로 넘치면 탭 줄이 세로로 1px 밀린다 */
 .ipo-pane { padding-top: 20px; max-width: 1120px; }
 .ipo-two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .ipo-stack { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
@@ -103,16 +114,139 @@
 .ipo-pnl tr.r td:first-child { padding-left: 12px; font-weight: 400; }
 .ipo-pnl td.neg { color: var(--danger); }
 .ipo-pnl tr:last-child td { border-bottom: 0; }
+/* 신규상장 손익표는 상자 안 폭으로 칸을 다시 나눈다(예심청구 손익표는 radar.css가 따로). 420보다 좁으면 글자 길이에 맞춰 나누고(숫자 칸끼리 같은 폭,
+   글자가 더 길면 그 칸만 넓게) 긴 머리글('2026 반기')은 띄어쓰기에서 두 줄로, 그래도 모자라면 상자 안에서 옆으로 밀어 본다 */
+#ipo-root .ipo-box-b:has(> .ipo-pnl) { container: ipo-pnl / inline-size; overflow-x: auto; scrollbar-width: thin; }
+@container ipo-pnl (max-width: 419px) {
+  .ipo-pnl { table-layout: auto; }
+  .ipo-pnl th, .ipo-pnl td { padding-left: 8px; }
+  .ipo-pnl th { white-space: normal; word-break: keep-all; vertical-align: bottom; }
+  .ipo-pnl th:first-child, .ipo-pnl td:first-child { width: auto; }
+  .ipo-pnl th + th { width: 25%; }
+  .ipo-pnl th:first-child:nth-last-child(5) ~ th { width: 19%; } /* 숫자 칸이 넷(반기·분기 칸 있음) */
+}
+/* 300보다 좁으면 폰처럼 13px·간격 6, 비율 줄은 12px */
+@container ipo-pnl (max-width: 299px) {
+  .ipo-pnl { font-size: 13px; }
+  .ipo-pnl th, .ipo-pnl td { padding-left: 6px; }
+  .ipo-pnl tr.r td { font-size: 12px; }
+}
+/* 재무 탭 손익표도 같은 방식으로 상자 안 폭으로 칸을 다시 나눈다(PC·폰 모두, 정렬은 그대로 왼쪽·머리글과 값 시작선 일치).
+   420보다 좁으면 글자 길이에 맞춰 나누고(숫자 칸끼리 같은 폭, 글자가 더 길면 그 칸만 넓게) 칸마다 붙는 '억'은 숨기고(상자 제목에 '억원', 주요 손익표와 같게) 숫자는 꺾지 않으며,
+   머리글은 띄어쓰기에서만 두 줄로, 300보다 좁으면 13px·간격 6, 그래도 모자라면 상자 안에서 옆으로 밀어 본다 */
+#ipo-root .ipo-box-b:has(> .ipo-fin) { container: ipo-fin / inline-size; overflow-x: auto; scrollbar-width: thin; }
+@container ipo-fin (max-width: 419px) {
+  .ipo-fin { table-layout: auto; }
+  .ipo-fin th, .ipo-fin td { padding-right: 8px; overflow-wrap: normal; }
+  .ipo-fin td { white-space: nowrap; }
+  .ipo-fin .ipo-u { display: none; }
+  .ipo-fin th { vertical-align: bottom; }
+  .ipo-fin th + th { width: 25%; }
+  .ipo-fin th:first-child:nth-last-child(5) ~ th { width: 19%; } /* 숫자 칸이 넷(반기·분기 칸 있음) */
+}
+@container ipo-fin (max-width: 299px) {
+  .ipo-fin { font-size: 13px; }
+  .ipo-fin th, .ipo-fin td { padding-right: 6px; }
+}
+/* 주요 손익 머리글도 PC에서는 띄어쓰기에서만('202|3'처럼 꺾이지 않게) */
+@media (min-width: 761px) {
+  @container ipo-pnl (max-width: 419px) {
+    .ipo-pnl th { overflow-wrap: normal; }
+  }
+  /* 상자 안 항목(컨택 포인트·유동성)은 상자 안 폭이 228보다 좁으면(값 칸이 120 밑으로 줄면) 이름 위·값 아래로 */
+  #ipo-root .ipo-box-b:has(> .ipo-kv) { container: ipo-kv / inline-size; }
+  @container ipo-kv (max-width: 227px) {
+    .ipo-kv { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  }
+}
 .ipo-tbl th:nth-child(1) { width: 104px; }
 .ipo-tbl th:nth-child(2) { width: 72px; }
 .ipo-tbl-2 th:nth-child(2) { width: auto; }
 .ipo-tbl tr.past td { color: var(--text3); }
 
+.ipo-dhead > .rd-pipe { flex: none; } /* 파이프라인 올리기(radar.css와 같은 버튼) */
+
 @media (max-width: 1180px) {
   .ipo-dhead { flex-direction: column; align-items: stretch; gap: 12px; }
+  .ipo-dhead > .rd-pipe { align-self: flex-start; }
   .ipo-acts { flex-wrap: wrap; }
   .ipo-note { flex: 1 1 200px; width: auto; }
   .ipo-two-col { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+}
+/* 펼친 행 머리는 화면 폭이 아니라 실제 카드 폭으로 정한다(PC는 오른쪽 요청사항 칸만큼 본문이 좁다) — radar.css와 같은 두 단 */
+#ipo-root { container-type: inline-size; }
+@media (min-width: 761px) {
+  /* 필터 버튼이 카드보다 길면 옆으로 숨기지 않고(마우스로 닿을 수 없음) 줄을 바꿔 모두 보이게, 모양은 한 묶음 그대로:
+     버튼 사이 1px 선을 간격 + 묶음 배경으로(줄이 바뀌어도 가로·세로 선이 이어지고 각 줄이 꽉 참). 한 줄에 들어가면 지금과 같다 */
+  #ipo-root .ipo-filter .seg { flex-wrap: wrap; gap: 1px; background: var(--line2); max-width: 100%; overflow: hidden; }
+  #ipo-root .ipo-filter .seg button { flex: 1 1 auto; }
+  #ipo-root .ipo-filter .seg button + button { border-left: 0; }
+  /* 펼친 행 하위 탭도 한 줄에 다 안 들어가면 옆으로 숨기지 않고 다음 줄로(고른 탭 밑줄은 그 탭 바로 아래). 한 줄에 들어가면 지금과 같다 */
+  #ipo-root .ipo-tabs { flex-wrap: wrap; row-gap: 0; }
+  /* 카드가 1180보다 좁으면 두 단(요약·파이프라인 / 상태·메모) */
+  @container (max-width: 1179px) {
+    #ipo-root .ipo-dhead { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 24px; }
+    #ipo-root .ipo-dhead > .ipo-acts { grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; }
+    #ipo-root .ipo-dhead > .rd-pipe { grid-column: 2; grid-row: 1; align-self: center; }
+    #ipo-root .ipo-note { flex: 1 1 200px; width: auto; }
+  }
+  /* 카드가 720보다 좁으면 펼친 행 상자도 한 줄로(두 단이면 상자가 좁아 손익표가 넘치고 락업 표 글자가 한 글자씩 꺾인다) */
+  @container (max-width: 719px) {
+    #ipo-root .ipo-two-col { grid-template-columns: minmax(0, 1fr); }
+  }
+  /* 카드가 400보다 좁으면 요약 → 상태·메모 → 파이프라인 한 줄씩(요약이 한 글자씩 세로로 쌓이지 않게) */
+  @container (max-width: 399px) {
+    #ipo-root .ipo-dhead { grid-template-columns: minmax(0, 1fr); }
+    #ipo-root .ipo-dhead > .rd-pipe { grid-column: 1; grid-row: 3; justify-self: start; }
+    #ipo-root .ipo-note { min-width: 0; }
+    /* 위쪽 요약 줄: 요약 한 줄, 버튼은 다음 줄(카드 밖으로 밀려나지 않게) */
+    #ipo-root .ipo-top { flex-wrap: wrap; row-gap: 8px; }
+    #ipo-root .ipo-sumrow { flex: 1 1 100%; }
+    /* 펼친 행은 여백을 폰처럼 줄이고(글자 시작선 24 그대로) 상자 제목 옆 출처는 넘치면 다음 줄로 — radar.css와 같은 방식 */
+    #ipo-root .ipo-row.open { margin: 8px; }
+    #ipo-root .ipo-row.open > .ipo-line { padding: 12px 15px; }
+    #ipo-root .ipo-detail { padding: 16px 15px 20px; }
+    #ipo-root .ipo-box-h { flex-wrap: wrap; }
+    /* 락업·공시 표는 목록으로: 해제일·지분율(접수일) 한 줄 + 대상(보고서) 한 줄(대상 칸이 한두 글자 폭으로 줄지 않게) — radar.css 기사·주주 표와 같은 방식 */
+    #ipo-root .ipo-tbl, #ipo-root .ipo-tbl tbody { display: block; }
+    #ipo-root .ipo-tbl thead { display: none; }
+    #ipo-root .ipo-tbl tr { display: flex; flex-wrap: wrap; column-gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--row); }
+    #ipo-root .ipo-tbl tr:first-child { padding-top: 0; }
+    #ipo-root .ipo-tbl tr:last-child { border-bottom: 0; padding-bottom: 0; }
+    #ipo-root .ipo-tbl td { padding: 0; border: 0; }
+    #ipo-root .ipo-tbl td:last-child { flex: 1 1 100%; margin-top: 2px; }
+  }
+  /* 카드가 300보다 좁으면 상태 버튼 넷을 두 줄로, 작성자·파이프라인 버튼 글자는 넘치면 줄바꿈 — radar.css와 같은 방식 */
+  @container (max-width: 299px) {
+    #ipo-root .ipo-seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); flex: 1 1 100%; }
+    #ipo-root .ipo-seg button { padding: 0 4px; }
+    #ipo-root .ipo-seg button:nth-child(3) { border-left: 0; }
+    #ipo-root .ipo-seg button:nth-child(n+3) { border-top: 1px solid var(--line2); }
+    #ipo-root .ipo-by { white-space: normal; }
+    #ipo-root .ipo-dhead > .btn.rd-pipe { height: auto; min-height: 32px; padding-top: 5px; padding-bottom: 5px; white-space: normal; word-break: keep-all; }
+  }
+  /* 목록 칸도 카드 폭으로: 1000보다 좁으면 덜 중요한 두 칸(현재 시총·2025 매출)을 접고 남은 칸을 같은 폭으로, 접은 칸 값은 회사 칸 보조 줄(ipo-alt)로 — radar.css와 같은 방식 */
+  @container (max-width: 999px) {
+    #ipo-root .ipo-cols { grid-template-columns: 72px repeat(3, minmax(0, 1fr)) 100px; }
+    #ipo-root .ipo-c-cap, #ipo-root .ipo-c-rev { display: none; }
+    #ipo-root .ipo-alt { display: block; white-space: normal; }
+  }
+  /* 640보다 좁으면 폰처럼 한 회사를 여러 줄로(상장일·시장 / 회사·상태 / 작성책임자 / 락업) */
+  @container (max-width: 639px) {
+    #ipo-root .ipo-head { display: none; }
+    #ipo-root .ipo-cols { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
+    #ipo-root .ipo-c-date { grid-column: 1 / -1; display: flex; gap: 8px; font-size: 12px; color: var(--text3); }
+    #ipo-root .ipo-c-date .ipo-sub { margin-top: 0; }
+    #ipo-root .ipo-c-st { grid-column: 2; grid-row: 2; }
+    #ipo-root .ipo-c-writer, #ipo-root .ipo-c-lock { grid-column: 1 / -1; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+    #ipo-root .ipo-c-writer .ipo-sub, #ipo-root .ipo-c-lock .ipo-sub { margin-top: 0; }
+    #ipo-root .ipo-c-lock::before { content: '락업'; font-size: 12px; color: var(--text3); }
+  }
+  /* 300보다 좁으면 한 회사를 한 줄 폭으로 쌓는다(이름 칸이 57px까지 줄어 회사 이름이 꺾이지 않게, 컨택 상태는 맨 아래) — radar.css와 같은 방식 */
+  @container (max-width: 299px) {
+    #ipo-root .ipo-cols { grid-template-columns: minmax(0, 1fr); }
+    #ipo-root .ipo-c-st { grid-column: 1; grid-row: auto; }
+  }
 }
 @media (max-width: 760px) {
   .ipo-top { margin: 0 16px 8px; }
@@ -139,6 +273,7 @@
   .ipo-seg { flex: 1 1 100%; display: flex; }
   .ipo-seg button { flex: 1; padding: 0 4px; white-space: nowrap; }
   .ipo-note { flex: 1 1 100%; }
+  .ipo-dhead > .rd-pipe { align-self: stretch; height: 40px; justify-content: center; }
   .ipo-tabs { gap: 20px; }
   .ipo-kv { grid-template-columns: 84px minmax(0, 1fr); }
   .ipo-box-h { padding: 12px; }

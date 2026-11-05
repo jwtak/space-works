@@ -1,0 +1,139 @@
+/* 딜소싱 › 파이프라인 (pipeline.js) — 위쪽 줄·필터·머리글·펼친 카드·칩은 ipo.css 클래스를 그대로 쓰고 여기엔 새로 필요한 것만.
+   줄·열은 .pp-line·.pp-cols 로 따로 둔다: ipo.css 폰 규칙이 .ipo-line > div:nth-child(n) 로 칸을 숨기고 옮겨서.
+   열 수는 화면 폭이 아니라 카드 폭으로 줄인다(PC는 요청사항 칸이 늘 붙어 있어 본문이 화면보다 좁다).
+   표는 전부 왼쪽 정렬, 머리글 글자 시작선 = 값 시작선. 크기 세트 14·13·12, 간격 세트 4·8·12·16·24. */
+.pp-card { container: pp / inline-size; }
+.pp-page { container: pp-page / inline-size; } /* 위쪽 요약 줄은 카드 밖이라 페이지 폭(= 카드 폭)으로 */
+.ipo-sumrow .pp-over, .ipo-sumrow .pp-over b { color: var(--danger); }
+
+/* 필터: 넓으면 검색·단계·정렬 한 줄, 좁으면 단계만 아래 줄. 단계 버튼이 카드보다 길면 PC는 줄을 바꿔 모두 보이게, 폰은 옆으로 밀기 */
+.pp-filter .ipo-search { flex: 1 1 200px; max-width: 280px; }
+.pp-filter .pp-seg { flex: none; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.pp-filter .pp-seg::-webkit-scrollbar, .pp-stseg::-webkit-scrollbar { display: none; }
+.pp-filter .pp-seg button { flex: none; white-space: nowrap; }
+@container pp (max-width: 919.98px) {
+  .pp-filter .ipo-search { max-width: none; }
+  .pp-filter .select { order: 2; }
+  .pp-filter .pp-seg { order: 3; }
+}
+/* PC는 마우스로 옆으로 밀 수 없으므로 줄바꿈: 버튼 사이 1px 선을 간격 + 묶음 배경으로 바꿔 줄이 바뀌어도 선이 이어지고 줄마다 꽉 차게(한 줄이면 지금과 같은 그림) */
+@media (min-width: 761px) {
+  .pp-filter .pp-seg { flex-wrap: wrap; gap: 1px; background: var(--line2); max-width: 100%; overflow: hidden; }
+  .pp-filter .pp-seg button { flex: 1 1 auto; }
+  .pp-filter .pp-seg button + button { border-left: 0; }
+}
+
+/* 목록: 다음 연락·펼침 표시만 고정, 나머지 5칸은 같은 폭. 펼친 행 머리 글자 시작선은 목록과 같게(12 + 1 + 11 = 24) */
+.pp-cols { display: grid; grid-template-columns: 88px repeat(5, minmax(0, 1fr)) 16px; gap: 16px; padding: 0 24px; }
+.ipo-head.pp-cols { display: grid; } /* ipo.css 폰 규칙(.ipo-head 숨김)보다 앞서게 — 숨기는 건 아래 카드 폭 규칙만 */
+.pp-line { align-items: start; padding-top: 12px; padding-bottom: 12px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.pp-line:hover { background: var(--hover); }
+.pp-line:hover .ipo-ttl { color: var(--primary); }
+.ipo-row.open > .pp-line { padding: 12px 11px; background: var(--primary-soft); }
+.ipo-head .pp-c-st { padding-left: 10px; } /* 칩 안 글자 시작선(칩 좌우 10) */
+.pp-c-name { min-width: 0; }
+.pp-c-next { white-space: nowrap; }
+.pp-c-next.over .pp-d, .pp-c-next.today .pp-d { font-weight: 600; }
+.pp-c-next.over .pp-d, .pp-c-next.over .ipo-sub { color: var(--danger); }
+.pp-c-next.today .pp-d, .pp-c-next.today .ipo-sub { color: var(--primary); }
+.pp-c-act { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.pp-c-chev { display: flex; padding-top: 2px; }
+.ipo-st.pp-done { color: var(--ink); font-weight: 600; }
+.ipo-st.pp-drop { background: var(--card); color: var(--text3); box-shadow: inset 0 0 0 1px var(--line); }
+
+@container pp (max-width: 879.98px) {
+  .pp-cols { grid-template-columns: 88px repeat(4, minmax(0, 1fr)) 16px; }
+  .pp-cols > .pp-c-src { display: none; }
+}
+@container pp (max-width: 699.98px) {
+  .pp-cols { grid-template-columns: 88px repeat(3, minmax(0, 1fr)) 16px; }
+  .pp-cols > .pp-c-own { display: none; }
+}
+/* 아주 좁으면(폰) 한 행 = 회사·단계 / 다음 연락 / 다음 할 일 */
+@container pp (max-width: 559.98px) {
+  .pp-card .ipo-head { display: none; }
+  .pp-cols { grid-template-columns: minmax(0, 1fr) auto 16px; grid-template-areas: "name st chev" "next next next" "act act act"; gap: 4px 8px; }
+  .pp-cols > .pp-c-name { grid-area: name; display: flex; align-items: baseline; gap: 6px; }
+  .pp-c-name .ipo-ttl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pp-c-name .ipo-sub { flex: none; margin-top: 0; }
+  .pp-cols > .pp-c-st { grid-area: st; align-self: center; }
+  .pp-cols > .pp-c-chev { grid-area: chev; align-self: center; padding-top: 0; }
+  .pp-cols > .pp-c-next { grid-area: next; display: flex; align-items: baseline; gap: 6px; font-size: 13px; line-height: 20px; }
+  .pp-c-next .ipo-sub { margin-top: 0; }
+  .pp-cols > .pp-c-act { grid-area: act; font-size: 13px; line-height: 20px; color: var(--text2); }
+  .pp-cols > .none { display: none; }
+}
+
+/* 펼친 행: 단계·수정자 → 입력 칸(라벨 위) → 출처 탭 링크·삭제 */
+.pp-dhead { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
+.pp-stseg { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.pp-stseg button { flex: none; height: 32px; padding: 0 12px; font-size: 13px; white-space: nowrap; }
+.pp-by { margin-left: auto; }
+.pp-form { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-flow: row dense; gap: 12px 16px; margin-top: 20px; max-width: 1120px; }
+.pp-form .field { min-width: 0; margin: 0; }
+.pp-form .w2 { grid-column: span 2; }
+.pp-form .wall { grid-column: 1 / -1; }
+.pp-form .area { display: block; min-height: 100px; }
+.pp-dfoot { display: flex; align-items: center; gap: 16px; min-height: 32px; margin-top: 16px; }
+.pp-del { margin-left: auto; color: var(--text3); }
+.pp-del:hover { color: var(--danger); }
+@container pp (max-width: 759.98px) {
+  .pp-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@container pp (max-width: 559.98px) {
+  .pp-form { grid-template-columns: minmax(0, 1fr); }
+  .pp-form .w2 { grid-column: auto; }
+  .pp-stseg { display: flex; width: 100%; }
+  .pp-stseg button { flex: 1 1 auto; padding: 0 6px; }
+  .pp-by { margin-left: 0; }
+}
+/* PC 좁은 창 — ipo.css·radar.css와 같은 카드 400·300 문턱(폰은 아래 @media 그대로).
+   400보다 좁으면 위쪽 요약은 한 줄을 다 쓰고 버튼은 다음 줄로, 펼친 행은 여백을 폰처럼 줄이고(글자 시작선 24 그대로)
+   단계 일곱 개를 네 칸 두 줄로(다섯째 투자심의는 두 칸), 출처 탭 링크 옆에 삭제가 안 들어가면 삭제를 다음 줄로 */
+@media (min-width: 761px) {
+  @container pp-page (max-width: 399.98px) {
+    .pp-page .ipo-top { flex-wrap: wrap; row-gap: 8px; }
+    .pp-page .ipo-sumrow { flex: 1 1 100%; }
+    .pp-page .ipo-row.open { margin: 8px; }
+    .pp-page .ipo-row.open > .pp-line { padding: 12px 15px; }
+    .pp-page .pp-detail { padding: 16px 15px 20px; }
+    .pp-stseg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .pp-stseg button:nth-child(5) { grid-column: span 2; border-left: 0; }
+    .pp-stseg button:nth-child(n+5) { border-top: 1px solid var(--line2); }
+    .pp-dfoot { flex-wrap: wrap; row-gap: 8px; }
+  }
+  /* 300보다 좁으면 단계 버튼 안 여백을 4로, 수정자는 넘치면 줄바꿈.
+     목록은 한 건을 한 줄 폭으로 쌓는다: 회사·펼침 / 다음 연락 / 다음 할 일 / 단계 칩(칩 폭만큼 회사 이름 칸이 줄어 말줄임되지 않게) — radar.css·ipo.css와 같은 방식.
+     빈 칸(.none)은 줄을 만들지 않게 자리를 이름 대신 순서로 둔다. 유형은 회사 이름 옆에 안 들어가면 아래 줄로(펼침 꺾쇠는 이름 줄에) */
+  @container pp-page (max-width: 299.98px) {
+    .pp-stseg button { padding: 0 4px; }
+    .pp-page .pp-by { white-space: normal; }
+    .pp-cols { grid-template-columns: minmax(0, 1fr) 16px; grid-template-areas: "name chev"; }
+    .pp-cols > .pp-c-next, .pp-cols > .pp-c-act, .pp-cols > .pp-c-st { grid-area: auto; grid-column: 1 / -1; }
+    .pp-cols > .pp-c-st { order: 1; }
+    .pp-cols > .pp-c-name { flex-wrap: wrap; row-gap: 2px; }
+    .pp-cols > .pp-c-chev { align-self: start; padding-top: 2px; }
+  }
+}
+
+/* 새 딜 창(일정 추가 창과 같은 라벨 왼쪽 폼)·삭제 확인 */
+.pp-sheet .ev-form .narrow { width: 220px; }
+.pp-cf-name { margin: -6px 0 0; font-size: 14px; line-height: 20px; color: var(--text2); overflow-wrap: anywhere; }
+.pp-cf-act { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+.pp-cf-act .btn { min-width: 88px; height: 40px; }
+
+/* 홈 카드 */
+.pp-home .list .time { width: 76px; }
+.pp-home .list .time.pp-over { color: var(--danger); }
+.pp-home .list .time.pp-today { color: var(--primary); }
+
+@media (max-width: 760px) {
+  .pp-cols { padding: 0 16px; }
+  .pp-line { padding-top: 14px; padding-bottom: 14px; }
+  .ipo-row.open > .pp-line { padding: 14px 7px; }
+  .pp-filter .ipo-search { flex: 1 1 140px; }
+  #pp-ref .pp-txt { display: none; }
+  .pp-stseg button { height: 36px; }
+  .pp-sheet .ev-form .narrow { width: 100%; }
+  .pp-cf-act .btn { flex: 1; height: 48px; }
+}

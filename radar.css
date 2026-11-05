@@ -1,0 +1,179 @@
+/* 딜소싱 › 예심청구·매각희망·입찰딜 (radar.js) — 목록·펼친 행·상자는 ipo.css 클래스를 그대로 쓰고 여기엔 새로 필요한 것만.
+   표는 전부 왼쪽 정렬·머리글과 값 시작선 일치(손익표 ipo-pnl만 숫자 오른쪽). 크기 16/14/13/12, 간격 4·8·12·16·24. */
+
+/* 칸 구성은 화면 폭이 아니라 실제 카드 폭으로 정한다(PC는 오른쪽 요청사항 칸만큼 본문이 좁다) */
+.rd-page { container-type: inline-size; }
+
+/* '컨택 상태' 머리글 = 칩 안 글자 시작선(칩 좌우 10) */
+.rd-page .ipo-head > .rd-h-st { padding-left: 10px; }
+.rd-page .ipo-by:empty { display: none; }
+/* 선택 상자가 둘이면(입찰딜 적합도·단계) 오른쪽에 붙여 둔다 */
+.rd-page .ipo-filter .select + .select { margin-left: 0; }
+
+/* 목록 칸 */
+.rd-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+/* 보조 줄인데 숫자가 끝에 오는 것(영업이익 등)은 칸이 좁으면 말줄임 대신 두 줄까지 */
+.ipo-sub.rd-sub2 { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+.rd-ok { color: var(--primary); font-weight: 600; }
+.rd-off { color: var(--text3); }
+.rd-strong { font-weight: 600; }
+.rd-span3 { grid-column: span 3; min-width: 0; }
+.rd-mob, .rd-mi, .rd-alt { display: none; }
+.rd-link { color: var(--ink); text-decoration: none; }
+.rd-link:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
+.rd-static > .ipo-line { cursor: default; }
+.rd-static > .ipo-line:hover { background: none; }
+/* 펼친 행 날짜 + D-day: 날짜 뒤 8은 날짜 쪽 오른쪽 여백(줄이 바뀌어도 D-day가 들여 쓰이지 않게), D-day는 한 덩어리 — 칸이 좁으면 D-day만 다음 줄 첫머리로 */
+.rd-dt { margin-right: 8px; }
+.rd-dd { color: var(--text3); white-space: nowrap; }
+
+/* 목록 아래 두 번째 카드: 청구 전 신호 · 만기 임박 조합 */
+.rd-card2 { margin-top: 16px; }
+
+/* 자문사별 보기: 자문사 이름 줄 + 맡은 딜 */
+.rd-grp { display: flex; align-items: baseline; gap: 8px; padding: 16px 24px 8px; border-top: 1px solid var(--line); }
+.rd-grp b { font-size: 14px; line-height: 20px; font-weight: 600; }
+.rd-grp span { font-size: 12px; color: var(--text3); }
+.ipo-head + .rd-grp { border-top: 0; }
+.rd-grp + .ipo-row { border-top: 0; }
+
+/* 상자 안 표: 주주(이름 | 지분율 | 구분), 기사(날짜 | 제목 | 매체) */
+.ipo-tbl.rd-tbl-h th:nth-child(1) { width: auto; }
+.ipo-tbl.rd-tbl-h th:nth-child(2) { width: 72px; }
+.ipo-tbl.rd-tbl-h th:nth-child(3) { width: 64px; }
+.ipo-tbl.rd-tbl-n th:nth-child(1) { width: 104px; }
+.ipo-tbl.rd-tbl-n th:nth-child(2) { width: auto; }
+/* 매체 칸은 가장 긴 매체 이름(서울이코노미뉴스 95px)이 한 줄에 들어가게 120 */
+.ipo-tbl.rd-tbl-n th:nth-child(3) { width: 120px; }
+
+/* 파이프라인 올리기 · 있음: 넓으면 상태·메모 줄 끝, 좁으면 요약 줄 오른쪽, 폰은 맨 아래 한 줄 */
+.rd-pipe { flex: none; }
+/* 분류 전 임시 입찰딜: 컨택 상태·메모를 막아 둔다 */
+.rd-page .ipo-seg button:disabled { cursor: default; color: var(--text3); }
+.rd-page .ipo-seg button.on:disabled { background: #F3F4F6; }
+.rd-page .ipo-note:disabled { background: #F3F4F6; color: #9CA3AF; }
+
+@media (min-width: 761px) {
+  /* 첫 칸(날짜)은 다른 해 날짜 2025.12.30이 들어가게 80 */
+  .rd-page .ipo-cols { grid-template-columns: 80px repeat(5, minmax(0, 1fr)) 100px; }
+  /* 만기 임박 조합: 상태 칸이 없는 6칸 */
+  .rd-page .ipo-cols.rd-g6 { grid-template-columns: 80px repeat(5, minmax(0, 1fr)); }
+  /* 예심청구 대표전화: 번호가 한 줄에 들어가게 112 아래로 줄이지 않는다(넓으면 다른 칸과 같은 폭) */
+  .rd-yesim .ipo-cols { grid-template-columns: 80px repeat(4, minmax(0, 1fr)) minmax(112px, 1fr) 100px; }
+  /* 필터 버튼이 카드보다 길면 옆으로 숨기지 않고 줄을 바꿔 모두 보이게(칸 사이 1px 선은 간격 + 묶음 바탕색으로 — 줄이 바뀌어도 선이 이어지고 줄마다 꽉 참) */
+  .rd-page .ipo-filter .seg { flex-wrap: wrap; gap: 1px; background: var(--line2); max-width: 100%; overflow: hidden; }
+  .rd-page .ipo-filter .seg button { flex: 1 1 auto; }
+  .rd-page .ipo-filter .seg button + button { border-left: 0; }
+  /* 카드가 1180보다 좁으면 펼친 행 머리를 두 단(요약·파이프라인 / 상태·메모)으로 */
+  @container (max-width: 1179px) {
+    .rd-page .ipo-dhead { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 24px; }
+    .rd-page .ipo-dhead > .ipo-acts { grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; }
+    .rd-page .ipo-dhead > .rd-pipe { grid-column: 2; grid-row: 1; }
+    .rd-page .ipo-note { flex: 1 1 200px; width: auto; }
+  }
+  /* 1000보다 좁으면 일곱 칸으로는 회사 칸이 가장 긴 회사 이름(130px)보다 좁아지므로 덜 중요한 두 칸을 접고 남은 칸을 같은 폭으로,
+     접은 칸 값은 남은 칸의 보조 줄(rd-alt)로 — ipo.css와 같은 기준 */
+  @container (max-width: 999px) {
+    .rd-page .ipo-cols { grid-template-columns: 80px repeat(3, minmax(0, 1fr)) 100px; }
+    .rd-page .ipo-cols.rd-g6 { grid-template-columns: 80px repeat(3, minmax(0, 1fr)); }
+    .rd-page .rd-c2 { display: none; }
+    .rd-page .rd-alt { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
+    .rd-page .rd-span3 { grid-column: span 2; }
+  }
+  /* 765보다 좁으면 펼친 행 상자는 한 줄로(세 탭 공통 — 예심청구는 두 단이면 주주 칸이 155px 안팎으로 줄어 열세 글자 조합 이름 153.7px이 꺾이거나 빠듯하다) */
+  @container (max-width: 764px) {
+    .rd-page .ipo-two-col { grid-template-columns: minmax(0, 1fr); }
+  }
+  /* 두 칸을 접어도 대표전화는 112 밑으로 줄이지 않는다(700보다 좁으면 아래 여러 줄 배치) */
+  @container (min-width: 700px) and (max-width: 999px) {
+    .rd-yesim .ipo-cols { grid-template-columns: 80px repeat(2, minmax(0, 1fr)) minmax(112px, 1fr) 100px; }
+  }
+  /* 700보다 좁으면 다섯 칸으로는 회사 칸이 가장 긴 회사 이름(130px)보다 좁아지므로 폰처럼 한 건을 여러 줄로(날짜 / 이름·컨택 상태 / 한 줄 요약) — ipo.css와 같은 방식 */
+  @container (max-width: 699px) {
+    .rd-page .ipo-head { display: none; }
+    .rd-page .ipo-cols, .rd-page .ipo-cols.rd-g6 { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
+    /* 날짜 줄: 날짜는 끊지 않고, 넘치면 보조 값이 다음 줄로 */
+    .rd-page .ipo-line > div:nth-child(1) { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0 8px; font-size: 12px; color: var(--text3); white-space: nowrap; }
+    .rd-page .ipo-line > div:nth-child(1) .ipo-sub { margin-top: 0; min-width: 0; }
+    .rd-page .ipo-c-st { grid-column: 2; grid-row: 2; }
+    .rd-page .ipo-line > .rd-mh, .rd-page .rd-alt { display: none; }
+    .rd-page .ipo-line > .rd-span3 { display: block; grid-column: 1 / -1; font-size: 14px; line-height: 20px; }
+    .rd-page .rd-mob { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin-top: 4px; font-size: 13px; line-height: 20px; color: var(--text2); overflow: hidden; overflow-wrap: anywhere; }
+    .rd-page .rd-mi { display: block; }
+    /* 예심청구 대표전화는 접지 않고 요약 아래 한 줄로(번호 · 대표) */
+    .rd-yesim .ipo-line > div:nth-child(6) { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; font-size: 13px; color: var(--text2); }
+    .rd-yesim .ipo-line > div:nth-child(6) .ipo-sub { margin-top: 0; min-width: 0; }
+    /* 기사 표도 폰처럼 제목 한 줄 + 날짜·매체 한 줄 목록으로(날짜·매체가 한 줄에 안 들어가면 매체가 다음 줄로) */
+    .rd-page .ipo-tbl.rd-tbl-n, .rd-page .ipo-tbl.rd-tbl-n tbody { display: block; }
+    .rd-page .ipo-tbl.rd-tbl-n thead { display: none; }
+    .rd-page .ipo-tbl.rd-tbl-n tr { display: flex; flex-wrap: wrap; column-gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--row); }
+    .rd-page .ipo-tbl.rd-tbl-n tr:first-child { padding-top: 0; }
+    .rd-page .ipo-tbl.rd-tbl-n tr:last-child { border-bottom: 0; padding-bottom: 0; }
+    .rd-page .ipo-tbl.rd-tbl-n td { padding: 0; border: 0; }
+    .rd-page .ipo-tbl.rd-tbl-n td:nth-child(2) { flex: 1 1 100%; order: -1; }
+    .rd-page .ipo-tbl.rd-tbl-n td:nth-child(1), .rd-page .ipo-tbl.rd-tbl-n td:nth-child(3) { margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--text3); }
+    /* 주주 표는 이름 한 줄 + 지분율·구분 한 줄 목록으로(긴 FI 이름이 좁은 칸에서 꺾이지 않게) */
+    .rd-page .ipo-tbl.rd-tbl-h, .rd-page .ipo-tbl.rd-tbl-h tbody { display: block; }
+    .rd-page .ipo-tbl.rd-tbl-h thead { display: none; }
+    .rd-page .ipo-tbl.rd-tbl-h tr { display: flex; flex-wrap: wrap; column-gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--row); }
+    .rd-page .ipo-tbl.rd-tbl-h tr:first-child { padding-top: 0; }
+    .rd-page .ipo-tbl.rd-tbl-h tr:last-child { border-bottom: 0; padding-bottom: 0; }
+    .rd-page .ipo-tbl.rd-tbl-h td { padding: 0; border: 0; }
+    .rd-page .ipo-tbl.rd-tbl-h td:nth-child(1) { flex: 1 1 100%; }
+    .rd-page .ipo-tbl.rd-tbl-h td:nth-child(2), .rd-page .ipo-tbl.rd-tbl-h td:nth-child(3) { margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--text3); }
+  }
+  /* 400보다 좁으면 펼친 행은 여백을 폰처럼 줄이고(글자 시작선 24 그대로) 머리를 요약 → 상태·메모 → 파이프라인 한 줄씩, 위쪽 요약 줄의 버튼은 다음 줄로 */
+  @container (max-width: 399px) {
+    .rd-page .ipo-row.open { margin: 8px; }
+    .rd-page .ipo-row.open > .ipo-line { padding: 12px 15px; }
+    .rd-page .ipo-detail { padding: 16px 15px 20px; }
+    .rd-page .ipo-dhead { grid-template-columns: minmax(0, 1fr); }
+    .rd-page .ipo-dhead > .ipo-acts, .rd-page .ipo-dhead > .rd-pipe { grid-column: 1; grid-row: auto; }
+    .rd-page .ipo-dhead > .rd-pipe { justify-self: start; }
+    .rd-page .ipo-dhead > p:empty { display: none; }
+    .rd-page .ipo-note { min-width: 0; }
+    .rd-page .ipo-top { flex-wrap: wrap; justify-content: flex-end; row-gap: 8px; }
+    .rd-page .ipo-sumrow { flex: 1 1 100%; }
+    /* 상자 제목 옆 출처는 다음 줄로, 손익표는 폰 크기로 줄이고 그래도 넓으면 상자 안에서 옆으로 밀어 보게 */
+    .rd-page .ipo-box-h { flex-wrap: wrap; }
+    .rd-page .ipo-box-b:has(> .ipo-pnl) { overflow-x: auto; scrollbar-width: thin; }
+    .rd-page .ipo-pnl { font-size: 13px; table-layout: auto; }
+    .rd-page .ipo-pnl th, .rd-page .ipo-pnl td { padding: 8px 0 8px 6px; }
+    .rd-page .ipo-pnl th:first-child, .rd-page .ipo-pnl td:first-child { width: 72px; padding-left: 0; }
+    .rd-page .ipo-pnl tr.r td:first-child { padding-left: 8px; }
+  }
+  /* 300보다 좁으면 한 건을 한 줄 폭으로 쌓는다(컨택 상태는 맨 아래) */
+  @container (max-width: 299px) {
+    .rd-page .ipo-cols, .rd-page .ipo-cols.rd-g6 { grid-template-columns: minmax(0, 1fr); }
+    .rd-page .ipo-c-st { grid-column: 1; grid-row: auto; }
+    /* 상태 버튼 넷은 두 줄로, 파이프라인 버튼 글자는 넘치면 줄바꿈 */
+    .rd-page .ipo-seg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); flex: 1 1 100%; }
+    .rd-page .ipo-seg button { padding: 0 4px; }
+    .rd-page .ipo-seg button:nth-child(3) { border-left: 0; }
+    .rd-page .ipo-seg button:nth-child(n+3) { border-top: 1px solid var(--line2); }
+    .rd-page .ipo-dhead > .btn.rd-pipe { height: auto; min-height: 32px; padding-top: 6px; padding-bottom: 6px; white-space: normal; }
+    /* 상자 안: 항목 이름 위·값 아래 */
+    .rd-page .ipo-kv { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  }
+}
+
+@media (max-width: 760px) {
+  .rd-page .ipo-top { flex-wrap: wrap; row-gap: 4px; }
+  .rd-page .ipo-sumrow { flex: 1 1 100%; }
+  .rd-page .ipo-line > .rd-mh { display: none; }
+  .rd-page .ipo-line > .rd-span3 { display: block; grid-column: 1 / -1; font-size: 14px; line-height: 20px; }
+  .rd-mob { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin-top: 4px; font-size: 13px; line-height: 20px; color: var(--text2); overflow: hidden; overflow-wrap: anywhere; }
+  .rd-mi { display: block; }
+  .rd-page .rd-card2 { margin-top: 0; border-top: 8px solid #F2F4F6; }
+  .rd-grp { padding: 16px 16px 8px; }
+  .rd-page .ipo-dhead > .rd-pipe { height: 40px; justify-content: center; }
+  /* 기사 표는 폰에서 제목 한 줄 + 날짜·매체 한 줄 목록으로 */
+  .ipo-tbl.rd-tbl-n, .ipo-tbl.rd-tbl-n tbody { display: block; }
+  .ipo-tbl.rd-tbl-n thead { display: none; }
+  .ipo-tbl.rd-tbl-n tr { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--row); }
+  .ipo-tbl.rd-tbl-n tr:first-child { padding-top: 0; }
+  .ipo-tbl.rd-tbl-n tr:last-child { border-bottom: 0; padding-bottom: 0; }
+  .ipo-tbl.rd-tbl-n td { padding: 0; border: 0; }
+  .ipo-tbl.rd-tbl-n td:nth-child(2) { grid-column: 1 / -1; grid-row: 1; }
+  .ipo-tbl.rd-tbl-n td:nth-child(1), .ipo-tbl.rd-tbl-n td:nth-child(3) { grid-row: 2; margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--text3); }
+}

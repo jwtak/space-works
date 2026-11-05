@@ -17,8 +17,10 @@ const CFG = {
       'data/news_marks.json': '012DPUXZTBIISWY6YANNCKXELXPL2NBMBW',
       'data/market.json': '012DPUXZROBDNFJYXI3VG3QIZRL4S2I5DH', 'data/ipo_stats.json': '012DPUXZVUHEKAVTHCMRCLJGM44IF7HEEV',
       'data/ipo_val.json': '012DPUXZQTH3IDYV2WAFHZMVB53P4LZQTS', 'data/mezz.json': '012DPUXZSBLSSVAAWIBRH2XZBK7AWBOMA3',
+      'data/yesim.json': '012DPUXZWWL22CBPSYSBA3XS2FB3BVIU2H', 'data/sell.json': '012DPUXZQAQ6AGF5IJ7FFZRG5HNXHNK7RQ', 'data/bids.json': '012DPUXZVKMFAPJTGSHZC23BOOZBRVFXU5',
+      'data/radar_marks.json': '012DPUXZWTHA6HQIME4ZGIHECXSV3PWRC3', 'data/pipeline.json': '012DPUXZTPUBOUN7QMQBFL2L2UQUI4IRBO',
     },
-    writable: ['data/event_marks.json', 'data/ipo_marks.json', 'data/news_marks.json'], // 수집기는 같은 파일을 덮어쓰므로 id가 바뀌지 않는다
+    writable: ['data/event_marks.json', 'data/ipo_marks.json', 'data/news_marks.json', 'data/radar_marks.json', 'data/pipeline.json'], // 수집기는 같은 파일을 덮어쓰므로 id가 바뀌지 않는다
   },
   teamDrive: 'b!j-FPAIUPjU6AnBcIJNprMgAfPOR1jCVOvR6mVssjMWkyr34wYSj7Rp-_wJU9Subr', // 팀 '스페이스인베스트먼트' 파일함(공용 폴더) — 팀원이면 누구나 읽고 쓴다
   teamCalendarId: 'AAMkAGY5ZWRkMzlmLTNmYjUtNDE3NC04YTUxLTliZjgyYjU0Yjc1NQBGAAAAAAB2D1ON4THdQYUFMZAr45FEBwA217gkwboaRqzQAV2p_lEqAAAAAAEGAAA217gkwboaRqzQAV2p_lEqAAAAE7aBAAA=',
@@ -139,7 +141,7 @@ const STORE = {
   async meta(rel) {
     try { return await G.get(`${STORE.sharedItem(rel) || STORE.path(rel)}?$select=id,name,eTag,lastModifiedDateTime,size`); }
     catch (e) {
-      if (STORE.sharedItem(rel) && [403, 404].includes(e.status)) { const err = new Error('공유받은 딜소싱 자료를 열 수 없습니다(권한 또는 파일 변경). 탁지원 대리에게 알려 주세요.'); err.status = e.status; throw err; }
+      if (STORE.sharedItem(rel) && [403, 404].includes(e.status)) { const err = new Error('공유받은 딜소싱 자료를 열 수 없습니다. 탁지원 대리에게 알려 주세요.'); err.status = e.status; throw err; }
       if (e.status === 404) return null;
       throw e;
     }

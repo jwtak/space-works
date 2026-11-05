@@ -185,6 +185,7 @@ function render() {
   if (r !== 'notes') { document.body.classList.remove('note-open'); if (cur?.dirty) flushNote(); } // 업무일지를 쓰다 다른 메뉴로 가도 저장
   $('#crumb').textContent = CRUMB[r];
   ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, deals: renderDeals, market: () => (typeof renderMarket === 'function' ? renderMarket() : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), weekly: () => renderFiles(PAGE, 'weekly'), files: () => (typeof renderFiles === 'function' ? renderFiles(PAGE) : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), programs: renderPrograms, notes: renderNotes, homepage: renderHomepage }[r] || renderHome)();
+  segFit(PAGE.querySelector('.deal-seg')); // 딜소싱·시장동향 탭 줄
 }
 window.addEventListener('hashchange', render);
 
@@ -286,6 +287,7 @@ function renderHome() {
             ${tile(over.length ? 'red' : 'green', over.length ? 'alert' : 'done', '기한 지남', `${over.length}<small>건</small>`, `남은 할 일 ${open.length}건`, 'over')}
           </div>
         </section>
+        <div id="home-pp"></div>
         <div id="home-ev"></div>
         <div id="home-ipo"></div>
         <div id="home-news"></div>
@@ -342,6 +344,7 @@ function renderHome() {
   if (typeof ipoHomeBlock === 'function') ipoHomeBlock().then((h) => { const box = $('#home-ipo'); if (box) { if (h) { box.outerHTML = h; if (typeof ipoHomeBrief === 'function') $('.ipo-home .card-body')?.insertAdjacentHTML('afterbegin', ipoHomeBrief()); } else box.remove(); } }).catch(() => {});
   if (typeof eventsHomeBlock === 'function') eventsHomeBlock().then((h) => { const box = $('#home-ev'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
   if (typeof newsHomeBlock === 'function') newsHomeBlock().then((h) => { const box = $('#home-news'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
+  if (typeof pipeHomeBlock === 'function') pipeHomeBlock().then((h) => { const box = $('#home-pp'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
 }
 
 // ---------- 폰 첫 화면: 하이웍스 앱처럼 메뉴 모음 + 오늘 한 묶음 ----------
@@ -360,6 +363,10 @@ function renderHomeMobile() {
     ['#deals', 'ticket', '행사·IR', ''],
     ['#deals/ipo', 'chart', '신규상장', ''],
     ['#deals/news', 'news', '딜 뉴스', ''],
+    ['#deals/yesim', 'flag', '예심청구', ''],
+    ['#deals/sell', 'upload', '매각희망', ''],
+    ['#deals/bids', 'send', '입찰딜', ''],
+    ['#deals/pipeline', 'inbox', '파이프라인', ''],
     ['#market', 'chart', '시장동향', ''],
     ['#weekly', 'week', '주간회의', ''],
     ['#files', 'folder', '공용 폴더', ''],
@@ -400,9 +407,11 @@ function renderHomeMobile() {
 // 폰↔PC 폭이 바뀌면 홈을 그 폭에 맞는 구성으로 다시 그린다
 matchMedia('(max-width: 760px)').addEventListener('change', () => { if (S && route() === 'home') render(); });
 
-// ---------- 딜소싱: 행사·IR / 신규상장 (각 화면은 events.js·ipo.js가 host 안에 그린다) ----------
+// ---------- 딜소싱: 행사·IR / 신규상장 / 딜 뉴스 / 예심청구·매각희망·입찰딜 / 파이프라인 (각 화면은 events.js·ipo.js·news.js·radar.js·pipeline.js가 host 안에 그린다) ----------
 function renderDeals() {
-  const tabs = [['events', '행사·IR', typeof renderEvents === 'function' ? renderEvents : null, 'ticket'], ['ipo', '신규상장', typeof renderIpo === 'function' ? renderIpo : null, 'chart'], ['news', '딜 뉴스', typeof renderNews === 'function' ? renderNews : null, 'news']];
+  const tabs = [['events', '행사·IR', typeof renderEvents === 'function' ? renderEvents : null, 'ticket'], ['ipo', '신규상장', typeof renderIpo === 'function' ? renderIpo : null, 'chart'], ['news', '딜 뉴스', typeof renderNews === 'function' ? renderNews : null, 'news'],
+    ['yesim', '예심청구', typeof renderYesim === 'function' ? renderYesim : null, 'flag'], ['sell', '매각희망', typeof renderSell === 'function' ? renderSell : null, 'upload'],
+    ['bids', '입찰딜', typeof renderBids === 'function' ? renderBids : null, 'send'], ['pipeline', '파이프라인', typeof renderPipeline === 'function' ? renderPipeline : null, 'inbox']];
   if (!tabs.some(([k]) => k === ui.dealTab)) ui.dealTab = 'events';
   PAGE.innerHTML = `<div class="page-head"><h1>딜소싱</h1></div>
     <div class="deal-seg" role="tablist">${tabs.map(([k, t, , i]) => `<button type="button" role="tab" data-dt="${k}" aria-selected="${ui.dealTab === k}" class="${ui.dealTab === k ? 'on' : ''}">${ico(i)}${t}</button>`).join('')}</div>
@@ -411,6 +420,19 @@ function renderDeals() {
   const host = $('#deal-host'), fn = tabs.find(([k]) => k === ui.dealTab)[2];
   if (!fn) { host.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>'; return; }
   Promise.resolve(fn(host)).catch((e) => { host.innerHTML = `<div class="card"><div class="empty">${esc(e.message)}</div></div>`; });
+}
+// 탭 줄이 넘치면 고른 탭을 가운데로(탭을 바꿀 때마다 새로 그려 처음 위치로 돌아가므로), PC 마우스 휠로도 옆으로 밀기(끝에 닿으면 화면 스크롤)
+function segFit(seg) {
+  const on = seg?.querySelector('.on'); if (!on) return;
+  const fit = () => { if (seg.scrollWidth > seg.clientWidth) seg.scrollLeft += on.getBoundingClientRect().left - seg.getBoundingClientRect().left - (seg.clientWidth - on.offsetWidth) / 2; };
+  fit();
+  let w = seg.clientWidth; // 자료가 늦게 들어와 본문 세로 스크롤바가 생기면 탭 줄 폭이 줄어 끝 탭이 잘리므로 다시 맞춘다
+  if (window.ResizeObserver) new ResizeObserver(() => { if (seg.clientWidth !== w) { w = seg.clientWidth; fit(); } }).observe(seg);
+  seg.addEventListener('wheel', (e) => {
+    const max = seg.scrollWidth - seg.clientWidth, d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
+    if (max <= 0 || !d || Math.abs(e.deltaX) > Math.abs(e.deltaY) || (d < 0 && seg.scrollLeft <= 0) || (d > 0 && seg.scrollLeft >= max - 1)) return;
+    seg.scrollLeft += d; e.preventDefault();
+  }, { passive: false });
 }
 
 function homeTodoBlock(label, items) {
@@ -1271,7 +1293,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) navigator.serviceWorker.getRegistration().then((r) => r && r.update()).catch(() => {}); });
   let reloaded = false; const hadController = !!navigator.serviceWorker.controller; // 첫 설치 때는 새로 고치지 않음
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadController || reloaded || (cur && cur.dirty) || ui.mail?.compose || window.flUploading > 0 || saving() || document.activeElement?.matches('input,textarea')) return;
+    if (!hadController || reloaded || (cur && cur.dirty) || ui.mail?.compose || window.flUploading > 0 || (typeof rdS !== 'undefined' && rdS.dirty.size) || (typeof ppS !== 'undefined' && ppS.dirty.size) || (typeof ipoState !== 'undefined' && ipoState.dirty.size) || saving() || document.activeElement?.matches('input,textarea')) return;
     reloaded = true; location.reload();
   });
 }
