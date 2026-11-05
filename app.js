@@ -168,7 +168,17 @@ function infoOpen(k) {
   // 글: 문자열 = 문단, 배열 = 목록, {table: [[머리...], [행...], ...]} = 표. 배열 안에 표·문단을 섞어도 된다
   const one = (t) => (t && t.table ? `<div class="info-tbl"><table><thead><tr>${t.table[0].map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${t.table.slice(1).map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : `<p>${esc(t)}</p>`);
   const body = (t) => (Array.isArray(t) ? `<ul>${t.map((s) => (typeof s === 'string' ? `<li>${esc(s)}</li>` : `</ul>${one(s)}<ul>`)).join('')}</ul>`.replace(/<ul><\/ul>/g, '') : one(t));
-  openSheet(`<h3>${esc(x.title)}</h3>${x.asof ? `<div class="info-asof">${esc(x.asof)}</div>` : ''}<dl class="info-dl">${x.rows.map(([h, t]) => `<dt>${esc(h)}</dt><dd>${body(t)}</dd>`).join('')}</dl>`, null, 'info');
+  const main = `${x.asof ? `<div class="info-asof">${esc(x.asof)}</div>` : ''}<dl class="info-dl">${x.rows.map(([h, t]) => `<dt>${esc(h)}</dt><dd>${body(t)}</dd>`).join('')}</dl>`;
+  openSheet(`<div class="info-head"><h3>${esc(x.title)}</h3><button class="btn sm" type="button" data-info-win>${ico('ext', 'sm')}새 창에서 열기</button></div>${main}`, (el) => {
+    // 새 창: 같은 내용을 웍스 글꼴·스타일만 입힌 HTML(blob)로 새 탭에 연다. 로그인·스크립트가 필요 없다
+    el.querySelector('[data-info-win]').onclick = () => {
+      const css = (f) => `<link rel="stylesheet" href="${esc(new URL(f, location.href).href)}">`;
+      const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(x.title)} · 화면 설명</title>${css('fonts/pretendard.css')}${css('style.css')}
+        <style>html, body { height: auto; } body { background: var(--card); } .info-page { max-width: 1120px; margin: 0 auto; padding: 40px 32px 64px; } .info-page h3 { margin: 0 0 4px; font-size: 24px; line-height: 32px; } @media (max-width: 760px) { .info-page { padding: 24px 16px 48px; } }</style></head>
+        <body><main class="info-page"><h3>${esc(x.title)}</h3>${main}</main></body></html>`;
+      window.open(URL.createObjectURL(new Blob([html], { type: 'text/html' })), '_blank', 'noopener');
+    };
+  }, 'info');
 }
 const infoBtn = (k) => (TAB_INFO[k] ? `<button class="btn ghost info-btn" type="button" data-info="${esc(k)}" aria-label="화면 설명">${ico('info', 'sm')}<span class="info-txt">화면 설명</span></button>` : '');
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-info]'); if (b) infoOpen(b.dataset.info); });
