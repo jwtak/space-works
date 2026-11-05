@@ -161,6 +161,13 @@ function foot() {
 
 // ---------- 라우팅 ----------
 const route = () => (location.hash || '#home').slice(1);
+// 머리줄 ⓘ 화면 설명: 키는 route(딜소싱은 'deals/<탭>'), 값 {title, rows: [[소제목, 글 또는 글 배열]]}. 각 화면 js가 채운다
+const TAB_INFO = {};
+function infoOpen(k) {
+  const x = TAB_INFO[k]; if (!x) return;
+  const body = (t) => (Array.isArray(t) ? `<ul>${t.map((s) => `<li>${esc(s)}</li>`).join('')}</ul>` : esc(t));
+  openSheet(`<h3>${esc(x.title)}</h3><dl class="info-dl">${x.rows.map(([h, t]) => `<dt>${esc(h)}</dt><dd>${body(t)}</dd>`).join('')}</dl>`, null, 'info');
+}
 const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', deals: '딜소싱', market: '시장동향', weekly: '주간회의', files: '공용 폴더', notes: '업무일지·회의록', programs: '프로그램', homepage: '홈페이지' };
 function render() {
   if (!S) return; // 로그인·데이터 읽기 전 hashchange
@@ -184,6 +191,8 @@ function render() {
   }
   if (r !== 'notes') { document.body.classList.remove('note-open'); if (cur?.dirty) flushNote(); } // 업무일지를 쓰다 다른 메뉴로 가도 저장
   $('#crumb').textContent = CRUMB[r];
+  const ik = r === 'deals' ? `deals/${ui.dealTab}` : r, ib = $('#crumb-info');
+  if (ib) { ib.hidden = !TAB_INFO[ik]; ib.onclick = () => infoOpen(ik); }
   ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, deals: renderDeals, market: () => (typeof renderMarket === 'function' ? renderMarket() : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), weekly: () => renderFiles(PAGE, 'weekly'), files: () => (typeof renderFiles === 'function' ? renderFiles(PAGE) : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), programs: renderPrograms, notes: renderNotes, homepage: renderHomepage }[r] || renderHome)();
   segFit(PAGE.querySelector('.deal-seg')); // 딜소싱·시장동향 탭 줄
 }
