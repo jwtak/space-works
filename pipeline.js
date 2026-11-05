@@ -562,6 +562,7 @@ async function renderPipeline(host) {
   ppS.host = host;
   host.innerHTML = `<div class="ipo-page pp-page" id="pp-root">
     <div class="ipo-top"><div class="ipo-sumrow" id="pp-sum"></div>
+      ${infoBtn('deals/pipeline')}
       <button class="btn ghost" type="button" id="pp-ref" aria-label="새로고침">${ico('refresh', 'sm')}<span class="pp-txt">새로고침</span></button>
       <button class="btn primary" type="button" id="pp-new">${ico('plus', 'sm')}새 딜</button></div>
     <section class="card ipo-card pp-card">

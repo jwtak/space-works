@@ -884,6 +884,7 @@ async function rdRender(tab, host) {
   rdIme.el = null; rdIme.todo.clear(); // 화면을 새로 그리므로 미뤄 둔 다시 그리기는 버린다
   host.innerHTML = `<div class="ipo-page rd-page rd-${tab}" id="rd-root">
     <div class="ipo-top"><div class="ipo-sumrow" id="rd-sum"></div>
+      ${infoBtn(`deals/${tab}`)}
       ${typeof ipoDownload === 'function' ? `<button class="btn ghost" type="button" id="rd-xlsx">${ico('file', 'sm')}엑셀 다운로드</button>` : ''}
       <button class="btn ghost" type="button" id="rd-ref">${ico('refresh', 'sm')}새로고침</button></div>
     <section class="card ipo-card">

@@ -70,9 +70,6 @@ svg.i.lg { width: 22px; height: 22px; }
 .crumb { display: flex; align-items: center; gap: 6px; color: var(--text3); }
 .crumb b { color: var(--ink); font-weight: 600; }
 /* 머리줄 ⓘ: 지금 화면 설명(app.js infoOpen) */
-.crumb-info { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-left: -2px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--text3); cursor: pointer; }
-.crumb-info:hover { color: var(--ink); background: var(--row); }
-.crumb-info[hidden] { display: none; }
 .sheet.info { max-width: 560px; }
 .info-dl { margin: 0; }
 .info-dl dt { margin: 18px 0 4px; font-size: 14px; line-height: 20px; font-weight: 700; color: var(--ink); }
@@ -436,7 +433,6 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
   .topbar { height: 56px; padding: env(safe-area-inset-top) 12px 0 16px; box-sizing: content-box; gap: 8px; }
   .crumb > span, .crumb > svg { display: none; }
   .crumb b { font-size: 18px; line-height: 26px; font-weight: 700; }
-  .crumb-info { width: 36px; height: 36px; }
   .topbar .clock { display: none; }
   .topbar .right { gap: 4px; }
   .topbar .me { font-size: 0; gap: 0; width: 44px; height: 44px; justify-content: center; cursor: pointer; }

@@ -132,7 +132,7 @@
   .pp-line { padding-top: 14px; padding-bottom: 14px; }
   .ipo-row.open > .pp-line { padding: 14px 7px; }
   .pp-filter .ipo-search { flex: 1 1 140px; }
-  #pp-ref .pp-txt { display: none; }
+  #pp-ref .pp-txt, .pp-page .info-txt { display: none; }
   .pp-stseg button { height: 36px; }
   .pp-sheet .ev-form .narrow { width: 100%; }
   .pp-cf-act .btn { flex: 1; height: 48px; }
