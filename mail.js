@@ -128,11 +128,25 @@ const mailLockFiles = (c) => document.querySelectorAll('#mail-cf [data-rm]').for
 /* iframe 안에 들어갈 문서. 스크립트·폼·외부 요청은 막고, 외부 이미지는 사용자가 허용할 때만 */
 function mailFrameDoc(html, allowRemote) {
   const csp = `default-src 'none'; img-src ${allowRemote ? 'https: http: ' : ''}data:; style-src 'unsafe-inline'; font-src data:`;
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><base target="_blank">
-<style>html,body{margin:0}body{padding:20px 24px;font:14px/1.6 Pretendard,'Malgun Gothic',sans-serif;color:#111827;word-break:break-word;overflow-wrap:anywhere}
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><meta name="color-scheme" content="only light"><base target="_blank">
+<style>:root{color-scheme:only light}html,body{margin:0}body{padding:20px 24px;font:14px/1.6 Pretendard,'Malgun Gothic',sans-serif;color:#111827;word-break:break-word;overflow-wrap:anywhere}
 img{max-width:100%;height:auto}table{max-width:100%}pre{white-space:pre-wrap;font:inherit}a{color:#2563EB}
 blockquote{margin:0 0 0 4px;padding-left:12px;border-left:2px solid #E5E7EB;color:#4B5563}
 @media (max-width:600px){body{padding:16px;font-size:15px;line-height:1.65}}</style></head><body>${html}</body></html>`;
+}
+
+/* 폭을 고정해 만든 메일(안내문·뉴스레터)이 본문 칸보다 넓으면 칸 폭에 맞게 줄인다(폰에서 오른쪽이 잘리던 문제, 11/6).
+   칸 안 스크립트는 여전히 막혀 있고(sandbox에 allow-scripts 없음, CSP), 바깥에서 폭만 재서 zoom을 건다. 이미지가 늦게 오면 다시 잰다 */
+function mailFitFrame(fr) {
+  const d = fr.contentDocument; if (!d || !d.documentElement) return;
+  const fit = () => {
+    const de = d.documentElement; de.style.zoom = '';
+    const w = de.scrollWidth, cw = fr.clientWidth;
+    if (cw && w > cw + 8) de.style.zoom = String(Math.max(0.4, cw / w));
+  };
+  fit();
+  d.querySelectorAll('img').forEach((im) => { if (!im.complete) im.addEventListener('load', fit, { once: true }); });
+  new ResizeObserver(fit).observe(fr); // 폰 가로·세로 전환, PC 창 크기 변경
 }
 
 function mailConfirm({ title, rows, ok }) {
@@ -612,8 +626,10 @@ function mailDrawPane() {
       </div>` : ''}
       ${hasRemote && !m.remote ? '<div class="mail-remote">외부 이미지 차단됨 <button class="btn sm ghost" type="button" id="mail-remote">이미지 보기</button></div>' : ''}
     </div>
-    <iframe class="mail-frame" sandbox="allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" title="메일 본문"></iframe>`;
-  pane.querySelector('.mail-frame').srcdoc = mailFrameDoc(html, m.remote);
+    <iframe class="mail-frame" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" title="메일 본문"></iframe>`;
+  const frame = pane.querySelector('.mail-frame');
+  frame.addEventListener('load', () => mailFitFrame(frame), { once: true });
+  frame.srcdoc = mailFrameDoc(html, m.remote);
   $('#mail-back').addEventListener('click', mailBackToList);
   $('#mail-mback').addEventListener('click', mailBackToList);
   $('#mail-prev').addEventListener('click', () => prevId && mailOpen(prevId));
