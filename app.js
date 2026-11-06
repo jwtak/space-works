@@ -723,14 +723,16 @@ function linkEventEnd(f) {
   f.allDay?.addEventListener('change', () => { if (!ad() && span() <= 0) { dur = 3600000; follow(); } else remember(); });
 }
 
-async function openEventModal(id, events, onDone, date) {
+// pre: 새 일정 창을 미리 채울 값(subject·allDay·startTime·endTime·location·note) — 행사·IR 화면의 '일정에 추가'
+async function openEventModal(id, events, onDone, date, pre) {
   if (!S.auth.connected) return toast('Outlook이 연결되지 않았습니다');
   if (evModalBusy || document.querySelector('#evf')) return; // 더블클릭·느린 망에서 두 번 눌러도 창은 하나
   evModalBusy = true;
-  try { await openEventModalInner(id, events, onDone, date); } finally { evModalBusy = false; }
+  try { await openEventModalInner(id, events, onDone, date, pre); } finally { evModalBusy = false; }
 }
-async function openEventModalInner(id, events, onDone, date) {
+async function openEventModalInner(id, events, onDone, date, pre) {
   const e = id ? (events || []).find((x) => x.id === id) : null;
+  const p = e ? {} : pre || {};
   let det = {};
   if (e) { try { det = await OUTLOOK.detail(id); } catch { /* 내용 없이도 연다 */ } }
   const now = new Date(); now.setMinutes(0, 0, 0); now.setHours(Math.min(Math.max(now.getHours() + 1, 9), 22));
@@ -738,7 +740,7 @@ async function openEventModalInner(id, events, onDone, date) {
   const sd = e ? e.start.slice(0, 10) : day;
   let ed = e ? e.end.slice(0, 10) : day;
   if (e && e.allDay) ed = ymd(addDays(parse(ed), -1));
-  const st = e && !e.allDay ? e.start.slice(11, 16) : hhmm(now), et = e && !e.allDay ? e.end.slice(11, 16) : hhmm(new Date(now.getTime() + 3600000));
+  const st = e && !e.allDay ? e.start.slice(11, 16) : p.startTime || hhmm(now), et = e && !e.allDay ? e.end.slice(11, 16) : p.endTime || hhmm(new Date(now.getTime() + 3600000));
   const series = det.type === 'occurrence' || det.type === 'exception';
   const repNow = { daily: 'daily', weekly: 'weekly', absoluteMonthly: 'monthly', absoluteYearly: 'yearly' }[det.recurrence?.pattern?.type] || '';
   const remNow = !e ? '15' : det.isReminderOn === false ? '' : String(det.reminderMinutesBeforeStart ?? 15);
@@ -750,13 +752,13 @@ async function openEventModalInner(id, events, onDone, date) {
         ? `<span class="cal-tag c-${e.cal}"><i class="cdot"></i>${e.cal === 'team' ? '스페이스인베스트먼트' : '내 일정'}</span>`
         : `<div class="cal-pick">${CALS.slice(0, 2).filter((c) => c.key !== 'team' || OUTLOOK.teamWritable).map((c, i) => `<label class="c-${c.key}"><input type="radio" name="calendar" value="${c.key}" ${i === 0 ? 'checked' : ''}><i class="cdot"></i>${c.name}<span class="muted">${c.sub}</span></label>`).join('')}</div>`}</div></div>
       <div class="r"><label>담당자</label><div class="cal-pick owner-pick">${PEOPLE.map((p) => `<label><input type="checkbox" name="owner" value="${p}" ${(e ? evOwners(e) : PEOPLE.filter((x) => myName().includes(x))).includes(p) ? 'checked' : ''}>${p}</label>`).join('')}</div></div>
-      <div class="r"><label for="ev-subj">제목</label><div class="line"><input class="input grow" id="ev-subj" name="subject" value="${esc(e?.subject || '')}" placeholder="제목을 입력하세요."><label class="ck"><input type="checkbox" class="check" name="important" ${det.importance === 'high' ? 'checked' : ''}>중요</label></div></div>
+      <div class="r"><label for="ev-subj">제목</label><div class="line"><input class="input grow" id="ev-subj" name="subject" value="${esc(e?.subject || p.subject || '')}" placeholder="제목을 입력하세요."><label class="ck"><input type="checkbox" class="check" name="important" ${det.importance === 'high' ? 'checked' : ''}>중요</label></div></div>
       <div class="r"><label>일시</label><div>
-        <div class="line wrap"><span class="dt"><input class="input" type="date" name="startDate" value="${sd}"><input class="input t" type="time" step="600" name="startTime" value="${st}"></span><span class="tilde">~</span><span class="dt"><input class="input" type="date" name="endDate" value="${ed}"><input class="input t" type="time" step="600" name="endTime" value="${et}"></span><label class="ck"><input type="checkbox" class="check" name="allDay" ${e?.allDay ? 'checked' : ''}>종일</label></div>
+        <div class="line wrap"><span class="dt"><input class="input" type="date" name="startDate" value="${sd}"><input class="input t" type="time" step="600" name="startTime" value="${st}"></span><span class="tilde">~</span><span class="dt"><input class="input" type="date" name="endDate" value="${ed}"><input class="input t" type="time" step="600" name="endTime" value="${et}"></span><label class="ck"><input type="checkbox" class="check" name="allDay" ${e?.allDay || p.allDay ? 'checked' : ''}>종일</label></div>
         <select class="select rep" name="repeat" ${series ? 'disabled' : ''}>${series ? '<option>반복 일정 — 이 일정만 수정</option>' : opts(REP_OPTS, repNow)}</select>
       </div></div>
-      <div class="r"><label>내용</label><textarea class="area" name="note" placeholder="내용을 입력하세요.">${esc(noteNow)}</textarea></div>
-      <div class="r"><label>장소</label><input class="input" name="location" value="${esc(e?.location || '')}" placeholder="장소를 입력하세요."></div>
+      <div class="r"><label>내용</label><textarea class="area" name="note" placeholder="내용을 입력하세요.">${esc(noteNow || p.note || '')}</textarea></div>
+      <div class="r"><label>장소</label><input class="input" name="location" value="${esc(e?.location || p.location || '')}" placeholder="장소를 입력하세요."></div>
       <div class="r"><label>알림</label><select class="select narrow" name="reminder">${opts(REM_OPTS, remNow)}</select></div>
       <div class="ev-actions">${e ? '<button type="button" class="btn ghost danger" data-del>삭제</button>' : ''}<span class="sp"></span><button type="button" class="btn grey" data-cancel>취소</button><button type="submit" class="btn primary" data-save>저장</button></div>
     </form>`, (el, close) => {

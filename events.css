@@ -26,6 +26,15 @@
 .ev-cnt { font-size: 13px; color: var(--text3); white-space: nowrap; }
 .ev-cnt b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
 .ev-ref { flex: none; }
+/* 산업: 여러 개 고르는 버튼 줄(필터 아래 한 줄) */
+.ev-inds { order: 5; flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.ev-inds-l { margin-right: 4px; font-size: 13px; font-weight: 600; color: var(--text2); }
+.ev-ind { display: inline-flex; align-items: center; gap: 4px; height: 30px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--card); font: inherit; font-size: 13px; color: var(--text2); cursor: pointer; }
+.ev-ind:hover { border-color: var(--text3); color: var(--ink); }
+.ev-ind span { font-size: 12px; color: var(--text3); font-variant-numeric: tabular-nums; }
+.ev-ind.on { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+.ev-ind.on span { color: var(--primary); }
+.ev-addcal { border-color: var(--primary); color: var(--primary); font-weight: 600; }
 
 /* ---------- 달력 ---------- */
 .ev-bar { display: flex; align-items: center; gap: 8px; min-height: 52px; padding: 8px 24px; }
@@ -75,7 +84,7 @@
 /* ---------- 목록 (ipo-cols 와 같은 방식) ---------- */
 .ev-list { border-top: 1px solid var(--line); }
 .ev-cols { display: grid; grid-template-columns: 24px 120px 40px repeat(3, minmax(0, 1fr)) 32px; gap: 16px; align-items: start; padding: 0 24px; }
-.ev-head { min-height: 40px; align-items: center; font-size: 13px; font-weight: 600; color: var(--text2); border-bottom: 1px solid var(--line2); }
+.ev-head { min-height: 44px; align-items: center; font-size: 14px; font-weight: 600; color: var(--ink); background: var(--row); border-bottom: 1px solid var(--line); } /* 사용자 11/6: 머리글은 잘 보여야 함 */
 .ev-sort { display: inline-flex; align-items: center; gap: 2px; width: max-content; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
 .ev-sort:hover, .ev-sort.on { color: var(--primary); }
 .ev-grp { display: flex; align-items: baseline; gap: 6px; padding: 16px 24px 6px; font-size: 13px; font-weight: 600; color: var(--ink); scroll-margin-top: 8px; }
@@ -154,7 +163,9 @@
 /* ---------- 휴대폰: 필터는 [기간][정렬][필터] 3칸, 나머지는 '필터'로 펼침 ---------- */
 @media (max-width: 760px) {
   .ev-filter { padding: 12px 16px; gap: 8px; }
-  .ev-search { flex: 1 1 0; max-width: none; min-width: 0; }
+  .ev-search { flex: 1 1 0; max-width: none; min-width: 0; } /* 첫 줄: 검색 + 새로고침, 둘째 줄부터 필터 */
+  .ev-ref { order: 1; }
+  .ev-sels { order: 2; flex: 1 1 100%; }
   .ev-search .input { font-size: 16px; }
   .ev-sels { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
   .ev-sels > * { grid-column: span 3; }
@@ -165,6 +176,8 @@
   .ev-mf { display: inline-flex; justify-content: center; order: 3; height: 36px; padding: 0 8px; }
   .ev-sels:not(.open) .select:not([data-f="period"]):not(.ev-msort) { display: none; }
   .ev-r { order: 4; flex: 1 1 100%; justify-content: flex-end; }
+  .ev-inds:not(.open) { display: none; }
+  .ev-ind { height: 34px; font-size: 14px; }
 
   .ev-bar { padding: 6px 16px; min-height: 48px; }
   .ev-mcal { margin: 0 8px 8px; }
