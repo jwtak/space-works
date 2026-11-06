@@ -18,7 +18,7 @@ const EV_STAR = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path 
 const EV_HIDE = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12s3-6 8.5-6 8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4.5 4.5l15 15"/></svg>';
 const EV_SHOW = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12s3-6 8.5-6 8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z"/><circle cx="12" cy="12" r="2.5"/></svg>';
 const EV_ARROW = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>';
-const EV_SORTABLE = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 9 4-4 4 4M8 15l4 4 4-4"/></svg>'; // 정렬할 수 있는 머리글(아직 그 순서가 아닐 때)
+const EV_CHECK = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12 5 5 9-10"/></svg>';
 const evDefaults = () => ({ period: '12m', type: '', inds: [], region: '', min: 40, show: '', sort: 'date' });
 const EV_FKEYS = ['type', 'inds', 'region', 'min', 'show']; // 초기화·'필터 n' 대상
 const evChanged = (k) => (k === 'inds' ? evState.f.inds.length > 0 : evState.f[k] !== evDefaults()[k]);
@@ -413,12 +413,83 @@ addEventListener('resize', () => { if (evState.pop?.cell) evPopClose(); });
 addEventListener('hashchange', evPopClose);
 document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && evState.pop?.cell) evPopClose(); });
 
+/* ---------- 머리글 메뉴: 엑셀 필터처럼 칸마다 정렬 + 볼 항목. 고르면 바로 적용되고 위 필터 줄과 같은 값을 쓴다 ---------- */
+const EV_HM = {
+  date: { label: '날짜', sort: [['date', '날짜순 (가까운 날부터)']], radio: ['period', '기간', EV_PERIODS] },
+  score: { label: '점수', sort: [['score', '점수 높은 순']], radio: ['min', '점수', EV_MINS] },
+  title: { label: '행사', radio: ['type', '유형', [['', '모든 유형'], ...EV_TYPES.map((t) => [t, t])]] },
+  place: { label: '장소', radio: ['region', '지역', [['', '모든 지역'], ...EV_REGIONS.map((t) => [t, t])]] },
+  ind: { label: '산업', sort: [['ind', '산업별로 묶기']], check: true },
+};
+
+function evHmHTML(k) {
+  const d = EV_HM[k], f = evState.f, sec = (t, extra = '') => `<div class="ev-hm-sec">${t}${extra}</div>`;
+  const it = (attrs, on, l) => `<button type="button" class="ev-hm-it${on ? ' on' : ''}" ${attrs}>${EV_CHECK}${l}</button>`;
+  let h = '';
+  if (d.sort) h += sec('정렬') + d.sort.map(([v, l]) => it(`data-hm-sort="${v}"`, f.sort === v, l)).join('');
+  if (d.radio) { const [key, label, opts] = d.radio; h += sec(label) + opts.map(([v, l]) => it(`data-hm-set="${key}" data-v="${v}"`, String(f[key]) === String(v), l)).join(''); }
+  if (d.check) { // 체크 = 보임(엑셀과 같음). 아무것도 안 고른 상태 = 전부 체크
+    const base = evState.data ? evState.data.items.filter((e) => evInPeriod(e) && evPass(e, true)) : [];
+    const shown = (x) => !f.inds.length || f.inds.includes(x);
+    h += sec('볼 산업', `<button type="button" data-hm-all>${f.inds.length ? '모두 선택' : '모두 해제'}</button>`)
+      + EV_INDS.map((x) => `<label class="ev-hm-ck"><input type="checkbox" class="check" data-hm-ind="${x}" ${shown(x) ? 'checked' : ''}>${x}<span>${base.filter((e) => e.industry.includes(x)).length}</span></label>`).join('');
+  }
+  return h;
+}
+function evHmApply() {
+  evState.hmQuiet = Date.now() + 500; // 목록 길이가 바뀌며 생기는 스크롤로 메뉴가 닫히지 않게
+  evSaveFilter();
+  const fl = $('#ev-filter'); if (fl) fl.innerHTML = evFilterHTML(); // 위 필터 줄도 같은 값으로
+  evDrawMain(); evHmDraw();
+}
+function evHmDraw() { const m = evState.hm; if (m) m.box.innerHTML = evHmHTML(m.k); }
+function evHmClose() { const m = evState.hm; if (!m) return; evState.hm = null; m.box.remove(); m.off?.(); document.querySelectorAll('.ev-hbtn[aria-expanded="true"]').forEach((b) => b.setAttribute('aria-expanded', 'false')); }
+function evHmOpen(btn) {
+  const k = btn.dataset.hm, again = evState.hm?.k === k;
+  evHmClose(); if (again) return; // 같은 칸을 다시 누르면 닫기
+  const box = document.createElement('div');
+  box.className = 'ev-hmenu'; box.setAttribute('role', 'menu');
+  document.body.appendChild(box);
+  evState.hm = { k, box }; evHmDraw();
+  const r = btn.getBoundingClientRect();
+  box.style.left = `${Math.max(16, Math.min(r.left, innerWidth - box.offsetWidth - 16))}px`;
+  box.style.top = `${Math.min(r.bottom + 6, innerHeight - box.offsetHeight - 16)}px`;
+  btn.setAttribute('aria-expanded', 'true');
+  const drop = () => { if (evState.hm?.box === box) { evState.hm = null; box.remove(); } };
+  if (typeof pushLayer === 'function') evState.hm.off = pushLayer(drop, drop);
+  box.addEventListener('click', (ev) => {
+    const f = evState.f, t = ev.target.closest('button'); if (!t) return;
+    if (t.dataset.hmSort) f.sort = t.dataset.hmSort;
+    else if (t.dataset.hmSet) f[t.dataset.hmSet] = t.dataset.hmSet === 'min' ? Number(t.dataset.v) : t.dataset.v;
+    else if (t.hasAttribute('data-hm-all')) f.inds = f.inds.length ? [] : ['__none__']; // 모두 해제 = 아무 산업도 안 보임
+    else return;
+    evHmApply();
+  });
+  box.addEventListener('change', (ev) => {
+    const x = ev.target.dataset.hmInd; if (!x) return;
+    const f = evState.f, cur = f.inds.length ? f.inds.filter((i) => EV_INDS.includes(i)) : [...EV_INDS];
+    const next = ev.target.checked ? [...new Set([...cur, x])] : cur.filter((i) => i !== x);
+    f.inds = next.length === EV_INDS.length ? [] : next.length ? EV_INDS.filter((i) => next.includes(i)) : ['__none__'];
+    evHmApply();
+  });
+}
+const evHmAway = (ev) => { const m = evState.hm; if (m && !m.box.contains(ev.target) && !ev.target.closest?.(`[data-hm="${m.k}"]`)) evHmClose(); };
+document.addEventListener('mousedown', evHmAway, true);
+document.addEventListener('scroll', (ev) => { if (evState.hm && !evState.hm.box.contains(ev.target) && Date.now() > (evState.hmQuiet || 0)) evHmClose(); }, true);
+addEventListener('resize', evHmClose);
+addEventListener('hashchange', evHmClose);
+document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') evHmClose(); });
+
 /* ---------- 목록 ---------- */
 const evNoneHTML = () => `<div class="empty">조건에 맞는 행사가 없습니다.${evIsDefault() ? '' : '<div class="ev-retry"><button class="btn sm" type="button" data-reset>초기화</button></div>'}</div>`;
 
 function evHeadHTML() {
-  const s = evState.f.sort, h = (k, l, c = '') => `<button type="button" class="ev-sort${c}${s === k ? ' on' : ''}" data-sort="${k}" aria-pressed="${s === k}" title="${l}순 정렬">${l}${s === k ? EV_ARROW : EV_SORTABLE}</button>`;
-  return `<div class="ev-head ev-cols"><span></span>${h('date', '날짜')}${h('score', '점수')}<span>행사</span><span class="ev-c-place">장소</span>${h('ind', '산업', ' ev-c-ind')}<span></span></div>`;
+  const f = evState.f, h = (k, c = '') => {
+    const d = EV_HM[k], on = !!d.sort?.some(([v]) => v === f.sort); // 이 칸 순서로 정렬 중
+    const flt = k === 'ind' ? (f.inds.length ? String(f.inds.filter((i) => EV_INDS.includes(i)).length) : '') : d.radio && evChanged(d.radio[0]); // 이 칸으로 걸러 보는 중(산업은 고른 개수)
+    return `<button type="button" class="ev-hbtn${c}${on ? ' on' : ''}" data-hm="${k}" aria-haspopup="menu" aria-expanded="${evState.hm?.k === k}">${d.label}${k === 'ind' && flt ? `<b>${flt}</b>` : flt ? '<i class="dot"></i>' : ''}${EV_ARROW}</button>`;
+  };
+  return `<div class="ev-head ev-cols"><span></span>${h('date')}${h('score')}${h('title')}${h('place', ' ev-c-place')}${h('ind', ' ev-c-ind')}<span></span></div>`;
 }
 
 function evListHTML(list) {
@@ -485,7 +556,8 @@ function evBind(root) {
     if (hit('[data-evcal]')) return evAddCal(hit('[data-id]').dataset.id);
     if ((el = hit('[data-ind]'))) {
       const k = el.dataset.ind;
-      f.inds = !k ? [] : f.inds.includes(k) ? f.inds.filter((x) => x !== k) : [...f.inds, k];
+      const cur = f.inds.filter((x) => EV_INDS.includes(x)); // 머리글 메뉴의 '모두 해제' 표시는 버튼을 누르면 지운다
+      f.inds = !k ? [] : cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k];
       evSaveFilter(); evDrawMain();
       const mf = $('.ev-mf'); if (mf) mf.outerHTML = evMfHTML();
       return;
@@ -497,7 +569,7 @@ function evBind(root) {
       return evRefreshRow(id);
     }
     if (hit('[data-mf]')) { evState.mOpen = !evState.mOpen; $('#ev-filter').innerHTML = evFilterHTML(); return evDrawMain(); }
-    if ((el = hit('[data-sort]'))) { f.sort = el.dataset.sort; evSaveFilter(); return evDrawMain(); }
+    if ((el = hit('[data-hm]'))) return evHmOpen(el);
     if (hit('[data-reset]')) {
       evState.f = { ...evDefaults(), period: f.period, sort: f.sort }; evState.q = '';
       evSaveFilter(); return evDraw();
