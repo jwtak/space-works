@@ -81,11 +81,11 @@ function fsListItems() {
   return a.sort(by);
 }
 
-function fsRow(x) {
+function fsRow(x, i) {
   const open = fsS.open.has(x.key), sec = x.overview?.['산업군 / 섹터'] || x.biz || '';
   return `<div class="ipo-row${open ? ' open' : ''}" data-fs="${esc(x.key)}">
     <div class="ipo-line fs-cols">
-      <div class="fs-c-booth">${esc(x.booth || '–')}<div class="ipo-sub">No.${esc(x.no)}</div></div>
+      <div class="fs-c-no">${i + 1}</div>
       <div class="fs-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${esc(x.name)}</button><div class="ipo-sub">${esc(sec)}</div>
         <div class="ipo-sub fs-alt">${esc(`매출 ${fsEok(x.r25)} · 영업이익 ${fsEok(x.o25)} · 성장 ${fsPct(x.cagr, true)}`)}</div></div>
       <div class="fs-c-rev">${fsEok(x.r25)}<div class="ipo-sub">영업이익 ${fsEok(x.o25)}</div></div>
@@ -196,13 +196,14 @@ function fsPaintImgs(root) {
 function fsSummary() {
   const d = fsS.data; if (!d) return '';
   const big = d.items.filter((x) => x.r25 >= 500).length, opm = d.items.filter((x) => x.opm >= 0.15).length;
-  return `<span>${esc(d.set || '')}</span><span>${d.items.length}곳</span><span>매출 500억+ <b>${big}</b></span><span>OPM 15%+ <b>${opm}</b></span>${d.generated ? `<span>${esc(d.generated)} 작성</span>` : ''}`;
+  // 묶음(행사)별 팩트시트: 지금은 K-Beauty Expo 2026 하나. 묶음이 늘면 이 토글에 붙인다
+  return `${d.set ? `<div class="seg fs-set" role="group" aria-label="묶음"><button type="button" class="on" aria-pressed="true">${esc(d.set)}</button></div>` : ''}<span>${d.items.length}곳</span><span>매출 500억+ <b>${big}</b></span><span>OPM 15%+ <b>${opm}</b></span>${d.generated ? `<span>${esc(d.generated)} 작성</span>` : ''}`;
 }
 function fsBody() {
   if (!fsS.data) return '<div class="empty">아직 올라간 팩트시트가 없습니다.</div>';
   const a = fsListItems();
   if (!a.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
-  return `<div class="ipo-head fs-cols"><div>부스</div><div>회사</div><div class="fs-c-rev">2025 매출</div><div class="fs-c-opm">OPM</div><div class="fs-c-grow">매출 성장</div><div class="fs-c-hold">투자 이력</div><div></div></div>${a.map(fsRow).join('')}`;
+  return `<div class="ipo-head fs-cols"><div>No.</div><div>회사</div><div class="fs-c-rev">2025 매출</div><div class="fs-c-opm">OPM</div><div class="fs-c-grow">매출 성장</div><div class="fs-c-hold">투자 이력</div><div></div></div>${a.map((x, i) => fsRow(x, i)).join('')}`;
 }
 function fsDraw() {
   const b = fsS.host?.querySelector('#fs-body'); if (!b) return;
@@ -216,7 +217,8 @@ function fsDraw() {
 }
 function fsRefreshRow(k) {
   const x = fsFind(k); if (!x || !fsS.host) return;
-  fsS.host.querySelectorAll('.ipo-row[data-fs]').forEach((r) => { if (r.dataset.fs === k) { r.outerHTML = fsRow(x); } });
+  const i = fsListItems().findIndex((y) => y.key === k); // No.는 지금 목록에서의 순서
+  fsS.host.querySelectorAll('.ipo-row[data-fs]').forEach((r) => { if (r.dataset.fs === k) { r.outerHTML = fsRow(x, Math.max(0, i)); } });
   const r = fsS.host.querySelector(`.ipo-row[data-fs="${CSS.escape(k)}"]`); if (r) fsPaintImgs(r);
 }
 
