@@ -174,6 +174,8 @@ function evPass(e, noInd) { // noInd: 산업 버튼 옆 건수는 산업 조건�
 }
 const evInPeriod = (e) => e.end >= today() && e.start <= evPeriodEnd(evState.f.period);
 const evVisible = () => (evState.data ? evState.data.items.filter((e) => evInPeriod(e) && evPass(e)).sort(evState.f.sort === 'score' ? evByScore : evByDate) : []);
+// 산업순: 행사가 걸린 산업마다 그 묶음에 넣는다(여러 산업이면 여러 묶음에 보임 — 묶음 건수 = 산업 버튼 건수). 산업을 골랐으면 고른 산업 묶음만
+const evIndsOf = (e) => { const f = evState.f.inds, k = EV_INDS.filter((x) => e.industry.includes(x) && (!f.length || f.includes(x))); return k.length ? k : ['기타']; };
 const evIsDefault = () => !EV_FKEYS.some(evChanged) && !evState.q.trim();
 
 /* ---------- 조각 ---------- */
@@ -270,7 +272,7 @@ function evFilterHTML() {
     return `<option value="${val}"${String(f[key]) === String(val) ? ' selected' : ''}>${l}</option>`;
   }).join('')}</select>`;
   return `<div class="ev-search"><span class="ev-sic">${ico('search', 'sm')}</span><input class="input" id="ev-q" type="search" placeholder="행사·장소·회사 검색" value="${esc(evState.q)}" autocomplete="off" aria-label="검색"></div>
-    <div class="ev-sels${evState.mOpen ? ' open' : ''}">${evMfHTML()}${sel('period', EV_PERIODS, '기간')}${sel('type', EV_TYPES, '유형', '모든 유형')}${sel('region', EV_REGIONS, '지역', '모든 지역')}${sel('min', EV_MINS, '점수')}${sel('show', EV_SHOWS, '표시')}${sel('sort', [['date', '날짜순'], ['score', '점수순']], '정렬', '', ' ev-msort')}</div>
+    <div class="ev-sels${evState.mOpen ? ' open' : ''}">${evMfHTML()}${sel('period', EV_PERIODS, '기간')}${sel('type', EV_TYPES, '유형', '모든 유형')}${sel('region', EV_REGIONS, '지역', '모든 지역')}${sel('min', EV_MINS, '점수')}${sel('show', EV_SHOWS, '표시')}${sel('sort', [['date', '날짜순'], ['score', '점수순'], ['ind', '산업순']], '정렬', '', ' ev-msort')}</div>
     <span class="ev-r" id="ev-cnt"></span>
     <div class="ev-inds${evState.mOpen ? ' open' : ''}" id="ev-inds" role="group" aria-label="산업"></div>
     <button class="iconbtn ev-ref" type="button" id="ev-ref" aria-label="새로고침">${ico('refresh', 'sm')}</button>`;
@@ -414,13 +416,18 @@ document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && evStat
 const evNoneHTML = () => `<div class="empty">조건에 맞는 행사가 없습니다.${evIsDefault() ? '' : '<div class="ev-retry"><button class="btn sm" type="button" data-reset>초기화</button></div>'}</div>`;
 
 function evHeadHTML() {
-  const s = evState.f.sort, h = (k, l) => `<button type="button" class="ev-sort${s === k ? ' on' : ''}" data-sort="${k}" aria-pressed="${s === k}">${l}${s === k ? EV_ARROW : ''}</button>`;
-  return `<div class="ev-head ev-cols"><span></span>${h('date', '날짜')}${h('score', '점수')}<span>행사</span><span class="ev-c-place">장소</span><span class="ev-c-ind">산업</span><span></span></div>`;
+  const s = evState.f.sort, h = (k, l, c = '') => `<button type="button" class="ev-sort${c}${s === k ? ' on' : ''}" data-sort="${k}" aria-pressed="${s === k}" title="${l}순 정렬">${l}${s === k ? EV_ARROW : ''}</button>`;
+  return `<div class="ev-head ev-cols"><span></span>${h('date', '날짜')}${h('score', '점수')}<span>행사</span><span class="ev-c-place">장소</span>${h('ind', '산업', ' ev-c-ind')}<span></span></div>`;
 }
 
 function evListHTML(list) {
   if (!list.length) return evHeadHTML() + evNoneHTML();
   if (evState.f.sort === 'score') return evHeadHTML() + list.map(evRow).join('');
+  if (evState.f.sort === 'ind') {
+    const by = new Map([...EV_INDS, '기타'].map((k) => [k, []]));
+    list.forEach((e) => evIndsOf(e).forEach((k) => by.get(k).push(e)));
+    return evHeadHTML() + [...by].filter(([, its]) => its.length).map(([k, its]) => `<div class="ev-grp">${esc(k)}<span>${its.length}</span></div>${its.map(evRow).join('')}`).join('');
+  }
   const year = new Date().getFullYear(), groups = [];
   for (const e of list) {
     const k = evKey(e).slice(0, 7);
