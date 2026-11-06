@@ -432,7 +432,8 @@ matchMedia('(max-width: 760px)').addEventListener('change', () => { if (S && rou
 function renderDeals() {
   const tabs = [['events', '행사·IR', typeof renderEvents === 'function' ? renderEvents : null, 'ticket'], ['ipo', '신규상장', typeof renderIpo === 'function' ? renderIpo : null, 'chart'], ['news', '딜 뉴스', typeof renderNews === 'function' ? renderNews : null, 'news'],
     ['yesim', '예심청구', typeof renderYesim === 'function' ? renderYesim : null, 'flag'], ['sell', '매각희망', typeof renderSell === 'function' ? renderSell : null, 'upload'],
-    ['bids', '입찰딜', typeof renderBids === 'function' ? renderBids : null, 'send'], ['pipeline', '파이프라인', typeof renderPipeline === 'function' ? renderPipeline : null, 'inbox']];
+    ['bids', '입찰딜', typeof renderBids === 'function' ? renderBids : null, 'send'], ['facts', '팩트시트', typeof renderFacts === 'function' ? renderFacts : null, 'file'],
+    ['pipeline', '파이프라인', typeof renderPipeline === 'function' ? renderPipeline : null, 'inbox']];
   if (!tabs.some(([k]) => k === ui.dealTab)) ui.dealTab = 'events';
   PAGE.innerHTML = `<div class="page-head"><h1>딜소싱</h1></div>
     <div class="deal-seg" role="tablist">${tabs.map(([k, t, , i]) => `<button type="button" role="tab" data-dt="${k}" aria-selected="${ui.dealTab === k}" class="${ui.dealTab === k ? 'on' : ''}">${ico(i)}${t}</button>`).join('')}</div>

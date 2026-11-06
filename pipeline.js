@@ -27,7 +27,7 @@ TAB_INFO['deals/pipeline'] = { title: '파이프라인', rows: [
   ]],
 ] };
 // ref 앞부분 → 그 딜이 있는 탭
-const PP_TABS = { ipo: ['#deals/ipo', '신규상장'], yesim: ['#deals/yesim', '예심청구'], sell: ['#deals/sell', '매각희망'], bids: ['#deals/bids', '입찰딜'], events: ['#deals/events', '행사·IR'] };
+const PP_TABS = { ipo: ['#deals/ipo', '신규상장'], yesim: ['#deals/yesim', '예심청구'], sell: ['#deals/sell', '매각희망'], bids: ['#deals/bids', '입찰딜'], events: ['#deals/events', '행사·IR'], facts: ['#deals/facts', '팩트시트'] };
 const PP_HASH = '#deals/pipeline';
 const PP_TTL = 5 * 60000;
 const PP_WD = '일월화수목금토';
@@ -512,6 +512,7 @@ function ppGoTab(ref) {
     if (typeof ipoFocus === 'function') ipoFocus(key);
     else if (typeof ipoState === 'object' && ipoState?.open instanceof Set) { ipoState.focus = key; ipoState.open.add(key); }
   } else if (['yesim', 'sell', 'bids'].includes(k) && key && typeof radarFocus === 'function') radarFocus(ref);
+  else if (k === 'facts' && key && typeof factsFocus === 'function') factsFocus(key);
 }
 
 async function ppRefresh(btn) {
