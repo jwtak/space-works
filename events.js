@@ -18,6 +18,7 @@ const EV_STAR = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path 
 const EV_HIDE = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12s3-6 8.5-6 8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4.5 4.5l15 15"/></svg>';
 const EV_SHOW = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12s3-6 8.5-6 8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z"/><circle cx="12" cy="12" r="2.5"/></svg>';
 const EV_ARROW = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5"/></svg>';
+const EV_SORTABLE = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m8 9 4-4 4 4M8 15l4 4 4-4"/></svg>'; // 정렬할 수 있는 머리글(아직 그 순서가 아닐 때)
 const evDefaults = () => ({ period: '12m', type: '', inds: [], region: '', min: 40, show: '', sort: 'date' });
 const EV_FKEYS = ['type', 'inds', 'region', 'min', 'show']; // 초기화·'필터 n' 대상
 const evChanged = (k) => (k === 'inds' ? evState.f.inds.length > 0 : evState.f[k] !== evDefaults()[k]);
@@ -416,7 +417,7 @@ document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && evStat
 const evNoneHTML = () => `<div class="empty">조건에 맞는 행사가 없습니다.${evIsDefault() ? '' : '<div class="ev-retry"><button class="btn sm" type="button" data-reset>초기화</button></div>'}</div>`;
 
 function evHeadHTML() {
-  const s = evState.f.sort, h = (k, l, c = '') => `<button type="button" class="ev-sort${c}${s === k ? ' on' : ''}" data-sort="${k}" aria-pressed="${s === k}" title="${l}순 정렬">${l}${s === k ? EV_ARROW : ''}</button>`;
+  const s = evState.f.sort, h = (k, l, c = '') => `<button type="button" class="ev-sort${c}${s === k ? ' on' : ''}" data-sort="${k}" aria-pressed="${s === k}" title="${l}순 정렬">${l}${s === k ? EV_ARROW : EV_SORTABLE}</button>`;
   return `<div class="ev-head ev-cols"><span></span>${h('date', '날짜')}${h('score', '점수')}<span>행사</span><span class="ev-c-place">장소</span>${h('ind', '산업', ' ev-c-ind')}<span></span></div>`;
 }
 

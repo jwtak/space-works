@@ -85,8 +85,11 @@
 .ev-list { border-top: 1px solid var(--line); }
 .ev-cols { display: grid; grid-template-columns: 24px 120px 40px repeat(3, minmax(0, 1fr)) 32px; gap: 16px; align-items: start; padding: 0 24px; }
 .ev-head { min-height: 48px; align-items: center; font-size: 15px; font-weight: 700; color: var(--ink); background: var(--row); border-bottom: 1px solid var(--line); } /* 사용자 11/6: 머리글은 잘 보여야 함 */
-.ev-sort { display: inline-flex; align-items: center; gap: 2px; width: max-content; padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer; }
-.ev-sort:hover, .ev-sort.on { color: var(--primary); }
+.ev-sort { display: inline-flex; align-items: center; gap: 2px; width: max-content; height: 32px; margin-left: -8px; padding: 0 6px 0 8px; border: 1px solid transparent; border-radius: 6px; background: none; font: inherit; color: inherit; cursor: pointer; } /* 누를 수 있는 머리글: 화살표 + 올리면 버튼 모양 */
+.ev-sort .i { color: var(--text3); }
+.ev-sort:hover { background: var(--card); border-color: var(--line); color: var(--primary); }
+.ev-sort:hover .i, .ev-sort.on .i { color: var(--primary); }
+.ev-sort.on { color: var(--primary); }
 .ev-grp { display: flex; align-items: baseline; gap: 6px; padding: 18px 24px 8px; font-size: 15px; font-weight: 700; color: var(--ink); scroll-margin-top: 8px; }
 .ev-grp span { font-size: 13px; font-weight: 500; color: var(--text3); font-variant-numeric: tabular-nums; }
 
