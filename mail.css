@@ -110,6 +110,9 @@
 /* ---------- 공통: 파랑 글자 버튼(읽기·쓰기 위 줄), 편집 본문, 펼침 메뉴, 옵션, 미리보기·주소록 창 ---------- */
 .mail-tbtn { display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 10px; border: 0; border-radius: var(--r); background: none; color: var(--primary); font-size: 15px; font-weight: 500; white-space: nowrap; cursor: pointer; }
 .mail-tbtn:hover { background: var(--primary-soft); }
+/* 네이버 대용량 첨부 표시 */
+.mail-big { flex: none; padding: 1px 6px; border-radius: 4px; background: var(--primary-soft); color: var(--primary); font-size: 12px; font-weight: 500; white-space: nowrap; }
+.mail-big.x { background: var(--line); color: var(--text3); }
 .mail-tbtn svg.caret { width: 14px; height: 14px; transition: transform .15s; }
 .mail-tbtn[aria-expanded="true"] svg.caret { transform: rotate(180deg); }
 .mail-optchip { display: inline-flex; align-items: center; height: 24px; padding: 0 8px; border-radius: 12px; background: #F3F4F6; color: var(--text2); font-size: 12px; font-weight: 600; white-space: nowrap; }

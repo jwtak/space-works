@@ -572,7 +572,9 @@ function mailDrawPane() {
   const inTrash = m.folder === 'deleteditems';
   const flagged = x.flag?.flagStatus === 'flagged';
   const fromName = x.from?.emailAddress?.name || x.from?.emailAddress?.address || '(보낸 사람 없음)';
-  const attTotal = m.atts.reduce((s, a) => s + (a.size || 0), 0);
+  const big = mailBigFiles(html), attN = m.atts.length + big.length;
+  const attTotal = [...m.atts, ...big].reduce((s, a) => s + (a.size || 0), 0);
+  const bigTag = (b) => `<span class="mail-big${b.expired ? ' x' : ''}">${b.expired ? '기한 지남' : `대용량${b.exp ? ` ~${b.exp.slice(5)}` : ''}`}</span>`;
   const idx = m.list.findIndex((i) => i.id === x.id);
   const prevId = idx > 0 ? m.list[idx - 1].id : null, nextId = idx >= 0 && idx < m.list.length - 1 ? m.list[idx + 1].id : null;
   pane.innerHTML = `
@@ -616,17 +618,18 @@ function mailDrawPane() {
         ${x.bccRecipients?.length ? `<dt>숨은참조</dt><dd>${esc(mailAddrList(x.bccRecipients))}</dd>` : ''}
         <dt class="mail-meta-d">날짜</dt><dd class="mail-meta-d">${mailFullTime(x.receivedDateTime || x.sentDateTime)}</dd>
       </dl>
-      ${m.atts.length ? `<div class="mail-abox ${m.attFold ? '' : 'open'}" id="mail-abox">
-        <div class="mail-abox-h"><button type="button" class="mail-abox-tg" id="mail-abox-tg" aria-expanded="${!m.attFold}">${mi('caret', 'caret')}<b>첨부 ${m.atts.length}개</b><span class="muted">(${mailSize(attTotal)})</span></button><button type="button" class="mail-tbtn" data-saveall>모두 저장</button></div>
-        <ul class="mail-abox-l">${m.atts.map((a) => `<li><span class="mail-fic" style="color:${mailExtColor(a.name)}">${mi('doc')}</span><span class="mail-abox-n">${esc(a.name)}</span><span class="muted">${mailSize(a.size)}</span><span class="mail-abox-a">${mailPvKind(a.name) ? `<button type="button" class="mail-linkbtn" data-pv="${esc(a.id)}">미리보기</button>` : ''}<button type="button" class="mail-linkbtn" data-att="${esc(a.id)}">저장</button></span></li>`).join('')}</ul>
+      ${attN ? `<div class="mail-abox ${m.attFold ? '' : 'open'}" id="mail-abox">
+        <div class="mail-abox-h"><button type="button" class="mail-abox-tg" id="mail-abox-tg" aria-expanded="${!m.attFold}">${mi('caret', 'caret')}<b>첨부 ${attN}개</b><span class="muted">(${mailSize(attTotal)})</span></button><button type="button" class="mail-tbtn" data-saveall>모두 저장</button></div>
+        <ul class="mail-abox-l">${m.atts.map((a) => `<li><span class="mail-fic" style="color:${mailExtColor(a.name)}">${mi('doc')}</span><span class="mail-abox-n">${esc(a.name)}</span><span class="muted">${mailSize(a.size)}</span><span class="mail-abox-a">${mailPvKind(a.name) ? `<button type="button" class="mail-linkbtn" data-pv="${esc(a.id)}">미리보기</button>` : ''}<button type="button" class="mail-linkbtn" data-att="${esc(a.id)}">저장</button></span></li>`).join('')}${big.map((b, i) => `<li><span class="mail-fic" style="color:${mailExtColor(b.name)}">${mi('doc')}</span><span class="mail-abox-n">${esc(b.name)}</span><span class="muted">${mailSize(b.size)}</span>${bigTag(b)}<span class="mail-abox-a">${b.expired ? '' : `<button type="button" class="mail-linkbtn" data-big="${i}">저장</button>`}</span></li>`).join('')}</ul>
       </div>
       <div class="mail-matts">
-        <div class="mail-matts-h"><span>첨부 ${m.atts.length}개 <span class="muted">(${mailSize(attTotal)})</span></span><button type="button" class="mail-linkbtn" data-saveall>모두 저장</button></div>
+        <div class="mail-matts-h"><span>첨부 ${attN}개 <span class="muted">(${mailSize(attTotal)})</span></span><button type="button" class="mail-linkbtn" data-saveall>모두 저장</button></div>
         ${m.atts.map((a) => `<button type="button" class="mail-matt" data-${mailPvKind(a.name) ? 'pv' : 'att'}="${esc(a.id)}"><span class="mail-fic" style="color:${mailExtColor(a.name)}">${mi('doc')}</span><span class="mail-matt-n">${esc(a.name)}</span><span class="muted">(${mailSize(a.size)})</span><span class="mail-matt-dl">${mi(mailPvKind(a.name) ? 'eye' : 'dl')}</span></button>`).join('')}
+        ${big.map((b, i) => `<button type="button" class="mail-matt" ${b.expired ? 'disabled' : `data-big="${i}"`}><span class="mail-fic" style="color:${mailExtColor(b.name)}">${mi('doc')}</span><span class="mail-matt-n">${esc(b.name)}</span><span class="muted">(${mailSize(b.size)})</span>${bigTag(b)}<span class="mail-matt-dl">${mi('dl')}</span></button>`).join('')}
       </div>` : ''}
       ${hasRemote && !m.remote ? '<div class="mail-remote">외부 이미지 차단됨 <button class="btn sm ghost" type="button" id="mail-remote">이미지 보기</button></div>' : ''}
     </div>
-    <iframe class="mail-frame" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox" referrerpolicy="no-referrer" title="메일 본문"></iframe>`;
+    <iframe class="mail-frame" sandbox="allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads" referrerpolicy="no-referrer" title="메일 본문"></iframe>`;
   const frame = pane.querySelector('.mail-frame');
   frame.addEventListener('load', () => mailFitFrame(frame), { once: true });
   frame.srcdoc = mailFrameDoc(html, m.remote);
@@ -668,7 +671,8 @@ function mailDrawPane() {
     if (k === 'outlook') window.open(x.webLink, '_blank', 'noopener');
     else if (k) mailAction(k, x);
   });
-  pane.querySelectorAll('[data-saveall]').forEach((b) => b.addEventListener('click', () => mailSaveAll(x, m.atts, b)));
+  pane.querySelectorAll('[data-saveall]').forEach((b) => b.addEventListener('click', () => mailSaveAll(x, m.atts, b, big)));
+  pane.querySelectorAll('[data-big]').forEach((b) => b.addEventListener('click', () => mailBigSave(big[Number(b.dataset.big)].url)));
   const pvList = m.atts.filter((a) => mailPvKind(a.name));
   pane.querySelectorAll('[data-pv]').forEach((b) => b.addEventListener('click', () => mailPreviewAtt(x, pvList, Math.max(0, pvList.findIndex((a) => a.id === b.dataset.pv)))));
   const atg = $('#mail-abox-tg');
@@ -726,8 +730,35 @@ function mailZip(files) {
   return new Blob([...local, ...central, e], { type: 'application/zip' });
 }
 
-/* 모두 저장: 1~2개는 하나씩, 3개 이상은 "제목.zip" 하나로 */
-async function mailSaveAll(x, atts, btn) {
+/* 네이버 대용량 첨부: 본문에 든 bigfile 다운로드 링크(이름·크기·기한). 파일 바이트는 CORS 로 못 읽어 zip 에는 못 넣고 링크로 받는다 */
+function mailBigFiles(html) {
+  if (!html.includes('bigfile.mail.naver.com')) return [];
+  const d = new DOMParser().parseFromString(html, 'text/html'), map = new Map(), today = new Date().toISOString().slice(0, 10).replace(/-/g, '/');
+  d.querySelectorAll('a[href^="https://bigfile.mail.naver.com/download?"]').forEach((a) => {
+    const url = a.href, f = map.get(url) || { url, name: '', size: 0, exp: '' };
+    const sz = a.querySelector('span')?.textContent.trim();
+    if (!f.name) f.name = (a.title || a.textContent.replace(sz || '', '')).trim();
+    if (!f.size && /^\d+$/.test(sz || '')) f.size = Number(sz);
+    if (!f.exp) f.exp = (a.closest('tr')?.textContent.match(/~\s*(\d{4}\/\d{2}\/\d{2})/) || [])[1] || '';
+    map.set(url, f);
+  });
+  return [...map.values()].map((f) => ({ ...f, name: f.name || '대용량 첨부', expired: !!f.exp && f.exp < today }));
+}
+/* 숨은 빈 iframe 을 만든 뒤 주소를 넣어 받는다. 여러 개를 동시에 받아도 서로 취소되지 않고, 기한이 지나 HTML 이 와도 화면이 안 바뀐다.
+   (iframe src 에 바로 넣으면 '다른 출처 iframe 다운로드'로 막히고, 이 탭에서 링크를 열면 다음 링크가 앞 다운로드를 취소한다) */
+function mailBigSave(url) {
+  const f = document.createElement('iframe');
+  f.style.display = 'none'; document.body.appendChild(f);
+  f.contentWindow.location.href = url;
+  setTimeout(() => f.remove(), 60000);
+}
+
+/* 모두 저장: 1~2개는 하나씩, 3개 이상은 "제목.zip" 하나로. 대용량 첨부는 링크로 따로 하나씩 */
+async function mailSaveAll(x, atts, btn, big = []) {
+  const live = big.filter((b) => !b.expired);
+  if (!atts.length && !live.length) return;
+  live.forEach((b) => mailBigSave(b.url));
+  if (live.length < big.length) toast(`기한 지난 대용량 첨부 ${big.length - live.length}개는 받지 못합니다`);
   if (!atts.length) return;
   if (btn) btn.disabled = true;
   const bad = []; // 하나 실패해도 나머지는 저장한다
