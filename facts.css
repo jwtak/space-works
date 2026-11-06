@@ -1,7 +1,7 @@
 /* 딜소싱 › 팩트시트 (facts.js) — 목록·상자 모양은 ipo.css 를 그대로 쓰고 칸 나누기만 따로 */
 #fs-root { container-type: inline-size; }
 /* 위아래 여백은 ipo.css .ipo-line(12px)을 따른다: 좌우만 지정(padding 한 줄로 쓰면 위아래가 0이 되어 행이 붙는다) */
-.fs-cols { display: grid; grid-template-columns: 40px minmax(0, 1.4fr) minmax(0, 0.9fr) 64px 80px minmax(0, 1.8fr) 24px; gap: 16px; align-items: start; padding-left: 24px; padding-right: 24px; }
+.fs-cols { display: grid; grid-template-columns: 40px minmax(0, 1.6fr) minmax(0, 0.8fr) 64px 80px minmax(0, 1.1fr) 88px 24px; gap: 16px; align-items: start; padding-left: 24px; padding-right: 24px; }
 .fs-c-no { color: var(--text3); font-variant-numeric: tabular-nums; }
 .ipo-head.fs-cols { align-items: center; } /* .fs-cols의 align-items: start가 머리줄 글자를 위로 붙이지 않게 */
 /* 요약 줄 맨 앞 묶음 토글(K-Beauty Expo 2026) */
@@ -11,10 +11,21 @@
 .fs-up { color: var(--danger); }
 .fs-dn { color: var(--primary); }
 .fs-chk { color: var(--danger); }
-.fs-c-hold { overflow-wrap: anywhere; }
-/* 투자 이력 한 줄 요약: 두 줄까지, 이력이 있으면 진하게 */
-.fs-inv { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 13px; line-height: 20px; color: var(--text3); }
-.fs-inv.has { color: var(--ink); }
+/* 현재 투자 단계·누적 투자(목록 메인), 외부 투자 라운드가 있으면 진하게 */
+.fs-c-stage { overflow-wrap: anywhere; color: var(--text2); }
+.fs-c-stage.has { color: var(--ink); font-weight: 600; }
+.fs-c-total { font-variant-numeric: tabular-nums; }
+.fs-name-l { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.fs-name-l .ipo-ttl { min-width: 0; }
+.fs-ir { flex: none; height: 20px; padding: 0 6px; font-size: 11px; }
+/* IR · 회사 자료 상자 */
+.fs-ir-l { list-style: none; margin: 0 0 8px; padding: 0; }
+.fs-ir-i { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 0; border-bottom: 1px solid var(--row); }
+.fs-ir-i:last-child { border-bottom: 0; }
+.fs-ir-t { font-weight: 600; color: var(--ink); }
+
+
+
 .fs-inv-sum { font-weight: 600; }
 .fs-rounds { min-width: 720px; margin: 12px 0 8px; }
 .fs-rounds th:nth-child(1) { width: 88px; } .fs-rounds th:nth-child(2) { width: 128px; } .fs-rounds th:nth-child(3) { width: 160px; } .fs-rounds th:nth-child(5) { width: 22%; }
@@ -40,9 +51,9 @@
   #fs-root .ipo-filter .seg button { flex: 1 1 auto; }
   #fs-root .ipo-filter .seg button + button { border-left: 0; }
   #fs-root .ipo-tabs { flex-wrap: wrap; row-gap: 0; }
-  /* 카드가 좁으면 영업이익률·매출 성장 칸을 접는다(투자 이력은 남김) */
+  /* 카드가 좁으면 영업이익률·매출 성장 칸을 접는다(투자 단계·누적 투자는 남김) */
   @container (max-width: 899px) {
-    #fs-root .fs-cols { grid-template-columns: 40px minmax(0, 1.3fr) minmax(0, 0.9fr) minmax(0, 1.6fr) 24px; }
+    #fs-root .fs-cols { grid-template-columns: 40px minmax(0, 1.5fr) minmax(0, 0.8fr) minmax(0, 1.1fr) 80px 24px; } /* 접힘: 칸 6개 */
     #fs-root .fs-c-opm, #fs-root .fs-c-grow { display: none; }
   }
   @container (max-width: 719px) {
@@ -55,7 +66,7 @@
     #fs-root .fs-c-no { grid-column: 1 / -1; font-size: 12px; }
     #fs-root .fs-c-no::before { content: 'No.'; }
     #fs-root .fs-c-rev, #fs-root .fs-c-grow { display: none; }
-    #fs-root .fs-c-hold { grid-column: 1 / -1; }
+    #fs-root .fs-c-stage, #fs-root .fs-c-total { display: none; }
     #fs-root .fs-alt { display: block; white-space: normal; }
     #fs-root .fs-c-chev { grid-column: 2; grid-row: 2; }
   }
@@ -71,7 +82,7 @@
   .fs-c-no { grid-column: 1 / -1; font-size: 12px; }
   .fs-c-no::before { content: 'No.'; }
   .fs-c-grow { display: none; }
-  .fs-c-hold { grid-column: 1 / -1; }
+  .fs-c-stage, .fs-c-total { display: none; }
   .fs-alt { display: block; white-space: normal; }
   .fs-c-chev { grid-column: 2; grid-row: 2; }
   .fs-pics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
