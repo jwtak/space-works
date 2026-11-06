@@ -1,7 +1,7 @@
 /* 딜소싱 › 신규상장 (ipo.js) — style.css 토큰 사용. 표는 전부 왼쪽 정렬·머리글과 값 시작선 일치.
    크기 세트: 16(핵심 값) / 14(본문) / 13(라벨·머리글) / 12(보조). 간격 세트: 4·8·12·16·24·32. */
 .ipo-top { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-.ipo-sumrow { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--text3); font-size: 13px; }
+.ipo-sumrow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; color: var(--text3); font-size: 13px; }
 .ipo-sumrow b { color: var(--ink); font-weight: 600; }
 .ipo-sumrow .ipo-stale { color: var(--danger); }
 .ipo-top .btn:first-of-type { margin-left: auto; }
@@ -19,7 +19,8 @@
 
 /* 목록: 상장일·상태는 고정, 나머지 5칸은 같은 폭 */
 .ipo-cols { display: grid; grid-template-columns: 72px repeat(5, minmax(0, 1fr)) 100px; gap: 16px; align-items: start; padding: 0 24px; }
-.ipo-head { min-height: 40px; align-items: center; font-size: 13px; font-weight: 600; color: var(--text2); border-bottom: 1px solid var(--line); }
+/* 표 머리글은 진하게 + 옅은 바탕으로 목록과 구분(사용자 11/6: 머리글은 잘 보여야 함) */
+.ipo-head { min-height: 40px; align-items: center; font-size: 13px; font-weight: 600; color: var(--ink); background: var(--row); border-bottom: 1px solid var(--line); }
 .ipo-head > .ipo-h-st { padding-left: 10px; } /* '컨택 상태' 머리글 = 칩 안 글자 시작선(칩 좌우 10) */
 .ipo-row { border-top: 1px solid var(--row); }
 .ipo-head + .ipo-row { border-top: 0; }

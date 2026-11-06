@@ -3,6 +3,7 @@
 /* 위아래 여백은 ipo.css .ipo-line(12px)을 따른다: 좌우만 지정(padding 한 줄로 쓰면 위아래가 0이 되어 행이 붙는다) */
 .fs-cols { display: grid; grid-template-columns: 40px minmax(0, 1.4fr) minmax(0, 0.9fr) 64px 80px minmax(0, 1.8fr) 24px; gap: 16px; align-items: start; padding-left: 24px; padding-right: 24px; }
 .fs-c-no { color: var(--text3); font-variant-numeric: tabular-nums; }
+.ipo-head.fs-cols { align-items: center; } /* .fs-cols의 align-items: start가 머리줄 글자를 위로 붙이지 않게 */
 /* 요약 줄 맨 앞 묶음 토글(K-Beauty Expo 2026) */
 .fs-set button { height: 30px; padding: 0 12px; font-size: 13px; }
 .fs-c-chev { display: flex; justify-content: flex-end; padding-top: 2px; }
