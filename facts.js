@@ -8,17 +8,18 @@
 const FS_DIR = '_웍스/팩트시트';
 const FS_XLSX_DIR = '04. 딜소싱/03. K-Beauty Expo 2026';
 const FS_TTL = 10 * 60000;
-const FS_FILTERS = [['all', '전체'], ['big', '매출 500억+'], ['opm', 'OPM 15%+'], ['grow', '매출 성장 20%+']];
+const FS_FILTERS = [['all', '전체'], ['inv', '투자 이력 있음'], ['big', '매출 500억+'], ['opm', 'OPM 15%+'], ['grow', '매출 성장 20%+']];
 const FS_SORTS = [['rev', '2025 매출순'], ['op', '2025 영업이익순'], ['grow', '매출 성장률순'], ['opm', '영업이익률순'], ['no', '목록 번호순']];
-const FS_TABS = [['ov', '개요'], ['biz', '사업·브랜드'], ['prod', '제품'], ['fin', '재무·주주'], ['view', '투자 판단'], ['contact', '컨택·키맨']];
-const fsS = { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'rev', tab: 'ov', open: new Set(), focus: null, host: null, imgs: new Map() };
+const FS_TABS = [['inv', '투자유치·컨택'], ['ov', '개요'], ['biz', '사업·브랜드'], ['prod', '제품'], ['fin', '재무·주주'], ['view', '투자 판단']];
+const fsS = { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'rev', tab: 'inv', open: new Set(), focus: null, host: null, imgs: new Map() };
 
 TAB_INFO['deals/facts'] = { title: '팩트시트', asof: '기준 2026-11-06 · K-Beauty Expo 2026 참가기업 목록에서 대표님이 노란색으로 고른 40곳', rows: [
   ['무엇인가', '대표님이 괜찮아 보인다고 고른 회사들을 공통 양식(PE 딜소싱 Fact Sheet)으로 한 장씩 조사한 자료입니다. 엑셀의 회사별 시트와 같은 내용입니다.'],
   ['왜 보나', '컨택 전에 회사가 무엇을 하고, 얼마나 벌고, 누가 지분을 갖고 있으며, 누구에게 어떻게 연락할지를 한 화면에서 봅니다.'],
   ['어떻게 보나', [
-    '목록은 2025 매출순입니다. 필터로 매출 500억 이상, 영업이익률 15% 이상, 매출 성장(2023→2025 연평균) 20% 이상만 볼 수 있습니다.',
-    '회사를 펼치면 개요·사업·브랜드·제품·재무·주주·투자 판단·컨택·키맨 칸이 나옵니다.',
+    '목록은 2025 매출순입니다. 필터로 투자 이력이 있는 회사, 매출 500억 이상, 영업이익률 15% 이상, 매출 성장(2023→2025 연평균) 20% 이상만 볼 수 있습니다.',
+    '회사를 펼치면 첫 칸에 이전 투자유치 히스토리(VC·PE·정책금융·메자닌)와 컨택 방법(누구에게·어떤 창구로·누구를 통해·어떤 순서로)이 나옵니다. 이어서 개요·사업·브랜드·제품·재무·주주·투자 판단 칸이 있습니다.',
+    '\'투자 이력 있음\'은 외부 투자 라운드가 확인된 회사만 보여 줍니다. 이력이 없다고 나온 회사도 어디까지 찾아봤는지 출처를 함께 적었습니다.',
     '재무는 DART 감사보고서(개별) 또는 사람인(NICE) 값이고 단위는 억원입니다. \'확인 필요\'는 공개 자료로 확인하지 못한 칸입니다.',
   ]],
   ['그래서 할 일', [
@@ -48,9 +49,10 @@ function fsNorm(x) {
   const f = x.fin || {}, v = (y, i) => { const n = (f[y] || [])[i]; return typeof n === 'number' ? n : null; };
   const r23 = v('2023', 0), r24 = v('2024', 0), r25 = v('2025', 0), o25 = v('2025', 1);
   const cagr = r23 > 0 && r25 > 0 ? (r25 / r23) ** 0.5 - 1 : r24 > 0 && r25 > 0 ? r25 / r24 - 1 : null;
-  const top = (x.shareholders?.rows || [])[0] || {};
-  return { ...x, key: String(x.no), r25, o25, opm: r25 > 0 && o25 != null ? o25 / r25 : null, cagr, top,
-    _q: [x.name, x.title, x.eng, x.booth, x.overview?.['산업군 / 섹터'], x.overview?.['대표자'], x.business?.['주요 제품'], top.name].join(' ').toLowerCase() };
+  const top = (x.shareholders?.rows || [])[0] || {}, inv = x.invest && typeof x.invest === 'object' ? x.invest : {};
+  const rounds = Array.isArray(inv.rounds) ? inv.rounds.filter((r) => r && typeof r === 'object') : [];
+  return { ...x, key: String(x.no), r25, o25, opm: r25 > 0 && o25 != null ? o25 / r25 : null, cagr, top, inv, rounds,
+    _q: [x.name, x.title, x.eng, x.booth, x.overview?.['산업군 / 섹터'], x.overview?.['대표자'], x.business?.['주요 제품'], top.name, inv.summary, inv.current_fi, rounds.map((r) => r.investors).join(' ')].join(' ').toLowerCase() };
 }
 const fsFind = (k) => fsS.data?.items.find((x) => x.key === String(k));
 
@@ -70,6 +72,7 @@ function fsListItems() {
   const d = fsS.data; if (!d) return [];
   const q = fsS.q.trim().toLowerCase();
   let a = d.items.filter((x) => !q || x._q.includes(q));
+  if (fsS.f === 'inv') a = a.filter((x) => x.rounds.length);
   if (fsS.f === 'big') a = a.filter((x) => x.r25 >= 500);
   if (fsS.f === 'opm') a = a.filter((x) => x.opm >= 0.15);
   if (fsS.f === 'grow') a = a.filter((x) => x.cagr >= 0.2);
@@ -80,7 +83,6 @@ function fsListItems() {
 
 function fsRow(x) {
   const open = fsS.open.has(x.key), sec = x.overview?.['산업군 / 섹터'] || x.biz || '';
-  const holder = x.top?.name && x.top.name !== '-' ? `${x.top.name}${x.top.pct && !/확인 필요|^-$/.test(x.top.pct) ? ` ${x.top.pct}` : ''}` : '';
   return `<div class="ipo-row${open ? ' open' : ''}" data-fs="${esc(x.key)}">
     <div class="ipo-line fs-cols">
       <div class="fs-c-booth">${esc(x.booth || '–')}<div class="ipo-sub">No.${esc(x.no)}</div></div>
@@ -89,7 +91,7 @@ function fsRow(x) {
       <div class="fs-c-rev">${fsEok(x.r25)}<div class="ipo-sub">영업이익 ${fsEok(x.o25)}</div></div>
       <div class="fs-c-opm">${fsPct(x.opm)}</div>
       <div class="fs-c-grow"><span class="${x.cagr > 0 ? 'fs-up' : x.cagr < 0 ? 'fs-dn' : ''}">${fsPct(x.cagr, true)}</span></div>
-      <div class="fs-c-hold">${holder ? fsT(holder) : '<span class="muted">–</span>'}<div class="ipo-sub">${fsT(x.top?.relation || '')}</div></div>
+      <div class="fs-c-hold"><div class="fs-inv${x.rounds.length ? ' has' : ''}">${x.inv.summary ? fsT(x.inv.summary) : '<span class="muted">–</span>'}</div></div>
       <div class="fs-c-chev"><span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span></div>
     </div>${open ? fsDetail(x) : ''}</div>`;
 }
@@ -113,7 +115,7 @@ function fsDetail(x) {
 }
 
 function fsPane(x) {
-  try { return ({ ov: fsPaneOv, biz: fsPaneBiz, prod: fsPaneProd, fin: fsPaneFin, view: fsPaneView, contact: fsPaneContact }[fsS.tab] || fsPaneOv)(x); }
+  try { return ({ inv: fsPaneInv, ov: fsPaneOv, biz: fsPaneBiz, prod: fsPaneProd, fin: fsPaneFin, view: fsPaneView }[fsS.tab] || fsPaneInv)(x); }
   catch { return '<div class="empty">이 회사 자료 형식이 올바르지 않습니다</div>'; }
 }
 
@@ -168,12 +170,15 @@ function fsPaneView(x) {
     ${fsBox('검증 등급 · 출처', `${fsKv('검증 등급', v.grade)}${fsKv('데이터 출처', v.sources)}`)}</div>`;
 }
 
-function fsPaneContact(x) {
-  const c = x.contact || {}, k = x.keyman || {};
-  const kv2 = (key, label) => (k[key] ? `<div class="ipo-kv"><div class="k">${esc(label || key)}</div><div class="v">${fsNums(k[key])}</div></div>` : '');
-  return `<div class="ipo-two-col">
-    ${fsBox('컨택 정보 · 접촉 경로', `${fsKvs(c, ['대표 연락처', '대표 이메일', '본사 주소', '홈페이지 · 문의채널', '장외 유통', 'IR · 재무 담당'])}<div class="ipo-kv"><div class="k">권장 접촉 경로</div><div class="v">${fsNums(c['권장 접촉 경로'])}</div></div>`)}
-    ${fsBox('키맨 직접 콘택 전략', `${fsKvs(k, ['1순위 키맨 (대표)', '재무 키맨 (CFO급)', '기존 투자자 (레버리지)', '직접 채널'])}${kv2('웜 인트로 경로')}${kv2('권장 콘택 순서')}${fsKvs(k, ['피칭 포인트', '타이밍 · 트리거', '주의사항', '리서치 출처'])}`)}
+function fsPaneInv(x) {
+  const v = x.inv, c = x.contact || {}, k = x.keyman || {};
+  const rounds = x.rounds.length ? `<div class="fs-scroll"><table class="ipo-tbl fs-rounds"><thead><tr><th>시기</th><th>라운드</th><th>금액</th><th>투자자</th><th>출처</th></tr></thead><tbody>${x.rounds.map((r) => `<tr><td>${fsT(r.date)}</td><td>${fsT(r.round)}</td><td>${fsT(r.amount)}</td><td>${fsT(r.investors)}</td><td class="muted">${fsT(r.source)}</td></tr>`).join('')}</tbody></table></div>` : '';
+  const kv = (label, val) => (val ? `<div class="ipo-kv"><div class="k">${esc(label)}</div><div class="v">${fsNums(val)}</div></div>` : '');
+  return `<div class="ipo-stack fs-inv-pane">
+    ${fsBox('투자유치 히스토리', `<p class="ipo-p fs-inv-sum">${fsT(v.summary || x.shareholders?.fi_history)}</p>${rounds}
+      ${fsKv('현재 FI', v.current_fi)}${fsKv('RCPS · CB · BW', v.mezz || x.shareholders?.mezz)}${fsKv('기존 투자자 활용', k['기존 투자자 (레버리지)'])}${fsKv('확인한 곳', v.checked)}`)}
+    ${fsBox('컨택 방법', `${fsKv('누구에게', k['1순위 키맨 (대표)'])}${fsKv('재무 키맨', k['재무 키맨 (CFO급)'])}${fsKv('대표 연락처', c['대표 연락처'])}${fsKv('문의 창구', c['대표 이메일'])}${fsKv('본사 주소', c['본사 주소'])}
+      ${kv('직접 채널', k['직접 채널'])}${kv('웜 인트로', k['웜 인트로 경로'])}${kv('콘택 순서', k['권장 콘택 순서'])}${fsKv('피칭 포인트', k['피칭 포인트'])}${fsKv('타이밍', k['타이밍 · 트리거'])}${fsKv('주의사항', k['주의사항'])}`)}
   </div>`;
 }
 
@@ -197,7 +202,7 @@ function fsBody() {
   if (!fsS.data) return '<div class="empty">아직 올라간 팩트시트가 없습니다.</div>';
   const a = fsListItems();
   if (!a.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
-  return `<div class="ipo-head fs-cols"><div>부스</div><div>회사</div><div class="fs-c-rev">2025 매출</div><div class="fs-c-opm">OPM</div><div class="fs-c-grow">매출 성장</div><div class="fs-c-hold">최대주주</div><div></div></div>${a.map(fsRow).join('')}`;
+  return `<div class="ipo-head fs-cols"><div>부스</div><div>회사</div><div class="fs-c-rev">2025 매출</div><div class="fs-c-opm">OPM</div><div class="fs-c-grow">매출 성장</div><div class="fs-c-hold">투자 이력</div><div></div></div>${a.map(fsRow).join('')}`;
 }
 function fsDraw() {
   const b = fsS.host?.querySelector('#fs-body'); if (!b) return;
