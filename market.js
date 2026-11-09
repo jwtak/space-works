@@ -537,7 +537,8 @@ function mkTimelineHTML() {
     <td class="st" title="${esc(s.label)}"><b>${esc(s.label)}</b></td><td class="strong">${s.median == null ? '-' : `${mo(s.median)}${esc(u)}`}</td><td>${range(s)}</td>
     <td>${s.mean == null ? '-' : `${mo(s.mean)}${esc(u)}`}</td><td>${s.n ?? 0}곳</td></tr>`).join('')}</tbody></table></div>`;
   const mc = Array.isArray(t.mandateCases) ? t.mandateCases.filter((c) => c && c.name) : [];
-  const cases = mc.length ? `<div class="mk-sub">주관사 선정 → 청구 사례</div><ul class="mk-rank mk-inline">${mc.map((c) => `<li><span>${esc(c.name)} <span class="mk-dim">${mkMd(c.selected)} → ${mkMd(c.filed)}</span></span><b>${mo(c.months)}${esc(u)}</b></li>`).join('')}</ul>` : '';
+  const ym = (s) => esc(String(s || '').slice(2, 7).replace('-', '.')); // 해를 넘기는 사례가 많아 연·월로(24.11)
+  const cases = mc.length ? `<div class="mk-sub">주관사 선정 → 청구 사례</div><ul class="mk-rank mk-inline">${mc.map((c) => `<li><span>${esc(c.name)} <span class="mk-dim">${ym(c.selected)} → ${ym(c.filed)}</span></span><b>${mo(c.months)}${esc(u)}</b></li>`).join('')}</ul>` : '';
   const foot = [t.note, t.basis].filter(Boolean).map((s) => `<p class="mk-tl-note">${esc(s)}</p>`).join('');
   return mkSec('상장까지 걸리는 기간', `<span class="mk-dim mk-hd">${t.asof ? `${esc(t.asof)} 기준 · ` : ''}KIND 예심 결과</span>`, `
     <div class="mk-tiles mk-tiles4">${tiles}</div><div class="mk-sub">구간별 기간</div>${table}${cases}${foot}`);
