@@ -533,9 +533,17 @@ function mkTimelineHTML() {
   const tiles = [tile('filed_listed', '청구 → 상장'), tile('filed_approved', '청구 → 승인'), tile('approved_listed', '승인 → 상장'),
     p.n != null ? mkTile('지금 심사 중', p.n, '곳', `4개월 넘은 곳 ${p.over4m ?? 0}곳${p.median != null ? ` · 중앙 ${mo(p.median)}${esc(u)}째` : ''}`) : ''].join('');
   const range = (s) => ((s.n ?? 0) < 4 || s.p25 == null || s.p75 == null ? '<span class="mk-dim">표본 부족</span>' : `${mo(s.p25)} ~ ${mo(s.p75)}${esc(u)}`);
-  const table = `<div class="mk-scroll"><table class="mk-tbl mk-tl"><thead><tr><th class="st">구간</th><th>중앙값</th><th>보통 범위(25~75%)</th><th>평균</th><th>표본</th></tr></thead><tbody>${t.stages.map((s) => `<tr>
-    <td class="st" title="${esc(s.label)}"><b>${esc(s.label)}</b></td><td class="strong">${s.median == null ? '-' : `${mo(s.median)}${esc(u)}`}</td><td>${range(s)}</td>
-    <td>${s.mean == null ? '-' : `${mo(s.mean)}${esc(u)}`}</td><td>${s.n ?? 0}곳</td></tr>`).join('')}</tbody></table></div>`;
+  // 묶음(group: 단계별 → 상장 방식별 → 철회, stages 순서대로). sub = 이름 아래 회색 설명, total = 합계 줄(위 선 + 굵게). 사용자 11/9 '아래 줄이 무엇인지 모르겠다'
+  const groups = [];
+  t.stages.forEach((s) => { const g = s.group || ''; let x = groups.find((y) => y.g === g); if (!x) groups.push(x = { g, rows: [] }); x.rows.push(s); });
+  const wd = st('filed_withdrawn');
+  const hint = (g) => (g === '철회' && wd?.median != null ? `예심 청구 뒤 ${mo(wd.median)}${esc(u)} 안팎에 철회가 많습니다. 청구하고 4개월이 넘도록 결과가 없으면 철회 위험 신호로 봅니다.` : '');
+  const med = (s) => (s.median == null ? '-' : `${mo(s.median)}${esc(u)}`);
+  const table = `<div class="mk-scroll mk-tl-t"><table class="mk-tbl mk-tl"><thead><tr><th class="st">구간</th><th>중앙값</th><th>보통 범위(25~75%)</th><th>평균</th><th>표본</th></tr></thead><tbody>${groups.map(({ g, rows }) => `${g ? `<tr class="mk-tl-g"><td colspan="5">${esc(g)}</td></tr>` : ''}${rows.map((s) => `<tr${s.total ? ' class="mk-tl-tot"' : ''}>
+    <td class="st" title="${esc(s.label)}"><b>${esc(s.label)}</b>${s.sub ? `<small>${esc(s.sub)}</small>` : ''}</td><td class="strong">${med(s)}</td><td>${range(s)}</td>
+    <td>${s.mean == null ? '-' : `${mo(s.mean)}${esc(u)}`}</td><td>${s.n ?? 0}곳</td></tr>`).join('')}${hint(g) ? `<tr class="mk-tl-h"><td colspan="5">${hint(g)}</td></tr>` : ''}`).join('')}</tbody></table></div>
+    <div class="mk-tl-m">${groups.map(({ g, rows }) => `${g ? `<div class="mk-tl-mg">${esc(g)}</div>` : ''}${rows.map((s) => `<div class="mk-tl-mr${s.total ? ' tot' : ''}">
+      <div class="l"><b>${esc(s.label)}</b>${s.sub ? `<small>${esc(s.sub)}</small>` : ''}</div><div class="v"><b>${med(s)}</b><small>${range(s).includes('표본 부족') ? '' : '보통 '}${range(s)} · ${s.n ?? 0}곳</small></div></div>`).join('')}${hint(g) ? `<p class="mk-tl-note">${hint(g)}</p>` : ''}`).join('')}</div>`;
   const mc = Array.isArray(t.mandateCases) ? t.mandateCases.filter((c) => c && c.name) : [];
   const ym = (s) => esc(String(s || '').slice(2, 7).replace('-', '.')); // 해를 넘기는 사례가 많아 연·월로(24.11)
   const cases = mc.length ? `<div class="mk-sub">주관사 선정 → 청구 사례</div><ul class="mk-rank mk-inline">${mc.map((c) => `<li><span>${esc(c.name)} <span class="mk-dim">${ym(c.selected)} → ${ym(c.filed)}</span></span><b>${mo(c.months)}${esc(u)}</b></li>`).join('')}</ul>` : '';

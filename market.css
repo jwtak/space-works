@@ -81,6 +81,24 @@
 .mk-tl td.st { white-space: normal; line-height: 18px; }
 .mk-tl-note { margin: 8px 0 0; font-size: 12px; line-height: 18px; color: var(--text3); }
 .mk-tl-note + .mk-tl-note { margin-top: 2px; }
+/* 묶음 머리(단계별·상장 방식별·철회), 합계 줄(위 선 + 굵게), 철회 묶음 아래 해석 한 줄 */
+.mk-tl-g td { padding: 16px 12px 6px; font-size: 12px; font-weight: 700; color: var(--ink); border-bottom: 1px solid var(--line2); }
+.mk-tl tbody tr.mk-tl-g:first-child td { padding-top: 10px; }
+.mk-tl-tot td { border-top: 1px solid var(--line2); }
+.mk-tl-tot td.st b, .mk-tl-tot td.strong { font-weight: 700; color: var(--ink); }
+.mk-tl-h td { padding: 6px 12px 4px; white-space: normal; font-size: 12px; line-height: 18px; color: var(--text3); }
+/* 폰: 표 대신 한 줄씩(이름·설명 / 중앙값 + 보통 범위·표본) — 가로 스크롤 없이 범위까지 보이게 */
+.mk-tl-m { display: none; }
+.mk-tl-mg { margin: 16px 0 2px; font-size: 12px; font-weight: 700; color: var(--ink); }
+.mk-tl-mr { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--row); }
+.mk-tl-mr.tot { border-top: 1px solid var(--line2); }
+.mk-tl-mr .l { min-width: 0; }
+.mk-tl-mr .l b { font-size: 14px; font-weight: 600; color: var(--ink); }
+.mk-tl-mr.tot .l b { font-weight: 700; }
+.mk-tl-mr small { display: block; margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--text3); }
+.mk-tl-mr .v { flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+.mk-tl-mr .v b { font-size: 15px; font-weight: 700; color: var(--ink); }
+@media (max-width: 760px) { .mk-tl-t { display: none; } .mk-tl-m { display: block; } }
 .mk-ipo-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .mk-ipo-bar .mk-dim { font-size: 13px; }
 .mk-q { flex: 0 1 220px; }
