@@ -961,7 +961,7 @@ async function mailOpenCompose({ mode, id }) {
     sig = await mailLoadSig();
   } finally { m.opening = false; }
   const c = { mode, src: id, loading: mode !== 'new', draftId: null, auto: false, saved: false, kept: false, to: '', cc: '', bcc: '', subject: '', text: '', html: '', quote: '', existing: [], files: [], busy: false,
-    plain: false, important: false, each: false, sched: null, sigOn: !!sig && mode !== 'draft' };
+    plain: false, important: false, receipt: false, each: false, sched: null, sigOn: !!sig && mode !== 'draft' };
   if (mode !== 'draft') c.html = `<div><br></div><div><br></div>${sig ? mailSigBlock(sig) : ''}`;
   c.base = mailBase(c);
   m.backTo = back;
@@ -974,11 +974,11 @@ async function mailOpenCompose({ mode, id }) {
       if (m.compose !== c) { G.del(`/me/messages/${encodeURIComponent(d.id)}`).catch(() => {}); return; } // 만드는 사이 쓰기를 닫았으면 남은 초안을 지운다
       Object.assign(c, { draftId: d.id, auto: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(d.ccRecipients), subject: d.subject || '', quote: mailQuoteWrap(d.body?.content || '') });
     } else if (mode === 'draft') {
-      const d = await G.get(`/me/messages/${encodeURIComponent(id)}?$select=id,subject,toRecipients,ccRecipients,bccRecipients,body,importance`);
+      const d = await G.get(`/me/messages/${encodeURIComponent(id)}?$select=id,subject,toRecipients,ccRecipients,bccRecipients,body,importance,isReadReceiptRequested`);
       if (m.compose !== c) return;
       const html = d.body?.contentType === 'html' ? mailSanitize(d.body.content) : mailTextHtml(d.body?.content || '');
       Object.assign(c, { draftId: d.id, saved: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(d.ccRecipients), bcc: mailAddrList(d.bccRecipients), subject: d.subject || '',
-        html, sigOn: mailHasSig(html), important: d.importance === 'high' });
+        html, sigOn: mailHasSig(html), important: d.importance === 'high', receipt: !!d.isReadReceiptRequested });
     }
     c.base = mailBase(c);
     if (c.draftId) c.existing = (await G.get(`/me/messages/${encodeURIComponent(c.draftId)}/attachments?$select=id,name,size,isInline`)).value.filter((a) => !a.isInline);
@@ -1062,7 +1062,7 @@ function mailDrawCompose() {
           <button class="mail-tbtn" type="button" data-c="save">저장하기</button>
           <span class="mail-optw"><button class="mail-tbtn" type="button" id="mail-opt" aria-haspopup="dialog" aria-expanded="false">옵션${mi('caret', 'caret')}</button></span>
           <label class="mail-each"><input type="checkbox" class="check" id="mail-each" ${c.each ? 'checked' : ''}>개인별 보내기</label>
-          ${c.important ? '<span class="mail-optchip imp">중요</span>' : ''}${c.sched ? `<span class="mail-optchip">예약 ${mailSchedLabel(c.sched)}</span>` : ''}${c.plain ? '<span class="mail-optchip">텍스트</span>' : ''}
+          ${c.important ? '<span class="mail-optchip imp">중요</span>' : ''}${c.receipt ? '<span class="mail-optchip">수신 확인</span>' : ''}${c.sched ? `<span class="mail-optchip">예약 ${mailSchedLabel(c.sched)}</span>` : ''}${c.plain ? '<span class="mail-optchip">텍스트</span>' : ''}
         </span>
         <h2>${title}</h2>
         <button class="mail-tbtn mail-dcancel" type="button" data-c="cancel">취소</button>
@@ -1385,7 +1385,7 @@ function mailOptions(btn) {
     <div class="mail-opt-g"><div class="mail-opt-t">서명</div>
       <select class="select" id="op-sig" ${sig ? '' : 'disabled'}>${sig ? `<option value="1" ${c.sigOn ? 'selected' : ''}>메일 명함</option><option value="0" ${c.sigOn ? '' : 'selected'}>사용 안 함</option>` : '<option value="0">등록된 서명 없음</option>'}</select></div>
     <div class="mail-opt-g"><div class="mail-opt-t">쓰기 옵션</div><label class="mail-opt-ck"><input type="checkbox" class="check" id="op-plain" ${c.plain ? 'checked' : ''}>일반 텍스트 모드</label></div>
-    <div class="mail-opt-g"><div class="mail-opt-t">보내기 옵션</div><label class="mail-opt-ck"><input type="checkbox" class="check" id="op-imp" ${c.important ? 'checked' : ''}>중요!</label></div>
+    <div class="mail-opt-g"><div class="mail-opt-t">보내기 옵션</div><label class="mail-opt-ck"><input type="checkbox" class="check" id="op-imp" ${c.important ? 'checked' : ''}>중요!</label><label class="mail-opt-ck"><input type="checkbox" class="check" id="op-rcpt" ${c.receipt ? 'checked' : ''}>수신 확인 요청</label></div>
     <button type="button" class="btn primary sm mail-opt-ok" id="op-ok">확인</button>`;
   const q = (sel) => box.querySelector(sel);
   const lock = () => { const on = q('#op-sched').checked; ['#op-date', '#op-h', '#op-m'].forEach((k) => { q(k).disabled = !on; }); };
@@ -1400,7 +1400,7 @@ function mailOptions(btn) {
       if (!sched.date || !(mailSchedDate(sched) > Date.now() + 60e3)) return toast('예약 시간은 지금 이후로 정하세요');
     }
     box.close();
-    mailApplyOptions(c, { sched, sigOn: q('#op-sig').value === '1', plain: q('#op-plain').checked, important: q('#op-imp').checked });
+    mailApplyOptions(c, { sched, sigOn: q('#op-sig').value === '1', plain: q('#op-plain').checked, important: q('#op-imp').checked, receipt: q('#op-rcpt').checked });
   });
   lock();
   wrap.appendChild(box);
@@ -1413,7 +1413,7 @@ function mailApplyOptions(c, o) {
   const sig = ui.mail.sig;
   const sigText = sig ? mailHtmlToText(sig) : '';
   const cutSig = (t) => { const i = sigText ? t.lastIndexOf(sigText) : -1; return i < 0 ? null : (t.slice(0, i) + t.slice(i + sigText.length)).replace(/\s+$/, ''); };
-  c.sched = o.sched; c.important = o.important;
+  c.sched = o.sched; c.important = o.important; c.receipt = o.receipt;
   if (o.plain !== c.plain) {
     if (o.plain) c.text = mailHtmlToText(c.html);
     else {
@@ -1587,6 +1587,7 @@ async function mailSaveDraft(c, notify) {
       ccRecipients: c.each ? [] : mailParseAddrs(c.cc, '참조'), bccRecipients: c.each ? [] : mailParseAddrs(c.bcc, '숨은참조'),
       body: mailComposeBody(c),
       importance: c.important ? 'high' : 'normal',
+      isReadReceiptRequested: !!c.receipt,
     };
   } catch (e) { toast(e.message); return null; }
   // 발송 예약: PidTagDeferredSendTime. 예약을 껐으면 지난 시각으로 덮어 바로 보내지게 한다
@@ -1628,7 +1629,7 @@ async function mailSend(c) {
     rows: [['받는 사람', names(to)], ['참조', names(cc)], ['숨은참조', names(bcc)], ['제목', c.subject.trim() || '(제목 없음)'],
       ['첨부', c.existing.length + c.files.length ? `${c.existing.length + c.files.length}개` : ''],
       ['발송', c.sched ? `${mailSchedLabel(c.sched)} 예약` : ''],
-      ['옵션', [c.important && '중요', each && '개인별 보내기'].filter(Boolean).join(' · ')]],
+      ['옵션', [c.important && '중요', c.receipt && '수신 확인 요청', each && '개인별 보내기'].filter(Boolean).join(' · ')]],
     ok: c.sched ? '예약' : '보내기',
   });
   if (!ok || c.sending || ui.mail.compose !== c) return;

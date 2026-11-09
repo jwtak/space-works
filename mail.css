@@ -58,7 +58,7 @@
 
 /* 쓰기 */
 .mail-compose { display: flex; flex-direction: column; min-height: 0; flex: 1; padding: 0 24px 20px; overflow-y: auto; }
-.mail-chead { display: flex; align-items: center; gap: 8px; min-height: 60px; border-bottom: 1px solid var(--line); margin-bottom: 8px; position: sticky; top: 0; background: var(--card); z-index: 2; }
+.mail-chead { display: flex; align-items: center; gap: 8px; min-height: 60px; border-bottom: 1px solid var(--line); margin-bottom: 8px; position: sticky; top: 0; background: var(--card); z-index: 4; } /* 옵션 창이 아래 편집기 서식 줄(z 3)보다 위에 오게 */
 .mail-chead h2 { margin: 0; font-size: 16px; font-weight: 600; }
 .mail-field { display: grid; grid-template-columns: 84px minmax(0, 1fr); align-items: center; gap: 12px; padding: 6px 0; }
 .mail-field > span { font-size: 13px; font-weight: 500; color: var(--text2); }
@@ -152,6 +152,7 @@
 .mail-opt .input:disabled, .mail-opt .select:disabled { background: #F3F4F6; color: #9CA3AF; }
 .mail-opt-tz { margin: 6px 0 0 28px; font-size: 13px; color: var(--primary); }
 .mail-opt-ck { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.mail-opt-ck + .mail-opt-ck { margin-left: 24px; }
 .mail-opt-ok { min-width: 64px; }
 
 .mail-pvw { display: flex; flex-direction: column; width: min(880px, 100%); height: min(86vh, 920px); }
