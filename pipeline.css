@@ -137,3 +137,6 @@
   .pp-sheet .ev-form .narrow { width: 100%; }
   .pp-cf-act .btn { flex: 1; height: 48px; }
 }
+
+/* 표 보기에서는 칸을 세로 가운데로(ipo.css와 같은 기준, 사용자 11/9). 여러 줄로 쌓는 559 이하는 위 맞춤 그대로 */
+@container pp (min-width: 560px) { .pp-line { align-items: center; } }

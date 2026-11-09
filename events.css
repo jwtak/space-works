@@ -230,3 +230,9 @@
 /* 요약 창 머리 = 제목 한 줄(점수·유형 뺌) */
 .ev-pop-hd:has(.ev-pop-ttl) { align-items: flex-start; margin-bottom: 12px; }
 .ev-pop-hd .ev-pop-ttl { flex: 1; min-width: 0; margin: 4px 0 0; }
+
+/* 표 보기에서는 칸을 세로 가운데로(ipo.css와 같은 기준, 사용자 11/9). 숨기기 아이콘의 위 맞춤 보정(-4)은 뺀다 */
+@media (min-width: 761px) {
+  .ev-line.ev-cols { align-items: center; }
+  .ev-line .ev-hide { margin-top: 0; }
+}

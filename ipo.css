@@ -284,3 +284,9 @@
   .ipo-pnl th:first-child, .ipo-pnl td:first-child { width: 72px; padding-left: 0; }
   .ipo-pnl tr.r td:first-child { padding-left: 8px; }
 }
+
+/* 표 보기(머리글이 보이는 폭)에서는 칸을 세로 가운데로 — 두 줄 칸 옆 한 줄 칸이 위에 붙어 보이지 않게(사용자 11/9).
+   한 건을 여러 줄로 쌓는 좁은 폭(신규상장·팩트시트 639 이하, 딜레이더 699 이하, 폰)은 위 맞춤 그대로. 컨테이너는 #ipo-root·.rd-page·#fs-root */
+@media (min-width: 761px) {
+  @container (min-width: 700px) { .ipo-line.ipo-cols { align-items: center; } }
+}
