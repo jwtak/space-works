@@ -48,6 +48,21 @@
 
 /* 파이프라인 올리기 · 있음: 넓으면 상태·메모 줄 끝, 좁으면 요약 줄 오른쪽, 폰은 맨 아래 한 줄 */
 .rd-pipe { flex: none; }
+/* 주관사 선정 행 팩트시트 요청: 상태·메모 줄 끝. 요청됨은 선택된 필터와 같은 파란 바탕 */
+.rd-fs { flex: none; }
+.btn.rd-fs.on { background: var(--primary-soft); border-color: var(--primary-soft); color: var(--primary); }
+/* 팩트시트가 있는 회사: 목록 회사명 옆 표시(신규상장 '직통' 표시와 같은 크기) */
+.rd-fs-tag { display: inline-flex; align-items: center; height: 20px; margin-left: 6px; padding: 0 8px; border-radius: 10px; font-size: 12px; font-weight: 500; line-height: 20px; background: var(--primary-soft); color: var(--primary); vertical-align: 1px; white-space: nowrap; }
+/* 펼친 칸 팩트시트 묶음: 묶음 제목(팩트시트 · 작성일 / 회사 정보), 포인트·리스크 소제목 */
+.rd-fsh { display: flex; align-items: baseline; gap: 8px; font-size: 16px; line-height: 24px; font-weight: 600; color: var(--ink); }
+.rd-fsh .muted { font-size: 13px; font-weight: 400; }
+.rd-fs-k { margin-bottom: 4px; font-size: 13px; line-height: 20px; color: var(--text3); }
+.ipo-ul + .rd-fs-k { margin-top: 12px; }
+/* 투자 라운드 표(시기 | 라운드 | 금액 | 투자자) */
+.ipo-tbl.rd-tbl-r th:nth-child(1) { width: 104px; }
+.ipo-tbl.rd-tbl-r th:nth-child(2) { width: 120px; }
+.ipo-tbl.rd-tbl-r th:nth-child(3) { width: 120px; }
+.ipo-tbl.rd-tbl-r th:nth-child(4) { width: auto; }
 /* 분류 전 임시 입찰딜: 컨택 상태·메모를 막아 둔다 */
 .rd-page .ipo-seg button:disabled { cursor: default; color: var(--text3); }
 .rd-page .ipo-seg button.on:disabled { background: #F3F4F6; }
@@ -121,6 +136,15 @@
     .rd-page .ipo-tbl.rd-tbl-h td { padding: 0; border: 0; }
     .rd-page .ipo-tbl.rd-tbl-h td:nth-child(1) { flex: 1 1 100%; }
     .rd-page .ipo-tbl.rd-tbl-h td:nth-child(2), .rd-page .ipo-tbl.rd-tbl-h td:nth-child(3) { margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--text3); }
+    /* 투자 라운드 표도 시기·라운드·금액 한 줄 + 투자자 한 줄 목록으로 */
+    .rd-page .ipo-tbl.rd-tbl-r, .rd-page .ipo-tbl.rd-tbl-r tbody { display: block; }
+    .rd-page .ipo-tbl.rd-tbl-r thead { display: none; }
+    .rd-page .ipo-tbl.rd-tbl-r tr { display: flex; flex-wrap: wrap; column-gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--row); }
+    .rd-page .ipo-tbl.rd-tbl-r tr:first-child { padding-top: 0; }
+    .rd-page .ipo-tbl.rd-tbl-r tr:last-child { border-bottom: 0; padding-bottom: 0; }
+    .rd-page .ipo-tbl.rd-tbl-r td { padding: 0; border: 0; }
+    .rd-page .ipo-tbl.rd-tbl-r td:nth-child(2) { font-weight: 600; }
+    .rd-page .ipo-tbl.rd-tbl-r td:nth-child(4) { flex: 1 1 100%; margin-top: 2px; font-size: 13px; color: var(--text2); }
   }
   /* 400보다 좁으면 펼친 행은 여백을 폰처럼 줄이고(글자 시작선 24 그대로) 머리를 요약 → 상태·메모 → 파이프라인 한 줄씩, 위쪽 요약 줄의 버튼은 다음 줄로 */
   @container (max-width: 399px) {
@@ -180,4 +204,13 @@
   .ipo-tbl.rd-tbl-n td { padding: 0; border: 0; }
   .ipo-tbl.rd-tbl-n td:nth-child(2) { grid-column: 1 / -1; grid-row: 1; }
   .ipo-tbl.rd-tbl-n td:nth-child(1), .ipo-tbl.rd-tbl-n td:nth-child(3) { grid-row: 2; margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--text3); }
+  /* 투자 라운드 표도 시기·라운드·금액 한 줄 + 투자자 한 줄 목록으로 */
+  .rd-page .ipo-tbl.rd-tbl-r, .rd-page .ipo-tbl.rd-tbl-r tbody { display: block; }
+  .rd-page .ipo-tbl.rd-tbl-r thead { display: none; }
+  .rd-page .ipo-tbl.rd-tbl-r tr { display: flex; flex-wrap: wrap; column-gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--row); }
+  .rd-page .ipo-tbl.rd-tbl-r tr:first-child { padding-top: 0; }
+  .rd-page .ipo-tbl.rd-tbl-r tr:last-child { border-bottom: 0; padding-bottom: 0; }
+  .rd-page .ipo-tbl.rd-tbl-r td { padding: 0; border: 0; }
+  .rd-page .ipo-tbl.rd-tbl-r td:nth-child(2) { font-weight: 600; }
+  .rd-page .ipo-tbl.rd-tbl-r td:nth-child(4) { flex: 1 1 100%; margin-top: 2px; font-size: 13px; color: var(--text2); }
 }
