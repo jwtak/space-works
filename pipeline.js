@@ -203,9 +203,8 @@ async function pipeAdd({ name, src, ref, type, introducer } = {}) {
 }
 
 /* ---------- 표시 형식 ---------- */
-const ppThisYear = (s) => s.slice(0, 4) === today().slice(0, 4);
-const ppDay = (s) => { const d = parse(s); return ppThisYear(s) ? md(s) : `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`; };
-const ppMd = (s) => (ppThisYear(s) ? `${md(s)} (${PP_WD[parse(s).getDay()]})` : ppDay(s));
+const ppDay = (s) => yymd(s);
+const ppMd = (s) => `${yymd(s)} (${PP_WD[parse(s).getDay()]})`;
 const ppRel = (s) => { const n = diffDays(s, today()); return n < 0 ? [`${-n}일 지남`, 'over'] : n === 0 ? ['오늘', 'today'] : n === 1 ? ['내일', ''] : [`D-${n}`, '']; };
 const ppBy = (x) => (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(x.at || '') ? `${esc(x.by || '')} ${esc(ppDay(x.at.slice(0, 10)))} ${esc(x.at.slice(11, 16))}` : '');
 const ppChip = (st) => `<span class="ipo-st${PP_HOT.includes(st) ? ' s-1' : st === '완료' ? ' pp-done' : st === '드롭' ? ' pp-drop' : ''}">${esc(st)}</span>`;

@@ -20,6 +20,8 @@ const today = () => ymd(new Date());
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const diffDays = (a, b) => Math.round((parse(a) - parse(b)) / 86400000);
 const md = (s) => { const d = parse(s); return `${d.getMonth() + 1}/${d.getDate()}`; };
+// 목록 날짜(예심청구·신규상장·파이프라인 등): 해에 따라 형식이 달라지지 않게 늘 26.07.31
+const yymd = (s) => `${s.slice(2, 4)}.${s.slice(5, 7)}.${s.slice(8, 10)}`;
 const mdw = (s) => { const d = parse(s); return `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`; };
 const uid = () => Math.random().toString(16).slice(2, 10);
 // 날짜 칸에 월·일만 치면 연도가 2000처럼 엉뚱하게 들어갈 수 있다: 올해 앞뒤 범위를 벗어나면 올해로 고친다

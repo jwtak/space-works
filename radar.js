@@ -512,8 +512,8 @@ function rdSetFs(id) {
 // 긴 이름을 음절 가운데서 꺾으므로, Chromium이 줄을 바꾸는 자리('·' 뒤 한글·한자, '-' 뒤 한글·한자·영문·여는 괄호, 영문·숫자 뒤 '-' 다음 숫자)에만 <wbr>
 const rdNm = (s) => esc(s).replace(/[A-Za-z0-9]-(?=\d)|-(?=[A-Za-z(가-힣ㄱ-ㅣ一-鿿])|·(?=[가-힣ㄱ-ㅣ一-鿿])/g, '$&<wbr>');
 const RD_NA = '<span class="muted">–</span>';
-// 목록 날짜: 올해는 11/4, 다른 해는 2025.12.30 — 신규상장·파이프라인과 같은 형식 (상세는 YYYY-MM-DD)
-const rdMd = (s) => { const d = rdDay(s); if (!d) return ''; return d.slice(0, 4) === today().slice(0, 4) ? md(d) : `${d.slice(0, 4)}.${Number(d.slice(5, 7))}.${Number(d.slice(8, 10))}`; };
+// 목록 날짜: 늘 26.07.31 — 신규상장·파이프라인과 같은 형식 (상세는 YYYY-MM-DD)
+const rdMd = (s) => { const d = rdDay(s); return d ? yymd(d) : ''; };
 const rdYmd = (s) => rdDay(s) || rdStr(s);
 const rdEok = (v) => { const n = rdNum(v); return n == null ? '–' : `${n.toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억`; };
 const rdPct = (v) => { const n = rdNum(v); return n == null ? '' : `${n.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}%`; };

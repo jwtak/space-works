@@ -183,7 +183,7 @@ async function ipoDownload(btn) {
 }
 
 /* ---------- 표시 형식 ---------- */
-const ipoMd = (s) => { const d = parse(s); return s.slice(0, 4) === today().slice(0, 4) ? md(s) : `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`; };
+const ipoMd = (s) => yymd(s);
 const ipoEok = (v) => (v == null || v === '' ? '–' : `${Number(v).toLocaleString('ko-KR', { maximumFractionDigits: 1 })}억`);
 // 재무 탭 손익표 값: 상자 안이 좁으면(ipo.css ipo-fin 420 미만) 칸마다 붙는 '억'은 숨긴다(상자 제목에 '억원')
 const ipoEokU = (v) => ipoEok(v).replace(/억$/, '<span class="ipo-u">억</span>');
