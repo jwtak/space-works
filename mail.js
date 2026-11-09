@@ -451,7 +451,8 @@ async function mailOpen(id) {
   const item = m.list.find((x) => x.id === id);
   if (m.folder === 'drafts' && item?.isDraft) return mailOpenCompose({ mode: 'draft', id });
   const box = $('#mail-items'); if (box && m.view !== 'read') m.scroll = box.scrollTop; // ← 목록으로 돌아올 때 같은 위치
-  m.sel = id; m.msg = null; m.atts = []; m.remote = false; m.view = 'read';
+  m.sel = id; m.msg = null; m.atts = []; m.view = 'read';
+  m.remote = m.folder !== 'junkemail'; // 외부 이미지는 기본으로 보여 주고(사용자 11/9), 스팸 메일함만 막아 둔다(추적 이미지)
   const folder = m.folder; // 안 읽음 개수는 연 폴더 기준 (읽음 처리 응답 전에 폴더를 옮겨도)
   mailDrawShell(); mailDrawList(); mailDrawPane();
   try {
