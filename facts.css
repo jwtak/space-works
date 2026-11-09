@@ -47,9 +47,10 @@
 .fs-page .ipo-kv .v .ipo-ol { padding-left: 18px; }
 
 @media (min-width: 761px) {
-  #fs-root .ipo-filter .seg { flex-wrap: wrap; gap: 1px; background: var(--line2); max-width: 100%; overflow: hidden; }
+  #fs-root .ipo-filter .seg { flex-wrap: wrap; background: var(--card); max-width: 100%; overflow: hidden; }
   #fs-root .ipo-filter .seg button { flex: 1 1 auto; }
-  #fs-root .ipo-filter .seg button + button { border-left: 0; }
+  /* 칸 사이 선은 버튼 위·왼쪽 테두리를 -1px 겹쳐 그린다(간격+배경색은 배율 125·150%에서 번져 안 보임 — 테두리는 항상 1 기기 픽셀) */
+  #fs-root .ipo-filter .seg button { margin: -1px 0 0 -1px; height: 35px; border-top: 1px solid var(--line2); border-left: 1px solid var(--line2); }
   #fs-root .ipo-tabs { flex-wrap: wrap; row-gap: 0; }
   /* 카드가 좁으면 영업이익률·매출 성장 칸을 접는다(투자 단계·누적 투자는 남김) */
   @container (max-width: 899px) {
@@ -75,9 +76,10 @@
   .fs-page .ipo-top { flex-wrap: wrap; row-gap: 4px; }
   .fs-page .ipo-sumrow { flex: 1 1 100%; }
   .fs-page .ipo-head { display: none; }
-  .fs-page .ipo-filter .seg { flex-wrap: wrap; gap: 1px; background: var(--line2); overflow: hidden; }
+  .fs-page .ipo-filter .seg { flex-wrap: wrap; background: var(--card); overflow: hidden; }
   .fs-page .ipo-filter .seg button { flex: 1 1 auto; padding: 0 8px; }
-  .fs-page .ipo-filter .seg button + button { border-left: 0; }
+  /* 칸 사이 선은 버튼 위·왼쪽 테두리를 -1px 겹쳐 그린다(간격+배경색은 배율 125·150%에서 번져 안 보임 — 테두리는 항상 1 기기 픽셀) */
+  .fs-page .ipo-filter .seg button { margin: -1px 0 0 -1px; height: 35px; border-top: 1px solid var(--line2); border-left: 1px solid var(--line2); }
   .fs-cols { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding-left: 16px; padding-right: 16px; }
   .fs-c-no { grid-column: 1 / -1; font-size: 12px; }
   .fs-c-no::before { content: 'No.'; }
