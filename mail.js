@@ -119,9 +119,10 @@ function mailTyped(c) {
   doc.body.querySelectorAll('[data-sig]').forEach((n) => n.remove());
   return !!(doc.body.textContent || '').trim() || !!doc.body.querySelector('img');
 }
-/* 닫으면 잃는 내용이 있는지: 마지막 저장 뒤 고쳤고, 본문을 썼거나 첨부를 붙였거나 주소·제목이 처음과 다르면 */
+/* 닫으면 잃는 내용이 있는지: 마지막 저장 뒤 한 번이라도 고쳤거나(rev — 서명 칸만 고친 경우 포함, 사용자 11/9 '새로고침 때 물어야'),
+   본문을 썼거나 첨부를 붙였거나 주소·제목이 처음과 다르면 */
 const mailBase = (c) => [c.to, c.cc, c.bcc, c.subject].map((s) => (s || '').trim()).join('\n');
-const mailDirty = (c) => !c.saved && !!(mailTyped(c) || c.files.length || mailBase(c) !== c.base);
+const mailDirty = (c) => !c.saved && !!(c.rev || mailTyped(c) || c.files.length || mailBase(c) !== c.base);
 const mailEdited = (c) => { c.saved = false; c.rev = (c.rev || 0) + 1; };
 const mailLockFiles = (c) => document.querySelectorAll('#mail-cf [data-rm]').forEach((b) => { b.disabled = !!(c.busy || c.sending); });
 
