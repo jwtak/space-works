@@ -151,8 +151,11 @@ function mailFitFrame(fr) {
 
 /* 답장·전달의 원문 칸: 폭은 mailFitFrame처럼 줄이고, 높이는 내용만큼 늘려 칸 안 스크롤 없이 본문 아래로 이어지게 */
 function mailFitQuote(fr) {
-  mailFitFrame(fr);
   const d = fr.contentDocument; if (!d || !d.documentElement) return;
+  // 편집기 안에서는 원문 글 시작선을 입력 칸 글자와 맞춘다(입력 칸 왼쪽 여백 그대로, 위는 서명과 붙게)
+  const rte = document.querySelector('#mail-rte');
+  if (rte && fr.closest('.mail-editor')) d.body.style.padding = `4px ${getComputedStyle(rte).paddingRight} 20px ${getComputedStyle(rte).paddingLeft}`;
+  mailFitFrame(fr);
   const fit = () => { fr.style.height = `${Math.ceil(d.documentElement.getBoundingClientRect().height * (Number(d.documentElement.style.zoom) || 1)) + 4}px`; };
   fit();
   d.querySelectorAll('img').forEach((im) => { if (!im.complete) im.addEventListener('load', fit, { once: true }); });
@@ -1037,11 +1040,12 @@ function mailDrawCompose() {
         <div class="mail-drop-sz">${files.length}개 · ${mailSize(files.reduce((s, f) => s + (f.size || 0), 0))}</div>` : ''}
       </div></div>
       ${c.plain ? `<textarea class="mail-body" name="text" placeholder="내용">${esc(c.text)}</textarea>` : `
-      <div class="mail-editor">
+      <div class="mail-editor${c.quote ? ' has-quote' : ''}">
         ${mailToolbarHTML(c)}
         <div class="mail-rte" id="mail-rte" contenteditable="true" role="textbox" aria-multiline="true" aria-label="내용" spellcheck="false"></div>
+        ${c.quote ? '<div class="mail-quote"><iframe class="mail-frame" sandbox="allow-same-origin" referrerpolicy="no-referrer" scrolling="no" title="원문"></iframe></div>' : ''}
       </div>`}
-      ${c.quote ? '<div class="mail-quote"><iframe class="mail-frame" sandbox="allow-same-origin" referrerpolicy="no-referrer" scrolling="no" title="원문"></iframe></div>' : ''}
+      ${c.plain && c.quote ? '<div class="mail-quote"><iframe class="mail-frame" sandbox="allow-same-origin" referrerpolicy="no-referrer" scrolling="no" title="원문"></iframe></div>' : ''}
       <div class="mail-ctools">
         <label class="iconbtn mail-ctool" aria-label="사진 첨부">${mi('camera')}<input type="file" accept="image/*" capture="environment" hidden id="mail-cam"></label>
         <label class="iconbtn mail-ctool" aria-label="파일 첨부">${ico('clip')}<input type="file" multiple hidden id="mail-file2"></label>
