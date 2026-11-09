@@ -522,6 +522,26 @@ function mkYesimHTML() {
     <div class="mk-two">${top.length ? `<div><div class="mk-sub">최근 1년 상장주선인</div><ul class="mk-rank">${top.map(([n, v]) => `<li><span>${esc(n)}</span><b>${v}</b></li>`).join('')}</ul></div>` : ''}
     ${sig.length ? `<div><div class="mk-sub">청구 전 신호</div><ul class="mk-rank">${sig.map((s) => `<li><a href="${esc(s.url || '#')}" target="_blank" rel="noopener noreferrer"><b class="nm">${esc(s.name)}</b> ${esc(s.kind)}</a><span class="mk-dim">${mkMd(s.dt)}</span></li>`).join('')}</ul></div>` : ''}</div>`);
 }
+/* 상장까지 걸리는 기간 — data/yesim.json timeline(딜레이더가 매일 09:10 계산, 형식은 딜레이더\CONTRACT.md).
+   stages: [{key,label,n,median,p25,p75,mean}], pending: {n,over4m,median}, mandateCases: [{name,selected,filed,months}]. 표본 4곳 미만이면 범위는 '표본 부족' */
+function mkTimelineHTML() {
+  const t = mkS.yesim?.timeline; if (!t || !Array.isArray(t.stages) || !t.stages.length) return '';
+  const u = t.unit || '개월', mo = (v) => (v == null ? '-' : mkNum(v, 1));
+  const st = (k) => t.stages.find((s) => s.key === k);
+  const tile = (k, label) => { const s = st(k); return s ? mkTile(label, mo(s.median), u, `중앙값 · ${s.n ?? 0}곳`) : ''; };
+  const p = t.pending || {};
+  const tiles = [tile('filed_listed', '청구 → 상장'), tile('filed_approved', '청구 → 승인'), tile('approved_listed', '승인 → 상장'),
+    p.n != null ? mkTile('지금 심사 중', p.n, '곳', `4개월 넘은 곳 ${p.over4m ?? 0}곳${p.median != null ? ` · 중앙 ${mo(p.median)}${esc(u)}째` : ''}`) : ''].join('');
+  const range = (s) => ((s.n ?? 0) < 4 || s.p25 == null || s.p75 == null ? '<span class="mk-dim">표본 부족</span>' : `${mo(s.p25)} ~ ${mo(s.p75)}${esc(u)}`);
+  const table = `<div class="mk-scroll"><table class="mk-tbl mk-tl"><thead><tr><th class="st">구간</th><th>중앙값</th><th>보통 범위(25~75%)</th><th>평균</th><th>표본</th></tr></thead><tbody>${t.stages.map((s) => `<tr>
+    <td class="st" title="${esc(s.label)}"><b>${esc(s.label)}</b></td><td class="strong">${s.median == null ? '-' : `${mo(s.median)}${esc(u)}`}</td><td>${range(s)}</td>
+    <td>${s.mean == null ? '-' : `${mo(s.mean)}${esc(u)}`}</td><td>${s.n ?? 0}곳</td></tr>`).join('')}</tbody></table></div>`;
+  const mc = Array.isArray(t.mandateCases) ? t.mandateCases.filter((c) => c && c.name) : [];
+  const cases = mc.length ? `<div class="mk-sub">주관사 선정 → 청구 사례</div><ul class="mk-rank mk-inline">${mc.map((c) => `<li><span>${esc(c.name)} <span class="mk-dim">${mkMd(c.selected)} → ${mkMd(c.filed)}</span></span><b>${mo(c.months)}${esc(u)}</b></li>`).join('')}</ul>` : '';
+  const foot = [t.note, t.basis].filter(Boolean).map((s) => `<p class="mk-tl-note">${esc(s)}</p>`).join('');
+  return mkSec('상장까지 걸리는 기간', `<span class="mk-dim mk-hd">${t.asof ? `${esc(t.asof)} 기준 · ` : ''}KIND 예심 결과</span>`, `
+    <div class="mk-tiles mk-tiles4">${tiles}</div><div class="mk-sub">구간별 기간</div>${table}${cases}${foot}`);
+}
 function mkBidsHTML() {
   const d = mkS.bids; if (!d?.items) return '';
   const it = d.items, live = ['매각 추진', '주관사 선정', '예비입찰', '숏리스트', '본입찰', '우선협상'];
@@ -610,7 +630,7 @@ function mkMezzHTML() {
 function mkPeHTML() {
   const pef = `<div class="mk-tiles mk-tiles3">${MK_PEF.map(([l, v, u, s]) => mkTile(l, v, u, esc(s))).join('')}</div>`;
   const ref = `<div class="mk-scroll"><table class="mk-tbl mk-ref"><thead><tr><th class="st">항목</th><th>기간</th><th>수치</th><th>출처</th></tr></thead><tbody>${MK_PE_REF.map((r) => `<tr><td class="st"><b>${esc(r[0])}</b></td><td class="mk-dim">${esc(r[1])}</td><td class="strong">${esc(r[2])}</td><td class="mk-dim"><a href="${esc(r[3])}" target="_blank" rel="noopener noreferrer">${esc(r[4])}</a></td></tr>`).join('')}</tbody></table></div>`;
-  return `${mkYesimHTML()}${mkBidsHTML()}${mkMezzHTML()}
+  return `${mkYesimHTML()}${mkTimelineHTML()}${mkBidsHTML()}${mkMezzHTML()}
     ${mkSec('PEF 시장', '<a class="mk-dim mk-hd" href="https://core.asiae.co.kr/article/2026061710083948025" target="_blank" rel="noopener noreferrer">금감원 · 2025년 말</a>', pef)}
     ${mkSec('M&A · 벤처 · 출자 동향', '', ref)}
     <p class="mk-foot">예비심사·입찰 딜은 딜레이더 목록, 메자닌·유상증자는 DART 주요사항보고서를 집계한 것이고, 나머지는 발표 수치입니다.</p>`;

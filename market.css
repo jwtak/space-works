@@ -77,6 +77,10 @@
 .mk-more { align-self: center; }
 .mk-more.in { display: block; margin: 12px auto 0; }
 .mk-foot { margin: 0; font-size: 12px; color: var(--text3); }
+/* 상장까지 걸리는 기간: 구간 이름이 길어(주관사 선정 → 예심 청구) 첫 칸은 두 줄까지, 아래 주의·출처 한 줄씩 */
+.mk-tl td.st { white-space: normal; line-height: 18px; }
+.mk-tl-note { margin: 8px 0 0; font-size: 12px; line-height: 18px; color: var(--text3); }
+.mk-tl-note + .mk-tl-note { margin-top: 2px; }
 .mk-ipo-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .mk-ipo-bar .mk-dim { font-size: 13px; }
 .mk-q { flex: 0 1 220px; }
