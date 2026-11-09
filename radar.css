@@ -9,6 +9,10 @@
 .rd-page .ipo-by:empty { display: none; }
 /* 선택 상자가 둘이면(입찰딜 적합도·단계) 오른쪽에 붙여 둔다 */
 .rd-page .ipo-filter .select + .select { margin-left: 0; }
+/* 예심청구 재무 필터 줄(최근 매출·영업이익률) — 위 필터 줄 바로 아래 */
+.rd-page .rd-finf { padding-top: 12px; padding-bottom: 12px; gap: 8px 24px; }
+.rd-fing { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
+.rd-finl { font-size: 14px; color: var(--text2); white-space: nowrap; flex: none; }
 
 /* 목록 칸 */
 .rd-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
@@ -188,6 +192,10 @@
 
 @media (max-width: 760px) {
   .rd-page .ipo-top { flex-wrap: wrap; row-gap: 4px; }
+  /* 재무 필터: 이름표를 버튼 위로 올려 버튼 묶음이 한 줄을 다 쓰게(390 폭에서 5칸이 한 줄) */
+  .rd-page .rd-finf { gap: 12px; }
+  .rd-fing { flex-wrap: wrap; width: 100%; gap: 6px; }
+  .rd-finl { width: 100%; }
   /* 필터 버튼(매각희망 7개)은 폰에서도 옆으로 숨기지 않고 줄을 바꾼다(390 폭은 한 줄, 더 좁으면 두 줄) */
   .rd-page .ipo-filter .seg { flex-wrap: wrap; gap: 1px; background: var(--line2); overflow: hidden; }
   .rd-page .ipo-filter .seg button { flex: 1 1 auto; padding: 0 8px; }

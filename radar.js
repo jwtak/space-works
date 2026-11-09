@@ -15,6 +15,16 @@ const RD_TAB = {
   bids: { file: 'data/bids.json', label: '입찰딜', unit: '건' },
 };
 const RD_YS_F = [['all', '전체'], ['mandate', '주관사 선정'], ['review', '심사 중'], ['ok', '승인'], ['drop', '철회·미승인'], ['new', '새 소식'], ['hidden', '가린 회사']];
+// 재무 필터(최근 연도 기준, 억원·%) — 고르면 재무가 없는 회사('확인 불가')는 빠진다
+const RD_YS_REV = [['', '전체'], ['100', '100억+'], ['300', '300억+'], ['500', '500억+'], ['1000', '1,000억+']];
+const RD_YS_OPM = [['', '전체'], ['0', '흑자'], ['5', '5%+'], ['10', '10%+'], ['15', '15%+']];
+function rdFinOk(x, s) {
+  if (!s.rev && !s.opm) return true;
+  const f = x.fy ? x.fin.years[x.fy] : null, rev = f ? rdNum(f[0]) : null, op = f ? rdNum(f[1]) : null;
+  if (s.rev && !(rev != null && rev >= +s.rev)) return false;
+  if (s.opm && !(op != null && rev > 0 && (s.opm === '0' ? op > 0 : (op / rev) * 100 >= +s.opm))) return false;
+  return true;
+}
 const RD_YS_SORT = [['filed', '청구일순'], ['decided', '결과일순'], ['rev', '매출순'], ['broker', '주관사순']];
 const RD_YS_ORDER = ['주관사선정', '심사중', '승인', '상장', '미승인', '철회']; // 전체 보기 묶음 순서 = 진행 순서
 const RD_EYE_OFF = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12s3-6 8.5-6 8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4.5 4.5l15 15"/></svg>';
@@ -173,7 +183,7 @@ Object.assign(TAB_INFO, {
 const rdS = {
   tab: null, host: null, field: null, // field = 쓰고 있는 메모 칸 {el, tab}
   marks: { items: [], version: null }, dirty: new Map(), saving: Promise.resolve(),
-  yesim: { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'filed', open: new Set(), focus: null },
+  yesim: { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'filed', rev: '', opm: '', open: new Set(), focus: null },
   sell: { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'prio', open: new Set(), focus: null },
   bids: { data: null, at: 0, loading: null, q: '', view: 'deal', fit: '', stage: '', open: new Set(), focus: null },
 };
@@ -642,7 +652,7 @@ function rdGroups(list, keyOf, order) {
 function rdYsList() {
   const s = rdS.yesim, d = s.data; if (!d) return [];
   const q = s.q.trim().toLowerCase(), hid = s.f === 'hidden';
-  const keep = (x) => (!q || x.q.includes(q)) && rdHid(x) === hid;
+  const keep = (x) => (!q || x.q.includes(q)) && rdHid(x) === hid && rdFinOk(x, s);
   const mns = d.mandates.filter((x) => x.pre && keep(x)), its = d.items.filter(keep);
   const pick = { review: (x) => x.status === '심사중', ok: (x) => x.status === '승인', drop: (x) => x.status === '철회' || x.status === '미승인', new: (x) => x.isNew }[s.f];
   const mixed = s.f === 'all' || hid;
@@ -1099,11 +1109,13 @@ function rdRefreshRow(tab, id) {
 }
 
 function rdFilterHtml(tab) {
-  const s = rdS[tab];
+  const s = rdS[tab] || {};
   const search = (ph) => `<div class="ipo-search"><span class="ipo-sic">${ico('search', 'sm')}</span><input class="input" id="rd-q" type="search" placeholder="${ph}" value="${esc(s.q)}" autocomplete="off" aria-label="검색"></div>`;
   const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button type="button" data-${attr}="${esc(k)}" class="${cur === k ? 'on' : ''}" aria-pressed="${cur === k}">${esc(l)}</button>`).join('')}</div>`;
   const sel = (id, label, opts, cur) => `<select class="select" id="${id}" aria-label="${label}">${opts.map(([k, l]) => `<option value="${esc(k)}"${cur === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   if (tab === 'yesim') return search('회사·업종·주관사·주주 검색') + seg('rd-f', RD_YS_F, s.f) + sel('rd-sort', '정렬', RD_YS_SORT, s.sort);
+  if (tab === 'yesim-fin') return `<div class="rd-fing"><span class="rd-finl">최근 매출</span>${seg('rd-rev', RD_YS_REV, rdS.yesim.rev)}</div>`
+    + `<div class="rd-fing"><span class="rd-finl">영업이익률</span>${seg('rd-opm', RD_YS_OPM, rdS.yesim.opm)}</div>`;
   if (tab === 'sell') return search('회사·매도 후보·조합 검색') + seg('rd-f', [['all', '전체'], ...RD_KINDS.map((k) => [k, k])], s.f) + sel('rd-sort', '정렬', RD_SELL_SORT, s.sort);
   return search('대상·매도자·자문사 검색') + seg('rd-view', [['deal', '딜별'], ['adv', '자문사별']], s.view)
     + sel('rd-fit', '적합도', [['', '적합도 전체'], ...RD_FITS.map((k) => [k, `적합도 ${k}`])], s.fit) + sel('rd-stage', '단계', rdStageOpts(), s.stage);
@@ -1116,6 +1128,8 @@ function rdBind(root, tab) {
     const t = ev.target;
     const fb = t.closest('[data-rd-f]');
     if (fb) { s.f = fb.dataset.rdF; segOn('[data-rd-f]', fb); rdDraw(); return; }
+    const rb = t.closest('[data-rd-rev]') || t.closest('[data-rd-opm]');
+    if (rb) { const k = 'rdRev' in rb.dataset ? 'rev' : 'opm'; s[k] = rb.dataset[k === 'rev' ? 'rdRev' : 'rdOpm']; segOn(`[data-rd-${k}]`, rb); rdDraw(); return; }
     const vb = t.closest('[data-rd-view]');
     if (vb) { if (s.view !== vb.dataset.rdView) { s.view = vb.dataset.rdView; segOn('[data-rd-view]', vb); rdDraw(); } return; }
     if (t.closest('#rd-ref')) {
@@ -1189,6 +1203,7 @@ async function rdRender(tab, host) {
       <button class="btn ghost" type="button" id="rd-ref">${ico('refresh', 'sm')}새로고침</button></div>
     <section class="card ipo-card">
       <div class="ipo-filter">${rdFilterHtml(tab)}</div>
+      ${tab === 'yesim' ? `<div class="ipo-filter rd-finf">${rdFilterHtml('yesim-fin')}</div>` : ''}
       <div class="ipo-body" id="rd-body"><div class="empty">불러오는 중…</div></div>
     </section>
     <div id="rd-extra"></div></div>`;
