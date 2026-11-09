@@ -996,9 +996,23 @@ function mailTokInit(box) {
   const toks = () => mailTokens(hidden.value);
   const set = (arr) => { hidden.value = arr.join(', '); hidden.dispatchEvent(new Event('input', { bubbles: true })); draw(); };
   const draw = () => {
-    chips.innerHTML = toks().map((t, i) => `<span class="mail-chip ${mailTokOk(t) ? '' : 'bad'}" title="${esc(t)}">${esc(mailTokLabel(t))}<button type="button" data-x="${i}" aria-label="${esc(mailTokLabel(t))} 빼기">×</button></span>`).join('');
+    chips.innerHTML = toks().map((t, i) => `<span class="mail-chip ${mailTokOk(t) ? '' : 'bad'}" title="${esc(t)}" draggable="true" data-i="${i}">${esc(mailTokLabel(t))}<button type="button" data-x="${i}" aria-label="${esc(mailTokLabel(t))} 빼기">×</button></span>`).join('');
     chips.querySelectorAll('[data-x]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); const a = toks(); a.splice(Number(b.dataset.x), 1); set(a); inp.focus(); }));
+    chips.querySelectorAll('.mail-chip').forEach((el) => {
+      el.addEventListener('dragstart', (e) => { mailDrag = { box, i: Number(el.dataset.i) }; e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', toks()[mailDrag.i] || ''); el.classList.add('drag'); });
+      el.addEventListener('dragend', () => { mailDrag = null; document.querySelectorAll('.mail-chip.drag').forEach((x) => x.classList.remove('drag')); mailDropMark(null); });
+    });
   };
+  // 칩을 끌어 놓을 자리: 포인터보다 오른쪽(또는 아래 줄)에 있는 첫 칩 앞, 없으면 맨 끝
+  const dropAt = (e) => { const cs = [...chips.querySelectorAll('.mail-chip')]; const k = cs.findIndex((el) => { const r = el.getBoundingClientRect(); return e.clientY < r.top || (e.clientY <= r.bottom && e.clientX < r.left + r.width / 2); }); return k < 0 ? cs.length : k; };
+  box.addEventListener('dragover', (e) => { if (!mailDrag) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; mailDropMark(box, dropAt(e)); });
+  box.addEventListener('dragleave', (e) => { if (mailDrag && !box.contains(e.relatedTarget)) mailDropMark(null); });
+  box.addEventListener('drop', (e) => {
+    if (!mailDrag) return; e.preventDefault();
+    const src = mailDrag, at = dropAt(e); mailDrag = null; mailDropMark(null);
+    if (src.box === box) { const a = toks(), [t] = a.splice(src.i, 1); a.splice(at > src.i ? at - 1 : at, 0, t); set(a); return; }
+    const from = src.box.mailToks(), [t] = from.splice(src.i, 1), a = toks(); a.splice(at, 0, t); src.box.mailSet(from); set(a);
+  });
   const commit = () => { const v = inp.value.trim(); if (!v) return; inp.value = ''; set([...toks(), ...mailTokens(v)]); };
   inp.addEventListener('keydown', (e) => {
     if (e.isComposing || e.keyCode === 229) return;
@@ -1009,7 +1023,16 @@ function mailTokInit(box) {
   inp.addEventListener('blur', () => setTimeout(commit, 160));
   box.mailAdd = (t) => { inp.value = ''; set([...toks(), t]); };
   box.mailCommit = commit;
+  box.mailToks = toks; box.mailSet = set;
   draw();
+}
+// 받는 사람·참조·숨은 참조 칩 끌어 옮기기(순서 바꾸기, 칸 사이 이동)
+let mailDrag = null;
+function mailDropMark(box, at) {
+  document.querySelectorAll('.mail-tok .drop-b, .mail-tok .drop-a').forEach((x) => x.classList.remove('drop-b', 'drop-a'));
+  if (!box) return;
+  const cs = box.querySelectorAll('.mail-chip');
+  if (at < cs.length) cs[at].classList.add('drop-b'); else if (cs.length) cs[cs.length - 1].classList.add('drop-a');
 }
 
 const MAIL_SIZES = [12, 13, 14, 15, 16, 18, 20, 24];

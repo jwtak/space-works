@@ -108,6 +108,10 @@
 .mail-chip button:hover { background: #E5E7EB; color: var(--ink); }
 .mail-chip.bad { background: var(--danger-soft); color: var(--danger); }
 .mail-chip-ro { padding-right: 12px; }
+.mail-tok .mail-chip[draggable] { cursor: grab; }
+.mail-chip.drag { opacity: .4; }
+.mail-chip.drop-b { box-shadow: -4px 0 0 -1px var(--primary); }
+.mail-chip.drop-a { box-shadow: 4px 0 0 -1px var(--primary); }
 
 /* ---------- 공통: 파랑 글자 버튼(읽기·쓰기 위 줄), 편집 본문, 펼침 메뉴, 옵션, 미리보기·주소록 창 ---------- */
 .mail-tbtn { display: inline-flex; align-items: center; gap: 4px; height: 36px; padding: 0 10px; border: 0; border-radius: var(--r); background: none; color: var(--primary); font-size: 15px; font-weight: 500; white-space: nowrap; cursor: pointer; }
