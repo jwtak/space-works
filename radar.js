@@ -14,8 +14,11 @@ const RD_TAB = {
   sell: { file: 'data/sell.json', label: '매각희망', unit: '건' },
   bids: { file: 'data/bids.json', label: '입찰딜', unit: '건' },
 };
-const RD_YS_F = [['all', '전체'], ['mandate', '주관사 선정'], ['review', '심사 중'], ['ok', '승인'], ['drop', '철회·미승인'], ['new', '새 소식']];
-const RD_YS_SORT = [['filed', '청구일순'], ['decided', '결과일순'], ['rev', '매출순']];
+const RD_YS_F = [['all', '전체'], ['mandate', '주관사 선정'], ['review', '심사 중'], ['ok', '승인'], ['drop', '철회·미승인'], ['new', '새 소식'], ['hidden', '가린 회사']];
+const RD_YS_SORT = [['filed', '청구일순'], ['decided', '결과일순'], ['rev', '매출순'], ['broker', '주관사순']];
+const RD_YS_ORDER = ['주관사선정', '심사중', '승인', '상장', '미승인', '철회']; // 전체 보기 묶음 순서 = 진행 순서
+const RD_EYE_OFF = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12s3-6 8.5-6 8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z"/><circle cx="12" cy="12" r="2.5"/><path d="M4.5 4.5l15 15"/></svg>';
+const RD_EYE = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12s3-6 8.5-6 8.5 6 8.5 6-3 6-8.5 6-8.5-6-8.5-6z"/><circle cx="12" cy="12" r="2.5"/></svg>';
 const RD_KINDS = ['철회', '만기', '뉴스'];
 const RD_SELL_SORT = [['prio', '우선순'], ['near', '가까운 날짜순'], ['pct', '지분율순'], ['name', '회사명순']];
 const RD_STAGES = ['매각 추진', '주관사 선정', '예비입찰', '숏리스트', '본입찰', '우선협상', '계약', '무산', '공시 검토', '회생 M&A'];
@@ -53,8 +56,10 @@ Object.assign(TAB_INFO, {
       '판단: 회수 목표가 투자 후 1~1.5년이면 가장 맞는 진입 구간은 주관사 선정 이후~청구 직전입니다. 심사 중 구주는 상장까지 짧아 수익이 기간보다 할인 폭에서 나옵니다.',
     ]],
     ['어떻게 보나', [
-      '필터: 전체, 주관사 선정, 심사 중, 승인, 철회·미승인, 새 소식(최근 상태가 바뀐 회사). 정렬: 청구일순, 결과일순, 매출순.',
+      '필터: 전체, 주관사 선정, 심사 중, 승인, 철회·미승인, 새 소식(최근 상태가 바뀐 회사), 가린 회사. 정렬: 청구일순, 결과일순, 매출순, 주관사순.',
+      '전체는 진행 순서대로 주관사 선정 → 심사 중 → 승인 → 상장 → 미승인 → 철회로 묶어 보여 줍니다. 주관사순은 대표주관사별로 묶고, 많이 맡은 주관사가 위에 옵니다.',
       '주관사 선정은 주관사를 정했다는 기사가 난 청구 전 회사이고 선정일 최근순입니다. 이미 청구한 회사는 펼친 칸 \'진행\'에 주관사 선정일이 나옵니다.',
+      '볼 필요 없는 회사는 행 오른쪽 눈 아이콘으로 가립니다. 가린 회사는 \'가린 회사\'에서 다시 보이게 할 수 있고, 대표님 두 분도 같은 목록을 봅니다.',
       '회사를 펼치면 3개년 매출·영업이익·순이익, 주관사, 기술특례 여부, 주요 주주(VC·조합은 FI 표시), 대표 연락처, 관련 기사, KIND·DART 원문 링크가 나옵니다.',
       '목록 위 \'청구 전 신호\'는 아직 청구 전인데 기술성평가·주관사 선정·프리IPO·상장 추진 기사가 난 회사입니다. KIND 목록이나 주관사 선정 목록에 이미 있는 회사는 뺍니다.',
       '스팩과 재상장은 뺐습니다. 자료는 매일 09:10에 KIND·DART·딜 뉴스에서 새로 받습니다.',
@@ -622,26 +627,48 @@ function rdYsProg(x) {
   };
 }
 
+// 가림 표시(radar_marks 의 hide)와 대표주관사(주관사순 묶음 기준)
+const rdHid = (x) => rdMark(rdKey('yesim', x.id))?.hide === true;
+const rdLead = (x) => (x.mn ? x.lead[0] : rdSplit(x.broker)[0]) || '';
+// 목록을 묶음 머리({grp, n}) + 행으로 펼친다. order: 묶음 이름 정렬
+function rdGroups(list, keyOf, order) {
+  const m = new Map();
+  list.forEach((x) => { const k = keyOf(x); if (!m.has(k)) m.set(k, []); m.get(k).push(x); });
+  return [...m.keys()].sort((a, b) => order(a, b, m)).flatMap((k) => [{ grp: k, n: m.get(k).length }, ...m.get(k)]);
+}
+
+/* 전체·가린 회사: 주관사 선정(청구 전)도 함께, 진행 순서 묶음으로. 주관사순은 어느 필터에서든 대표주관사 묶음(맡은 곳이 많은 순).
+   주관사 선정 행의 날짜는 선정일이라 청구일순·결과일순에서는 선정일로 비교한다 */
 function rdYsList() {
   const s = rdS.yesim, d = s.data; if (!d) return [];
-  const q = s.q.trim().toLowerCase();
-  if (s.f === 'mandate') { // 청구 전 회사만, 선정일 최근순(매출순을 고르면 매출순)
-    const bySel = (a, b) => b.selected.localeCompare(a.selected) || a.name.localeCompare(b.name, 'ko');
-    return d.mandates.filter((x) => x.pre && (!q || x.q.includes(q)))
-      .sort(s.sort === 'rev' ? (a, b) => (b.rev ?? -1e15) - (a.rev ?? -1e15) || bySel(a, b) : bySel);
-  }
-  let list = d.items.filter((x) => !q || x.q.includes(q));
-  if (s.f === 'review') list = list.filter((x) => x.status === '심사중');
-  if (s.f === 'ok') list = list.filter((x) => x.status === '승인');
-  if (s.f === 'drop') list = list.filter((x) => x.status === '철회' || x.status === '미승인');
-  if (s.f === 'new') list = list.filter((x) => x.isNew);
-  const byFiled = (a, b) => b.filed.localeCompare(a.filed) || a.name.localeCompare(b.name, 'ko');
-  const by = {
-    filed: byFiled,
-    decided: (a, b) => b.decided.localeCompare(a.decided) || byFiled(a, b),
-    rev: (a, b) => (b.rev ?? -1e15) - (a.rev ?? -1e15) || byFiled(a, b),
-  }[s.sort] || byFiled;
-  return list.sort(by);
+  const q = s.q.trim().toLowerCase(), hid = s.f === 'hidden';
+  const keep = (x) => (!q || x.q.includes(q)) && rdHid(x) === hid;
+  const mns = d.mandates.filter((x) => x.pre && keep(x)), its = d.items.filter(keep);
+  const pick = { review: (x) => x.status === '심사중', ok: (x) => x.status === '승인', drop: (x) => x.status === '철회' || x.status === '미승인', new: (x) => x.isNew }[s.f];
+  const mixed = s.f === 'all' || hid;
+  const list = s.f === 'mandate' ? mns : mixed ? [...mns, ...its] : its.filter(pick || (() => true));
+  const day = (x) => (x.mn ? x.selected : x.filed);
+  const byDay = (a, b) => day(b).localeCompare(day(a)) || a.name.localeCompare(b.name, 'ko');
+  list.sort({
+    decided: (a, b) => (b.decided || day(b)).localeCompare(a.decided || day(a)) || byDay(a, b),
+    rev: (a, b) => (b.rev ?? -1e15) - (a.rev ?? -1e15) || byDay(a, b),
+  }[s.sort] || byDay);
+  if (s.sort === 'broker') return rdGroups(list, (x) => rdLead(x) || '주관사 미정', (a, b, m) => (a === '주관사 미정') - (b === '주관사 미정') || m.get(b).length - m.get(a).length || a.localeCompare(b, 'ko'));
+  if (!mixed) return list;
+  const rank = (k) => { const i = RD_YS_ORDER.indexOf(k); return i < 0 ? RD_YS_ORDER.length : i; };
+  return rdGroups(list, (x) => (x.mn ? '주관사선정' : x.status || '기타'), (a, b) => rank(a) - rank(b) || a.localeCompare(b, 'ko'));
+}
+const rdGrpRow = (x) => `<div class="rd-grp"><b>${esc(x.grp === '주관사선정' ? '주관사 선정' : rdYsLabel(x.grp))}</b><span>${x.n}곳</span></div>`;
+const rdHideBtn = (x) => { const h = rdHid(x); return `<button type="button" class="iconbtn rd-hide${h ? ' on' : ''}" data-rd-hide aria-label="${h ? '다시 보이기' : '가리기'}" title="${h ? '다시 보이기' : '가리기'}">${h ? RD_EYE : RD_EYE_OFF}</button>`; };
+
+function rdSetHide(id) {
+  const x = rdFind('yesim', id); if (!x) return;
+  const on = !rdHid(x);
+  if (!rdTouch('yesim', id, { hide: on })) return;
+  rdS.yesim.open.delete(id);
+  rdDraw();
+  rdSaveMarks();
+  toast(on ? `${x.name}: 가렸습니다. '가린 회사'에서 다시 볼 수 있습니다` : `${x.name}: 다시 보이게 했습니다`);
 }
 
 const RD_YS_HEAD = '<div class="ipo-head ipo-cols"><div>청구일</div><div>회사</div><div>진행</div><div class="rd-c2">주관사</div><div class="rd-c2">최근 매출</div><div>대표전화</div><div class="rd-h-st">컨택 상태</div></div>';
@@ -659,7 +686,7 @@ function rdYsRow(x) {
       <div class="rd-mh rd-c2">${br.length ? rdNm(br[0]) : RD_NA}<div class="ipo-sub">${br.slice(1).map(rdNm).join(', ')}</div></div>
       <div class="rd-mh rd-c2">${x.rev != null ? rdEok(x.rev) : RD_NA}<div class="ipo-sub rd-sub2">${x.fy ? `${esc(x.fy)} 영업이익 ${rdEok(f[1])}` : ''}</div></div>
       <div class="rd-mh">${x.phone ? esc(x.phone) : RD_NA}<div class="ipo-sub">${x.ceo ? `대표 ${rdNm(x.ceo)}` : ''}</div></div>
-      <div class="ipo-c-st">${rdChip(st)}${rdChev()}</div>
+      <div class="ipo-c-st">${rdChip(st)}${rdHideBtn(x)}${rdChev()}</div>
     </div>${open ? rdYsDetail(x) : ''}</div>`;
 }
 
@@ -721,7 +748,7 @@ function rdMnRow(x) {
       <div class="rd-mh rd-c2">${x.lead.length ? x.lead.map(rdNm).join(', ') : RD_NA}<div class="ipo-sub">${x.co.map(rdNm).join(', ')}</div></div>
       <div class="rd-mh rd-c2">${x.rev != null ? rdEok(x.rev) : '<span class="muted">확인 불가</span>'}<div class="ipo-sub rd-sub2">${x.fy ? `${esc(x.fy)} 영업이익 ${rdEok(f[1])}` : ''}</div></div>
       <div class="rd-mh">${x.phone ? esc(x.phone) : RD_NA}<div class="ipo-sub">${x.ceo ? `대표 ${rdNm(x.ceo)}` : ''}</div></div>
-      <div class="ipo-c-st">${rdChip(st)}${rdChev()}</div>
+      <div class="ipo-c-st">${rdChip(st)}${rdHideBtn(x)}${rdChev()}</div>
     </div>${open ? rdMnDetail(x) : ''}</div>`;
 }
 
@@ -935,7 +962,7 @@ function rdStageOpts() {
 
 /* ---------- 그리기 ---------- */
 const RD_LIST = { yesim: rdYsList, sell: rdSellList, bids: rdBidsList };
-const RD_ROW = { yesim: (x) => (x.mn ? rdMnRow(x) : rdYsRow(x)), sell: rdSellRow, bids: (x) => rdBidsRow(x, false) };
+const RD_ROW = { yesim: (x) => (x.grp != null ? rdGrpRow(x) : x.mn ? rdMnRow(x) : rdYsRow(x)), sell: rdSellRow, bids: (x) => rdBidsRow(x, false) };
 const RD_HEAD = { yesim: RD_YS_HEAD, sell: RD_SELL_HEAD, bids: RD_BIDS_HEAD };
 const rdRowEl = (root, id) => [...root.querySelectorAll('.ipo-row[data-id]')].find((r) => r.dataset.id === id);
 
@@ -970,7 +997,9 @@ function rdBody(tab) {
   const list = RD_LIST[tab]();
   if (tab === 'bids' && s.view === 'adv') return rdAdvBody(list);
   if (!list.length) return `<div class="empty">조건에 맞는 ${tab === 'yesim' ? '회사가' : tab === 'sell' ? '신호가' : '딜이'} 없습니다.</div>`;
-  return (tab === 'yesim' && s.f === 'mandate' ? RD_MN_HEAD : RD_HEAD[tab]) + list.map(RD_ROW[tab]).join('');
+  // 예심청구 전체·가린 회사는 주관사 선정(선정일)과 예심(청구일)이 섞이므로 첫 칸 머리를 '날짜'로
+  const head = tab !== 'yesim' ? RD_HEAD[tab] : s.f === 'mandate' ? RD_MN_HEAD : s.f === 'all' || s.f === 'hidden' ? RD_YS_HEAD.replace('청구일', '날짜') : RD_HEAD[tab];
+  return head + list.map(RD_ROW[tab]).join('');
 }
 
 /* 다시 그릴 때(다른 분 저장 합치기·저장 실패 되돌리기 등) 쓰고 있던 메모 칸을 지킨다 — ipo.js ipoDraw와 같은 방식.
@@ -1035,6 +1064,8 @@ function rdDraw() {
     const m = s.focus != null && rdIsMn(s.focus) ? rdFind('yesim', s.focus) : null;
     if (m && !m.pre && m.yesimId) { s.open.add(m.yesimId); s.focus = m.yesimId; s.f = 'all'; }
     if (s.data && !s.data.hasMn && s.f === 'mandate') s.f = 'all';
+    const fx = s.focus != null && rdFind('yesim', s.focus); // 보기 링크로 온 회사를 가려 두었으면 '가린 회사'에서 펼친다
+    if (fx && rdHid(fx) && s.f !== 'hidden') s.f = 'hidden';
     host.querySelectorAll('[data-rd-f]').forEach((bt) => {
       const on = bt.dataset.rdF === s.f;
       bt.classList.toggle('on', on); bt.setAttribute('aria-pressed', on);
@@ -1098,6 +1129,8 @@ function rdBind(root, tab) {
     if (sb) { rdSetStatus(tab, sb.closest('.ipo-row').dataset.id, sb.dataset.rdSt); return; }
     const pb = t.closest('[data-rd-pipe]');
     if (pb) { rdPipeAdd(tab, pb); return; }
+    const hb = t.closest('[data-rd-hide]');
+    if (hb) { rdSetHide(hb.closest('.ipo-row').dataset.id); return; }
     const fsb = t.closest('[data-rd-fs]');
     if (fsb) { rdSetFs(fsb.closest('.ipo-row').dataset.id); return; }
     if (t.closest('a, input, select, .ipo-detail')) return;

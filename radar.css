@@ -36,6 +36,11 @@
 .rd-grp span { font-size: 12px; color: var(--text3); }
 .ipo-head + .rd-grp { border-top: 0; }
 .rd-grp + .ipo-row { border-top: 0; }
+/* 예심청구 가리기(눈 아이콘): 평소엔 옅게, 행에 올리면 진하게. 가린 회사 목록에서는 파랑(다시 보이기) — 컨택 상태 칸이 28 넓어짐 */
+.rd-hide { width: 28px; height: 28px; flex: none; color: #C4C9D1; }
+.ipo-line:hover .rd-hide { color: var(--text3); }
+.rd-hide:hover { color: var(--ink) !important; }
+.rd-hide.on { color: var(--primary); }
 
 /* 상자 안 표: 주주(이름 | 지분율 | 구분), 기사(날짜 | 제목 | 매체) */
 .ipo-tbl.rd-tbl-h th:nth-child(1) { width: auto; }
@@ -74,7 +79,7 @@
   /* 만기 임박 조합: 상태 칸이 없는 6칸 */
   .rd-page .ipo-cols.rd-g6 { grid-template-columns: 80px repeat(5, minmax(0, 1fr)); }
   /* 예심청구 대표전화: 번호가 한 줄에 들어가게 112 아래로 줄이지 않는다(넓으면 다른 칸과 같은 폭) */
-  .rd-yesim .ipo-cols { grid-template-columns: 80px repeat(4, minmax(0, 1fr)) minmax(112px, 1fr) 100px; }
+  .rd-yesim .ipo-cols { grid-template-columns: 80px repeat(4, minmax(0, 1fr)) minmax(112px, 1fr) 128px; }
   /* 필터 버튼이 카드보다 길면 옆으로 숨기지 않고 줄을 바꿔 모두 보이게(칸 사이 1px 선은 간격 + 묶음 바탕색으로 — 줄이 바뀌어도 선이 이어지고 줄마다 꽉 참) */
   .rd-page .ipo-filter .seg { flex-wrap: wrap; gap: 1px; background: var(--line2); max-width: 100%; overflow: hidden; }
   .rd-page .ipo-filter .seg button { flex: 1 1 auto; }
@@ -101,7 +106,7 @@
   }
   /* 두 칸을 접어도 대표전화는 112 밑으로 줄이지 않는다(700보다 좁으면 아래 여러 줄 배치) */
   @container (min-width: 700px) and (max-width: 999px) {
-    .rd-yesim .ipo-cols { grid-template-columns: 80px repeat(2, minmax(0, 1fr)) minmax(112px, 1fr) 100px; }
+    .rd-yesim .ipo-cols { grid-template-columns: 80px repeat(2, minmax(0, 1fr)) minmax(112px, 1fr) 128px; }
   }
   /* 700보다 좁으면 다섯 칸으로는 회사 칸이 가장 긴 회사 이름(130px)보다 좁아지므로 폰처럼 한 건을 여러 줄로(날짜 / 이름·컨택 상태 / 한 줄 요약) — ipo.css와 같은 방식 */
   @container (max-width: 699px) {
