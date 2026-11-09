@@ -149,6 +149,27 @@ function mailFitFrame(fr) {
   new ResizeObserver(fit).observe(fr); // 폰 가로·세로 전환, PC 창 크기 변경
 }
 
+/* 답장·전달 원문(Outlook createReply 본문)을 보통 메일처럼: 구분선(hr) 자리에 '-----Original Message-----' 줄, 원문 전체 왼쪽에 진한 세로선.
+   보내는 메일에도 그대로 들어간다(사용자 11/9). hr이 없으면 머리글(divRplyFwdMsg)부터, 그것도 없으면 본문 전체를 감싼다 */
+function mailQuoteWrap(html) {
+  if (!html) return '';
+  const doc = new DOMParser().parseFromString(html, 'text/html'), body = doc.body;
+  const top = (el) => { while (el && el.parentNode !== body) el = el.parentNode; return el; };
+  let start = top(body.querySelector('hr')), drop = !!start;
+  if (!start) start = top(body.querySelector('#divRplyFwdMsg, [id^="divRplyFwdMsg"]'));
+  if (!start) start = [...body.childNodes].find((n) => n.nodeType === 1 && n.textContent.trim()) || body.firstChild;
+  if (!start) return html;
+  const box = doc.createElement('div');
+  box.setAttribute('style', 'margin:16px 0 0 2px;padding-left:12px;border-left:2px solid #1F2937');
+  const head = doc.createElement('div');
+  head.setAttribute('style', 'margin-bottom:8px;color:#111827');
+  head.textContent = '-----Original Message-----';
+  box.appendChild(head);
+  body.insertBefore(box, start);
+  for (let n = box.nextSibling; n;) { const next = n.nextSibling; if (!(drop && n === start)) box.appendChild(n); else n.remove(); n = next; }
+  return `<!DOCTYPE html>${doc.documentElement.outerHTML}`;
+}
+
 /* 답장·전달의 원문 칸: 폭은 mailFitFrame처럼 줄이고, 높이는 내용만큼 늘려 칸 안 스크롤 없이 본문 아래로 이어지게 */
 function mailFitQuote(fr) {
   const d = fr.contentDocument; if (!d || !d.documentElement) return;
@@ -950,7 +971,7 @@ async function mailOpenCompose({ mode, id }) {
       const fn = { reply: 'createReply', replyAll: 'createReplyAll', forward: 'createForward' }[mode];
       const d = await G.post(`/me/messages/${encodeURIComponent(id)}/${fn}`, {});
       if (m.compose !== c) { G.del(`/me/messages/${encodeURIComponent(d.id)}`).catch(() => {}); return; } // 만드는 사이 쓰기를 닫았으면 남은 초안을 지운다
-      Object.assign(c, { draftId: d.id, auto: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(d.ccRecipients), subject: d.subject || '', quote: d.body?.content || '' });
+      Object.assign(c, { draftId: d.id, auto: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(d.ccRecipients), subject: d.subject || '', quote: mailQuoteWrap(d.body?.content || '') });
     } else if (mode === 'draft') {
       const d = await G.get(`/me/messages/${encodeURIComponent(id)}?$select=id,subject,toRecipients,ccRecipients,bccRecipients,body,importance`);
       if (m.compose !== c) return;
