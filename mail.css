@@ -69,9 +69,8 @@
 .mail-file .iconbtn { width: 28px; height: 28px; }
 .mail-body { flex: 1; min-height: 280px; margin-top: 10px; padding: 14px 16px; border: 1px solid var(--line2); border-radius: var(--r); resize: vertical; outline: none; font-size: 14px; line-height: 22px; }
 .mail-body:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
-.mail-quote { margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r); }
-.mail-quote summary { padding: 10px 14px; font-size: 13px; color: var(--text2); cursor: pointer; }
-.mail-quote .mail-frame { height: 320px; border-top: 1px solid var(--line); border-radius: 0 0 var(--r) var(--r); }
+.mail-quote { margin-top: 12px; }
+.mail-quote .mail-frame { display: block; width: 100%; height: 160px; border: 0; } /* 높이는 mailFitQuote가 내용만큼 */
 
 /* 받는이 자동완성 */
 .mail-ac { position: relative; }

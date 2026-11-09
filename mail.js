@@ -149,6 +149,16 @@ function mailFitFrame(fr) {
   new ResizeObserver(fit).observe(fr); // 폰 가로·세로 전환, PC 창 크기 변경
 }
 
+/* 답장·전달의 원문 칸: 폭은 mailFitFrame처럼 줄이고, 높이는 내용만큼 늘려 칸 안 스크롤 없이 본문 아래로 이어지게 */
+function mailFitQuote(fr) {
+  mailFitFrame(fr);
+  const d = fr.contentDocument; if (!d || !d.documentElement) return;
+  const fit = () => { fr.style.height = `${Math.ceil(d.documentElement.getBoundingClientRect().height * (Number(d.documentElement.style.zoom) || 1)) + 4}px`; };
+  fit();
+  d.querySelectorAll('img').forEach((im) => { if (!im.complete) im.addEventListener('load', fit, { once: true }); });
+  new ResizeObserver(fit).observe(d.documentElement);
+}
+
 function mailConfirm({ title, rows, ok }) {
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
@@ -1031,14 +1041,18 @@ function mailDrawCompose() {
         ${mailToolbarHTML(c)}
         <div class="mail-rte" id="mail-rte" contenteditable="true" role="textbox" aria-multiline="true" aria-label="내용" spellcheck="false"></div>
       </div>`}
-      ${c.quote ? `<details class="mail-quote"><summary>원문 보기</summary><iframe class="mail-frame" sandbox referrerpolicy="no-referrer" title="원문"></iframe></details>` : ''}
+      ${c.quote ? '<div class="mail-quote"><iframe class="mail-frame" sandbox="allow-same-origin" referrerpolicy="no-referrer" scrolling="no" title="원문"></iframe></div>' : ''}
       <div class="mail-ctools">
         <label class="iconbtn mail-ctool" aria-label="사진 첨부">${mi('camera')}<input type="file" accept="image/*" capture="environment" hidden id="mail-cam"></label>
         <label class="iconbtn mail-ctool" aria-label="파일 첨부">${ico('clip')}<input type="file" multiple hidden id="mail-file2"></label>
       </div>
     </form>`;
   const f = $('#mail-cf'), rte = $('#mail-rte');
-  if (c.quote) f.querySelector('.mail-quote .mail-frame').srcdoc = mailFrameDoc(c.quote, false);
+  if (c.quote) { // 원문은 보통 메일처럼 본문 아래에 펼쳐 둔다(사용자 11/9). 보낼 때는 mailMergeBody가 그대로 붙인다
+    const qf = f.querySelector('.mail-quote .mail-frame');
+    qf.addEventListener('load', () => mailFitQuote(qf), { once: true });
+    qf.srcdoc = mailFrameDoc(c.quote, ui.mail.folder !== 'junkemail');
+  }
   if (rte) { rte.innerHTML = c.html; mailRteInit(rte, c); }
   // 도구막대는 위 버튼 줄 바로 아래에 붙는다 (버튼 줄이 두 줄로 접혀도)
   if (c.ro) c.ro.disconnect();
