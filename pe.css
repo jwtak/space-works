@@ -1,0 +1,89 @@
+/* 딜소싱 › PE 앵글 (pe.js) — 목록·펼친 행·상자는 ipo.css, 좁은 폭 배치·필터 줄·보조 줄·컨택·검토한 곳은 radar.css(.rd-page)를 그대로 쓰고 여기엔 새로 필요한 것만.
+   radar.css 뒤에 읽어야 한다. 표는 전부 왼쪽 정렬·열 간격 균등·머리글과 값 시작선 일치. 크기 16/14/13/12, 간격 4·8·12·16·24. */
+
+/* 묶음 전환(오너기업 n / 중복상장 n): 요약 줄 위 */
+.pe-grp { margin-bottom: 12px; }
+.pe-grp .seg button { display: inline-flex; align-items: center; }
+.pe-gn { margin-left: 6px; font-weight: 600; color: var(--text3); font-variant-numeric: tabular-nums; }
+.pe-grp .seg button.on .pe-gn { color: var(--primary); }
+
+/* 딜 상태 칩: 높이 20(팀 리스트 표시와 같은 크기), 칩 안 글자 시작선 = 머리글 시작선(좌우 8) */
+.pe-ds { display: inline-flex; align-items: center; height: 20px; max-width: 100%; padding: 0 8px; border-radius: 10px; font-size: 12px; font-weight: 500; line-height: 20px; background: #F3F4F6; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: 1px; }
+.pe-ds.on { background: var(--primary-soft); color: var(--primary); }
+.pe-ds.off { color: var(--text3); }
+.ipo-row.open > .ipo-line .pe-ds { background: var(--card); } /* 펼친 행 머리(연파랑) 위에서도 칩이 보이게 */
+.pe-page .ipo-head > .pe-h-chip { padding-left: 8px; }
+.pe-nchip { display: none; margin-left: 6px; }
+.pe-dl { display: contents; } /* 상폐 위험·CB 링크 자리(비어 있으면 간격도 없음) */
+
+/* 오르면 빨강·내리면(손실) 파랑 */
+.pe-up { color: var(--danger); }
+.pe-dn { color: var(--primary); }
+
+/* 펼친 칸 표: 재무(항목 | 연도 셋, 네 칸 같은 폭), 신호(날짜 | 종류 | 내용) */
+.ipo-tbl.pe-fin th:nth-child(n) { width: auto; }
+.pe-fin td:first-child { color: var(--text3); font-size: 13px; }
+.pe-fin tr.r td { font-size: 13px; color: var(--text3); }
+.pe-finm { display: none; margin: 0; padding: 0; list-style: none; font-size: 13px; line-height: 20px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.pe-finm li + li { margin-top: 8px; }
+.pe-finm b { display: block; font-size: 13px; font-weight: 600; color: var(--ink); }
+/* 재무 출처 한 줄(재무표 아래), 신호 표 '나머지 n건 보기' */
+.pe-finsrc { margin: 8px 0 0; font-size: 12px; line-height: 18px; color: var(--text3); }
+.pe-page .pe-sigbox:not(.pe-all) tr.pe-more { display: none; }
+.pe-morebtn { margin-top: 12px; }
+.ipo-tbl.pe-tbl-s th:nth-child(1) { width: 104px; }
+.ipo-tbl.pe-tbl-s th:nth-child(2) { width: 120px; }
+.ipo-tbl.pe-tbl-s th:nth-child(3) { width: auto; }
+
+@media (min-width: 761px) {
+  /* 오너기업 여덟 칸(점수 | 회사 | 최근 매출 | 영업이익률 | 최대주주 | 업력 | 신호 | 컨택 상태). 중복상장은 radar.css 일곱 칸 그대로 */
+  .pe-heir .ipo-cols { grid-template-columns: 80px repeat(6, minmax(0, 1fr)) 100px; }
+  /* 1000보다 좁으면 업력·신호 칸(rd-c2)을 접고 회사 칸 보조 줄로 */
+  @container (max-width: 999px) {
+    .pe-heir .ipo-cols { grid-template-columns: 80px repeat(4, minmax(0, 1fr)) 100px; }
+  }
+  /* 700보다 좁으면 한 회사를 여러 줄로(점수·판정 / 이름·컨택 상태 / 한 줄 요약 / 신호) — radar.css와 같은 배치. 딜 상태 칩은 이름 옆으로 */
+  @container (max-width: 699px) {
+    .pe-heir .ipo-cols { grid-template-columns: minmax(0, 1fr) auto; }
+    .pe-page .pe-nchip { display: inline-flex; }
+    .pe-page .ipo-tbl.pe-tbl-s, .pe-page .ipo-tbl.pe-tbl-s tbody { display: block; }
+    .pe-page .ipo-tbl.pe-tbl-s thead { display: none; }
+    .pe-page .ipo-tbl.pe-tbl-s tr { display: flex; flex-wrap: wrap; column-gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--row); }
+    .pe-page .ipo-tbl.pe-tbl-s tr:first-child { padding-top: 0; }
+    .pe-page .ipo-tbl.pe-tbl-s tr:last-child { border-bottom: 0; padding-bottom: 0; }
+    .pe-page .ipo-tbl.pe-tbl-s td { padding: 0; border: 0; }
+    .pe-page .ipo-tbl.pe-tbl-s td:nth-child(3) { flex: 1 1 100%; order: -1; }
+    .pe-page .ipo-tbl.pe-tbl-s td:nth-child(1), .pe-page .ipo-tbl.pe-tbl-s td:nth-child(2) { margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--text3); }
+  }
+  /* 400보다 좁으면 묶음 전환은 한 줄을 반씩, 필터 이름표는 버튼 위로 */
+  @container (max-width: 399px) {
+    .pe-grp .seg { display: flex; }
+    .pe-grp .seg button { flex: 1 1 0; justify-content: center; padding: 0 8px; }
+    .pe-page .rd-fing { flex-wrap: wrap; gap: 6px; }
+    .pe-page .rd-finl { width: 100%; }
+  }
+  /* 300보다 좁으면 한 회사를 한 줄 폭으로 쌓고(컨택 상태는 맨 아래), 재무는 연도별 한 줄 목록으로 */
+  @container (max-width: 299px) {
+    .pe-heir .ipo-cols { grid-template-columns: minmax(0, 1fr); }
+    .pe-page .ipo-tbl.pe-fin { display: none; }
+    .pe-page .pe-finm { display: block; }
+    /* 상태 버튼 다섯은 두 칸씩(radar.css) — 왼쪽 칸 버튼의 왼쪽 선은 지운다 */
+    .pe-page .ipo-seg button:nth-child(odd) { border-left: 0; }
+  }
+}
+
+@media (max-width: 760px) {
+  .pe-grp { margin: 0 16px 12px; }
+  .pe-grp .seg { display: flex; }
+  .pe-grp .seg button { flex: 1 1 0; justify-content: center; }
+  .pe-page .pe-nchip { display: inline-flex; }
+  /* 신호 표는 폰에서 내용 한 줄 + 날짜·종류 한 줄 목록으로 */
+  .ipo-tbl.pe-tbl-s, .ipo-tbl.pe-tbl-s tbody { display: block; }
+  .ipo-tbl.pe-tbl-s thead { display: none; }
+  .ipo-tbl.pe-tbl-s tr { display: flex; flex-wrap: wrap; column-gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--row); }
+  .ipo-tbl.pe-tbl-s tr:first-child { padding-top: 0; }
+  .ipo-tbl.pe-tbl-s tr:last-child { border-bottom: 0; padding-bottom: 0; }
+  .ipo-tbl.pe-tbl-s td { padding: 0; border: 0; }
+  .ipo-tbl.pe-tbl-s td:nth-child(3) { flex: 1 1 100%; order: -1; }
+  .ipo-tbl.pe-tbl-s td:nth-child(1), .ipo-tbl.pe-tbl-s td:nth-child(2) { margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--text3); }
+}

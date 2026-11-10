@@ -20,6 +20,7 @@ const CFG = {
       'data/yesim.json': '012DPUXZWWL22CBPSYSBA3XS2FB3BVIU2H', 'data/sell.json': '012DPUXZQAQ6AGF5IJ7FFZRG5HNXHNK7RQ', 'data/bids.json': '012DPUXZVKMFAPJTGSHZC23BOOZBRVFXU5',
       'data/radar_marks.json': '012DPUXZWTHA6HQIME4ZGIHECXSV3PWRC3', 'data/pipeline.json': '012DPUXZTPUBOUN7QMQBFL2L2UQUI4IRBO',
       'data/delist.json': '012DPUXZR4AS3D6N7LWBCYIUY5JS6LQZCW',
+      'data/pe.json': '012DPUXZTXPXUP42OXLVD32JRDCOQNMVM5',
     },
     writable: ['data/event_marks.json', 'data/ipo_marks.json', 'data/news_marks.json', 'data/radar_marks.json', 'data/pipeline.json'], // 수집기는 같은 파일을 덮어쓰므로 id가 바뀌지 않는다
   },
