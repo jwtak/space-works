@@ -43,7 +43,7 @@ svg.i.lg { width: 22px; height: 22px; }
 .app { display: grid; grid-template-columns: 248px 1fr; height: 100vh; }
 .side { background: var(--card); border-right: 1px solid var(--line); display: flex; flex-direction: column; overflow-y: auto; }
 .brand { height: 64px; display: flex; color: var(--ink); text-decoration: none; flex-direction: column; justify-content: center; padding: 0 24px; border-bottom: 1px solid var(--line); }
-.brand b { font-weight: 800; font-size: 15px; letter-spacing: 0.08em; line-height: 20px; }
+.brand b { font-weight: 800; font-size: 13px; letter-spacing: 0.06em; line-height: 20px; white-space: nowrap; }
 .nav { padding: 8px 12px 16px; }
 .nav .grp { display: flex; align-items: center; gap: 8px; margin: 16px 8px 6px; font-size: 12px; color: var(--text3); }
 .nav .grp::after { content: ''; flex: 1; height: 1px; background: var(--line); }
