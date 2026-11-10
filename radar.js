@@ -7,7 +7,7 @@
    app.js 전역($, esc, pad, ymd, parse, today, addDays, diffDays, md, ico, toast, G)과 graph.js 의 STORE, ipo.css 클래스를 쓴다.
    엑셀은 ipo.js 의 ipoDownload(통합 엑셀), 파이프라인은 pipeline.js 의 pipeAdd·pipeHas·pipeLoad(있을 때만 버튼이 보인다). */
 
-const RD_STATUS = ['미접촉', '연락함', '미팅', '보류'];
+const RD_STATUS = ['미접촉', '연락함', '미팅', '보류', '검토 완료'];
 const RD_TTL = 5 * 60000;
 const RD_TAB = {
   yesim: { file: 'data/yesim.json', label: '예심청구', unit: '곳' },
@@ -988,6 +988,22 @@ function rdStageOpts() {
 const RD_LIST = { yesim: rdYsList, sell: rdSellList, bids: rdBidsList };
 const RD_ROW = { yesim: (x) => (x.grp != null ? rdGrpRow(x) : x.mn ? rdMnRow(x) : rdYsRow(x)), sell: rdSellRow, bids: (x) => rdBidsRow(x, false) };
 const RD_HEAD = { yesim: RD_YS_HEAD, sell: RD_SELL_HEAD, bids: RD_BIDS_HEAD };
+// 컨택했거나 다 본 곳(미접촉이 아닌 상태)은 맨 아래 '컨택·검토한 곳' 묶음으로 내리고 흐리게(사용자 2026-11-10).
+// 묶음 머리가 있는 목록(예심청구 전체·주관사순)은 남은 행 수로 머리를 다시 세고, 다 빠진 묶음은 지운다
+function rdSink(tab, list) {
+  const low = list.filter((x) => x.grp == null && rdSt(rdKey(tab, x.id)) !== '미접촉');
+  if (!low.length) return list;
+  const out = [];
+  let head = null;
+  list.forEach((x) => {
+    if (x.grp != null) { head = { ...x, n: 0 }; return; }
+    if (low.includes(x)) return;
+    if (head) { if (!head.n) out.push(head); head.n++; }
+    out.push(x);
+  });
+  return [...out, { grp: '__low', n: low.length }, ...low];
+}
+const rdLowRow = (x) => `<div class="rd-grp rd-low"><b>컨택·검토한 곳</b><span>${x.n}곳 · 연락함·미팅·보류·검토 완료</span></div>`;
 const rdRowEl = (root, id) => [...root.querySelectorAll('.ipo-row[data-id]')].find((r) => r.dataset.id === id);
 
 function rdSummary(tab) {
@@ -1018,12 +1034,13 @@ function rdSumDraw() {
 function rdBody(tab) {
   const s = rdS[tab];
   if (!s.data) return `<div class="empty">아직 수집된 ${RD_TAB[tab].label} 데이터가 없습니다.</div>`;
-  const list = RD_LIST[tab]();
-  if (tab === 'bids' && s.view === 'adv') return rdAdvBody(list);
+  const raw = RD_LIST[tab]();
+  if (tab === 'bids' && s.view === 'adv') return rdAdvBody(raw);
+  const list = tab === 'yesim' && s.f === 'hidden' ? raw : rdSink(tab, raw);
   if (!list.length) return `<div class="empty">조건에 맞는 ${tab === 'yesim' ? '회사가' : tab === 'sell' ? '신호가' : '딜이'} 없습니다.</div>`;
   // 예심청구 전체·가린 회사는 주관사 선정(선정일)과 예심(청구일)이 섞이므로 첫 칸 머리를 '날짜'로
   const head = tab !== 'yesim' ? RD_HEAD[tab] : s.f === 'mandate' ? RD_MN_HEAD : s.f === 'all' || s.f === 'hidden' ? RD_YS_HEAD.replace('청구일', '날짜') : RD_HEAD[tab];
-  return head + list.map(RD_ROW[tab]).join('');
+  return head + list.map((x) => (x.grp === '__low' ? rdLowRow(x) : RD_ROW[tab](x))).join('');
 }
 
 /* 다시 그릴 때(다른 분 저장 합치기·저장 실패 되돌리기 등) 쓰고 있던 메모 칸을 지킨다 — ipo.js ipoDraw와 같은 방식.

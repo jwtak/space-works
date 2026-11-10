@@ -229,3 +229,8 @@
   .rd-page .ipo-tbl.rd-tbl-r td:nth-child(2) { font-weight: 600; }
   .rd-page .ipo-tbl.rd-tbl-r td:nth-child(4) { flex: 1 1 100%; margin-top: 2px; font-size: 13px; color: var(--text2); }
 }
+/* 컨택·검토한 곳: 목록 맨 아래 묶음, 펼치지 않은 행은 흐리게(올리면 또렷하게) */
+.rd-low b { color: var(--text2); }
+.rd-low ~ .ipo-row:not(.open) > .ipo-line { opacity: .55; }
+.rd-low ~ .ipo-row:not(.open) > .ipo-line:hover { opacity: 1; }
+.ipo-st.s-4 { background: #F3F4F6; color: var(--text2); } /* 검토 완료 */

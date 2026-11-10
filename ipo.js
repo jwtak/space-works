@@ -4,7 +4,7 @@
    진입: renderIpo(host) — host 안에만 그린다. 홈 카드: ipoHomeBlock().
    app.js 전역($, esc, pad, ymd, parse, today, addDays, diffDays, md, ico, toast)과 graph.js 의 STORE 를 쓴다. */
 
-const IPO_STATUS = ['미접촉', '연락함', '미팅', '보류'];
+const IPO_STATUS = ['미접촉', '연락함', '미팅', '보류', '검토 완료'];
 const IPO_FILTERS = [['all', '전체'], ['lock', '락업 30일'], ['direct', '직통번호'], ['todo', '미접촉'], ['fund', '조달 공시']];
 const IPO_SORTS = [['listed', '상장일순'], ['lock', '락업 임박순'], ['mcap', '시총순']];
 const IPO_TTL = 5 * 60000;
@@ -425,7 +425,14 @@ function ipoBody() {
   const list = ipoList();
   if (!ipoState.data) return '<div class="empty">아직 수집된 신규상장 데이터가 없습니다.</div>';
   if (!list.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
-  return `<div class="ipo-head ipo-cols"><div>상장일</div><div>회사</div><div class="ipo-c-cap">현재 시총</div><div class="ipo-c-rev">2025 매출</div><div>작성책임자</div><div>다음 락업</div><div class="ipo-h-st">컨택 상태</div></div>${list.map(ipoRow).join('')}`;
+  return `<div class="ipo-head ipo-cols"><div>상장일</div><div>회사</div><div class="ipo-c-cap">현재 시총</div><div class="ipo-c-rev">2025 매출</div><div>작성책임자</div><div>다음 락업</div><div class="ipo-h-st">컨택 상태</div></div>${ipoSink(list)}`;
+}
+// 컨택했거나 다 본 곳은 맨 아래 '컨택·검토한 곳'으로 내리고 흐리게 — 예심청구 등(radar.js rdSink)과 같은 방식(사용자 2026-11-10)
+function ipoSink(list) {
+  const low = list.filter((x) => ipoSt(x.code) !== '미접촉');
+  if (!low.length) return list.map(ipoRow).join('');
+  return list.filter((x) => !low.includes(x)).map(ipoRow).join('')
+    + `<div class="rd-grp rd-low"><b>컨택·검토한 곳</b><span>${low.length}곳 · 연락함·미팅·보류·검토 완료</span></div>${low.map(ipoRow).join('')}`;
 }
 
 /* 다시 그릴 때(다른 분 저장 합치기·저장 실패 되돌리기 등) 쓰고 있던 메모 칸을 지킨다 — radar.js rdDraw와 같은 방식.
