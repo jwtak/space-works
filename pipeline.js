@@ -32,10 +32,15 @@ const PP_HASH = '#deals/pipeline';
 const PP_TTL = 5 * 60000;
 const PP_WD = '일월화수목금토';
 
+// 새로 고친 뒤에도 보던 검색어·단계·정렬·펼친 딜을 이어 보게 창마다 기억한다(app.js viewGet·viewSet). 지워진 딜 id는 그리지 않을 뿐이다
+const PP_VIEW = viewGet('pp', null) || {};
 const ppS = {
   items: [], version: null, at: 0, loading: null, dirty: new Map(), saving: Promise.resolve(), host: null,
-  q: '', stage: 'live', sort: 'next', open: null, focus: null, field: null, ime: false, redraw: false,
+  q: typeof PP_VIEW.q === 'string' ? PP_VIEW.q : '', stage: typeof PP_VIEW.stage === 'string' ? PP_VIEW.stage : 'live',
+  sort: typeof PP_VIEW.sort === 'string' ? PP_VIEW.sort : 'next', open: typeof PP_VIEW.open === 'string' ? PP_VIEW.open : null,
+  focus: null, field: null, ime: false, redraw: false,
 };
+const ppViewSave = () => viewSet('pp', { q: ppS.q, stage: ppS.stage, sort: ppS.sort, open: ppS.open });
 
 /* ---------- 데이터 ---------- */
 // 파일은 배열이어야 한다. 다른 모양이거나 깨졌으면 덮어쓰지 않도록 읽기부터 멈춘다
@@ -339,6 +344,7 @@ function ppDraw() {
   ppKeep(b, () => { b.innerHTML = ppBody(); });
   const s = h.querySelector('#pp-sum'); if (s) s.innerHTML = ppSummary();
   h.querySelectorAll('[data-pp-stage]').forEach((x) => { const on = x.dataset.ppStage === ppS.stage; x.classList.toggle('on', on); x.setAttribute('aria-pressed', on); });
+  ppViewSave();
   if (ppS.focus) {
     const r = b.querySelector(`.pp-row[data-id="${CSS.escape(ppS.focus)}"]`);
     ppS.focus = null;
@@ -395,6 +401,7 @@ function ppPaint(id) {
 function ppToggle(id) {
   const prev = ppS.open;
   ppS.open = prev === id ? null : id; // 펼친 행은 하나만 — 위에 펼쳐 둔 딜이 접혀도 누른 딜이 제자리에(ppHold)
+  ppViewSave();
   ppHold(ppS.host && ppS.host.querySelector('#pp-body'), id, () => [prev, ppS.open].forEach((k) => {
     if (!k || !ppS.host) return;
     const row = ppS.host.querySelector(`.pp-row[data-id="${CSS.escape(k)}"]`), x = ppFind(k);
@@ -442,6 +449,8 @@ function ppFlush() {
 }
 window.addEventListener('hashchange', ppFlush);
 document.addEventListener('visibilitychange', () => { if (document.hidden) ppFlush(); });
+// 새로 고침·창 닫기: 저장은 비동기라 페이지가 내려가면 끊긴다. 쓰던 칸을 저장에 태우고, 아직 저장 중이면 묻는다
+window.addEventListener('beforeunload', (e) => { ppFlush(); if (ppS.dirty.size) { e.preventDefault(); e.returnValue = ''; } });
 
 /* ---------- 새 딜·삭제 ---------- */
 function ppNewSheet() {
@@ -605,7 +614,7 @@ async function pipeHomeBlock() {
 document.addEventListener('click', (ev) => {
   const li = ev.target.closest('[data-pp-go]'); if (!li) return;
   const id = li.dataset.ppGo;
-  ppS.stage = 'live'; ppS.q = ''; ppS.open = id; ppS.focus = id;
+  ppS.stage = 'live'; ppS.q = ''; ppS.open = id; ppS.focus = id; ppViewSave();
   if (location.hash === PP_HASH && ppS.host?.isConnected) ppShow(id); else location.hash = PP_HASH;
 });
 
@@ -614,5 +623,5 @@ document.addEventListener('click', (ev) => {
   const ref = ev.target.closest('a[data-pp-ref]')?.dataset.ppRef; if (!ref) return;
   const x = ppS.items.find((m) => ppOk(m) && m.ref === ref); if (!x) return;
   if (location.hash === PP_HASH && ppS.host?.isConnected) { ppShow(x.id); return; }
-  ppS.stage = ppLive(x) ? 'live' : ppStage(x); ppS.q = ''; ppS.open = x.id; ppS.focus = x.id;
+  ppS.stage = ppLive(x) ? 'live' : ppStage(x); ppS.q = ''; ppS.open = x.id; ppS.focus = x.id; ppViewSave();
 });

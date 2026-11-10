@@ -14,7 +14,8 @@ const FL_MODES = { files: { base: '', root: FL_ROOT, title: '공용 폴더' }, w
 let flM = FL_MODES.files, flRoute = 'files';
 const flRel = (p) => (flM.base ? (p === flM.base ? '' : p.slice(flM.base.length + 1)) : p); // 파일함 경로 → 메뉴 안 경로
 const flOnScreen = () => ['files', 'weekly'].includes(document.body.dataset.route);
-const flS = { path: null, items: [], sort: { k: 'name', dir: 1 }, sel: new Set(), q: '', results: null, loading: false, at: 0 };
+const flS = { path: null, items: [], sort: viewGet('fl.sort', { k: 'name', dir: 1 }), sel: new Set(), q: '', results: null, loading: false, at: 0 };
+let flQ0 = viewGet('fl.q', null); // F5 전 검색 { path, q }: 처음 그릴 때 그 폴더면 다시 찾는다(한 번만)
 const flDrive = () => (typeof CFG !== 'undefined' && CFG.teamDrive) || 'b!j-FPAIUPjU6AnBcIJNprMgAfPOR1jCVOvR6mVssjMWkyr34wYSj7Rp-_wJU9Subr';
 const flEnc = (p) => p.split('/').map(encodeURIComponent).join('/');
 const flBase = (p) => (p ? `/drives/${flDrive()}/root:/${flEnc(p)}:` : `/drives/${flDrive()}/root`);
@@ -65,7 +66,9 @@ async function renderFiles(host, mode = 'files') {
   flRoute = FL_MODES[mode] ? mode : 'files'; flM = FL_MODES[flRoute];
   const rel = typeof ui !== 'undefined' && typeof ui.filesPath === 'string' ? ui.filesPath : '';
   const path = [flM.base, rel].filter(Boolean).join('/');
-  if (path !== flS.path) { flS.path = path; flS.items = []; flS.sel.clear(); flS.results = null; flS.q = ''; flS.at = 0; }
+  if (path !== flS.path) { flS.path = path; flS.items = []; flS.sel.clear(); flS.results = null; flS.q = ''; flS.at = 0; viewSet('fl.q', null); }
+  const q0 = flQ0?.path === path && flQ0.q; flQ0 = null;
+  if (q0) flS.q = q0;
   host.innerHTML = `
     <div class="page-head"><h1>${flM.title}</h1></div>
     <section class="card fl-card" id="fl-card">
@@ -96,7 +99,8 @@ async function renderFiles(host, mode = 'files') {
   flDraw();
   flCheckApps();
   // 같은 경로를 다시 열면 1분 동안은 받아 둔 목록을 그대로 쓴다
-  if (!flS.results && (Date.now() - flS.at > 60000 || !flS.items.length)) flLoad();
+  if (q0) flSearch(q0);
+  else if (!flS.results && (Date.now() - flS.at > 60000 || !flS.items.length)) flLoad();
 }
 
 async function flLoad(force) {
@@ -145,7 +149,7 @@ function flDraw() {
     ${flS.loading ? '<div class="empty">불러오는 중…</div>' : items.length ? items.map(flRowHTML).join('') : `<div class="empty">${flS.results ? '검색 결과가 없습니다' : '빈 폴더'}</div>`}`;
 
   list.querySelectorAll('[data-sort]').forEach((b) => b.addEventListener('click', () => {
-    const k = b.dataset.sort; flS.sort = flS.sort.k === k ? { k, dir: -flS.sort.dir } : { k, dir: k === 'date' ? -1 : 1 }; flDraw();
+    const k = b.dataset.sort; flS.sort = flS.sort.k === k ? { k, dir: -flS.sort.dir } : { k, dir: k === 'date' ? -1 : 1 }; viewSet('fl.sort', flS.sort); flDraw();
   }));
   list.querySelector('[data-clear-q]')?.addEventListener('click', () => { $('#fl-q').value = ''; flSearch(''); });
   $('#fl-all')?.addEventListener('change', (e) => { selectable.forEach((it) => (e.target.checked ? flS.sel.add(it.id) : flS.sel.delete(it.id))); flDraw(); });
@@ -406,7 +410,7 @@ function flAfterChange(ch = {}) {
 
 /* ---------- 검색 ---------- */
 async function flSearch(q) {
-  flS.q = q; flS.sel.clear();
+  flS.q = q; flS.sel.clear(); viewSet('fl.q', q ? { path: flS.path, q } : null);
   // 검색 결과 = 한 겹: 뒤로 가면 폴더 목록으로
   if (q && !flS.searchOff) flS.searchOff = pushLayer(() => { flS.searchOff = null; const i = $('#fl-q'); if (i) i.value = ''; flSearch(''); }, () => { flS.searchOff = null; });
   if (!q && flS.searchOff) { flS.searchOff(); flS.searchOff = null; }

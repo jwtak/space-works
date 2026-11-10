@@ -15,9 +15,11 @@ const MAIL_FILTERS = [{ k: 'all', label: '모든 메일' }, { k: 'unread', label
 function mailFolderSaved() { try { const f = sessionStorage.getItem('mailFolder'); return MAIL_FOLDERS.some((x) => x.id === f) ? f : 'inbox'; } catch { return 'inbox'; } }
 function mailFolderSet(m, f) { m.folder = f; try { sessionStorage.setItem('mailFolder', f); } catch { /* 기억 못 해도 된다 */ } }
 const mailState = () => {
-  const m = (ui.mail = ui.mail || { folder: mailFolderSaved(), q: '', list: [], next: null, sel: null, msg: null, atts: [], counts: {}, compose: null, view: 'list', remote: false, loading: false });
+  // 검색어·보기·읽던 메일도 F5 뒤 그대로(2026-11-10 사용자). 읽던 메일은 renderMail이 목록을 받은 뒤 다시 연다
+  const sel0 = ui.mail ? null : viewGet('mail.sel', null);
+  const m = (ui.mail = ui.mail || { folder: mailFolderSaved(), q: viewGet('mail.q', ''), list: [], next: null, sel: sel0, msg: null, atts: [], counts: {}, compose: null, view: sel0 ? 'read' : 'list', remote: false, loading: false });
   m.checked = m.checked || new Set(); // 목록에서 체크한 메일 (일괄 읽음·삭제)
-  m.filter = m.filter || 'all';
+  m.filter = m.filter || viewGet('mail.filter', 'all');
   return m;
 };
 
@@ -285,9 +287,9 @@ async function renderMail() {
   $('#mail-new').addEventListener('click', () => mailOpenCompose({ mode: 'new' }));
   $('#mail-fab').addEventListener('click', () => mailOpenCompose({ mode: 'new' }));
   PAGE.querySelectorAll('[data-ref]').forEach((b) => b.addEventListener('click', () => { mailLoadCounts(); mailLoadList(); }));
-  $('#mail-sf').addEventListener('submit', (e) => { e.preventDefault(); m.q = $('#mail-q').value.trim(); m.sel = null; m.msg = null; mailLoadList(); });
-  $('#mail-q').addEventListener('search', () => { if (!$('#mail-q').value) { m.q = ''; mailLoadList(); } });
-  $('#mail-filter').addEventListener('change', (e) => { m.filter = e.target.value; mailLoadList(); });
+  $('#mail-sf').addEventListener('submit', (e) => { e.preventDefault(); m.q = $('#mail-q').value.trim(); m.sel = null; m.msg = null; mailViewSave(); mailLoadList(); });
+  $('#mail-q').addEventListener('search', () => { if (!$('#mail-q').value) { m.q = ''; mailViewSave(); mailLoadList(); } });
+  $('#mail-filter').addEventListener('change', (e) => { m.filter = e.target.value; mailViewSave(); mailLoadList(); });
   $('#mail-ckall').addEventListener('change', (e) => {
     m.checked = new Set(e.target.checked ? m.list.map((x) => x.id) : []);
     mailDrawList();
@@ -299,7 +301,15 @@ async function renderMail() {
   mailDrawPane();
   mailLoadCounts();
   mailLoadSig();
+  // 지난번 F5·창 닫기로 남은 손대지 않은 답장·전달 초안(pagehide에서 못 지웠을 때)
+  const stale = viewGet('mail.autoDraft', null);
+  if (stale && m.compose?.draftId !== stale) { viewSet('mail.autoDraft', null); G.del(`/me/messages/${encodeURIComponent(stale)}`).catch(() => {}); }
   await mailLoadList();
+  // F5 전에 읽던 메일: 목록에 있으면 다시 열고, 없으면(지워짐·옮겨짐) 목록으로
+  if (m.view === 'read' && m.sel && !m.msg && !m.compose && route() === 'mail') {
+    if (m.list.some((x) => x.id === m.sel)) mailOpen(m.sel);
+    else { m.sel = null; mailBackToList(); mailDrawPane(); }
+  }
 }
 
 function mailDrawShell() {
@@ -308,7 +318,9 @@ function mailDrawShell() {
   sh.classList.toggle('composing', !!ui.mail.compose);
   mailSyncBody();
   mailSyncLayers();
+  mailViewSave();
 }
+function mailViewSave() { const m = ui.mail; viewSet('mail.q', m.q); viewSet('mail.filter', m.filter); viewSet('mail.sel', mailReadOn(m) ? m.sel : null); }
 
 /* 폰에서 읽기·쓰기 화면은 하단 탭바 자리에 메일 전용 바를 쓴다 (mail.css가 body 클래스로 탭바를 가린다) */
 function mailSyncBody() {
@@ -321,6 +333,14 @@ window.addEventListener('hashchange', () => { if (route() !== 'mail') document.b
 window.addEventListener('beforeunload', (e) => {
   const c = typeof ui !== 'undefined' && ui.mail?.compose;
   if (c && (c.busy || c.sending || mailDirty(c))) { e.preventDefault(); e.returnValue = ''; }
+});
+// 손대지 않은 답장·전달을 연 채 F5·창 닫기: 열 때 만든 초안(원문 인용만 든 것)을 지운다. 고쳤으면 사용자 내용이라 남긴다.
+// 페이지가 사라지는 중이라 기다릴 수 없어 미리 받아 둔 토큰으로 keepalive 요청. 못 지웠으면 다음에 메일을 열 때 지운다(renderMail)
+window.addEventListener('pagehide', (e) => {
+  const c = typeof ui !== 'undefined' && ui.mail?.compose;
+  if (e.persisted || !c || !c.auto || c.kept || !c.draftId) return;
+  if (c.busy || c.sending || mailDirty(c)) { viewSet('mail.autoDraft', null); return; }
+  if (c.tok) fetch(`https://graph.microsoft.com/v1.0/me/messages/${encodeURIComponent(c.draftId)}`, { method: 'DELETE', headers: { Authorization: `Bearer ${c.tok}` }, keepalive: true }).catch(() => {});
 });
 
 /* 뒤로 가기: 메일 읽기·쓰기는 각각 한 겹(pushLayer) — 뒤로 가면 쓰기 → 읽던 메일 → 목록 순으로 닫힌다 */
@@ -986,6 +1006,8 @@ async function mailOpenCompose({ mode, id }) {
       const d = await G.post(`/me/messages/${encodeURIComponent(id)}/${fn}`, {});
       if (m.compose !== c) { G.del(`/me/messages/${encodeURIComponent(d.id)}`).catch(() => {}); return; } // 만드는 사이 쓰기를 닫았으면 남은 초안을 지운다
       Object.assign(c, { draftId: d.id, auto: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(d.ccRecipients), subject: d.subject || '', quote: mailQuoteWrap(d.body?.content || '') });
+      viewSet('mail.autoDraft', d.id); // 저장·보내기·닫기 전 F5면 지울 초안(pagehide)
+      MS.acquireTokenSilent({ scopes: CFG.scopes, account: G.account }).then((r) => { c.tok = r.accessToken; }).catch(() => {});
     } else if (mode === 'draft') {
       const d = await G.get(`/me/messages/${encodeURIComponent(id)}?$select=id,subject,toRecipients,ccRecipients,bccRecipients,body,importance,isReadReceiptRequested`);
       if (m.compose !== c) return;
@@ -1621,6 +1643,7 @@ async function mailSaveDraft(c, notify) {
       c.files = c.files.filter((x) => x !== file);
     }
     c.saved = c.rev === rev; c.kept = true; // 저장하는 사이에 고쳤으면 아직 저장 안 된 것
+    if (c.auto) viewSet('mail.autoDraft', null);
     if (notify) { toast('임시보관함에 저장했습니다'); mailLoadCounts(); if (ui.mail.compose === c) mailDrawCompose(); }
     return c.draftId;
   } catch (e) { toast(e.message); return null; }
@@ -1689,7 +1712,7 @@ async function mailLeaveCompose() {
   if (c.busy || c.sending) { toast(c.sending ? '보내는 중입니다' : '저장 중입니다'); return false; }
   if (mailDirty(c) && !(await mailConfirm({ title: '작성 중인 메일을 닫을까요?', rows: [['제목', c.subject.trim() || '(제목 없음)']], ok: '닫기' }))) return false;
   if (ui.mail.compose !== c) return true;
-  if (c.auto && !c.kept && c.draftId) G.del(`/me/messages/${encodeURIComponent(c.draftId)}`).catch(() => {}); // 한 번도 저장하지 않은 답장·전달 초안
+  if (c.auto && !c.kept && c.draftId) { G.del(`/me/messages/${encodeURIComponent(c.draftId)}`).catch(() => {}); viewSet('mail.autoDraft', null); } // 한 번도 저장하지 않은 답장·전달 초안
   ui.mail.compose = null;
   return true;
 }

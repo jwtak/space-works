@@ -12,7 +12,7 @@ const IPO_FUND = /전환사채|교환사채|신주인수권부사채|유상증�
 
 const ipoState = {
   data: null, marks: { items: [], version: null }, at: 0, loading: null,
-  q: '', f: 'all', sort: 'listed', tab: 'contact', open: new Set(), dirty: new Map(), saving: Promise.resolve(), focus: null, host: null, field: null,
+  q: viewGet('ipo.q', ''), f: viewGet('ipo.f', 'all'), sort: viewGet('ipo.sort', 'listed'), tab: viewGet('ipo.tab', 'contact'), open: new Set(viewGet('ipo.open', [])), dirty: new Map(), saving: Promise.resolve(), focus: null, host: null, field: null,
 };
 
 /* ---------- 데이터 ---------- */
@@ -520,11 +520,11 @@ function ipoBind(root) {
   root.addEventListener('click', (ev) => {
     const t = ev.target;
     const fb = t.closest('[data-ipo-f]');
-    if (fb) { ipoState.f = fb.dataset.ipoF; root.querySelectorAll('[data-ipo-f]').forEach((b) => b.classList.toggle('on', b === fb)); ipoDraw(); return; }
+    if (fb) { ipoState.f = fb.dataset.ipoF; viewSet('ipo.f', ipoState.f); root.querySelectorAll('[data-ipo-f]').forEach((b) => b.classList.toggle('on', b === fb)); ipoDraw(); return; }
     if (t.closest('#ipo-ref')) { ipoLoad(true).then(ipoDraw).catch((e) => toast(e.message)); return; }
     if (t.closest('#ipo-xlsx')) { ipoDownload(t.closest('#ipo-xlsx')); return; }
     const tb = t.closest('[data-ipo-tab]');
-    if (tb) { ipoState.tab = tb.dataset.ipoTab; ipoRefreshRow(tb.closest('.ipo-row').dataset.code); return; }
+    if (tb) { ipoState.tab = tb.dataset.ipoTab; viewSet('ipo.tab', ipoState.tab); ipoRefreshRow(tb.closest('.ipo-row').dataset.code); return; }
     const sb = t.closest('[data-ipo-st]');
     if (sb) { ipoSetStatus(sb.closest('.ipo-row').dataset.code, sb.dataset.ipoSt); return; }
     const pb = t.closest('[data-ipo-pipe]');
@@ -534,12 +534,13 @@ function ipoBind(root) {
     if (row) {
       const c = row.dataset.code;
       if (ipoState.open.has(c)) ipoState.open.delete(c); else ipoState.open.add(c);
+      viewSet('ipo.open', ipoState.open);
       ipoRefreshRow(c);
     }
   });
-  root.addEventListener('input', (ev) => { if (ev.target.id === 'ipo-q') { ipoState.q = ev.target.value; ipoDraw(); } });
+  root.addEventListener('input', (ev) => { if (ev.target.id === 'ipo-q') { ipoState.q = ev.target.value; viewSet('ipo.q', ipoState.q); ipoDraw(); } });
   root.addEventListener('change', (ev) => {
-    if (ev.target.id === 'ipo-sort') { ipoState.sort = ev.target.value; ipoDraw(); }
+    if (ev.target.id === 'ipo-sort') { ipoState.sort = ev.target.value; viewSet('ipo.sort', ipoState.sort); ipoDraw(); }
     if (ev.target.matches('[data-ipo-note]') && !ipoDrawing) ipoSetNote(ev.target.closest('.ipo-row').dataset.code, ev.target.value);
   });
   // 메모 칸: 들어오면 기억해 두고(ipoFlush), 다시 그리며 되살린 칸은 change가 안 날 수 있어 칸을 떠날 때도 저장한다
@@ -601,6 +602,7 @@ function ipoFocus(code) {
   const c = String(code ?? ''); if (!c) return;
   ipoState.q = ''; ipoState.f = 'all';
   ipoState.open.add(c); ipoState.focus = c;
+  viewSet('ipo.q', ''); viewSet('ipo.f', 'all'); viewSet('ipo.open', ipoState.open);
 }
 
 /* 홈 카드 등에서 회사를 누르면 신규상장 목록에서 그 회사를 펼쳐 보여 준다 */

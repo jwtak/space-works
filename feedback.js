@@ -14,7 +14,7 @@ const RQ_HINT = {
   homepage: '예: 투자전략 페이지 첫 문장을 더 짧게 바꾸면 좋겠습니다',
 };
 // loaded: 한 번이라도 제대로 읽었는지(또는 파일이 없음을 확인했는지). gen: 저장이 시작·끝날 때마다 올려, 그 사이 끝난 읽기는 버린다
-const rqS = { items: [], etag: null, at: 0, scope: 'page', open: null, reply: null, replyDraft: '', edit: null, editDraft: '', busy: false, loaded: false, gen: 0 };
+const rqS = { items: [], etag: null, at: 0, scope: viewGet('rq.scope', 'page'), open: null, reply: null, replyDraft: '', edit: null, editDraft: '', busy: false, loaded: false, gen: 0 };
 const rqUrl = () => `/drives/${CFG.teamDrive}/root:/${RQ_PATH.split('/').map(encodeURIComponent).join('/')}:`;
 const rqPage = () => (document.body.dataset.route || 'home');
 const RQ_MQ = '(min-width: 761px)'; // PC = 붙여 두기
@@ -32,6 +32,12 @@ const rqMine = (email) => {
 const rqEditForm = (id, rid) => `<form class="rq-ef" data-ef="${esc(id)}" data-er="${esc(rid)}"><textarea class="area" name="t" rows="3" required>${esc(rqS.editDraft)}</textarea>
       <div class="rq-act"><button type="button" class="btn sm grey" data-ecancel>취소</button><button class="btn sm primary" ${rqS.busy ? 'disabled' : ''}>저장</button></div></form>`;
 const rqDrafting = () => [...document.querySelectorAll('#req textarea')].some((t) => t.value.trim());
+// 쓰던 요청·의견, 고치던 글(원래 글과 다를 때)이 있으면 창 닫기·새로 고침 전에 묻는다
+window.addEventListener('beforeunload', (e) => {
+  const [id, rid] = (rqS.edit || '').split('|'), x = rqS.items.find((i) => i.id === id);
+  const src = rid ? (x?.replies || []).find((r) => r && r.id === rid) : x;
+  if (($('#rq-t')?.value || '').trim() || rqS.replyDraft.trim() || (rqS.edit && rqS.editDraft.trim() !== String(src?.text || '').trim())) { e.preventDefault(); e.returnValue = ''; }
+});
 
 // inSave: rqSave 안에서 부를 때. 밖에서 부른 읽기는 저장 중이거나 그 사이 저장이 있었으면 결과를 버린다(false)
 async function rqLoad(inSave) {
@@ -121,7 +127,7 @@ async function rqAct(fn, msg) {
 function rqBind(box) {
   box.addEventListener('click', (e) => {
     const t = e.target.closest('button'); if (!t) return;
-    if (t.dataset.scope) { rqS.scope = t.dataset.scope; rqDraw(); return; }
+    if (t.dataset.scope) { rqS.scope = t.dataset.scope; viewSet('rq.scope', rqS.scope); rqDraw(); return; }
     if ('rqx' in t.dataset) { rqClose(); return; }
     if (t.dataset.reply) { rqS.reply = rqS.reply === t.dataset.reply ? null : t.dataset.reply; rqS.replyDraft = ''; rqDraw(); box.querySelector('.rq-rf textarea')?.focus(); return; }
     if ('rcancel' in t.dataset) { rqS.reply = null; rqS.replyDraft = ''; rqDraw(); return; }

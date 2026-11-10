@@ -194,12 +194,16 @@ Object.assign(TAB_INFO, {
   ] },
 });
 
+// 새로 고친 뒤에도 보던 검색어·필터·정렬·펼친 행을 이어 보게 창마다 기억한다(app.js viewGet·viewSet). 자료에 없는 id는 그리지 않을 뿐이다
+const RD_VIEW = { yesim: ['q', 'f', 'sort', 'rev', 'opm'], sell: ['q', 'f', 'sort'], bids: ['q', 'view', 'fit', 'stage'] };
+const rdView = (tab, s) => { const v = viewGet(`rd:${tab}`, null) || {}; RD_VIEW[tab].forEach((k) => { if (typeof v[k] === 'string') s[k] = v[k]; }); s.open = new Set(Array.isArray(v.open) ? v.open : []); return s; };
+const rdViewSave = (tab) => { const s = rdS[tab]; viewSet(`rd:${tab}`, Object.fromEntries([...RD_VIEW[tab].map((k) => [k, s[k]]), ['open', [...s.open]]])); };
 const rdS = {
   tab: null, host: null, field: null, // field = 쓰고 있는 메모 칸 {el, tab}
   marks: { items: [], version: null }, dirty: new Map(), saving: Promise.resolve(),
-  yesim: { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'filed', rev: '', opm: '', open: new Set(), focus: null },
-  sell: { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'prio', open: new Set(), focus: null },
-  bids: { data: null, at: 0, loading: null, q: '', view: 'deal', fit: '', stage: '', open: new Set(), focus: null },
+  yesim: rdView('yesim', { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'filed', rev: '', opm: '', open: new Set(), focus: null }),
+  sell: rdView('sell', { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'prio', open: new Set(), focus: null }),
+  bids: rdView('bids', { data: null, at: 0, loading: null, q: '', view: 'deal', fit: '', stage: '', open: new Set(), focus: null }),
 };
 
 /* ---------- 데이터 ---------- */
@@ -1121,6 +1125,7 @@ function rdDraw() {
   } finally { rdDrawing = false; }
   rdSumDraw();
   rdKeepBack(tab, keep);
+  rdViewSave(tab);
   if (s.focus != null) {
     const r = rdRowEl(b, s.focus);
     s.focus = null;
@@ -1190,6 +1195,7 @@ function rdBind(root, tab) {
     if (row) {
       const id = row.dataset.id;
       if (s.open.has(id)) s.open.delete(id); else s.open.add(id);
+      rdViewSave(tab);
       rdRefreshRow(tab, id);
     }
   });
@@ -1223,6 +1229,8 @@ function rdFlush(leave) {
 }
 window.addEventListener('hashchange', () => rdFlush(true));
 document.addEventListener('visibilitychange', () => { if (document.hidden) rdFlush(false); });
+// 새로 고침·창 닫기: 저장은 비동기라 페이지가 내려가면 끊긴다. 쓰던 메모를 저장에 태우고, 아직 저장 중이면 묻는다(pipeline.js와 같이)
+window.addEventListener('beforeunload', (e) => { rdFlush(false); if (rdS.dirty.size) { e.preventDefault(); e.returnValue = ''; } });
 
 async function rdRender(tab, host) {
   rdS.host = host; rdS.tab = tab;
@@ -1261,6 +1269,8 @@ function radarFocus(ref) {
   const s = rdS[m[1]];
   s.q = ''; // 검색·필터에 걸려 목록에서 빠져 있으면 펼칠 수 없으므로 풀어 둔다
   if (m[1] === 'bids') { s.view = 'deal'; s.fit = ''; s.stage = ''; } else s.f = m[1] === 'yesim' && rdIsMn(m[2]) ? 'mandate' : 'all';
+  if (m[1] === 'yesim') { s.rev = ''; s.opm = ''; }
   s.open.add(m[2]); s.focus = m[2];
+  rdViewSave(m[1]);
   return `#deals/${m[1]}`;
 }

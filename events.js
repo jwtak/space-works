@@ -27,11 +27,13 @@ const evChanged = (k) => (k === 'inds' ? evState.f.inds.length > 0 : evState.f[k
 
 const evState = {
   data: null, marks: { items: [], version: null }, at: 0, loading: null,
-  f: evLoadFilter(), q: '', open: new Set(), month: null, day: null, mOpen: false,
+  f: evLoadFilter(), q: viewGet('ev.q', ''), open: new Set(viewGet('ev.open', [])), month: evLoadMonth(), day: null, mOpen: false,
   saving: Promise.resolve(), dirty: new Map(), base: new Map(), focus: null, el: null, pop: null,
 };
 
 /* ---------- 상태·데이터 ---------- */
+// 보던 달은 'YYYY-MM'으로 기억(새로 고침 뒤 그대로), 없으면 null → evDraw가 이번 달로
+function evLoadMonth() { const m = /^(\d{4})-(\d{2})$/.exec(viewGet('ev.month', '') || ''); return m ? new Date(+m[1], +m[2] - 1, 1) : null; }
 function evLoadFilter() {
   const f = evDefaults();
   try {
@@ -144,7 +146,7 @@ function evToggleMark(id, status) {
   else items.push({ id, status, note: '', at: p.at, title: e.title, start: e.start });
   evState.dirty.set(id, p);
   if (evPass(e)) { evRefreshRow(id); evDrawCal(); } // 지금 조건에서 빠지면(숨김, 관심 해제 등) 다시 그린다
-  else { evState.open.delete(id); evDrawMain(); }
+  else { evState.open.delete(id); viewSet('ev.open', evState.open); evDrawMain(); }
   evSaveMarks();
 }
 
@@ -404,7 +406,7 @@ function evPopClick(ev, p) {
   if (hit('[data-evcal]')) { const id = p.id; evPopClose(); return evAddCal(id); }
   if (hit('[data-pop-list]')) {
     const id = p.id; evPopClose();
-    evState.open.add(id); evRefreshRow(id); evScrollTo(p.day, id);
+    evState.open.add(id); viewSet('ev.open', evState.open); evRefreshRow(id); evScrollTo(p.day, id);
   }
 }
 
@@ -543,7 +545,7 @@ function evDraw() {
   const g = new Date(evState.data.generated);
   if (!isNaN(g)) $('#ev-ref').title = `${g.getMonth() + 1}/${g.getDate()} ${pad(g.getHours())}:${pad(g.getMinutes())} 수집`;
   let focus = null;
-  if (evState.focus && evFind(evState.focus)) { focus = evState.focus; evState.open.add(focus); }
+  if (evState.focus && evFind(evState.focus)) { focus = evState.focus; evState.open.add(focus); viewSet('ev.open', evState.open); }
   evState.focus = null;
   evDrawMain();
   if (focus) evScrollTo(null, focus);
@@ -569,12 +571,13 @@ function evBind(root) {
     if ((el = hit('.ev-line'))) {
       const id = el.closest('[data-id]').dataset.id;
       if (evState.open.has(id)) evState.open.delete(id); else evState.open.add(id);
+      viewSet('ev.open', evState.open);
       return evRefreshRow(id);
     }
     if (hit('[data-mf]')) { evState.mOpen = !evState.mOpen; $('#ev-filter').innerHTML = evFilterHTML(); return evDrawMain(); }
     if ((el = hit('[data-hm]'))) return evHmOpen(el);
     if (hit('[data-reset]')) {
-      evState.f = { ...evDefaults(), period: f.period, sort: f.sort }; evState.q = '';
+      evState.f = { ...evDefaults(), period: f.period, sort: f.sort }; evState.q = ''; viewSet('ev.q', '');
       evSaveFilter(); return evDraw();
     }
     if (hit('#ev-ref') || hit('[data-evretry]')) return evRender(evState.el, true);
@@ -582,6 +585,7 @@ function evBind(root) {
       const v = Number(el.dataset.evm), n = new Date();
       if (v === 0) { evState.month = evFirst(n); evState.day = today(); }
       else { evState.month = new Date(evState.month.getFullYear(), evState.month.getMonth() + v, 1); }
+      viewSet('ev.month', `${evState.month.getFullYear()}-${pad(evState.month.getMonth() + 1)}`);
       return evDrawCal();
     }
     if ((el = hit('.ev-mcal [data-day]'))) { // 휴대폰은 칸 전체가 하루 목록, PC는 행사를 누르면 그 행사 요약
@@ -598,7 +602,7 @@ function evBind(root) {
   root.addEventListener('input', (ev) => {
     if (ev.target.id !== 'ev-q') return;
     clearTimeout(qTimer);
-    qTimer = setTimeout(() => { evState.q = ev.target.value; evDrawMain(); }, 150);
+    qTimer = setTimeout(() => { evState.q = ev.target.value; viewSet('ev.q', evState.q); evDrawMain(); }, 150);
   });
 }
 

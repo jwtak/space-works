@@ -4,6 +4,8 @@
    국내 관행대로 상승은 빨강, 하락은 파랑. */
 const MK_TTL = 600000;
 const mkS = { market: null, ipo: null, yesim: null, bids: null, at: 0, loading: null, tab: 'market', dd: 10, rate: 3, stock: 'KOSPI', sector: 'us', more: false, ipoMk: 'ALL', ipoQ: '', ipoAll: false, ipoVal: null, valQ: '', valAll: false, mezz: null };
+const MK_VIEW = ['dd', 'rate', 'stock', 'sector', 'more', 'ipoMk', 'ipoQ', 'ipoAll', 'bandEra', 'valQ', 'valAll', 'mzBar', 'mzType', 'mzAll', 'mzInv']; // 사용자가 고른 것: 새로 고침 뒤에도 그대로
+Object.assign(mkS, viewGet('mk', {}));
 
 function mkLoad(force) {
   if (!force && mkS.at && Date.now() - mkS.at < MK_TTL) return Promise.resolve();
@@ -648,6 +650,7 @@ function mkPeHTML() {
 // ---------- 화면 ----------
 function mkDraw() {
   const host = $('#mk-host'); if (!host) return;
+  viewSet('mk', Object.fromEntries(MK_VIEW.map((k) => [k, mkS[k]])));
   host.innerHTML = mkS.tab === 'ipo' ? mkIpoHTML() : mkS.tab === 'pe' ? mkPeHTML() : mkMarketHTML();
   host.querySelectorAll('.mk-tbl').forEach((t) => { t.style.minWidth = `${150 + (t.tHead.rows[0].cells.length - 1) * 104}px`; }); // 첫 열 150px + 나머지 같은 폭, 좁으면 카드 안에서 가로 스크롤
   mkChartHover(host);

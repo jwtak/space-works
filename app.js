@@ -8,7 +8,7 @@ const DAY1 = '2026-11-02'; // 입사 첫날 = Day-1 (업무일지 표기)
 
 let S = null;            // 할 일·프로그램·D-day·브리핑·기록 목록
 let CALC = {};           // 일정 캐시 key → 응답
-let ui = { todoTab: 'open', todoEdit: null, progSel: null, progTab: 'all', note: null, noteQ: '', calStart: null };
+let ui = { todoTab: viewGet('todoTab', 'open'), todoEdit: null, progSel: viewGet('progSel', null), progTab: viewGet('progTab', 'all'), note: viewGet('note', null), noteQ: viewGet('noteQ', ''), noteOpen: viewGet('noteOpen', false), calStart: null };
 let noteTimer = null;
 
 // ---------- 유틸 ----------
@@ -28,6 +28,10 @@ const uid = () => Math.random().toString(16).slice(2, 10);
 const fixYmd = (v) => { if (!/^\d{4}-\d{2}-\d{2}$/.test(v || '')) return v; const y = +v.slice(0, 4), now = new Date().getFullYear(); return y < now - 1 || y > now + 5 ? `${now}${v.slice(4)}` : v; };
 document.addEventListener('focusout', (e) => { const el = e.target; if (el.type === 'date' && el.value && fixYmd(el.value) !== el.value) el.value = fixYmd(el.value); }, true);
 const isMobile = () => matchMedia('(max-width: 760px)').matches;
+/* 보던 자리(탭·필터·정렬·검색어·보던 달·펼친 항목)를 새로 고침(F5) 뒤에도 그대로 — 창마다 따로라 sessionStorage (2026-11-10 사용자).
+   값은 JSON. Set은 배열로 넣고 꺼낼 때 new Set(...)으로. 저장 못 하는 환경이면 기본값. */
+function viewGet(key, def) { try { const v = sessionStorage.getItem('v:' + key); return v == null ? def : JSON.parse(v); } catch { return def; } }
+function viewSet(key, val) { try { sessionStorage.setItem('v:' + key, JSON.stringify(val instanceof Set ? [...val] : val)); } catch { /* 기억 못 해도 된다 */ } }
 function openSheet(html, mount, cls = '') { // 아래에서 올라오는 패널(데스크톱은 가운데 창)
   const wrap = document.createElement('div');
   wrap.className = 'sheet-wrap';
@@ -543,6 +547,7 @@ function mdRender(text) {
 ui.todoView = (() => { try { return localStorage.getItem('todoView') === 'due' ? 'due' : 'cat'; } catch { return 'cat'; } })();
 const DUE_GROUPS = [['기한 지남', (d) => d < 0], ['오늘', (d) => d === 0], ['7일 이내', (d) => d > 0 && d <= 7], ['그 뒤', (d) => d > 7], ['기한 없음', (d) => d === null]];
 function renderTodos() {
+  viewSet('todoTab', ui.todoTab);
   const td = today(), all = S.todos.items;
   const tabs = {
     open: ['진행 중', all.filter((t) => !t.done)],
@@ -565,7 +570,7 @@ function renderTodos() {
     <section class="card">
     <form class="addbar" id="addf">
       <input class="input grow" id="add-title" placeholder="할 일을 입력하고 Enter" autocomplete="off">
-      <select class="select" id="add-cat">${CATS.map((c) => `<option>${c}</option>`).join('')}</select>
+      <select class="select" id="add-cat">${CATS.map((c) => `<option ${c === (ui.lastCat || '사무실 세팅') ? 'selected' : ''}>${c}</option>`).join('')}</select>
       <input class="input" type="date" id="add-due" style="width:150px">
       <button class="btn primary" type="submit">${ico('plus', 'sm')}추가</button>
     </form>
@@ -575,7 +580,6 @@ function renderTodos() {
     <button class="fab" type="button" id="todo-fab" aria-label="할 일 추가">${ico('plus')}</button>`;
   $('#todo-fab').onclick = () => addTodoSheet();
 
-  $('#add-cat').value = ui.lastCat || '사무실 세팅';
   $('#addf').addEventListener('submit', (e) => {
     e.preventDefault();
     const title = $('#add-title').value.trim(); if (!title) return;
@@ -915,13 +919,14 @@ function weekRowsHTML(start, n, events, first, td) {
 }
 
 async function mountMonth(el) {
-  if (!ui.month) { const n = new Date(); ui.month = new Date(n.getFullYear(), n.getMonth(), 1); }
+  if (!ui.month) { const [vm, vd] = viewGet('month', []), n = new Date(); ui.month = vm ? parse(vm) : new Date(n.getFullYear(), n.getMonth(), 1); ui.selDay ||= vd; }
   if (!ui.selDay) ui.selDay = today();
   const { first, start, end, n } = monthGrid(ui.month);
   let events = [];
   const refetch = () => { CALC = {}; mountMonth(el); };
 
   const draw = () => {
+    viewSet('month', [ymd(ui.month), ui.selDay]);
     const td = today();
     const collapsed = isMobile() && el.id === 'home-month' && !ui.monthOpen; // 접기는 홈에서만
     let from = 0, to = n;
@@ -1094,9 +1099,9 @@ async function fetchCal(s, e, force) {
 function weekStart(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
 
 async function renderCalendar(force) {
-  ui.calView ||= 'month';
+  ui.calView ||= viewGet('calView', 'month');
   const seg = `<div class="seg"><button data-v="month" class="${ui.calView === 'month' ? 'on' : ''}">월간</button><button data-v="list" class="${ui.calView === 'list' ? 'on' : ''}">목록</button></div>`;
-  const bindSeg = () => PAGE.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => { ui.calView = b.dataset.v; renderCalendar(); }));
+  const bindSeg = () => PAGE.querySelectorAll('[data-v]').forEach((b) => b.addEventListener('click', () => { ui.calView = b.dataset.v; viewSet('calView', ui.calView); renderCalendar(); }));
   if (ui.calView === 'month') {
     PAGE.innerHTML = `<div class="page-head"><h1>일정</h1><div class="tools">${seg}<button class="btn ghost" id="cal-ref">${ico('refresh', 'sm')}새로고침</button></div></div>
       <section class="card" id="cal-month"></section>`;
@@ -1104,7 +1109,8 @@ async function renderCalendar(force) {
     $('#cal-ref').onclick = () => { CALC = {}; OUTLOOK.ids = null; renderCalendar(); };
     return mountMonth($('#cal-month'));
   }
-  if (!ui.calStart) ui.calStart = weekStart(new Date());
+  if (!ui.calStart) { const v = viewGet('calStart', null); ui.calStart = v ? parse(v) : weekStart(new Date()); }
+  viewSet('calStart', ymd(ui.calStart));
   const s = ui.calStart, e = addDays(s, 14);
   PAGE.innerHTML = `
     <div class="page-head"><h1>일정</h1><span class="sub">${s.getMonth() + 1}/${s.getDate()} ~ ${addDays(e, -1).getMonth() + 1}/${addDays(e, -1).getDate()}</span>
@@ -1149,6 +1155,7 @@ async function renderCalendar(force) {
 
 // ---------- 프로그램 ----------
 function renderPrograms() {
+  viewSet('progTab', ui.progTab); viewSet('progSel', ui.progSel);
   const groups = { all: ['전체', () => true], dev: ['진행', (p) => ['아이디어', '설계', '개발 중'].includes(p.status)], run: ['운영 중', (p) => p.status === '운영 중'], hold: ['보류', (p) => p.status === '보류'] };
   const items = S.programs.items.filter(groups[ui.progTab][1]).sort((a, b) => PSTAT.indexOf(a.status) - PSTAT.indexOf(b.status));
   const sel = ui.progSel === 'new' ? { id: 'new', name: '', status: '아이디어', desc: '', location: '', memo: '' } : S.programs.items.find((p) => p.id === ui.progSel);
@@ -1175,7 +1182,7 @@ function renderPrograms() {
           ${sel.id !== 'new' ? `<button class="btn ghost" type="button" id="pf-del" style="margin-left:auto">삭제</button>` : ''}</div>
       </form>` : ''}
     </div>`;
-  if (sel && !ui.progOff) ui.progOff = pushLayer(() => { ui.progOff = null; ui.progSel = null; renderPrograms(); }, () => { ui.progOff = null; ui.progSel = null; }); // 오른쪽 상세 = 한 겹
+  if (sel && !ui.progOff) ui.progOff = pushLayer(() => { ui.progOff = null; ui.progSel = null; renderPrograms(); }, () => { ui.progOff = null; ui.progSel = null; viewSet('progSel', null); }); // 오른쪽 상세 = 한 겹
   if (!sel && ui.progOff) { ui.progOff(); ui.progOff = null; }
   PAGE.querySelectorAll('[data-ptab]').forEach((b) => b.addEventListener('click', () => { ui.progTab = b.dataset.ptab; renderPrograms(); }));
   PAGE.querySelectorAll('[data-p]').forEach((r) => r.addEventListener('click', () => { ui.progSel = r.dataset.p; renderPrograms(); }));
@@ -1198,12 +1205,12 @@ function renderPrograms() {
 
 // ---------- 홈페이지 미리보기 (sw.js가 hp/를 팀 파일함 '_홈페이지 미리보기'에서 읽어 준다) ----------
 function renderHomepage() {
-  ui.hpView ||= 'pc';
+  ui.hpView ||= viewGet('hpView', 'pc');
   PAGE.innerHTML = `<div class="page-head"><h1>홈페이지</h1><span class="hp-when" id="hp-when"></span>
       <div class="tools"><div class="hp-seg" role="tablist">${[['pc', 'PC'], ['m', '모바일']].map(([k, t]) => `<button type="button" role="tab" data-hpv="${k}" aria-selected="${ui.hpView === k}" class="${ui.hpView === k ? 'on' : ''}">${t}</button>`).join('')}</div>
       <a class="btn" href="hp/" target="_blank" rel="noopener">${ico('ext', 'sm')}새 창</a></div></div>
     <div class="card hp-card ${ui.hpView === 'm' ? 'm' : ''}">${navigator.serviceWorker?.controller ? '<iframe class="hp-frame" src="hp/" title="홈페이지 미리보기"></iframe>' : '<div class="empty">한 번 새로 고침한 뒤 다시 열어 주세요.</div>'}</div>`;
-  PAGE.querySelectorAll('[data-hpv]').forEach((b) => b.addEventListener('click', () => { ui.hpView = b.dataset.hpv; renderHomepage(); }));
+  PAGE.querySelectorAll('[data-hpv]').forEach((b) => b.addEventListener('click', () => { ui.hpView = b.dataset.hpv; viewSet('hpView', ui.hpView); renderHomepage(); }));
   // 처음 접속이라 서비스워커가 아직 이 화면을 맡기 전이면, 맡는 순간 다시 그린다
   if (!navigator.serviceWorker?.controller) navigator.serviceWorker?.addEventListener('controllerchange', () => { if (route() === 'homepage') renderHomepage(); }, { once: true });
   G.get(`/drives/${CFG.teamDrive}/root:/${encodeURIComponent('_홈페이지 미리보기')}?$select=lastModifiedDateTime`).then((j) => {
@@ -1217,9 +1224,10 @@ function renderNotes() {
   const q = ui.noteQ.trim().toLowerCase();
   const list = S.notes.filter((n) => !q || n.name.toLowerCase().includes(q) || n.preview.toLowerCase().includes(q));
   if (!ui.note && S.notes.length && !isMobile()) ui.note = S.notes[0].name;
+  viewSet('note', ui.note); viewSet('noteQ', ui.noteQ); viewSet('noteOpen', !!ui.noteOpen);
   document.body.classList.toggle('note-open', isMobile() && !!ui.noteOpen);
   if (isMobile() && ui.noteOpen && !ui.noteOff) { // 폰에서 기록을 연 상태 = 한 겹
-    ui.noteOff = pushLayer(async () => { ui.noteOff = null; await flushNote(); ui.noteOpen = false; renderNotes(); }, () => { ui.noteOff = null; ui.noteOpen = false; flushNote(); });
+    ui.noteOff = pushLayer(async () => { ui.noteOff = null; await flushNote(); ui.noteOpen = false; renderNotes(); }, () => { ui.noteOff = null; ui.noteOpen = false; viewSet('noteOpen', false); flushNote(); });
   }
   PAGE.innerHTML = `
     <div class="page-head"><h1>업무일지·회의록</h1></div>
@@ -1240,6 +1248,10 @@ function renderNotes() {
 }
 
 let cur = null, noteTok = 0; // 열린 기록 { name, version, text, dirty, gen, saving, conflict }
+const NOTE_CONFLICT = '다른 곳에서 수정됨 — 내용을 복사해 두고 다시 여세요';
+// 충돌 중에 친 내용은 저장되지 않으니 이 브라우저에 남겨 두고, 새로 고침 뒤 그 기록을 다시 열면 충돌 상태 그대로 한 번 되살린다
+const noteDraftKey = (name) => `noteDraft:${name}`;
+const noteDraftSet = (c) => { try { localStorage.setItem(noteDraftKey(c.name), c.text); } catch { /* 못 남기면 그대로 */ } };
 async function openNote(name) {
   const ed = $('#editor'), tok = ++noteTok;
   const known = S.notes.find((x) => x.name === name);
@@ -1248,16 +1260,18 @@ async function openNote(name) {
     if (!(cur && cur.name === name && (cur.dirty || cur.saving || !known || known.version === cur.version))) {
       const n = await STORE.readNote(name);
       if (tok !== noteTok) return; // 그사이 다른 기록을 눌렀다
-      cur = { name: n.name, version: n.version, text: n.text, dirty: false, gen: 0, saving: null, conflict: false };
+      let draft = null; try { draft = localStorage.getItem(noteDraftKey(n.name)); localStorage.removeItem(noteDraftKey(n.name)); } catch { /* 없으면 그대로 */ }
+      const keep = draft != null && draft !== n.text;
+      cur = { name: n.name, version: n.version, text: keep ? draft : n.text, dirty: keep, gen: 0, saving: null, conflict: keep };
     }
     if (!ed.isConnected) return;
-    ed.innerHTML = `<div class="bar"><button class="iconbtn m-only" type="button" id="note-back" aria-label="목록" style="width:44px;height:44px">${ico('left')}</button><span class="nm">${esc(cur.name.replace(/\.(txt|md)$/i, ''))}</span><span class="st" id="nst">${cur.dirty ? '입력 중…' : '저장됨'}</span></div><textarea id="nta" spellcheck="false"></textarea>`;
+    ed.innerHTML = `<div class="bar"><button class="iconbtn m-only" type="button" id="note-back" aria-label="목록" style="width:44px;height:44px">${ico('left')}</button><span class="nm">${esc(cur.name.replace(/\.(txt|md)$/i, ''))}</span><span class="st" id="nst">${cur.conflict ? NOTE_CONFLICT : cur.dirty ? '입력 중…' : '저장됨'}</span></div><textarea id="nta" spellcheck="false"></textarea>`;
     ed.querySelector('#note-back').onclick = async () => { ui.noteOff?.(); ui.noteOff = null; await flushNote(); ui.noteOpen = false; renderNotes(); };
     const ta = ed.querySelector('#nta'), c = cur; ta.value = c.text;
     ta.addEventListener('input', () => {
       c.text = ta.value; c.dirty = true; c.gen++;
       const st = $('#nst'); if (st && !c.conflict) st.textContent = '입력 중…';
-      clearTimeout(noteTimer); if (!c.conflict) noteTimer = setTimeout(flushNote, 800);
+      clearTimeout(noteTimer); if (!c.conflict) noteTimer = setTimeout(flushNote, 800); else noteDraftSet(c);
     });
   } catch (e) { if (tok === noteTok) ed.innerHTML = `<div class="empty" style="margin:auto">${esc(e.message)}</div>`; }
 }
@@ -1276,7 +1290,7 @@ async function flushNote() {
       const n = S.notes.find((x) => x.name === c.name); if (n) { n.mtime = Date.now() / 1000; n.preview = text.slice(0, 400); n.version = c.version; }
     } catch (e) {
       toast(e.message);
-      if (e.status === 409) { c.conflict = true; const st = cur === c && $('#nst'); if (st) st.textContent = '다른 곳에서 수정됨 — 내용을 복사해 두고 다시 여세요'; }
+      if (e.status === 409) { c.conflict = true; noteDraftSet(c); const st = cur === c && $('#nst'); if (st) st.textContent = NOTE_CONFLICT; }
     }
   })();
   try { await c.saving; } finally { c.saving = null; }
@@ -1312,7 +1326,18 @@ function tick() {
   const lt = $('#live-time'); if (lt) lt.textContent = `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 tick(); setInterval(tick, 1000);
-window.addEventListener('beforeunload', () => { if (cur && cur.dirty) flushNote(); });
+/* 새로 고침·창 닫기 전에: 저장 안 된 업무일지(입력 대기·저장 중·충돌)나 고친 채 저장 안 한 입력 폼이 있으면 묻는다 */
+const FORMS = '#evf, #pf, #cf, #todo-edit, #sheet-todo, #addf';
+const formDirty = () => [...document.querySelectorAll(FORMS)].some((f) => [...f.elements].some((x) => {
+  if (x.disabled) return false;
+  if (x.type === 'checkbox' || x.type === 'radio') return x.checked !== x.defaultChecked;
+  if (x.tagName === 'SELECT') return x.value !== ([...x.options].find((o) => o.defaultSelected) || x.options[0])?.value;
+  return 'defaultValue' in x && x.value !== x.defaultValue; // 처음 그린 값과 다르면 고친 것
+}));
+window.addEventListener('beforeunload', (e) => {
+  if (cur && cur.dirty) flushNote();
+  if ((cur && (cur.dirty || cur.saving)) || formDirty()) { e.preventDefault(); e.returnValue = ''; }
+});
 async function refresh() { // 다른 기기·Claude Code가 바꾼 내용 반영 (편집 중이 아닐 때만)
   const r = route();
   if (!S || document.hidden || saving() || (r === 'todos' && ui.todoEdit) || (['home', 'calendar'].includes(r) && ui.calEdit) || ui.mail?.compose || (r === 'programs' && ui.progSel) || (cur && (cur.dirty || cur.saving)) || document.activeElement?.matches('input,textarea,select')) return;
@@ -1364,7 +1389,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) navigator.serviceWorker.getRegistration().then((r) => r && r.update()).catch(() => {}); });
   let reloaded = false; const hadController = !!navigator.serviceWorker.controller; // 첫 설치 때는 새로 고치지 않음
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadController || reloaded || (cur && cur.dirty) || ui.mail?.compose || window.flUploading > 0 || (typeof rdS !== 'undefined' && rdS.dirty.size) || (typeof ppS !== 'undefined' && ppS.dirty.size) || (typeof ipoState !== 'undefined' && ipoState.dirty.size) || saving() || document.activeElement?.matches('input,textarea')) return;
+    if (!hadController || reloaded || (cur && cur.dirty) || ui.mail?.compose || formDirty() || window.flUploading > 0 || (typeof rdS !== 'undefined' && rdS.dirty.size) || (typeof ppS !== 'undefined' && ppS.dirty.size) || (typeof ipoState !== 'undefined' && ipoState.dirty.size) || saving() || document.activeElement?.matches('input,textarea')) return;
     reloaded = true; location.reload();
   });
 }

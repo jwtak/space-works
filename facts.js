@@ -11,7 +11,7 @@ const FS_TTL = 10 * 60000;
 const FS_FILTERS = [['all', '전체'], ['inv', '투자 이력 있음'], ['big', '매출 500억+'], ['opm', 'OPM 15%+'], ['grow', '매출 성장 20%+']];
 const FS_SORTS = [['rev', '2025 매출순'], ['total', '누적 투자순'], ['op', '2025 영업이익순'], ['grow', '매출 성장률순'], ['opm', '영업이익률순'], ['no', '목록 번호순']];
 const FS_TABS = [['inv', '투자유치·컨택'], ['ov', '개요'], ['biz', '사업·브랜드'], ['prod', '제품'], ['fin', '재무·주주'], ['view', '투자 판단']];
-const fsS = { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'rev', tab: 'inv', open: new Set(), focus: null, host: null, imgs: new Map() };
+const fsS = { data: null, at: 0, loading: null, q: viewGet('fs.q', ''), f: viewGet('fs.f', 'all'), sort: viewGet('fs.sort', 'rev'), tab: viewGet('fs.tab', 'inv'), open: new Set(viewGet('fs.open', [])), focus: null, host: null, imgs: new Map() };
 
 TAB_INFO['deals/facts'] = { title: '팩트시트', asof: '기준 2026-11-06 · K-Beauty Expo 2026 참가기업 목록에서 대표님이 노란색으로 고른 40곳', rows: [
   ['무엇인가', '대표님이 괜찮아 보인다고 고른 회사들을 공통 양식(PE 딜소싱 Fact Sheet)으로 한 장씩 조사한 자료입니다. 엑셀의 회사별 시트와 같은 내용입니다.'],
@@ -269,19 +269,19 @@ function fsBind(root) {
     const irb = t.closest('[data-fs-ir]');
     if (irb) { fsIrOpen(irb.dataset.fsIr); return; }
     const fb = t.closest('[data-fs-f]');
-    if (fb) { fsS.f = fb.dataset.fsF; root.querySelectorAll('[data-fs-f]').forEach((b) => b.classList.toggle('on', b === fb)); fsDraw(); return; }
+    if (fb) { fsS.f = fb.dataset.fsF; viewSet('fs.f', fsS.f); root.querySelectorAll('[data-fs-f]').forEach((b) => b.classList.toggle('on', b === fb)); fsDraw(); return; }
     if (t.closest('#fs-ref')) { fsLoad(true).then(fsDraw).catch((e) => toast(e.message)); return; }
     if (t.closest('#fs-xlsx')) { fsDownload(t.closest('#fs-xlsx')); return; }
     const tb = t.closest('[data-fs-tab]');
-    if (tb) { fsS.tab = tb.dataset.fsTab; fsRefreshRow(tb.closest('.ipo-row').dataset.fs); return; }
+    if (tb) { fsS.tab = tb.dataset.fsTab; viewSet('fs.tab', fsS.tab); fsRefreshRow(tb.closest('.ipo-row').dataset.fs); return; }
     const pb = t.closest('[data-fs-pipe]');
     if (pb) { fsPipeAdd(pb); return; }
     if (t.closest('a, input, select, .ipo-detail')) return;
     const row = t.closest('.ipo-row[data-fs]');
-    if (row) { const k = row.dataset.fs; if (fsS.open.has(k)) fsS.open.delete(k); else fsS.open.add(k); fsRefreshRow(k); }
+    if (row) { const k = row.dataset.fs; if (fsS.open.has(k)) fsS.open.delete(k); else fsS.open.add(k); viewSet('fs.open', fsS.open); fsRefreshRow(k); }
   });
-  root.addEventListener('input', (ev) => { if (ev.target.id === 'fs-q') { fsS.q = ev.target.value; fsDraw(); } });
-  root.addEventListener('change', (ev) => { if (ev.target.id === 'fs-sort') { fsS.sort = ev.target.value; fsDraw(); } });
+  root.addEventListener('input', (ev) => { if (ev.target.id === 'fs-q') { fsS.q = ev.target.value; viewSet('fs.q', fsS.q); fsDraw(); } });
+  root.addEventListener('change', (ev) => { if (ev.target.id === 'fs-sort') { fsS.sort = ev.target.value; viewSet('fs.sort', fsS.sort); fsDraw(); } });
 }
 
 async function renderFacts(host) {
@@ -309,4 +309,5 @@ async function renderFacts(host) {
 function factsFocus(no) {
   const k = String(no ?? ''); if (!k) return;
   fsS.q = ''; fsS.f = 'all'; fsS.open.add(k); fsS.focus = k;
+  viewSet('fs.q', ''); viewSet('fs.f', 'all'); viewSet('fs.open', fsS.open);
 }

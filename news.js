@@ -8,7 +8,7 @@ const NW_CATS = [['all', '전체'], ['deal', '딜'], ['space', '우주·항공·
 const NW_PERIODS = [['1', '오늘'], ['3', '최근 3일'], ['7', '최근 7일'], ['14', '최근 2주']];
 const NW_PICK = 5;
 const NW_STAR = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5l2.3 4.6 5.1.8-3.7 3.6.9 5.1L12 16.2l-4.6 2.4.9-5.1-3.7-3.6 5.1-.8z"/></svg>';
-const nwS = { data: null, at: 0, loading: null, cat: 'all', q: '', period: '3' };
+const nwS = { data: null, at: 0, loading: null, cat: 'all', q: viewGet('nwQ', ''), period: '3' };
 const nwM = { items: [], version: null, ok: false, dirty: new Map(), saving: Promise.resolve() }; // 중요 체크
 try { Object.assign(nwS, JSON.parse(localStorage.getItem('nwFilter') || '{}')); } catch { /* 기본값 */ }
 const nwSave = () => { try { localStorage.setItem('nwFilter', JSON.stringify({ cat: nwS.cat, period: nwS.period })); } catch { /* 기억 못 해도 됨 */ } };
@@ -160,7 +160,7 @@ async function renderNews(host) {
       </div>
       <div class="nw-body" id="nw-body"><div class="empty">불러오는 중…</div></div></section>`;
   host.querySelectorAll('[data-nw-cat]').forEach((b) => b.addEventListener('click', () => { nwS.cat = b.dataset.nwCat; nwSave(); nwDraw(); }));
-  $('#nw-q').addEventListener('input', (e) => { nwS.q = e.target.value; nwDraw(); });
+  $('#nw-q').addEventListener('input', (e) => { nwS.q = e.target.value; viewSet('nwQ', nwS.q); nwDraw(); });
   $('#nw-period').addEventListener('change', (e) => { nwS.period = e.target.value; nwSave(); nwDraw(); });
   $('#nw-ref').addEventListener('click', async () => { $('#nw-body').innerHTML = '<div class="empty">불러오는 중…</div>'; try { await nwLoad(true); } catch (e) { toast(e.message); } nwDraw(); });
   $('#nw-body').addEventListener('click', (e) => { const b = e.target.closest('[data-nw-star]'); if (b) nwToggleMark(b.dataset.nwStar); });
