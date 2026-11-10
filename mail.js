@@ -457,11 +457,21 @@ function mailDrawList() {
     if (e.target.closest('.mail-ck, .mail-lstar')) return;
     mailOpen(li.dataset.id);
   }));
-  box.querySelectorAll('[data-ck]').forEach((ck) => ck.addEventListener('change', () => {
-    if (ck.checked) m.checked.add(ck.dataset.ck); else m.checked.delete(ck.dataset.ck);
-    ck.closest('.mail-item').classList.toggle('ck', ck.checked);
-    mailDrawBulk();
-  }));
+  // Shift를 누른 채 체크하면 마지막으로 누른 메일부터 여기까지 같은 상태로(Gmail·Outlook처럼, 2026-11-10 사용자)
+  box.querySelectorAll('[data-ck]').forEach((ck) => {
+    ck.addEventListener('mousedown', (e) => { if (e.shiftKey) e.preventDefault(); }); // Shift 클릭에 글자 선택이 같이 잡히지 않게
+    ck.addEventListener('click', (e) => {
+      const ids = m.list.map((x) => x.id), to = ids.indexOf(ck.dataset.ck), from = e.shiftKey ? ids.indexOf(m.ckAnchor) : -1;
+      const range = from < 0 ? [ck.dataset.ck] : ids.slice(Math.min(from, to), Math.max(from, to) + 1);
+      range.forEach((id) => {
+        if (ck.checked) m.checked.add(id); else m.checked.delete(id);
+        const li = box.querySelector(`[data-id="${CSS.escape(id)}"]`); if (!li) return;
+        li.classList.toggle('ck', ck.checked); li.querySelector('.mail-ck').checked = ck.checked;
+      });
+      m.ckAnchor = ck.dataset.ck;
+      mailDrawBulk();
+    });
+  });
   box.querySelectorAll('[data-star]').forEach((b) => b.addEventListener('click', async () => {
     const x = m.list.find((i) => i.id === b.dataset.star); if (!x) return;
     const on = !b.classList.contains('on');
