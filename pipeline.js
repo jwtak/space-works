@@ -7,7 +7,7 @@
 const PP_STAGES = ['발굴', '검토', '미팅', '실사', '투자심의', '완료', '드롭'];
 const PP_END = ['완료', '드롭'];            // '진행 중'에서 빼는 단계
 const PP_HOT = ['미팅', '실사', '투자심의'];  // 목록 칩을 파랑으로
-const PP_SRCS = ['소개', '신규상장', '예심청구', '매각희망', '입찰딜', '행사·IR', '기타'];
+const PP_SRCS = ['소개', '신규상장', '예심청구', '매각희망', '입찰딜', '행사·IR', '상폐 위험·CB', '기타'];
 const PP_TYPES = ['메자닌', '구주', '프리IPO', '경영권', '기타'];
 const PP_SORTS = [['next', '다음 연락일순'], ['at', '최근 수정순'], ['created', '등록일순']];
 
@@ -27,7 +27,7 @@ TAB_INFO['deals/pipeline'] = { title: '파이프라인', rows: [
   ]],
 ] };
 // ref 앞부분 → 그 딜이 있는 탭
-const PP_TABS = { ipo: ['#deals/ipo', '신규상장'], yesim: ['#deals/yesim', '예심청구'], sell: ['#deals/sell', '매각희망'], bids: ['#deals/bids', '입찰딜'], events: ['#deals/events', '행사·IR'], facts: ['#deals/facts', '팩트시트'] };
+const PP_TABS = { ipo: ['#deals/ipo', '신규상장'], yesim: ['#deals/yesim', '예심청구'], sell: ['#deals/sell', '매각희망'], bids: ['#deals/bids', '입찰딜'], events: ['#deals/events', '행사·IR'], facts: ['#deals/facts', '팩트시트'], delist: ['#deals/delist', '상폐 위험·CB'] };
 const PP_HASH = '#deals/pipeline';
 const PP_TTL = 5 * 60000;
 const PP_WD = '일월화수목금토';
@@ -521,6 +521,7 @@ function ppGoTab(ref) {
     else if (typeof ipoState === 'object' && ipoState?.open instanceof Set) { ipoState.focus = key; ipoState.open.add(key); }
   } else if (['yesim', 'sell', 'bids'].includes(k) && key && typeof radarFocus === 'function') radarFocus(ref);
   else if (k === 'facts' && key && typeof factsFocus === 'function') factsFocus(key);
+  else if (k === 'delist' && key && typeof delistFocus === 'function') delistFocus(ref);
 }
 
 async function ppRefresh(btn) {
