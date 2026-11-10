@@ -25,7 +25,7 @@ const CFG = {
   teamDrive: 'b!j-FPAIUPjU6AnBcIJNprMgAfPOR1jCVOvR6mVssjMWkyr34wYSj7Rp-_wJU9Subr', // 팀 '스페이스인베스트먼트' 파일함(공용 폴더) — 팀원이면 누구나 읽고 쓴다
   teamCalendarId: 'AAMkAGY5ZWRkMzlmLTNmYjUtNDE3NC04YTUxLTliZjgyYjU0Yjc1NQBGAAAAAAB2D1ON4THdQYUFMZAr45FEBwA217gkwboaRqzQAV2p_lEqAAAAAAEGAAA217gkwboaRqzQAV2p_lEqAAAAE7aBAAA=',
   root: 'SPACE WORKS',        // 회사 OneDrive 안 앱 폴더
-  teamCalendar: '스페이스인베스트먼트',
+  teamCalendar: '유니버스인베스트먼트', // 2026-11-10 이름 변경(옛 이름 '스페이스인베스트먼트'도 인정)
 };
 const APP_URL = location.origin + location.pathname.replace(/[^/]*$/, ''); // 앱 폴더 주소 = 로그인 리디렉션 주소
 
@@ -221,7 +221,7 @@ const OUTLOOK = {
     let temporary = false;
     for (const c of (await G.get('/me/calendars?$select=id,name,isDefaultCalendar')).value) {
       if (c.isDefaultCalendar) ids.me = `/me/calendars/${c.id}`;
-      else if (G.isOwner && c.name.trim() === CFG.teamCalendar) ids.team = `/me/calendars/${c.id}`;
+      else if (G.isOwner && [CFG.teamCalendar, '스페이스인베스트먼트'].includes(c.name.trim())) ids.team = `/me/calendars/${c.id}`;
     }
     OUTLOOK.teamWritable = G.isOwner;
     if (!G.isOwner) { // 공유받은 캘린더는 주인 사서함 쪽 경로로 읽는다(Outlook에 추가했는지와 무관)
