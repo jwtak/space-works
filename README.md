@@ -1,4 +1,4 @@
-# SPACE WORKS
+# UNIVERSE WORKS
 
 개인 업무용 웹앱 화면 코드입니다. 데이터는 이 저장소에 없고, 회사 Microsoft 365 계정으로 로그인한 사용자 본인의 Outlook·OneDrive에서만 읽고 씁니다.
 

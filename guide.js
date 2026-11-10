@@ -60,7 +60,7 @@ function gdDraw() {
   if (gd.i < 0) { // 첫 인사
     gd.el.querySelector('.gd-hole').hidden = true;
     card.className = 'gd-card center';
-    card.innerHTML = `<div class="gd-mark">SPACE WORKS</div><h2>${esc(myName())} 님, 반갑습니다</h2><p>주요 메뉴를 1분 안에 안내해 드립니다.</p>
+    card.innerHTML = `<div class="gd-mark">UNIVERSE WORKS</div><h2>${esc(myName())} 님, 반갑습니다</h2><p>주요 메뉴를 1분 안에 안내해 드립니다.</p>
       <div class="gd-act"><button type="button" class="btn grey" data-gd="skip">나중에</button><button type="button" class="btn primary" data-gd="next">둘러보기</button></div>`;
     card.querySelector('[data-gd="next"]').focus();
     return;

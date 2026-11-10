@@ -622,7 +622,7 @@ function monthGrid(m) { // 그 달이 걸친 주만 (5주 또는 6주)
 }
 
 const CALS = [
-  { key: 'team', name: '스페이스인베스트먼트', sub: '대표님 공유' },
+  { key: 'team', name: '유니버스인베스트먼트', sub: '대표님 공유' },
   { key: 'me', name: '내 일정', sub: '비공개' },
   { key: 'ms', name: 'D-day', sub: '' },
   { key: 'td', name: '할 일', sub: '' },
@@ -751,7 +751,7 @@ async function openEventModalInner(id, events, onDone, date, pre) {
   openSheet(`<h3>${e ? '일정 수정' : '일정 추가'}</h3>
     <form class="ev-form" id="evf" autocomplete="off">
       <div class="r"><label>캘린더</label><div>${e
-        ? `<span class="cal-tag c-${e.cal}"><i class="cdot"></i>${e.cal === 'team' ? '스페이스인베스트먼트' : '내 일정'}</span>`
+        ? `<span class="cal-tag c-${e.cal}"><i class="cdot"></i>${e.cal === 'team' ? '유니버스인베스트먼트' : '내 일정'}</span>`
         : `<div class="cal-pick">${CALS.slice(0, 2).filter((c) => c.key !== 'team' || OUTLOOK.teamWritable).map((c, i) => `<label class="c-${c.key}"><input type="radio" name="calendar" value="${c.key}" ${i === 0 ? 'checked' : ''}><i class="cdot"></i>${c.name}<span class="muted">${c.sub}</span></label>`).join('')}</div>`}</div></div>
       <div class="r"><label>담당자</label><div class="cal-pick owner-pick">${PEOPLE.map((p) => `<label><input type="checkbox" name="owner" value="${p}" ${(e ? evOwners(e) : PEOPLE.filter((x) => myName().includes(x))).includes(p) ? 'checked' : ''}>${p}</label>`).join('')}</div></div>
       <div class="r"><label for="ev-subj">제목</label><div class="line"><input class="input grow" id="ev-subj" name="subject" value="${esc(e?.subject || p.subject || '')}" placeholder="제목을 입력하세요."><label class="ck"><input type="checkbox" class="check" name="important" ${det.importance === 'high' ? 'checked' : ''}>중요</label></div></div>
@@ -786,7 +786,7 @@ async function openEventModalInner(id, events, onDone, date, pre) {
       try {
         await (id ? OUTLOOK.update(id, body) : OUTLOOK.create(body));
         close(); ui.selDay = body.startDate;
-        toast(id ? 'Outlook 일정을 고쳤습니다' : body.calendar === 'team' ? '스페이스인베스트먼트 캘린더에 추가했습니다' : '내 일정에 추가했습니다');
+        toast(id ? 'Outlook 일정을 고쳤습니다' : body.calendar === 'team' ? '유니버스인베스트먼트 캘린더에 추가했습니다' : '내 일정에 추가했습니다');
         onDone?.();
       } catch (err) { save.disabled = false; toast(err.message); }
     });
@@ -809,7 +809,7 @@ async function openEventView(e, onDone) {
     const row = (l, v) => (v ? `<div class="r"><label>${l}</label><div class="v">${v}</div></div>` : '');
     openSheet(`<h3>${esc(e.subject)}</h3>
       <div class="ev-form ev-view">
-        ${row('캘린더', `<span class="cal-tag c-${e.cal}"><i class="cdot"></i>${e.cal === 'team' ? '스페이스인베스트먼트' : '내 일정'}</span>`)}
+        ${row('캘린더', `<span class="cal-tag c-${e.cal}"><i class="cdot"></i>${e.cal === 'team' ? '유니버스인베스트먼트' : '내 일정'}</span>`)}
         ${row('일시', esc(when))}
         ${row('담당자', esc(evOwners(e).join(', ')))}
         ${row('주최자', e.organizer_me ? '' : esc(e.organizer || ''))}
@@ -909,7 +909,7 @@ async function mountMonth(el) {
         ? `<span class="chip line">${it.ev.cal === 'team' && !OUTLOOK.teamWritable ? '보기 전용' : it.ev.organizer_me ? '참석자 있음' : '받은 초대'}</span>${it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank" rel="noopener">Teams 참가</a>` : it.link ? `<a class="btn sm ghost" href="${esc(it.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}`
         : it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank" rel="noopener">Teams 참가</a>` : '';
       const click = it.editable || it.type === 'ev';
-      return `<li class="${click ? 'click' : ''}" ${click ? `data-item="${it.type}|${esc(it.id)}"` : ''}><span class="k c-${calKey(it)}"><i class="cdot"></i>${it.time}</span><div class="t"><div class="ttl">${esc(it.title)}</div>${it.ev ? `<div class="meta">${it.cal === 'team' ? '스페이스인베스트먼트' : '내 일정'}${evOwners(it.ev).length ? ' · 담당 ' + evOwners(it.ev).join(', ') : ''}${it.ev.location ? ' · ' + esc(it.ev.location) : ''}</div>` : ''}</div>${ext}</li>`;
+      return `<li class="${click ? 'click' : ''}" ${click ? `data-item="${it.type}|${esc(it.id)}"` : ''}><span class="k c-${calKey(it)}"><i class="cdot"></i>${it.time}</span><div class="t"><div class="ttl">${esc(it.title)}</div>${it.ev ? `<div class="meta">${it.cal === 'team' ? '유니버스인베스트먼트' : '내 일정'}${evOwners(it.ev).length ? ' · 담당 ' + evOwners(it.ev).join(', ') : ''}${it.ev.location ? ' · ' + esc(it.ev.location) : ''}</div>` : ''}</div>${ext}</li>`;
     }).join('');
     const newForm = ed && ed.kind.startsWith('new-') ? `<div class="new-wrap">${calForm(ed.kind.slice(4), null, events)}</div>` : '';
     el.innerHTML = `<div class="card-head">
@@ -1018,7 +1018,7 @@ async function mountMonth(el) {
         if (kind === 'ev') {
           const body = { subject: val.subject, startDate: fixYmd(val.startDate), endDate: fixYmd(val.endDate), startTime: val.startTime, endTime: val.endTime, allDay: !!allDay.checked, location: val.location, calendar: val.calendar || 'team' };
           await (id ? OUTLOOK.update(id, body) : OUTLOOK.create(body));
-          ui.calEdit = null; ui.selDay = body.startDate; toast(id ? 'Outlook 일정을 고쳤습니다' : body.calendar === 'team' ? '스페이스인베스트먼트 캘린더에 추가했습니다' : '내 일정에 추가했습니다'); return refetch();
+          ui.calEdit = null; ui.selDay = body.startDate; toast(id ? 'Outlook 일정을 고쳤습니다' : body.calendar === 'team' ? '유니버스인베스트먼트 캘린더에 추가했습니다' : '내 일정에 추가했습니다'); return refetch();
         }
         if (kind === 'td') {
           ui.lastCat = val.cat;
@@ -1291,8 +1291,8 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) { CA
 function loginScreen(msg) {
   document.body.classList.add('signed-out');
   $('#login').innerHTML = `<div class="login-box">
-    <div class="brand-mark">SPACE WORKS</div>
-    <p class="muted">${msg ? esc(msg) : '스페이스인베스트먼트 회사 계정'}</p>
+    <div class="brand-mark">UNIVERSE WORKS</div>
+    <p class="muted">${msg ? esc(msg) : '유니버스인베스트먼트 회사 계정'}</p>
     <button class="btn primary" id="login-go" style="width:100%;height:44px">회사 계정으로 로그인</button>
     ${G.wrongAccount ? '<button class="btn ghost" id="login-out" style="width:100%;margin-top:8px">다른 계정 로그아웃</button>' : ''}
   </div>`;

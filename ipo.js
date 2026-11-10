@@ -175,7 +175,7 @@ async function ipoDownload(btn) {
     const d = new Date(m.lastModifiedDateTime);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `[스페이스인베스트먼트] 딜소싱 리스트_${String(d.getFullYear()).slice(2)}${pad(d.getMonth() + 1)}${pad(d.getDate())}.xlsx`;
+    a.download = `[유니버스인베스트먼트] 딜소싱 리스트_${String(d.getFullYear()).slice(2)}${pad(d.getMonth() + 1)}${pad(d.getDate())}.xlsx`;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 30000);
   } catch (e) { toast(e.message); }
