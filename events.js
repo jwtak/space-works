@@ -7,7 +7,9 @@
 
 const EV_TYPES = ['전시', 'IR', '데모데이', '컨퍼런스', '네트워킹', '기타'];
 const EV_INDS = ['소비재', '신기술', '전통산업', '헬스케어·바이오', '스페이스테크', '투자·IPO'];
-const EV_REGIONS = ['수도권', '지방', '해외', '온라인'];
+const EV_REGIONS = ['수도권', '충청권', '지방', '해외', '온라인']; // 충청권: 2026-11-10 '지방'에서 분리(당일 이동 가능)
+const EV_NEAR = ['수도권', '충청권']; // 지역 'near' = 갈 수 있는 곳(2026-11-10 "충청/대전권까지 전시 갈 수 있다")
+const EV_REGION_OPTS = [['near', '수도권·충청권'], ...EV_REGIONS.map((t) => [t, t])];
 const EV_PERIODS = [['month', '이번 달'], ['3m', '3개월'], ['6m', '6개월'], ['12m', '1년'], ['all', '전체 기간']];
 const EV_MINS = [[0, '모든 점수'], [40, '40점 이상'], [60, '60점 이상'], [80, '80점 이상']];
 const EV_SHOWS = [['', '모든 행사'], ['star', '관심'], ['pass', '숨긴 행사']];
@@ -39,6 +41,7 @@ function evLoadFilter() {
     if (s.ind && EV_INDS.includes(s.ind) && !s.inds) f.inds = [s.ind]; // 예전 '산업' 한 개 고르기
   } catch { /* 기본값 */ }
   if (!EV_PERIODS.some(([k]) => k === f.period)) f.period = '12m';
+  if (f.region && !EV_REGION_OPTS.some(([k]) => k === f.region)) f.region = '';
   return f;
 }
 function evSaveFilter() { try { localStorage.setItem('evFilter3', JSON.stringify(evState.f)); } catch { /* 이번 화면엔 적용 */ } }
@@ -169,7 +172,7 @@ function evPass(e, noInd) { // noInd: 산업 버튼 옆 건수는 산업 조건�
   if (e.score < f.min) return false;
   if (f.type && e.type !== f.type) return false;
   if (!noInd && f.inds.length && !e.industry.some((x) => f.inds.includes(x))) return false;
-  if (f.region && e.region !== f.region) return false;
+  if (f.region && (f.region === 'near' ? !EV_NEAR.includes(e.region) : e.region !== f.region)) return false;
   const q = evState.q.trim().toLowerCase();
   return !q || e._q.includes(q);
 }
@@ -185,7 +188,7 @@ const evScore = (e) => {
   const tip = e.scores ? EV_SCORE.filter(([k]) => e.scores[k] != null).map(([k, l]) => `${l} ${e.scores[k]}`).concat(Number(e.penalty) ? [`지역 ${e.penalty}`] : []).join(' · ') : '';
   return `<span class="ev-sc t${evTier(e.score)}"${tip ? ` title="${esc(tip)}"` : ''}>${e.score}</span>`;
 };
-const evAway = (e) => (['지방', '해외', '온라인'].includes(e.region) ? e.region : '');
+const evAway = (e) => (['충청권', '지방', '해외', '온라인'].includes(e.region) ? e.region : '');
 
 function evRel(e) {
   if (e.extra.estimated) return '';
@@ -273,7 +276,7 @@ function evFilterHTML() {
     return `<option value="${val}"${String(f[key]) === String(val) ? ' selected' : ''}>${l}</option>`;
   }).join('')}</select>`;
   return `<div class="ev-search"><span class="ev-sic">${ico('search', 'sm')}</span><input class="input" id="ev-q" type="search" placeholder="행사·장소·회사 검색" value="${esc(evState.q)}" autocomplete="off" aria-label="검색"></div>
-    <div class="ev-sels${evState.mOpen ? ' open' : ''}">${evMfHTML()}${sel('period', EV_PERIODS, '기간')}${sel('type', EV_TYPES, '유형', '모든 유형')}${sel('region', EV_REGIONS, '지역', '모든 지역')}${sel('min', EV_MINS, '점수')}${sel('show', EV_SHOWS, '표시')}${sel('sort', [['date', '날짜순'], ['score', '점수순'], ['ind', '산업순']], '정렬', '', ' ev-msort')}</div>
+    <div class="ev-sels${evState.mOpen ? ' open' : ''}">${evMfHTML()}${sel('period', EV_PERIODS, '기간')}${sel('type', EV_TYPES, '유형', '모든 유형')}${sel('region', EV_REGION_OPTS, '지역', '모든 지역')}${sel('min', EV_MINS, '점수')}${sel('show', EV_SHOWS, '표시')}${sel('sort', [['date', '날짜순'], ['score', '점수순'], ['ind', '산업순']], '정렬', '', ' ev-msort')}</div>
     <span class="ev-r" id="ev-cnt"></span>
     <div class="ev-inds${evState.mOpen ? ' open' : ''}" id="ev-inds" role="group" aria-label="산업"></div>
     <button class="iconbtn ev-ref" type="button" id="ev-ref" aria-label="새로고침">${ico('refresh', 'sm')}</button>`;
@@ -418,7 +421,7 @@ const EV_HM = {
   date: { label: '날짜', sort: [['date', '날짜순 (가까운 날부터)']], radio: ['period', '기간', EV_PERIODS] },
   score: { label: '점수', sort: [['score', '점수 높은 순']], radio: ['min', '점수', EV_MINS] },
   title: { label: '행사', radio: ['type', '유형', [['', '모든 유형'], ...EV_TYPES.map((t) => [t, t])]] },
-  place: { label: '장소', radio: ['region', '지역', [['', '모든 지역'], ...EV_REGIONS.map((t) => [t, t])]] },
+  place: { label: '장소', radio: ['region', '지역', [['', '모든 지역'], ...EV_REGION_OPTS]] },
   ind: { label: '산업', sort: [['ind', '산업별로 묶기']], check: true },
 };
 
@@ -626,7 +629,7 @@ async function evRender(el, force) {
 function evHomeBrief(all) {
   if (typeof homeBrief !== 'function') return '';
   return homeBrief([...all].sort((a, b) => b.score - a.score).slice(0, 3)
-    .map((e) => homeBriefLine(e.title, [evRange(e), (e.venue || '').split(/[\s,(]/)[0]].filter(Boolean).join(' '), e.tip || e.reason || '', `data-ev-go="${esc(e.id)}"`)));
+    .map((e) => homeBriefLine(e.title, [evRange(e), (e.venue || '').split(/[\s,(]/)[0], evAway(e) && `(${evAway(e)})`].filter(Boolean).join(' '), e.tip || e.reason || '', `data-ev-go="${esc(e.id)}"`)));
 }
 
 /* 홈 카드: 2주 안 60점 이상 최대 5건. events.json 이 없거나 못 읽으면 '' */
@@ -636,7 +639,7 @@ async function eventsHomeBlock() {
   const td = today(), lim = ymd(addDays(new Date(), 14));
   const all = d.items.filter((e) => e.score >= 60 && !e.extra.estimated && e.end >= td && e.start <= lim && evSt(e.id) !== 'pass').sort(evByDate);
   const li = (e) => `<li class="click" data-ev-go="${esc(e.id)}"><span class="time">${evRange(e)}</span>
-      <div class="t"><div class="ttl">${esc(e.title)}</div><div class="meta">${[evRel(e), e.venue].filter(Boolean).map(esc).join(' · ')}</div></div>${evScore(e)}</li>`;
+      <div class="t"><div class="ttl">${esc(e.title)}</div><div class="meta">${[evRel(e), e.venue, evAway(e)].filter(Boolean).map(esc).join(' · ')}</div></div>${evScore(e)}</li>`;
   return `<section class="card ev-home">
     <div class="card-head"><h2>다가오는 행사 <span class="n">${all.length}</span></h2><a class="btn sm act" href="${evLink}">전체 보기</a></div>
     <div class="card-body">${all.length ? `${evHomeBrief(all)}<ul class="list">${all.slice(0, 5).map(li).join('')}</ul>` : '<div class="empty">2주 안에 갈 만한 행사가 없습니다.</div>'}</div></section>`;
