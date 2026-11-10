@@ -69,7 +69,7 @@ async function load() {
   const me = S?.me || await G.get('/me?$select=displayName,jobTitle,department').catch(() => ({}));
   S = { todos, programs, milestones, briefing: { text: brief.text, mtime: brief.mtime }, notes, me, auth: { connected: true, upn: G.account.username } };
   meChrome();
-  counts(); foot(); mailUnread();
+  counts(); foot(); mailUnread(); if (mailSeen === null) mailNotify();
   if (typeof rqInit === 'function') rqInit();
 }
 
@@ -127,6 +127,42 @@ async function mailUnread() {
 }
 setInterval(mailUnread, 60000);
 document.addEventListener('visibilitychange', mailUnread);
+
+/* 새 메일 알림(PC, 2026-11-10 사용자): 1분마다 받은편지함 최신 메일을 보고, 마지막으로 본 것보다 새로 온 안 읽은 메일을 알린다.
+   웍스 창을 보고 있으면 화면 안 토스트, 아니면(최소화·다른 창) 윈도우 알림. 창이 숨어 있어도 돈다. 폰은 앱이 꺼지면 못 돌아 뺌.
+   기준 시각은 서버 시간(receivedDateTime)으로 잡는다 — 처음 켤 때 쌓여 있던 메일은 알리지 않는다. 알림 tag=메일 id라 창이 여러 개여도 한 번. */
+let mailSeen = null;
+async function mailNotify() {
+  if (!S || isMobile() || !('Notification' in window)) return;
+  try {
+    const j = await G.get('/me/mailFolders/inbox/messages?$top=10&$orderby=receivedDateTime desc&$select=id,subject,from,receivedDateTime,isRead');
+    const at = (x) => Date.parse(x.receivedDateTime) || 0, top = j.value.length ? at(j.value[0]) : 0;
+    if (mailSeen === null) { mailSeen = top; return; }
+    const fresh = j.value.filter((x) => at(x) > mailSeen && !x.isRead).reverse();
+    if (top > mailSeen) mailSeen = top;
+    if (!fresh.length) return;
+    mailUnread();
+    if (route() === 'mail' && ui.mail?.folder === 'inbox' && !ui.mail.q && ui.mail.view !== 'read' && !ui.mail.compose) mailLoadList();
+    for (const x of fresh) {
+      const who = x.from?.emailAddress?.name || x.from?.emailAddress?.address || '';
+      if (document.hasFocus()) { toast(`새 메일 · ${who} · ${x.subject || '(제목 없음)'}`); continue; }
+      if (Notification.permission !== 'granted') continue;
+      const n = new Notification(who || '새 메일', { body: x.subject || '(제목 없음)', tag: x.id, icon: 'icons/icon-192.png' });
+      n.onclick = () => { window.focus(); n.close(); mailGoto(x.id); };
+    }
+  } catch { /* 다음 분에 다시 */ }
+}
+setInterval(mailNotify, 60000);
+// 알림 허용은 PC에서 처음 화면을 누를 때 한 번 묻는다(브라우저가 클릭 없이 묻는 창은 막음)
+addEventListener('pointerdown', () => {
+  if (!isMobile() && 'Notification' in window && Notification.permission === 'default') Notification.requestPermission().catch(() => {});
+}, { once: true });
+async function mailGoto(id) {
+  const m = mailState();
+  if (route() !== 'mail') { location.hash = '#mail'; await new Promise((r) => setTimeout(r, 50)); }
+  if (m.folder !== 'inbox' || m.q) { m.folder = 'inbox'; m.q = ''; mailDrawFolders(); mailLoadList(); }
+  mailOpen(id);
+}
 
 function counts() {
   const open = S.todos.items.filter((t) => !t.done).length;
