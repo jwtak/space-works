@@ -164,6 +164,12 @@
 .ipo-tbl th:nth-child(2) { width: 72px; }
 .ipo-tbl-2 th:nth-child(2) { width: auto; }
 .ipo-tbl tr.past td { color: var(--text3); }
+/* 임원 탭: 이름·직위·담당은 같은 폭, 주요 경력은 나머지 폭에 줄바꿈 그대로 */
+.ipo-tbl.ipo-ex th:nth-child(-n+3) { width: 16%; }
+.ipo-tbl.ipo-ex th:nth-child(4) { width: auto; }
+.ipo-ex td:first-child { font-weight: 600; }
+.ipo-ex td { word-break: keep-all; overflow-wrap: anywhere; }
+.ipo-ex .ipo-ex-car { white-space: pre-line; word-break: normal; }
 
 .ipo-dhead > .rd-pipe { flex: none; } /* 파이프라인 올리기(radar.css와 같은 버튼) */
 
@@ -284,6 +290,19 @@
   .ipo-pnl th, .ipo-pnl td { padding: 8px 0 8px 6px; }
   .ipo-pnl th:first-child, .ipo-pnl td:first-child { width: 72px; padding-left: 0; }
   .ipo-pnl tr.r td:first-child { padding-left: 8px; }
+}
+
+/* 임원 표는 카드가 560보다 좁으면(폰 포함) 한 사람씩: 이름·직위·담당 한 줄 + 주요 경력 아래 */
+@container (max-width: 559px) {
+  #ipo-root .ipo-tbl.ipo-ex, #ipo-root .ipo-ex tbody { display: block; }
+  #ipo-root .ipo-ex thead { display: none; }
+  #ipo-root .ipo-ex tr { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--row); }
+  #ipo-root .ipo-ex tr:first-child { padding-top: 0; }
+  #ipo-root .ipo-ex tr:last-child { border-bottom: 0; padding-bottom: 0; }
+  #ipo-root .ipo-ex td { padding: 0; border: 0; }
+  #ipo-root .ipo-ex td:nth-child(2), #ipo-root .ipo-ex td:nth-child(3) { font-size: 13px; color: var(--text3); }
+  #ipo-root .ipo-ex td:nth-child(2) .ipo-sub { display: inline; margin-left: 4px; }
+  #ipo-root .ipo-ex td:last-child { flex: 1 1 100%; margin-top: 4px; }
 }
 
 /* 표 보기(머리글이 보이는 폭)에서는 칸을 세로 가운데로 — 두 줄 칸 옆 한 줄 칸이 위에 붙어 보이지 않게(사용자 11/9).

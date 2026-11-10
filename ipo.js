@@ -249,7 +249,7 @@ function ipoRow(x) {
     </div>${open ? ipoDetail(x) : ''}</div>`;
 }
 
-const IPO_TABS = [['contact', '연락처'], ['signal', '자금수요·포인트'], ['fin', '재무'], ['holders', '주주·락업'], ['disc', '공시']];
+const IPO_TABS = [['contact', '연락처'], ['execs', '임원'], ['signal', '자금수요·포인트'], ['fin', '재무'], ['holders', '주주·락업'], ['disc', '공시']];
 
 /* ①②… 또는 ' · '로 이어 쓴 문장을 줄 목록으로 */
 const ipoSplitNum = (s) => String(s || '').split(/\s*(?=[①②③④⑤⑥⑦⑧⑨])/).map((t) => t.replace(/^[①②③④⑤⑥⑦⑧⑨]\s*/, '').trim()).filter(Boolean);
@@ -328,7 +328,7 @@ function ipoDetail(x) {
 
 // 하위 탭 본문: 수집 자료 모양이 어긋나 그리다 멈추면 그 칸만 한글 문구로(목록·다른 회사·다른 탭은 그대로)
 function ipoPane(x, tab) {
-  try { return ({ contact: ipoPaneContact, signal: ipoPaneSignal, fin: ipoPaneFin, holders: ipoPaneHolders, disc: ipoPaneDisc }[tab] || ipoPaneContact)(x); }
+  try { return ({ contact: ipoPaneContact, execs: ipoPaneExecs, signal: ipoPaneSignal, fin: ipoPaneFin, holders: ipoPaneHolders, disc: ipoPaneDisc }[tab] || ipoPaneContact)(x); }
   catch { return '<div class="empty">이 회사 자료 형식이 올바르지 않습니다</div>'; }
 }
 
@@ -375,6 +375,16 @@ function ipoPaneContact(x) {
     ${ipoBox('컨택 포인트', people)}
     <div class="ipo-stack">${ipoPnl(x)}${route.length ? ipoBox('접촉 경로', `<ol class="ipo-ol">${route.map((r) => `<li>${esc(r)}</li>`).join('')}</ol>`) : ''}</div>
   </div>`;
+}
+
+/* 임원 탭: 주요 임원(등기임원 + 대표·재무 담당 등, 최대 10명)의 직위·담당·주요 경력(학력 포함, 줄바꿈 그대로).
+   execs.py가 최신 정기보고서 임원 현황, 없으면 투자설명서 표에서 뽑는다(기준은 execsBasis). 못 뽑았으면 '확인 불가' */
+function ipoPaneExecs(x) {
+  const ex = (Array.isArray(x.execs) ? x.execs : []).filter((e) => e && typeof e === 'object' && e.name);
+  if (!ex.length) return ipoBox('주요 임원', '<p class="ipo-p muted">확인 불가</p>');
+  const rows = ex.map((e) => `<tr><td>${ipoNm(e.name)}</td><td>${ipoNm(e.title || '')}${e.reg === '미등기' ? '<div class="ipo-sub">미등기</div>' : ''}</td>
+    <td>${ipoNm(e.job || '')}</td><td class="ipo-ex-car">${esc(e.career || '–')}</td></tr>`).join('');
+  return ipoBox('주요 임원', `<table class="ipo-tbl ipo-ex"><thead><tr><th>이름</th><th>직위</th><th>담당</th><th>주요 경력</th></tr></thead><tbody>${rows}</tbody></table>`, esc(x.execsBasis || ''));
 }
 
 function ipoPaneSignal(x) {
