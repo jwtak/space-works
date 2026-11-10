@@ -14,7 +14,7 @@ const RQ_HINT = {
   homepage: '예: 투자전략 페이지 첫 문장을 더 짧게 바꾸면 좋겠습니다',
 };
 // loaded: 한 번이라도 제대로 읽었는지(또는 파일이 없음을 확인했는지). gen: 저장이 시작·끝날 때마다 올려, 그 사이 끝난 읽기는 버린다
-const rqS = { items: [], etag: null, at: 0, scope: 'page', open: null, reply: null, replyDraft: '', busy: false, loaded: false, gen: 0 };
+const rqS = { items: [], etag: null, at: 0, scope: 'page', open: null, reply: null, replyDraft: '', edit: null, editDraft: '', busy: false, loaded: false, gen: 0 };
 const rqUrl = () => `/drives/${CFG.teamDrive}/root:/${RQ_PATH.split('/').map(encodeURIComponent).join('/')}:`;
 const rqPage = () => (document.body.dataset.route || 'home');
 const RQ_MQ = '(min-width: 761px)'; // PC = 붙여 두기
@@ -22,6 +22,15 @@ const RQ_MQL = matchMedia(RQ_MQ); // 변수에 잡아 둬야 폭 변화 알림�
 const rqWide = () => RQ_MQL.matches;
 const rqWhen = (s) => { const d = new Date(s); return isNaN(d) ? '' : `${d.getMonth() + 1}.${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const rqWho = () => [myName(), myTitle()].filter(Boolean).join(' ');
+// 내가 쓴 글인지: 2026-11-10 아이디가 @spaceinve.com → @universeinvest.co.kr로 바뀌어, 두 주소의 같은 아이디는 같은 사람으로 본다
+const RQ_DOMS = ['universeinvest.co.kr', 'spaceinve.com'];
+const rqMine = (email) => {
+  const [a, da] = (G.account?.username || '').toLowerCase().split('@'), [b, db] = String(email || '').toLowerCase().split('@');
+  return !!a && a === b && (da === db || (RQ_DOMS.includes(da) && RQ_DOMS.includes(db)));
+};
+// 고치는 중인 글: rqS.edit = '요청id|의견id'(요청 본문은 의견id 없이 '요청id|')
+const rqEditForm = (id, rid) => `<form class="rq-ef" data-ef="${esc(id)}" data-er="${esc(rid)}"><textarea class="area" name="t" rows="3" required>${esc(rqS.editDraft)}</textarea>
+      <div class="rq-act"><button type="button" class="btn sm grey" data-ecancel>취소</button><button class="btn sm primary" ${rqS.busy ? 'disabled' : ''}>저장</button></div></form>`;
 const rqDrafting = () => [...document.querySelectorAll('#req textarea')].some((t) => t.value.trim());
 
 // inSave: rqSave 안에서 부를 때. 밖에서 부른 읽기는 저장 중이거나 그 사이 저장이 있었으면 결과를 버린다(false)
@@ -67,17 +76,18 @@ function rqCount() {
 }
 
 function rqItemHTML(x) {
-  const mine = x.email === (G.account?.username || '').toLowerCase(), done = x.status === 'done';
+  const mine = rqMine(x.email), done = x.status === 'done', ed = (rid) => rqS.edit === `${x.id}|${rid}`;
   return `<li class="rq-it${done ? ' done' : ''}" data-id="${esc(x.id)}">
-    <div class="rq-meta"><b>${esc(x.by)}</b><span>${rqWhen(x.at)}</span>${rqS.scope === 'all' ? `<span>${esc(CRUMB[x.page] || x.page)}</span>` : ''}
+    <div class="rq-meta"><b>${esc(x.by)}</b><span>${rqWhen(x.at)}</span>${x.edited ? '<span>수정됨</span>' : ''}${rqS.scope === 'all' ? `<span>${esc(CRUMB[x.page] || x.page)}</span>` : ''}
       <span class="chip ${done ? 'green' : 'blue'} rq-st">${done ? '반영 완료' : '요청'}</span></div>
-    <p class="rq-txt">${esc(x.text)}</p>
-    ${(Array.isArray(x.replies) ? x.replies : []).filter(Boolean).map((r) => `<div class="rq-re"><div class="rq-meta"><b>${esc(r.by)}</b><span>${rqWhen(r.at)}</span></div><p class="rq-txt">${esc(r.text)}</p></div>`).join('')}
+    ${ed('') ? rqEditForm(x.id, '') : `<p class="rq-txt">${esc(x.text)}</p>`}
+    ${(Array.isArray(x.replies) ? x.replies : []).filter(Boolean).map((r) => `<div class="rq-re"><div class="rq-meta"><b>${esc(r.by)}</b><span>${rqWhen(r.at)}</span>${r.edited ? '<span>수정됨</span>' : ''}${r.id && rqMine(r.email) && !ed(r.id) ? `<button type="button" class="rq-redit" data-edit="${esc(x.id)}" data-rid="${esc(r.id)}">수정</button>` : ''}</div>${ed(r.id) ? rqEditForm(x.id, r.id) : `<p class="rq-txt">${esc(r.text)}</p>`}</div>`).join('')}
     ${rqS.reply === x.id ? `<form class="rq-rf" data-rf="${esc(x.id)}"><textarea class="area" name="t" rows="2" placeholder="의견을 입력하세요" required>${esc(rqS.replyDraft)}</textarea>
       <div class="rq-act"><button type="button" class="btn sm grey" data-rcancel>취소</button><button class="btn sm primary" ${rqS.busy ? 'disabled' : ''}>등록</button></div></form>` : ''}
     <div class="rq-tools">
       <button type="button" data-reply="${esc(x.id)}">의견 달기</button>
       ${G.isOwner ? `<button type="button" data-done="${esc(x.id)}">${done ? '요청으로 되돌리기' : '반영 완료'}</button>` : ''}
+      ${mine && !ed('') ? `<button type="button" data-edit="${esc(x.id)}" data-rid="">수정</button>` : ''}
       ${mine ? `<button type="button" class="rq-del" data-del="${esc(x.id)}">삭제</button>` : ''}
     </div></li>`;
 }
@@ -115,6 +125,14 @@ function rqBind(box) {
     if ('rqx' in t.dataset) { rqClose(); return; }
     if (t.dataset.reply) { rqS.reply = rqS.reply === t.dataset.reply ? null : t.dataset.reply; rqS.replyDraft = ''; rqDraw(); box.querySelector('.rq-rf textarea')?.focus(); return; }
     if ('rcancel' in t.dataset) { rqS.reply = null; rqS.replyDraft = ''; rqDraw(); return; }
+    if (t.dataset.edit) {
+      const x = rqS.items.find((i) => i.id === t.dataset.edit), rid = t.dataset.rid || '';
+      const src = rid ? (x?.replies || []).find((r) => r && r.id === rid) : x; if (!src) return;
+      rqS.edit = `${x.id}|${rid}`; rqS.editDraft = src.text || ''; rqDraw();
+      const ta = box.querySelector('.rq-ef textarea'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+      return;
+    }
+    if ('ecancel' in t.dataset) { rqS.edit = null; rqS.editDraft = ''; rqDraw(); return; }
     if (t.dataset.done) {
       const id = t.dataset.done, to = rqS.items.find((i) => i.id === id)?.status === 'done' ? 'open' : 'done'; // 누른 순간 보이던 상태 기준
       rqAct((items) => { items.forEach((x) => { if (x.id === id) x.status = to; }); }); return;
@@ -124,7 +142,7 @@ function rqBind(box) {
       const id = t.dataset.del; rqAct((items) => { for (let i = items.length - 1; i >= 0; i--) if (items[i].id === id) items.splice(i, 1); }, '삭제했습니다');
     }
   });
-  box.addEventListener('input', (e) => { if (e.target.matches('.rq-rf textarea')) rqS.replyDraft = e.target.value; });
+  box.addEventListener('input', (e) => { if (e.target.matches('.rq-rf textarea')) rqS.replyDraft = e.target.value; else if (e.target.matches('.rq-ef textarea')) rqS.editDraft = e.target.value; });
   box.addEventListener('submit', async (e) => {
     e.preventDefault();
     const f = e.target, by = rqWho(), email = (G.account?.username || '').toLowerCase(), at = new Date().toISOString();
@@ -144,6 +162,14 @@ function rqBind(box) {
         if (!x.replies.some((r) => r && r.id === re.id)) x.replies.push(re);
       });
       if (ok && rqS.reply === id) { rqS.reply = null; rqS.replyDraft = ''; rqDraw(); }
+    } else if (f.dataset.ef) {
+      const id = f.dataset.ef, rid = f.dataset.er || '', key = `${id}|${rid}`, text = f.t.value.trim(); if (!text) return;
+      const ok = await rqAct((items) => {
+        const x = items.find((i) => i.id === id); if (!x) return;
+        const src = rid ? (Array.isArray(x.replies) ? x.replies : []).find((r) => r && r.id === rid) : x;
+        if (src && rqMine(src.email) && src.text !== text) { src.text = text; src.edited = at; } // 작성자만, 바뀐 때만
+      }, '수정했습니다');
+      if (ok && rqS.edit === key) { rqS.edit = null; rqS.editDraft = ''; rqDraw(); }
     }
   });
   box.addEventListener('keydown', (e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && e.target.matches('textarea')) e.target.form?.requestSubmit(); });
@@ -193,7 +219,7 @@ async function rqInit() {
       if (!box.hidden) { try { localStorage.setItem('reqDock', '1'); } catch { /* 기억 못 해도 됨 */ } } else if (rqDock()) rqOpen();
     } else if (!box.hidden) rqClose(true);
   });
-  window.addEventListener('hashchange', () => { rqS.reply = null; rqS.replyDraft = ''; rqDraw(); });
+  window.addEventListener('hashchange', () => { rqS.reply = null; rqS.replyDraft = ''; rqS.edit = null; rqS.editDraft = ''; rqDraw(); });
   new MutationObserver(rqAlignSoon).observe($('#page'), { childList: true, subtree: true }); // 화면이 그려질 때마다 위치 맞춤
   addEventListener('resize', rqAlignSoon); rqAlignSoon();
   setInterval(() => {
