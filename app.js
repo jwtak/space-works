@@ -160,7 +160,7 @@ addEventListener('pointerdown', () => {
 async function mailGoto(id) {
   const m = mailState();
   if (route() !== 'mail') { location.hash = '#mail'; await new Promise((r) => setTimeout(r, 50)); }
-  if (m.folder !== 'inbox' || m.q) { m.folder = 'inbox'; m.q = ''; mailDrawFolders(); mailLoadList(); }
+  if (m.folder !== 'inbox' || m.q) { mailFolderSet(m, 'inbox'); m.q = ''; mailDrawFolders(); mailLoadList(); }
   mailOpen(id);
 }
 

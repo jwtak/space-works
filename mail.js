@@ -11,8 +11,11 @@ const MAIL_LIST_SEL = 'id,subject,from,toRecipients,receivedDateTime,sentDateTim
 const MAIL_MAX_ATTACH = 3 * 1024 * 1024; // 한 번에 올릴 수 있는 첨부 크기 (그보다 큰 파일은 업로드 세션이 필요)
 const MAIL_FILTERS = [{ k: 'all', label: '모든 메일' }, { k: 'unread', label: '안 읽은 메일' }, { k: 'att', label: '첨부 있는 메일' }];
 
+// 보고 있던 메일함은 새로 고침(F5) 뒤에도 그대로(2026-11-10 사용자: 임시보관함에서 새로 고침하면 받은편지함으로 돌아감). 창마다 따로라 sessionStorage
+function mailFolderSaved() { try { const f = sessionStorage.getItem('mailFolder'); return MAIL_FOLDERS.some((x) => x.id === f) ? f : 'inbox'; } catch { return 'inbox'; } }
+function mailFolderSet(m, f) { m.folder = f; try { sessionStorage.setItem('mailFolder', f); } catch { /* 기억 못 해도 된다 */ } }
 const mailState = () => {
-  const m = (ui.mail = ui.mail || { folder: 'inbox', q: '', list: [], next: null, sel: null, msg: null, atts: [], counts: {}, compose: null, view: 'list', remote: false, loading: false });
+  const m = (ui.mail = ui.mail || { folder: mailFolderSaved(), q: '', list: [], next: null, sel: null, msg: null, atts: [], counts: {}, compose: null, view: 'list', remote: false, loading: false });
   m.checked = m.checked || new Set(); // 목록에서 체크한 메일 (일괄 읽음·삭제)
   m.filter = m.filter || 'all';
   return m;
@@ -353,7 +356,7 @@ function mailDrawFolders() {
   }).join('');
   nav.querySelectorAll('[data-f]').forEach((b) => b.addEventListener('click', async () => {
     if (m.compose && !(await mailLeaveCompose())) return;
-    m.folder = b.dataset.f; m.sel = null; m.msg = null; m.q = ''; m.view = 'list'; m.scroll = 0;
+    mailFolderSet(m, b.dataset.f); m.sel = null; m.msg = null; m.q = ''; m.view = 'list'; m.scroll = 0;
     const q = $('#mail-q'); if (q) q.value = '';
     mailDrawShell(); mailDrawFolders(); mailDrawPane(); mailLoadList();
   }));
