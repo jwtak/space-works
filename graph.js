@@ -7,7 +7,7 @@ const CFG = {
   tenantId: '7ab0e21f-beca-4d6d-8954-f7decc63ceb3',
   // .Shared = 공유받은 팀 캘린더 읽기, Files.ReadWrite.All = 공유받은 딜소싱 자료 읽기·같이 쓰는 표시 저장
   scopes: ['User.Read', 'Calendars.ReadWrite', 'Calendars.ReadWrite.Shared', 'Mail.ReadWrite', 'Mail.Send', 'Files.ReadWrite', 'Files.ReadWrite.All', 'People.Read'],
-  owner: 'jw.tak@spaceinve.com', // 수집 자료·팀 캘린더 주인
+  owner: 'jw.tak@universeinvest.co.kr', // 수집 자료·팀 캘린더 주인
   shared: { // owner OneDrive의 딜소싱 파일. 수집 목록은 읽기 공유, ☆·연락 상태·메모는 세 사람이 같이 쓰도록 편집 공유
     drive: 'b!AOIm8WyRCEaHEz8d3nPj0QdQF2d_uLpKsXlm4s6pxDjlwjQDNFTyT7sRaG1Hqr9v',
     files: {
@@ -53,7 +53,7 @@ const G = {
     G.account = acc;
     return !!acc;
   },
-  get isOwner() { return (G.account?.username || '').toLowerCase() === CFG.owner; },
+  get isOwner() { return [CFG.owner, 'jw.tak@spaceinve.com'].includes((G.account?.username || '').toLowerCase()); },
   login() {
     const go = () => MS.loginRedirect({ scopes: CFG.scopes, prompt: 'select_account' });
     // 앞선 로그인이 끝나지 않고 멈추면 그 탭에 '진행 중' 표시가 남아 버튼이 막힌다(11/5 실제 발생). 사용자가 직접 누른 것이니 표시를 지우고 한 번 더 연다

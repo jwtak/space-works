@@ -76,7 +76,7 @@ async function load() {
 /* 로그인한 사람 이름·직급 (대표님도 각자 계정으로 쓴다) */
 const myName = () => (S?.me?.displayName || G.account?.name || '').replace(/\s*\(.*\)$/, '');
 // 회사 계정에 부서·직급이 비어 있으면 이 표로 채운다
-const TITLES = { 'jw.tak@spaceinve.com': ['투자운용본부', '대리'], 'sunyeul.yu@spaceinve.com': ['', '대표'], 'chungjun.bae@spaceinve.com': ['', '대표'] };
+const TITLES = { 'jw.tak@universeinvest.co.kr': ['투자운용본부', '대리'], 'sunyeul.yu@universeinvest.co.kr': ['', '대표'], 'chungjun.bae@universeinvest.co.kr': ['', '대표'], 'jw.tak@spaceinve.com': ['투자운용본부', '대리'], 'sunyeul.yu@spaceinve.com': ['', '대표'], 'chungjun.bae@spaceinve.com': ['', '대표'] };
 // 일정 담당자: Outlook 분류(categories)에 이름으로 저장. 분류가 없으면 제목 앞 "(탁지원)"에서 읽는다
 const PEOPLE = ['탁지원', '유선열', '배청준'];
 function evOwners(e) {
