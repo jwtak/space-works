@@ -429,6 +429,7 @@ function renderHomeMobile() {
     ['#deals/yesim', 'flag', '예심청구', ''],
     ['#deals/sell', 'upload', '매각희망', ''],
     ['#deals/bids', 'send', '입찰딜', ''],
+    ['#deals/delist', 'alert', '상폐 위험', ''],
     ['#deals/pipeline', 'inbox', '파이프라인', ''],
     ['#market', 'chart', '시장동향', ''],
     ['#weekly', 'week', '주간회의', ''],
@@ -470,11 +471,12 @@ function renderHomeMobile() {
 // 폰↔PC 폭이 바뀌면 홈을 그 폭에 맞는 구성으로 다시 그린다
 matchMedia('(max-width: 760px)').addEventListener('change', () => { if (S && route() === 'home') render(); });
 
-// ---------- 딜소싱: 행사·IR / 신규상장 / 딜 뉴스 / 예심청구·매각희망·입찰딜 / 파이프라인 (각 화면은 events.js·ipo.js·news.js·radar.js·pipeline.js가 host 안에 그린다) ----------
+// ---------- 딜소싱: 행사·IR / 신규상장 / 딜 뉴스 / 예심청구·매각희망·입찰딜 / 상폐 위험·CB / 파이프라인 (각 화면은 events.js·ipo.js·news.js·radar.js·delist.js·pipeline.js가 host 안에 그린다) ----------
 function renderDeals() {
   const tabs = [['events', '행사·IR', typeof renderEvents === 'function' ? renderEvents : null, 'ticket'], ['ipo', '신규상장', typeof renderIpo === 'function' ? renderIpo : null, 'chart'], ['news', '딜 뉴스', typeof renderNews === 'function' ? renderNews : null, 'news'],
     ['yesim', '예심청구', typeof renderYesim === 'function' ? renderYesim : null, 'flag'], ['sell', '매각희망', typeof renderSell === 'function' ? renderSell : null, 'upload'],
-    ['bids', '입찰딜', typeof renderBids === 'function' ? renderBids : null, 'send'], ['facts', '팩트시트', typeof renderFacts === 'function' ? renderFacts : null, 'file'],
+    ['bids', '입찰딜', typeof renderBids === 'function' ? renderBids : null, 'send'], ['delist', '상폐 위험·CB', typeof renderDelist === 'function' ? renderDelist : null, 'alert'],
+    ['facts', '팩트시트', typeof renderFacts === 'function' ? renderFacts : null, 'file'],
     ['pipeline', '파이프라인', typeof renderPipeline === 'function' ? renderPipeline : null, 'inbox']];
   if (!tabs.some(([k]) => k === ui.dealTab)) ui.dealTab = 'events';
   PAGE.innerHTML = `<div class="page-head"><h1>딜소싱</h1></div>
