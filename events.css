@@ -236,3 +236,6 @@
   .ev-line.ev-cols { align-items: center; }
   .ev-line .ev-hide { margin-top: 0; }
 }
+/* 참가사 이름 → 그 회사의 KIND IR 상세 */
+.ev-part { color: var(--primary); text-decoration: none; }
+.ev-part:hover { text-decoration: underline; }

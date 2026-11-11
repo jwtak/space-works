@@ -241,6 +241,7 @@ function evRow(e) {
 
 function evDetail(e) {
   const due = evDue(e), x = e.extra, parts = Array.isArray(x.participants) ? x.participants : [];
+  const irl = x.ir_links && typeof x.ir_links === 'object' ? x.ir_links : {}; // KIND 묶음 행사: 참가사별 상세 주소(ir.py _kind_links)
   const row = (k, v) => (v ? `<dt>${k}</dt><dd>${v}</dd>` : '');
   const link = (u, label) => (/^https?:\/\//i.test(u || '') ? `<a class="btn sm" href="${esc(u)}" target="_blank" rel="noopener">${label}${ico('ext', 'sm')}</a>` : '');
   const links = (x.estimated ? '' : '<button type="button" class="btn sm ev-addcal" data-evcal>일정에 추가</button>') + link(e.url, '상세 페이지') + link(x.homepage, '홈페이지');
@@ -255,7 +256,7 @@ function evDetail(e) {
       ${row('참가비', esc(e.fee))}
       ${row('등록 마감', due ? `${mdw(e.reg_deadline)} · ${due.txt}` : '')}
       ${row('IR 회사', esc(e.company))}
-      ${row('참가사', parts.length ? `${parts.length}곳 · ${parts.map(esc).join(', ')}` : '')}
+      ${row('참가사', parts.length ? `${parts.length}곳 · ${parts.map((n) => (irl[n] ? `<a class="ev-part" href="${esc(irl[n])}" target="_blank" rel="noopener">${esc(n)}</a>` : esc(n))).join(', ')}` : '')}
       ${row('출처', esc(e.sources.join(', ')))}
     </dl>${links ? `<div class="ev-links">${links}</div>` : ''}</div>`;
 }
