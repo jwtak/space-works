@@ -234,15 +234,6 @@ function render() {
   r = CRUMB[r] ? r : 'home';
   document.querySelectorAll('[data-r]').forEach((a) => a.classList.toggle('on', a.dataset.r === r));
   document.body.dataset.route = r;
-  const cta = $('#side-cta');
-  if (cta) {
-    const act = {
-      todos: ['할 일 추가', () => addTodoSheet()], notes: ['업무일지 쓰기', () => newNote('daily')],
-      programs: ['새 프로그램', () => { ui.progSel = 'new'; renderPrograms(); }],
-    }[r];
-    cta.hidden = !act; // 메일은 메일 화면 안에 "메일 쓰기", 공용 폴더는 목록 위에 "파일 올리기"가 있다
-    if (act) { cta.innerHTML = `${ico('plus')}${act[0]}`; cta.onclick = act[1]; }
-  }
   if (r !== 'notes') { document.body.classList.remove('note-open'); if (cur?.dirty) flushNote(); } // 업무일지를 쓰다 다른 메뉴로 가도 저장
   $('#crumb').textContent = CRUMB[r];
   ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, news: renderDeals, deals: renderDeals, pipeline: renderDeals, market: () => (typeof renderMarket === 'function' ? renderMarket() : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), weekly: () => renderFiles(PAGE, 'weekly'), files: () => (typeof renderFiles === 'function' ? renderFiles(PAGE) : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), programs: renderPrograms, notes: renderNotes, homepage: renderHomepage }[r] || renderHome)();
