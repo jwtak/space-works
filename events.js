@@ -12,7 +12,7 @@ const EV_NEAR = ['수도권', '충청권', '미상']; // 지역 'near' = 갈 수
 const EV_REGION_OPTS = [['near', '수도권·충청권'], ...EV_REGIONS.map((t) => [t, t])];
 const EV_PERIODS = [['month', '이번 달'], ['3m', '3개월'], ['6m', '6개월'], ['12m', '1년'], ['all', '전체 기간']];
 const EV_MINS = [[0, '모든 점수'], [40, '40점 이상'], [60, '60점 이상'], [80, '80점 이상']];
-const EV_SHOWS = [['', '모든 행사'], ['star', '관심'], ['pass', '숨긴 행사']];
+const EV_SHOWS = [['', '모든 행사'], ['star', '관심'], ['est', '예상 일정'], ['pass', '숨긴 행사']];
 const EV_SCORE = [['fit', '산업'], ['people', '사람'], ['format', '형식'], ['access', '참석'], ['rarity', '희소성']];
 let evLink = '#events'; // 홈 카드에서 행사·IR 화면으로 갈 주소 (딜소싱에서는 '#deals')
 const EV_TTL = 5 * 60000;
@@ -171,6 +171,8 @@ function evPass(e, noInd) { // noInd: 산업 버튼 옆 건수는 산업 조건�
   const f = evState.f, st = evSt(e.id);
   if (f.show === 'pass' ? st !== 'pass' : st === 'pass') return false;
   if (f.show === 'star' && st !== 'star') return false;
+  // 날짜·링크 없이 달만 추정한 행사(연간·증권사 컨퍼런스 시드)는 '예상 일정'을 고를 때만(11/11 사용자). 관심 표시한 것은 관심에서도
+  if (e.extra.estimated ? !['est', 'star'].includes(f.show) : f.show === 'est') return false;
   if (e.score < f.min) return false;
   if (f.type && e.type !== f.type) return false;
   if (!noInd && f.inds.length && !e.industry.some((x) => f.inds.includes(x))) return false;
