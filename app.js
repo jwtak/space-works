@@ -1284,9 +1284,17 @@ async function openNote(name) {
       cur = { name: n.name, version: n.version, text: keep ? draft : n.text, dirty: keep, gen: 0, saving: null, conflict: keep };
     }
     if (!ed.isConnected) return;
-    ed.innerHTML = `<div class="bar"><button class="iconbtn m-only" type="button" id="note-back" aria-label="목록" style="width:44px;height:44px">${ico('left')}</button><span class="nm">${esc(cur.name.replace(/\.(txt|md)$/i, ''))}</span><span class="st" id="nst">${cur.conflict ? NOTE_CONFLICT : cur.dirty ? '입력 중…' : '저장됨'}</span></div><textarea id="nta" spellcheck="false"></textarea>`;
+    ed.innerHTML = `<div class="bar"><button class="iconbtn m-only" type="button" id="note-back" aria-label="목록" style="width:44px;height:44px">${ico('left')}</button><span class="nm">${esc(cur.name.replace(/\.(txt|md)$/i, ''))}</span><span class="st" id="nst">${cur.conflict ? NOTE_CONFLICT : cur.dirty ? '입력 중…' : '저장됨'}</span><button class="btn sm primary" type="button" id="note-save">저장</button></div><textarea id="nta" spellcheck="false"></textarea>`;
     ed.querySelector('#note-back').onclick = async () => { ui.noteOff?.(); ui.noteOff = null; await flushNote(); ui.noteOpen = false; renderNotes(); };
     const ta = ed.querySelector('#nta'), c = cur; ta.value = c.text;
+    // 자동 저장(0.8초)과 별개로 손으로 저장: 버튼·Ctrl+S
+    const saveNow = async () => {
+      if (c.conflict) { toast(NOTE_CONFLICT); return; }
+      c.text = ta.value; await flushNote();
+      if (!c.dirty && !c.conflict) { const d = new Date(), st = cur === c && $('#nst'); if (st) st.textContent = `저장됨 ${pad(d.getHours())}:${pad(d.getMinutes())}`; toast('저장했습니다'); }
+    };
+    ed.querySelector('#note-save').onclick = saveNow;
+    ta.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveNow(); } });
     ta.addEventListener('input', () => {
       c.text = ta.value; c.dirty = true; c.gen++;
       const st = $('#nst'); if (st && !c.conflict) st.textContent = '입력 중…';
