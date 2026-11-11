@@ -5,8 +5,9 @@
 /* 칸 구성은 화면 폭이 아니라 실제 카드 폭으로 정한다(PC는 오른쪽 요청사항 칸만큼 본문이 좁다) */
 .kmx-page { container-type: inline-size; }
 
-/* 회사 | 규모 | 희망가 | 특징 | 펼침 (매수는 회사 | 인수 금액 | 찾는 대상 | 특징) */
+/* 매수: 회사 | 인수 금액 | 찾는 대상 | 특징 | 펼침, 매도(kmx-3): 회사 | 규모 | 특징 | 펼침 */
 .kmx-page .ipo-cols { grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(0, 1fr)) minmax(0, 1.6fr) 16px; }
+.kmx-page .ipo-cols.kmx-3 { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 2.6fr) 16px; }
 .kmx-meta { display: flex; gap: 8px; }
 .kmx-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .kmx-k { display: none; }
@@ -19,7 +20,7 @@
   .kmx-page .ipo-top { flex-wrap: wrap; row-gap: 4px; }
   .kmx-page .ipo-sumrow { flex: 1 1 100%; }
   .kmx-page .ipo-head { display: none; }
-  .kmx-page .ipo-cols { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
+  .kmx-page .ipo-cols, .kmx-page .ipo-cols.kmx-3 { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
   .kmx-page .ipo-line > .ipo-c-name { grid-column: 1; display: block; font-size: inherit; color: inherit; }
   .kmx-page .ipo-line .ipo-c-name .ipo-sub { margin-top: 2px; }
   .kmx-page .ipo-line > .ipo-c-st { grid-column: 2; grid-row: 1; }

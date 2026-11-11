@@ -66,7 +66,9 @@ function kmxList() {
 }
 
 /* ---------- 그리기 ---------- */
-const KMX_COLS = { 매도: ['회사', '규모', '희망가', '특징'], 매수: ['회사', '인수 금액', '찾는 대상', '특징'] };
+// 매도는 원문에 희망가가 거의 없어 열을 두지 않고, 있으면 규모 칸에 붙인다(kmx-3 = 3열)
+const KMX_COLS = { 매도: ['회사', '규모', '특징'], 매수: ['회사', '인수 금액', '찾는 대상', '특징'] };
+const kmxColCls = (side) => (side === '매도' ? ' kmx-3' : '');
 const kmxChev = () => `<span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span>`;
 // 값 칸: 넓으면 표 칸(머리글이 이름), 좁으면 이름표 + 값 한 줄. 값이 없으면 넓을 땐 –, 좁을 땐 줄을 뺀다
 const kmxCell = (k, v) => `<div class="kmx-c${v ? '' : ' kmx-none'}"><span class="kmx-k">${k}</span><span class="kmx-v rd-clamp">${v ? esc(v) : '–'}</span></div>`;
@@ -75,9 +77,9 @@ function kmxRow(x) {
   const open = kmxS.open.has(x.id), [, c2, c3] = KMX_COLS[x.side];
   const meta = [x.corp, x.industry].filter(Boolean).map((t) => `<span>${esc(t)}</span>`).join('');
   return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
-    <div class="ipo-line ipo-cols">
+    <div class="ipo-line ipo-cols${kmxColCls(x.side)}">
       <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${esc(x.name || '분류 전 글')}</button>${meta ? `<div class="ipo-sub kmx-meta">${meta}</div>` : ''}</div>
-      ${kmxCell(c2, x.size)}${kmxCell(c3, x.side === '매도' ? x.price : x.want)}
+      ${x.side === '매도' ? kmxCell(c2, [x.size, x.price].filter(Boolean).join(', ')) : kmxCell(c2, x.size) + kmxCell(c3, x.want)}
       <div class="kmx-c kmx-pt${x.point ? '' : ' kmx-none'}"><span class="kmx-v rd-clamp">${x.point ? esc(x.point) : '–'}</span></div>
       <div class="ipo-c-st">${kmxChev()}</div>
     </div>${open ? kmxDetail(x) : ''}</div>`;
@@ -99,7 +101,7 @@ function kmxBody() {
     const k = x.no || `${x.date}|${x.url}`, g = groups[groups.length - 1];
     if (g && g.k === k) g.items.push(x); else groups.push({ k, date: x.date, no: x.no, items: [x] });
   });
-  const head = `<div class="ipo-head ipo-cols">${KMX_COLS[kmxS.side].map((t) => `<div>${t}</div>`).join('')}<div></div></div>`;
+  const head = `<div class="ipo-head ipo-cols${kmxColCls(kmxS.side)}">${KMX_COLS[kmxS.side].map((t) => `<div>${t}</div>`).join('')}<div></div></div>`;
   return head + groups.map((g) => `<div class="rd-grp"><b>${g.date ? yymd(g.date) : '발행일 없음'}</b>${g.no ? `<span>${esc(g.no)}</span>` : ''}<span>${g.items.length}곳</span></div>${g.items.map(kmxRow).join('')}`).join('');
 }
 
