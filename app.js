@@ -467,8 +467,8 @@ function renderHomeMobile() {
 matchMedia('(max-width: 760px)').addEventListener('change', () => { if (S && route() === 'home') render(); });
 
 /* ---------- 딜소싱·뉴스·파이프라인 (2026-11-11 사용자 승인으로 11개 탭을 정리)
-   뉴스(사이드바): 딜 뉴스 | 행사·IR — 회사 목록이 아니라 매일 훑는 소식
-   딜소싱: 상장(상장 준비 | 신규상장) / 매물(입찰딜 | 매각희망 | 매물장터) / 타깃(오너기업 | 중복상장 | 상폐 위험·CB | 팩트시트)
+   뉴스(사이드바): 딜 뉴스 — 회사 목록이 아니라 매일 훑는 소식
+   딜소싱: 행사(행사·IR — 회사를 직접 만나는 자리, 11/11 사용자 '맨 앞으로') / 상장(상장 준비 | 신규상장) / 매물(입찰딜 | 매각희망 | 매물장터) / 타깃(오너기업 | 중복상장 | 상폐 위험·CB | 팩트시트)
    파이프라인(사이드바): 모든 탭에서 올린 카드가 모이는 곳
    주소는 예전 그대로 #deals/<화면>(다른 화면·홈 카드·파이프라인 '돌아가기'가 쓴다). #deals/<묶음>은 그 묶음에서 마지막으로 본 화면으로.
    PE 앵글은 오너기업(heir)·중복상장(dup) 두 화면으로 펼친다 — pe.js 안의 묶음 값(peS.grp)만 바꿔서 그리고 pe.js 자체 전환 줄은 숨긴다.
@@ -487,8 +487,8 @@ const DEAL_SCREENS = {
   facts: ['팩트시트', 'file', () => (typeof renderFacts === 'function' ? renderFacts : null)],
   pipeline: ['파이프라인', 'inbox', () => (typeof renderPipeline === 'function' ? renderPipeline : null)],
 };
-const DEAL_GROUPS = [['listing', '상장', 'flag', ['yesim', 'ipo']], ['offer', '매물', 'upload', ['bids', 'sell', 'kmx']], ['target', '타깃', 'link', ['heir', 'dup', 'delist', 'facts']]];
-const DEAL_PAGE = { news: 'news', events: 'news', pipeline: 'pipeline' }; // 나머지는 딜소싱
+const DEAL_GROUPS = [['events', '행사', 'ticket', ['events']], ['listing', '상장', 'flag', ['yesim', 'ipo']], ['offer', '매물', 'upload', ['bids', 'sell', 'kmx']], ['target', '타깃', 'link', ['heir', 'dup', 'delist', 'facts']]];
+const DEAL_PAGE = { news: 'news', pipeline: 'pipeline' }; // 나머지는 딜소싱
 // 주소 끝 → 화면 키. 빈 값은 첫 묶음, 묶음 이름은 그 묶음에서 마지막으로 본 화면, pe는 PE 앵글에서 보던 묶음
 function dealSub(s) {
   if (s === 'pe') return typeof peS !== 'undefined' && peS.grp === 'dup' ? 'dup' : 'heir';
@@ -504,11 +504,10 @@ function renderDeals() {
   const k = ui.dealTab, page = DEAL_PAGE[k] || 'deals', grp = DEAL_GROUPS.find((g) => g[3].includes(k));
   const btn = (href, [t, i], on) => `<button type="button" role="tab" data-dt="${href}" aria-selected="${on}" class="${on ? 'on' : ''}">${i ? ico(i) : ''}${t}</button>`;
   let segs = '';
-  if (page === 'news') segs = `<div class="deal-seg" role="tablist">${['news', 'events'].map((s) => btn(`#deals/${s}`, DEAL_SCREENS[s], s === k)).join('')}</div>`;
   if (grp) {
     viewSet(`deal.${grp[0]}`, k);
     segs = `<div class="deal-seg" role="tablist">${DEAL_GROUPS.map(([g, t, i]) => btn(`#deals/${g}`, [t, i], g === grp[0])).join('')}</div>
-      <div class="deal-sub" role="tablist">${grp[3].map((s) => btn(`#deals/${s}`, [DEAL_SCREENS[s][0]], s === k)).join('')}</div>`;
+      ${grp[3].length < 2 ? '' : `<div class="deal-sub" role="tablist">${grp[3].map((s) => btn(`#deals/${s}`, [DEAL_SCREENS[s][0]], s === k)).join('')}</div>`}`;
   }
   PAGE.innerHTML = `<div class="page-head"><h1>${CRUMB[page]}</h1></div>${segs}<div id="deal-host" class="deal-${k}"></div>`;
   PAGE.querySelectorAll('[data-dt]').forEach((b) => b.addEventListener('click', () => { if (!b.classList.contains('on')) location.hash = b.dataset.dt; })); // 주소에 남겨 뒤로 가기로 전환
@@ -1405,7 +1404,7 @@ async function start() {
     if (!history.state?.seq) history.replaceState(hStamp(0), ''); // 로그인 처리 중 MSAL이 기록을 바꿨으면 다시 번호
     hRoute = route();
     document.body.classList.remove('signed-out');
-    if (typeof evLink !== 'undefined') evLink = '#deals/events'; // 홈 행사 카드 → 뉴스 > 행사·IR
+    if (typeof evLink !== 'undefined') evLink = '#deals/events'; // 홈 행사 카드 → 딜소싱 > 행사
     PAGE.innerHTML = '<div class="empty">불러오는 중…</div>';
     await load();
     render();
