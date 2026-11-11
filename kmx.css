@@ -1,0 +1,30 @@
+/* 딜소싱 › 매물장터 (kmx.js) — 목록·펼친 행은 ipo.css, 날짜 묶음 줄·두 줄 말줄임은 radar.css(.rd-grp·.rd-clamp),
+   매도·매수 전환은 pe.css(.pe-grp·.pe-gn)를 그대로 쓰고 여기엔 새로 필요한 것만. pe.css 뒤에 읽어야 한다.
+   표는 왼쪽 정렬·머리글과 값 시작선 일치. 크기 14/13/12, 간격 4·8·12·16·24. */
+
+/* 칸 구성은 화면 폭이 아니라 실제 카드 폭으로 정한다(PC는 오른쪽 요청사항 칸만큼 본문이 좁다) */
+.kmx-page { container-type: inline-size; }
+
+/* 회사 | 규모 | 희망가 | 특징 | 펼침 (매수는 회사 | 인수 금액 | 찾는 대상 | 특징) */
+.kmx-page .ipo-cols { grid-template-columns: minmax(0, 1.2fr) repeat(2, minmax(0, 1fr)) minmax(0, 1.6fr) 16px; }
+.kmx-meta { display: flex; gap: 8px; }
+.kmx-meta > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kmx-k { display: none; }
+.kmx-c.kmx-none .kmx-v { color: var(--text3); }
+.kmx-text { white-space: pre-line; }
+
+/* 760보다 좁으면(폰 포함) 한 회사를 여러 줄로: 이름·펼침 / 회사 성격·업종 / 이름표 + 값 / 특징. ipo.css 폰 배치(첫 칸 회색 한 줄, 3·4번째 칸 숨김)를 되돌린다 */
+@container (max-width: 760px) {
+  /* 요약 줄은 한 줄을 다 쓰고 버튼은 다음 줄로(radar.css 폰 배치와 같다) */
+  .kmx-page .ipo-top { flex-wrap: wrap; row-gap: 4px; }
+  .kmx-page .ipo-sumrow { flex: 1 1 100%; }
+  .kmx-page .ipo-head { display: none; }
+  .kmx-page .ipo-cols { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
+  .kmx-page .ipo-line > .ipo-c-name { grid-column: 1; display: block; font-size: inherit; color: inherit; }
+  .kmx-page .ipo-line .ipo-c-name .ipo-sub { margin-top: 2px; }
+  .kmx-page .ipo-line > .ipo-c-st { grid-column: 2; grid-row: 1; }
+  .kmx-page .ipo-line > .kmx-c { grid-column: 1 / -1; display: flex; gap: 8px; min-width: 0; font-size: 13px; line-height: 20px; color: var(--text2); }
+  .kmx-page .ipo-line > .kmx-c.kmx-none { display: none; }
+  .kmx-page .kmx-k { display: block; flex: none; width: 60px; color: var(--text3); }
+  .kmx-page .kmx-v { min-width: 0; }
+}

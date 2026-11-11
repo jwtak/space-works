@@ -431,6 +431,7 @@ function renderHomeMobile() {
     ['#deals/bids', 'send', '입찰딜', ''],
     ['#deals/delist', 'alert', '상폐 위험', ''],
     ['#deals/pe', 'link', 'PE 앵글', ''],
+    ['#deals/kmx', 'clip', '매물장터', ''],
     ['#deals/pipeline', 'inbox', '파이프라인', ''],
     ['#market', 'chart', '시장동향', ''],
     ['#weekly', 'week', '주간회의', ''],
@@ -478,6 +479,7 @@ function renderDeals() {
     ['yesim', '예심청구', typeof renderYesim === 'function' ? renderYesim : null, 'flag'], ['sell', '매각희망', typeof renderSell === 'function' ? renderSell : null, 'upload'],
     ['bids', '입찰딜', typeof renderBids === 'function' ? renderBids : null, 'send'], ['delist', '상폐 위험·CB', typeof renderDelist === 'function' ? renderDelist : null, 'alert'],
     ['pe', 'PE 앵글', typeof renderPe === 'function' ? renderPe : null, 'link'],
+    ['kmx', '매물장터', typeof renderKmx === 'function' ? renderKmx : null, 'clip'],
     ['facts', '팩트시트', typeof renderFacts === 'function' ? renderFacts : null, 'file'],
     ['pipeline', '파이프라인', typeof renderPipeline === 'function' ? renderPipeline : null, 'inbox']];
   if (!tabs.some(([k]) => k === ui.dealTab)) ui.dealTab = 'events';
