@@ -274,7 +274,7 @@ function evMfHTML() { // 휴대폰: 기간·정렬 옆 '필터' 하나로 나머
 
 function evFilterHTML() {
   const f = evState.f;
-  const sel = (key, opts, label, allLabel, cls = '') => `<select class="select${cls}" data-f="${key}" aria-label="${label}">${allLabel ? `<option value="">${allLabel}</option>` : ''}${opts.map((o) => {
+  const sel = (key, opts, label, allLabel, cls = '') => `<select class="select${cls}${key !== 'sort' && evChanged(key) ? ' on' : ''}" data-f="${key}" aria-label="${label}">${allLabel ? `<option value="">${allLabel}</option>` : ''}${opts.map((o) => {
     const [val, l] = Array.isArray(o) ? o : [o, o];
     return `<option value="${val}"${String(f[key]) === String(val) ? ' selected' : ''}>${l}</option>`;
   }).join('')}</select>`;
@@ -598,6 +598,7 @@ function evBind(root) {
     const t = ev.target, k = t.dataset.f; if (!k) return;
     evState.f[k] = k === 'min' ? Number(t.value) : t.value;
     evSaveFilter(); evDrawMain();
+    if (k !== 'sort') t.classList.toggle('on', evChanged(k)); // 기본값이 아니면 파랑
     const mf = $('.ev-mf'); if (mf) mf.outerHTML = evMfHTML();
   });
   root.addEventListener('input', (ev) => {
