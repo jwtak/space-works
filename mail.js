@@ -5,6 +5,7 @@ const MAIL_FOLDERS = [
   { id: 'inbox', name: '받은편지함', icon: 'inbox' },
   { id: 'sentitems', name: '보낸편지함', icon: 'send' },
   { id: 'drafts', name: '임시보관함', icon: 'file' },
+  { id: 'junkemail', name: '스팸메일함', icon: 'alert' },
   { id: 'deleteditems', name: '지운편지함', icon: 'trash' },
 ];
 const MAIL_LIST_SEL = 'id,subject,from,toRecipients,receivedDateTime,sentDateTime,lastModifiedDateTime,bodyPreview,isRead,hasAttachments,isDraft,flag';
