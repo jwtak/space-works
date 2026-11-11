@@ -236,9 +236,7 @@ function render() {
   document.body.dataset.route = r;
   const cta = $('#side-cta');
   if (cta) {
-    const done = () => { CALC = {}; render(); };
     const act = {
-      home: ['일정 추가', () => openEventModal(null, [], done)], calendar: ['일정 추가', () => openEventModal(null, [], done)],
       todos: ['할 일 추가', () => addTodoSheet()], notes: ['업무일지 쓰기', () => newNote('daily')],
       programs: ['새 프로그램', () => { ui.progSel = 'new'; renderPrograms(); }],
     }[r];
