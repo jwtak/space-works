@@ -690,16 +690,16 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 .deal-seg button:hover:not(.on) { color: var(--ink); background: rgba(255, 255, 255, .55); }
 .deal-seg button.on { background: var(--card); color: var(--primary); font-weight: 700; box-shadow: 0 1px 3px rgba(15, 23, 42, .12), 0 1px 1px rgba(15, 23, 42, .04); }
 .deal-seg button svg.i { width: 18px; height: 18px; }
-/* 딜소싱 묶음 안 화면 전환(상장·매물·타깃 아래 한 줄): 위 묶음 줄(알약형)과 구분되게 밑줄 탭, 글자는 묶음 줄과 같은 16px.
+/* 딜소싱 묶음 안 화면 전환(상장·매물·타깃 아래 한 줄): 흰 탭 바 + 굵은 밑줄 — 회색 바탕 위 글자만 두면 안내 글처럼 읽혀서(11/11 사용자 "잘 보일까?").
    PE 앵글은 오너기업·중복상장을 여기서 고르므로 pe.js 자체 전환 줄은 숨긴다 */
-.deal-sub { display: flex; gap: 28px; margin: 0 0 20px; border-bottom: 1px solid var(--line2); overflow-x: auto; }
+.deal-sub { display: flex; gap: 32px; margin: 0 0 16px; padding: 0 24px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); overflow-x: auto; }
 .deal-sub::-webkit-scrollbar { display: none; }
-.deal-sub button { flex: none; height: 44px; padding: 0 2px; border: 0; background: none; color: var(--text3); font-size: 16px; font-weight: 600; white-space: nowrap; cursor: pointer; box-shadow: inset 0 -2px 0 transparent; transition: color .15s, box-shadow .15s; }
+.deal-sub button { flex: none; height: 52px; padding: 0 2px; border: 0; background: none; color: var(--text2); font-size: 16px; font-weight: 600; white-space: nowrap; cursor: pointer; box-shadow: inset 0 -3px 0 transparent; transition: color .15s, box-shadow .15s; }
 .deal-sub button:hover:not(.on) { color: var(--ink); }
-.deal-sub button.on { color: var(--primary); box-shadow: inset 0 -2px 0 var(--primary); }
+.deal-sub button.on { color: var(--primary); font-weight: 700; box-shadow: inset 0 -3px 0 var(--primary); }
 .deal-sub button:focus-visible { outline-offset: -2px; }
 #deal-host.deal-heir .pe-grp, #deal-host.deal-dup .pe-grp { display: none; }
-@media (max-width: 760px) { .deal-sub { gap: 24px; margin: 0 16px 12px; } }
+@media (max-width: 760px) { .deal-sub { gap: 24px; margin: 0 16px 12px; padding: 0 16px; } }
 @media (max-width: 760px) {
   .deal-seg { display: flex; margin: 4px 16px 12px; }
   .deal-seg button { flex: 1; justify-content: center; padding: 0 12px; }
