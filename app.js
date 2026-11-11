@@ -508,7 +508,7 @@ function renderDeals() {
   if (grp) {
     viewSet(`deal.${grp[0]}`, k);
     segs = `<div class="deal-seg" role="tablist">${DEAL_GROUPS.map(([g, t, i]) => btn(`#deals/${g}`, [t, i], g === grp[0])).join('')}</div>
-      <div class="seg deal-sub" role="tablist">${grp[3].map((s) => btn(`#deals/${s}`, [DEAL_SCREENS[s][0]], s === k)).join('')}</div>`;
+      <div class="deal-sub" role="tablist">${grp[3].map((s) => btn(`#deals/${s}`, [DEAL_SCREENS[s][0]], s === k)).join('')}</div>`;
   }
   PAGE.innerHTML = `<div class="page-head"><h1>${CRUMB[page]}</h1></div>${segs}<div id="deal-host" class="deal-${k}"></div>`;
   PAGE.querySelectorAll('[data-dt]').forEach((b) => b.addEventListener('click', () => { if (!b.classList.contains('on')) location.hash = b.dataset.dt; })); // 주소에 남겨 뒤로 가기로 전환
