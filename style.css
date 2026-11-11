@@ -690,6 +690,12 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 .deal-seg button:hover:not(.on) { color: var(--ink); background: rgba(255, 255, 255, .55); }
 .deal-seg button.on { background: var(--card); color: var(--primary); font-weight: 700; box-shadow: 0 1px 3px rgba(15, 23, 42, .12), 0 1px 1px rgba(15, 23, 42, .04); }
 .deal-seg button svg.i { width: 18px; height: 18px; }
+/* 딜소싱 묶음 안 화면 전환(상장·매물·타깃 아래 한 줄). PE 앵글은 오너기업·중복상장을 여기서 고르므로 pe.js 자체 전환 줄은 숨긴다 */
+.deal-sub { display: flex; width: max-content; max-width: 100%; margin: 0 0 16px; overflow-x: auto; }
+.deal-sub::-webkit-scrollbar { display: none; }
+.deal-sub button { flex: none; white-space: nowrap; }
+#deal-host.deal-heir .pe-grp, #deal-host.deal-dup .pe-grp { display: none; }
+@media (max-width: 760px) { .deal-sub { margin: 0 16px 12px; max-width: calc(100% - 32px); } }
 @media (max-width: 760px) {
   .deal-seg { display: flex; margin: 4px 16px 12px; }
   .deal-seg button { flex: 1; justify-content: center; padding: 0 12px; }

@@ -224,11 +224,11 @@ function infoOpen(k) {
 }
 const infoBtn = (k) => (TAB_INFO[k] ? `<button class="btn ghost info-btn" type="button" data-info="${esc(k)}" aria-label="화면 설명">${ico('info', 'sm')}<span class="info-txt">화면 설명</span></button>` : '');
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-info]'); if (b) infoOpen(b.dataset.info); });
-const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', deals: '딜소싱', market: '시장동향', weekly: '주간회의', files: '공용 폴더', notes: '업무일지·회의록', programs: '프로그램', homepage: '홈페이지' };
+const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', news: '뉴스', deals: '딜소싱', pipeline: '파이프라인', market: '시장동향', weekly: '주간회의', files: '공용 폴더', notes: '업무일지·회의록', programs: '프로그램', homepage: '홈페이지' };
 function render() {
   if (!S) return; // 로그인·데이터 읽기 전 hashchange
   let r = route();
-  if (r.startsWith('deals/')) { ui.dealTab = r.slice(6) || 'events'; r = 'deals'; } else if (r === 'deals') ui.dealTab = 'events'; // #deals/ipo → 딜소싱 > 신규상장
+  if (r === 'deals' || r.startsWith('deals/')) { ui.dealTab = dealSub(r.slice(6)); r = DEAL_PAGE[ui.dealTab] || 'deals'; } // #deals/ipo → 딜소싱 > 상장 > 신규상장, #deals/news → 뉴스
   if (r.startsWith('market/')) r = 'market'; // 시장동향 > 공모주 통계·PE 동향
   for (const k of ['files', 'weekly']) if (r === k || r.startsWith(`${k}/`)) { try { ui.filesPath = decodeURIComponent(r.slice(k.length + 1)); } catch { ui.filesPath = ''; } r = k; } // #files/00. 전체 공유/01. 명함 → 공용 폴더의 그 폴더
   r = CRUMB[r] ? r : 'home';
@@ -247,7 +247,7 @@ function render() {
   }
   if (r !== 'notes') { document.body.classList.remove('note-open'); if (cur?.dirty) flushNote(); } // 업무일지를 쓰다 다른 메뉴로 가도 저장
   $('#crumb').textContent = CRUMB[r];
-  ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, deals: renderDeals, market: () => (typeof renderMarket === 'function' ? renderMarket() : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), weekly: () => renderFiles(PAGE, 'weekly'), files: () => (typeof renderFiles === 'function' ? renderFiles(PAGE) : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), programs: renderPrograms, notes: renderNotes, homepage: renderHomepage }[r] || renderHome)();
+  ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, news: renderDeals, deals: renderDeals, pipeline: renderDeals, market: () => (typeof renderMarket === 'function' ? renderMarket() : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), weekly: () => renderFiles(PAGE, 'weekly'), files: () => (typeof renderFiles === 'function' ? renderFiles(PAGE) : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), programs: renderPrograms, notes: renderNotes, homepage: renderHomepage }[r] || renderHome)();
   segFit(PAGE.querySelector('.deal-seg')); // 딜소싱·시장동향 탭 줄
 }
 window.addEventListener('hashchange', render);
@@ -423,15 +423,8 @@ function renderHomeMobile() {
     ['#calendar', 'cal', '일정', '<i class="mh-n" id="mh-cal" hidden></i>'],
     ['#todos', 'check', '할 일', over.length + dueToday.length ? `<i class="mh-n ${over.length ? 'red' : ''}">${over.length + dueToday.length}</i>` : ''],
     ['#notes', 'file', '업무일지', ''],
-    ['#deals', 'ticket', '행사·IR', ''],
-    ['#deals/ipo', 'chart', '신규상장', ''],
-    ['#deals/news', 'news', '딜 뉴스', ''],
-    ['#deals/yesim', 'flag', '예심청구', ''],
-    ['#deals/sell', 'upload', '매각희망', ''],
-    ['#deals/bids', 'send', '입찰딜', ''],
-    ['#deals/delist', 'alert', '상폐 위험', ''],
-    ['#deals/pe', 'link', 'PE 앵글', ''],
-    ['#deals/kmx', 'clip', '매물장터', ''],
+    ['#deals/news', 'news', '뉴스', ''],
+    ...DEAL_GROUPS.map(([g, t, i]) => [`#deals/${g}`, i, t, '']),
     ['#deals/pipeline', 'inbox', '파이프라인', ''],
     ['#market', 'chart', '시장동향', ''],
     ['#weekly', 'week', '주간회의', ''],
@@ -473,21 +466,53 @@ function renderHomeMobile() {
 // 폰↔PC 폭이 바뀌면 홈을 그 폭에 맞는 구성으로 다시 그린다
 matchMedia('(max-width: 760px)').addEventListener('change', () => { if (S && route() === 'home') render(); });
 
-// ---------- 딜소싱: 행사·IR / 신규상장 / 딜 뉴스 / 예심청구·매각희망·입찰딜 / 상폐 위험·CB / PE 앵글 / 파이프라인 (각 화면은 events.js·ipo.js·news.js·radar.js·delist.js·pe.js·pipeline.js가 host 안에 그린다) ----------
+/* ---------- 딜소싱·뉴스·파이프라인 (2026-11-11 사용자 승인으로 11개 탭을 정리)
+   뉴스(사이드바): 딜 뉴스 | 행사·IR — 회사 목록이 아니라 매일 훑는 소식
+   딜소싱: 상장(상장 준비 | 신규상장) / 매물(입찰딜 | 매각희망 | 매물장터) / 타깃(오너기업 | 중복상장 | 상폐 위험·CB | 팩트시트)
+   파이프라인(사이드바): 모든 탭에서 올린 카드가 모이는 곳
+   주소는 예전 그대로 #deals/<화면>(다른 화면·홈 카드·파이프라인 '돌아가기'가 쓴다). #deals/<묶음>은 그 묶음에서 마지막으로 본 화면으로.
+   PE 앵글은 오너기업(heir)·중복상장(dup) 두 화면으로 펼친다 — pe.js 안의 묶음 값(peS.grp)만 바꿔서 그리고 pe.js 자체 전환 줄은 숨긴다.
+   각 화면은 events.js·news.js·ipo.js·radar.js·kmx.js·pe.js·delist.js·facts.js·pipeline.js가 host 안에 그린다 ---------- */
+const DEAL_SCREENS = {
+  news: ['딜 뉴스', 'news', () => (typeof renderNews === 'function' ? renderNews : null)],
+  events: ['행사·IR', 'ticket', () => (typeof renderEvents === 'function' ? renderEvents : null)],
+  yesim: ['상장 준비', 'flag', () => (typeof renderYesim === 'function' ? renderYesim : null)],
+  ipo: ['신규상장', 'chart', () => (typeof renderIpo === 'function' ? renderIpo : null)],
+  bids: ['입찰딜', 'send', () => (typeof renderBids === 'function' ? renderBids : null)],
+  sell: ['매각희망', 'upload', () => (typeof renderSell === 'function' ? renderSell : null)],
+  kmx: ['매물장터', 'clip', () => (typeof renderKmx === 'function' ? renderKmx : null)],
+  heir: ['오너기업', 'link', () => dealPe('heir')],
+  dup: ['중복상장', 'link', () => dealPe('dup')],
+  delist: ['상폐 위험·CB', 'alert', () => (typeof renderDelist === 'function' ? renderDelist : null)],
+  facts: ['팩트시트', 'file', () => (typeof renderFacts === 'function' ? renderFacts : null)],
+  pipeline: ['파이프라인', 'inbox', () => (typeof renderPipeline === 'function' ? renderPipeline : null)],
+};
+const DEAL_GROUPS = [['listing', '상장', 'flag', ['yesim', 'ipo']], ['offer', '매물', 'upload', ['bids', 'sell', 'kmx']], ['target', '타깃', 'link', ['heir', 'dup', 'delist', 'facts']]];
+const DEAL_PAGE = { news: 'news', events: 'news', pipeline: 'pipeline' }; // 나머지는 딜소싱
+// 주소 끝 → 화면 키. 빈 값은 첫 묶음, 묶음 이름은 그 묶음에서 마지막으로 본 화면, pe는 PE 앵글에서 보던 묶음
+function dealSub(s) {
+  if (s === 'pe') return typeof peS !== 'undefined' && peS.grp === 'dup' ? 'dup' : 'heir';
+  if (DEAL_SCREENS[s]) return s;
+  const g = DEAL_GROUPS.find(([k]) => k === s) || DEAL_GROUPS[0], last = viewGet(`deal.${g[0]}`, null);
+  return g[3].includes(last) ? last : g[3][0];
+}
+function dealPe(g) {
+  if (typeof renderPe !== 'function') return null;
+  return (host) => { if (peS.grp !== g) { peS.grp = g; viewSet('pe.grp', g); } return renderPe(host); };
+}
 function renderDeals() {
-  const tabs = [['events', '행사·IR', typeof renderEvents === 'function' ? renderEvents : null, 'ticket'], ['ipo', '신규상장', typeof renderIpo === 'function' ? renderIpo : null, 'chart'], ['news', '딜 뉴스', typeof renderNews === 'function' ? renderNews : null, 'news'],
-    ['yesim', '예심청구', typeof renderYesim === 'function' ? renderYesim : null, 'flag'], ['sell', '매각희망', typeof renderSell === 'function' ? renderSell : null, 'upload'],
-    ['bids', '입찰딜', typeof renderBids === 'function' ? renderBids : null, 'send'], ['delist', '상폐 위험·CB', typeof renderDelist === 'function' ? renderDelist : null, 'alert'],
-    ['pe', 'PE 앵글', typeof renderPe === 'function' ? renderPe : null, 'link'],
-    ['kmx', '매물장터', typeof renderKmx === 'function' ? renderKmx : null, 'clip'],
-    ['facts', '팩트시트', typeof renderFacts === 'function' ? renderFacts : null, 'file'],
-    ['pipeline', '파이프라인', typeof renderPipeline === 'function' ? renderPipeline : null, 'inbox']];
-  if (!tabs.some(([k]) => k === ui.dealTab)) ui.dealTab = 'events';
-  PAGE.innerHTML = `<div class="page-head"><h1>딜소싱</h1></div>
-    <div class="deal-seg" role="tablist">${tabs.map(([k, t, , i]) => `<button type="button" role="tab" data-dt="${k}" aria-selected="${ui.dealTab === k}" class="${ui.dealTab === k ? 'on' : ''}">${ico(i)}${t}</button>`).join('')}</div>
-    <div id="deal-host"></div>`;
-  PAGE.querySelectorAll('[data-dt]').forEach((b) => b.addEventListener('click', () => { if (ui.dealTab !== b.dataset.dt) location.hash = `#deals/${b.dataset.dt}`; })); // 주소에 남겨 뒤로 가기로 탭 전환
-  const host = $('#deal-host'), fn = tabs.find(([k]) => k === ui.dealTab)[2];
+  const k = ui.dealTab, page = DEAL_PAGE[k] || 'deals', grp = DEAL_GROUPS.find((g) => g[3].includes(k));
+  const btn = (href, [t, i], on) => `<button type="button" role="tab" data-dt="${href}" aria-selected="${on}" class="${on ? 'on' : ''}">${i ? ico(i) : ''}${t}</button>`;
+  let segs = '';
+  if (page === 'news') segs = `<div class="deal-seg" role="tablist">${['news', 'events'].map((s) => btn(`#deals/${s}`, DEAL_SCREENS[s], s === k)).join('')}</div>`;
+  if (grp) {
+    viewSet(`deal.${grp[0]}`, k);
+    segs = `<div class="deal-seg" role="tablist">${DEAL_GROUPS.map(([g, t, i]) => btn(`#deals/${g}`, [t, i], g === grp[0])).join('')}</div>
+      <div class="seg deal-sub" role="tablist">${grp[3].map((s) => btn(`#deals/${s}`, [DEAL_SCREENS[s][0]], s === k)).join('')}</div>`;
+  }
+  PAGE.innerHTML = `<div class="page-head"><h1>${CRUMB[page]}</h1></div>${segs}<div id="deal-host" class="deal-${k}"></div>`;
+  PAGE.querySelectorAll('[data-dt]').forEach((b) => b.addEventListener('click', () => { if (!b.classList.contains('on')) location.hash = b.dataset.dt; })); // 주소에 남겨 뒤로 가기로 전환
+  const host = $('#deal-host'), fn = DEAL_SCREENS[k][2]();
   if (!fn) { host.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>'; return; }
   Promise.resolve(fn(host)).catch((e) => { host.innerHTML = `<div class="card"><div class="empty">${esc(e.message)}</div></div>`; });
 }
@@ -1380,7 +1405,7 @@ async function start() {
     if (!history.state?.seq) history.replaceState(hStamp(0), ''); // 로그인 처리 중 MSAL이 기록을 바꿨으면 다시 번호
     hRoute = route();
     document.body.classList.remove('signed-out');
-    if (typeof evLink !== 'undefined') evLink = '#deals'; // 홈 행사 카드 → 딜소싱 탭
+    if (typeof evLink !== 'undefined') evLink = '#deals/events'; // 홈 행사 카드 → 뉴스 > 행사·IR
     PAGE.innerHTML = '<div class="empty">불러오는 중…</div>';
     await load();
     render();
