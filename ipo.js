@@ -321,7 +321,7 @@ function ipoDetail(x) {
         <input class="input ipo-note" data-ipo-note placeholder="메모" maxlength="300" value="${esc(m?.note || '')}" aria-label="메모">
         ${m?.at ? `<span class="ipo-by">${esc(m.by || '')} ${esc(ipoMd(m.at.slice(0, 10)))} ${esc(m.at.slice(11, 16))}</span>` : ''}</div>${ipoPipe(x)}
     </div>
-    <div class="ipo-tabs" role="tablist">${tabs}</div>
+    ${fqBox(`ipo:${x.code}`, x, '신규상장')}<div class="ipo-tabs" role="tablist">${tabs}</div>
     <div class="ipo-pane">${ipoPane(x, tab)}</div>
   </div>`;
 }

@@ -11,7 +11,7 @@ const FS_TTL = 10 * 60000;
 const FS_FILTERS = [['all', '전체'], ['inv', '투자 이력 있음'], ['big', '매출 500억+'], ['opm', 'OPM 15%+'], ['grow', '매출 성장 20%+']];
 const FS_SORTS = [['rev', '2025 매출순'], ['total', '누적 투자순'], ['op', '2025 영업이익순'], ['grow', '매출 성장률순'], ['opm', '영업이익률순'], ['no', '목록 번호순']];
 const FS_TABS = [['inv', '투자유치·컨택'], ['ov', '개요'], ['biz', '사업·브랜드'], ['prod', '제품'], ['fin', '재무·주주'], ['view', '투자 판단']];
-const fsS = { data: null, at: 0, loading: null, q: viewGet('fs.q', ''), f: viewGet('fs.f', 'all'), sort: viewGet('fs.sort', 'rev'), tab: viewGet('fs.tab', 'inv'), open: new Set(viewGet('fs.open', [])), focus: null, host: null, imgs: new Map() };
+const fsS = { data: null, at: 0, loading: null, q: viewGet('fs.q', ''), f: viewGet('fs.f', 'all'), sort: viewGet('fs.sort', 'rev'), tab: viewGet('fs.tab', 'inv'), open: new Set(viewGet('fs.open', [])), focus: null, host: null, imgs: new Map(), set: viewGet('fs.set', 'kb') };
 
 TAB_INFO['deals/facts'] = { title: '팩트시트', asof: '기준 2026-11-06 · K-Beauty Expo 2026 참가기업 목록에서 대표님이 노란색으로 고른 40곳', rows: [
   ['무엇인가', '대표님이 괜찮아 보인다고 고른 회사들을 공통 양식(PE 딜소싱 Fact Sheet)으로 한 장씩 조사한 자료입니다. 엑셀의 회사별 시트와 같은 내용입니다.'],
@@ -215,11 +215,16 @@ function fsPaintImgs(root) {
 }
 
 /* ---------- 그리기 ---------- */
+// 묶음: 행사별 팩트시트(지금은 K-Beauty Expo 2026 하나) | 요청한 회사(딜소싱 각 화면에서 '팩트시트 요청'한 회사, fsq.js)
+function fsSetSeg() {
+  const d = fsS.data, one = (k, l) => `<button type="button" data-fs-set="${k}" class="${fsS.set === k ? 'on' : ''}" aria-pressed="${fsS.set === k}">${l}</button>`;
+  return `<div class="seg fs-set" role="group" aria-label="묶음">${d?.set ? one('kb', esc(d.set)) : ''}${one('req', `요청한 회사 <span data-fq-count>${fqCount()}</span>`)}</div>`;
+}
 function fsSummary() {
-  const d = fsS.data; if (!d) return '';
+  const d = fsS.data;
+  if (fsS.set === 'req' || !d) return fsSetSeg();
   const big = d.items.filter((x) => x.r25 >= 500).length, opm = d.items.filter((x) => x.opm >= 0.15).length;
-  // 묶음(행사)별 팩트시트: 지금은 K-Beauty Expo 2026 하나. 묶음이 늘면 이 토글에 붙인다
-  return `${d.set ? `<div class="seg fs-set" role="group" aria-label="묶음"><button type="button" class="on" aria-pressed="true">${esc(d.set)}</button></div>` : ''}<span>${d.items.length}곳</span><span>매출 500억+ <b>${big}</b></span><span>OPM 15%+ <b>${opm}</b></span>${d.generated ? `<span>${esc(d.generated)} 작성</span>` : ''}`;
+  return `${fsSetSeg()}<span>${d.items.length}곳</span><span>매출 500억+ <b>${big}</b></span><span>OPM 15%+ <b>${opm}</b></span>${d.generated ? `<span>${esc(d.generated)} 작성</span>` : ''}`;
 }
 function fsBody() {
   if (!fsS.data) return '<div class="empty">아직 올라간 팩트시트가 없습니다.</div>';
@@ -229,8 +234,11 @@ function fsBody() {
 }
 function fsDraw() {
   const b = fsS.host?.querySelector('#fs-body'); if (!b) return;
-  b.innerHTML = fsBody();
+  const req = fsS.set === 'req';
+  fsS.host.querySelectorAll('.fs-kb-only').forEach((el) => { el.hidden = req; });
+  b.innerHTML = req ? fqList() : fsBody();
   const s = fsS.host.querySelector('#fs-sum'); if (s) s.innerHTML = fsSummary();
+  if (req) return;
   fsPaintImgs(b);
   if (fsS.focus && b.isConnected) {
     const r = b.querySelector(`.ipo-row[data-fs="${CSS.escape(fsS.focus)}"]`); fsS.focus = null;
@@ -268,9 +276,11 @@ function fsBind(root) {
     const t = ev.target;
     const irb = t.closest('[data-fs-ir]');
     if (irb) { fsIrOpen(irb.dataset.fsIr); return; }
+    const sb = t.closest('[data-fs-set]');
+    if (sb) { fsS.set = sb.dataset.fsSet; viewSet('fs.set', fsS.set); fsDraw(); if (fsS.set === 'req') fqLoad(true); return; }
     const fb = t.closest('[data-fs-f]');
     if (fb) { fsS.f = fb.dataset.fsF; viewSet('fs.f', fsS.f); root.querySelectorAll('[data-fs-f]').forEach((b) => b.classList.toggle('on', b === fb)); fsDraw(); return; }
-    if (t.closest('#fs-ref')) { fsLoad(true).then(fsDraw).catch((e) => toast(e.message)); return; }
+    if (t.closest('#fs-ref')) { if (fsS.set === 'req') { fqLoad(true); return; } fsLoad(true).then(fsDraw).catch((e) => toast(e.message)); return; }
     if (t.closest('#fs-xlsx')) { fsDownload(t.closest('#fs-xlsx')); return; }
     const tb = t.closest('[data-fs-tab]');
     if (tb) { fsS.tab = tb.dataset.fsTab; viewSet('fs.tab', fsS.tab); fsRefreshRow(tb.closest('.ipo-row').dataset.fs); return; }
@@ -289,10 +299,10 @@ async function renderFacts(host) {
   host.innerHTML = `<div class="ipo-page fs-page" id="fs-root">
     <div class="ipo-top"><div class="ipo-sumrow" id="fs-sum"></div>
       ${infoBtn('deals/facts')}
-      <button class="btn ghost" type="button" id="fs-xlsx">${ico('file', 'sm')}엑셀 다운로드</button>
+      <button class="btn ghost fs-kb-only" type="button" id="fs-xlsx">${ico('file', 'sm')}엑셀 다운로드</button>
       <button class="btn ghost" type="button" id="fs-ref">${ico('refresh', 'sm')}새로고침</button></div>
     <section class="card ipo-card">
-      <div class="ipo-filter">
+      <div class="ipo-filter fs-kb-only">
         <div class="ipo-search"><span class="ipo-sic">${ico('search', 'sm')}</span><input class="input" id="fs-q" type="search" placeholder="회사·브랜드·부스·대표 검색" value="${esc(fsS.q)}" autocomplete="off" aria-label="검색"></div>
         <div class="seg">${FS_FILTERS.map(([k, l]) => `<button type="button" data-fs-f="${k}" class="${fsS.f === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <select class="select" id="fs-sort" aria-label="정렬">${FS_SORTS.map(([k, l]) => `<option value="${k}"${fsS.sort === k ? ' selected' : ''}>${l}</option>`).join('')}</select>
@@ -300,7 +310,8 @@ async function renderFacts(host) {
       <div class="ipo-body" id="fs-body"><div class="empty">불러오는 중…</div></div>
     </section></div>`;
   fsBind(host.querySelector('#fs-root'));
-  try { await fsLoad(); } catch (e) { const b = host.querySelector('#fs-body'); if (b) b.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  if (fsS.set === 'req') fsDraw();
+  try { await fsLoad(); } catch (e) { const b = host.querySelector('#fs-body'); if (b && fsS.set !== 'req') b.innerHTML = `<div class="empty">${esc(e.message)}</div>`; const s = host.querySelector('#fs-sum'); if (s) s.innerHTML = fsSummary(); return; }
   if (fsS.host === host && host.isConnected) fsDraw();
   if (typeof pipeLoad === 'function') pipeLoad().then(() => { if (fsS.host === host) fsS.open.forEach((k) => { const x = fsFind(k), p = host.querySelector(`.ipo-row[data-fs="${CSS.escape(k)}"] .ipo-dhead > .rd-pipe`); if (x && p) p.outerHTML = fsPipe(x); }); }).catch(() => {});
 }

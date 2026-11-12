@@ -57,9 +57,25 @@
 
 /* 파이프라인 올리기 · 있음: 넓으면 상태·메모 줄 끝, 좁으면 요약 줄 오른쪽, 폰은 맨 아래 한 줄 */
 .rd-pipe { flex: none; }
-/* 주관사 선정 행 팩트시트 요청: 상태·메모 줄 끝. 요청됨은 선택된 필터와 같은 파란 바탕 */
+/* 팩트시트 요청 버튼(fsq.js, 딜소싱 모든 탭 펼친 칸). 요청됨은 선택된 필터와 같은 파란 바탕 */
 .rd-fs { flex: none; }
 .btn.rd-fs.on { background: var(--primary-soft); border-color: var(--primary-soft); color: var(--primary); }
+/* 팩트시트 칸(fsq.js): 펼친 칸 맨 위. 머리 줄(팩트시트 · 상태 · 버튼) 아래 내용, 그 아래 '회사 정보'로 그 탭 자료가 이어진다 */
+.fq-box { display: flex; flex-direction: column; gap: 16px; min-width: 0; margin-bottom: 20px; }
+.ipo-stack > .fq-box { margin-bottom: 0; }
+.fq-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-height: 32px; }
+.fq-t { font-size: 16px; line-height: 24px; font-weight: 600; color: var(--ink); }
+.fq-bar .muted { font-size: 14px; line-height: 20px; }
+.fq-bar .ipo-a { margin-left: auto; }
+.fq-bar .ipo-a + .btn { margin-left: 0; }
+.fq-bar > .btn:last-child { margin-left: auto; }
+.fq-bar .ipo-a ~ .btn:last-child { margin-left: 0; }
+/* 팩트시트 탭 '요청한 회사' 목록: 회사 | 화면 | 상태 | 요청 | 펼침 */
+.fq-cols { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) 24px; gap: 16px; align-items: start; padding: 0 24px; }
+.ipo-head.fq-cols { align-items: center; }
+.fq-wait { color: var(--primary); }
+.fq-bad { color: var(--danger); }
+.fs-kb-only[hidden] { display: none !important; }
 /* 팩트시트가 있는 회사: 목록 회사명 옆 표시(신규상장 '직통' 표시와 같은 크기) */
 .rd-fs-tag { display: inline-flex; align-items: center; height: 20px; margin-left: 6px; padding: 0 8px; border-radius: 10px; font-size: 12px; font-weight: 500; line-height: 20px; background: var(--primary-soft); color: var(--primary); vertical-align: 1px; white-space: nowrap; }
 /* 펼친 칸 팩트시트 묶음: 묶음 제목(팩트시트 · 작성일 / 회사 정보), 포인트·리스크 소제목 */

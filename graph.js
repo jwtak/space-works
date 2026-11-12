@@ -21,8 +21,9 @@ const CFG = {
       'data/radar_marks.json': '012DPUXZWTHA6HQIME4ZGIHECXSV3PWRC3', 'data/pipeline.json': '012DPUXZTPUBOUN7QMQBFL2L2UQUI4IRBO',
       'data/delist.json': '012DPUXZR4AS3D6N7LWBCYIUY5JS6LQZCW',
       'data/pe.json': '012DPUXZTXPXUP42OXLVD32JRDCOQNMVM5', 'data/kmx.json': '012DPUXZWV6BIDA7PUMRHJI2J7C24L5SDX',
+      'data/fs.json': '012DPUXZTNLXQS6J6EJJD2I3XLZCAZ7UXY', 'data/fs_req.json': '012DPUXZWVBO5ZR2BFXBEIM3UO467SUFP3',
     },
-    writable: ['data/event_marks.json', 'data/ipo_marks.json', 'data/news_marks.json', 'data/radar_marks.json', 'data/pipeline.json'], // 수집기는 같은 파일을 덮어쓰므로 id가 바뀌지 않는다
+    writable: ['data/event_marks.json', 'data/ipo_marks.json', 'data/news_marks.json', 'data/radar_marks.json', 'data/pipeline.json', 'data/fs_req.json'], // 수집기는 같은 파일을 덮어쓰므로 id가 바뀌지 않는다
   },
   teamDrive: 'b!j-FPAIUPjU6AnBcIJNprMgAfPOR1jCVOvR6mVssjMWkyr34wYSj7Rp-_wJU9Subr', // 팀 '스페이스인베스트먼트' 파일함(공용 폴더) — 팀원이면 누구나 읽고 쓴다
   teamCalendarId: 'AAMkAGY5ZWRkMzlmLTNmYjUtNDE3NC04YTUxLTliZjgyYjU0Yjc1NQBGAAAAAAB2D1ON4THdQYUFMZAr45FEBwA217gkwboaRqzQAV2p_lEqAAAAAAEGAAA217gkwboaRqzQAV2p_lEqAAAAE7aBAAA=',

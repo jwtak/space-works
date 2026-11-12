@@ -239,7 +239,7 @@ function dlDetail(x) {
     { url: `https://finance.naver.com/item/main.naver?code=${encodeURIComponent(x.code)}`, label: '네이버 금융' },
   ].map((lk) => `<a class="ipo-a" href="${esc(lk.url)}" target="_blank" rel="noopener noreferrer">${esc(lk.label)}${ico('ext', 'sm')}</a>`).join('');
   return `<div class="ipo-dhead">${x.biz ? `<p class="ipo-sum1">${esc(x.biz)}</p>` : '<p></p>'}${dlPipe(x)}</div>
-    <div class="dl-xgrid">${dlBox('지분·시총', cap)}${dlBox('현금·밸류', val)}${dlBox('판정', verdict)}${pk ? dlBox('AI 추천', `<div class="dl-pkb">${dlPickBody(pk)}</div>`, pk.angle ? dlAngBadges(pk.angle) : '') : ''}</div>
+    ${fqBox(`delist:${x.code}`, x, '상폐 위험·CB')}<div class="dl-xgrid">${dlBox('지분·시총', cap)}${dlBox('현금·밸류', val)}${dlBox('판정', verdict)}${pk ? dlBox('AI 추천', `<div class="dl-pkb">${dlPickBody(pk)}</div>`, pk.angle ? dlAngBadges(pk.angle) : '') : ''}</div>
     ${dlMezzBox(x)}<div class="ipo-links">${links}</div>`;
 }
 

@@ -405,7 +405,7 @@ function peHeirDetail(x) {
     ${peKv('대표', peNm(x.ceo))}${peKv('설립', [x.est, x.years != null ? `업력 ${x.years}년` : ''].filter(Boolean).join(' · '))}${peKv('업종', esc(x.induty))}${peKv('지역', esc(x.region))}${peKv('감사인', esc(x.auditor))}
     ${peKv('신호', x.signals.length ? esc(x.signals.join(' · ')) : '')}<div class="ipo-links">${links}</div>`;
   return `<div class="ipo-detail">${peDhead(x, sum)}
-    <div class="ipo-pane"><div class="ipo-two-col">
+    <div class="ipo-pane">${fqBox(x.key, x, '오너기업')}<div class="ipo-two-col">
       <div class="ipo-stack">${peFinBox(x.fin, finSub)}${peBox('현금·차입', cash)}</div>
       <div class="ipo-stack">${peBox('주주', holders + parent, hSub)}${peBox('회사', co)}</div>
     </div></div>
@@ -427,7 +427,7 @@ function peDupDetail(x) {
   const news = x.news.length ? `<table class="ipo-tbl rd-tbl-n"><thead><tr><th>날짜</th><th>기사</th><th>매체</th></tr></thead><tbody>${x.news.map((n) => `<tr>
     <td>${esc(n.date) || '–'}</td><td>${n.url ? `<a class="rd-link" href="${esc(n.url)}" target="_blank" rel="noopener noreferrer">${esc(n.title)}</a>` : esc(n.title)}</td><td>${esc(n.src)}</td></tr>`).join('')}</tbody></table>` : PE_NONE;
   return `<div class="ipo-detail">${peDhead(x, x.biz)}
-    <div class="ipo-pane"><div class="ipo-stack">
+    <div class="ipo-pane"><div class="ipo-stack">${fqBox(x.key, x, '중복상장')}
       <div class="ipo-two-col">
         <div class="ipo-stack">${peBox('딜 현황', deal)}</div>
         <div class="ipo-stack">${peBox('모회사', par)}${peFinBox(x.fin, '', x.finSrc)}</div>
