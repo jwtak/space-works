@@ -1097,6 +1097,7 @@ async function mailOpenCompose({ mode, id, box }) {
     sig = await mailLoadSig();
   } finally { m.opening = false; }
   // 보낸 사람 사서함: 답장·전달·초안은 원래 메일의 사서함, 새 메일은 보고 있던 사서함(contact@ 폴더에서 쓰면 contact@)
+  if ((box || mailBoxOf(m.folder)) === 'contact') sig = ''; // contact@ 메일은 서명 없이(사용자 11/12)
   const c = { mode, src: id, box: box || mailBoxOf(m.folder), loading: mode !== 'new', draftId: null, auto: false, saved: false, kept: false, to: '', cc: '', bcc: '', subject: '', text: '', html: '', quote: '', existing: [], files: [], busy: false,
     plain: false, important: false, receipt: false, each: false, sched: null, sigOn: !!sig && mode !== 'draft' };
   if (mode !== 'draft') c.html = `<div><br></div><div><br></div>${sig ? mailSigBlock(sig) : ''}`;
@@ -1285,7 +1286,7 @@ function mailDrawCompose() {
     if (c.draftId || c.busy || c.sending) return; // 초안이 생긴 뒤엔 그 사서함에 묶인다
     const k = await mailMenu(fb, fromOpts.map((o) => ({ k: o.box, label: o.label })));
     if (!k || k === c.box || c.draftId || ui.mail.compose !== c) return;
-    c.box = k; mailEdited(c); mailDrawCompose();
+    c.box = k; mailApplyOptions(c, { sched: c.sched, important: c.important, receipt: c.receipt, plain: c.plain, sigOn: k !== 'contact' && !!ui.mail.sig }); // contact@로 바꾸면 서명 뺌
   });
   $('#mail-opt').addEventListener('click', (e) => { commit(); mailOptions(e.currentTarget); });
   f.querySelectorAll('[data-book]').forEach((b) => b.addEventListener('click', (e) => { e.preventDefault(); mailBook(b.closest('.mail-field').querySelector('.mail-tok')); }));
