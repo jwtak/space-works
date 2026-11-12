@@ -42,7 +42,7 @@ svg.i.lg { width: 22px; height: 22px; }
 /* ---------- 셸 ---------- */
 .app { display: grid; grid-template-columns: 248px 1fr; height: 100vh; }
 .side { background: var(--card); border-right: 1px solid var(--line); display: flex; flex-direction: column; overflow-y: auto; }
-.brand { height: 64px; display: flex; color: var(--ink); text-decoration: none; flex-direction: column; justify-content: center; align-items: flex-start; padding: 0 26px; border-bottom: 1px solid var(--line); }
+.brand { flex: none; height: 64px; display: flex; color: var(--ink); text-decoration: none; flex-direction: column; justify-content: center; align-items: flex-start; padding: 0 26px; border-bottom: 1px solid var(--line); }
 .brand b { font-weight: 800; font-size: 26px; letter-spacing: 0.386em; margin-right: -0.386em; line-height: 28px; white-space: nowrap; }
 .brand span { margin-top: 3px; font-weight: 600; font-size: 12px; letter-spacing: 1.111em; margin-right: -1.111em; line-height: 14px; color: var(--text2); white-space: nowrap; }
 .nav { padding: 8px 12px 16px; }
@@ -304,6 +304,8 @@ textarea.area { min-height: 120px; padding: 10px 12px; border: 1px solid var(--l
 }
 @media (max-width: 1180px) {
   .app { grid-template-columns: 220px 1fr; }
+  .brand b { letter-spacing: 0.232em; margin-right: -0.232em; } /* 사이드바 220px: 로고 두 줄을 안쪽 폭(168px)에 맞춤 */
+  .brand span { letter-spacing: 0.852em; margin-right: -0.852em; }
   .home, .split { grid-template-columns: minmax(0, 1fr); }
   .page { padding: 24px 24px 40px; }
   .todo { grid-template-columns: 24px minmax(0, 1fr) 96px 32px; }
