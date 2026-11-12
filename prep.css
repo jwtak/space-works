@@ -45,6 +45,18 @@
 .pr-own { height: 32px; font-size: 13px; padding: 0 8px; width: 120px; flex: none; }
 .pr-own.none { color: var(--text3); }
 .pr-own.me { color: var(--primary); border-color: var(--primary); font-weight: 600; }
+.pr-madd { display: inline-flex; align-items: center; gap: 2px; height: 22px; padding: 0 6px 0 4px; border: 0; border-radius: 6px; background: none; color: var(--text3); font-size: 12px; cursor: pointer; opacity: 0; }
+.pr-madd svg.i { width: 14px; height: 14px; }
+tr:hover .pr-madd, li:hover .pr-madd, .pr-madd:focus-visible { opacity: 1; }
+.pr-madd:hover { background: var(--primary-soft); color: var(--primary); }
+.pr-memo { display: block; width: 100%; text-align: left; margin-top: 6px; padding: 6px 10px; border: 0; border-radius: 8px; background: #FFF8EC; cursor: pointer; font-size: 13px; line-height: 19px; }
+.pr-memo:hover { background: #FCEFD6; }
+.pr-mt { white-space: pre-wrap; word-break: break-word; color: var(--ink); }
+.pr-mw { margin-left: 8px; font-size: 12px; color: var(--text3); white-space: nowrap; }
+.pr-medit { margin-top: 6px; }
+.pr-medit textarea { width: 100%; min-height: 56px; resize: vertical; padding: 8px 10px; border: 1px solid var(--primary); border-radius: 8px; font-size: 13px; line-height: 19px; outline: none; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+.pr-mbtns { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+.pr-mbtns span { margin-right: auto; font-size: 12px; color: var(--text3); }
 .pr-src { font-size: 12px; color: var(--text3); margin: 4px 2px 0; }
 
 @media (max-width: 760px) {
@@ -59,4 +71,6 @@
   .pr-co .pr-doc { flex-basis: calc(100% - 40px); }
   .pr-own { margin-left: 40px; }
   .pr-src { margin: 12px 16px 0; }
+  .pr-madd { opacity: 1; }
+  .pr-mbtns span { display: none; }
 }

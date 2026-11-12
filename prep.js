@@ -2,11 +2,12 @@
    목록과 체크 상태는 팀 파일함 '_웍스/준비서류.json' 하나를 세 사람이 같이 쓴다(누구나 체크, 누가 언제 했는지 남김).
    { lists: { corp|fss: { title, event, date, src, folder, personFolders?, people[], roles{}, owners[],
        sections[{ title, kind: 'people'|'company', note, items[{ id, title, detail, due, na?[사람], owner? }] }] } },
-     state: { <항목 id>: 사람 서류면 { <사람>: { s: 'todo'|'done'|'na', by, at } }, 회사 서류면 { owner, s, by, at } } }
+     state: { <항목 id>: 사람 서류면 { <사람>: { s: 'todo'|'done'|'na', by, at } }, 회사 서류면 { owner, s, by, at } },
+     memos: { <항목 id>: { t, by, at } } }  — 서류 줄마다 메모 하나(누구나 쓰고 고친다, 비우면 지움)
    서류 목록은 공개 저장소에 두지 않으려고 코드에 없다 — 목록을 바꿀 땐 그 파일을 고친다.
    저장은 할 일 맡기기(app.js ttSave)처럼 eTag로 충돌을 막고, 겹치면 다시 읽어 다시 적용한다 */
 const PR_PATH = '_웍스/준비서류.json';
-const PR = { d: null, etag: null, loaded: false, at: 0, gen: 0, busy: 0, q: Promise.resolve(), err: '' };
+const PR = { d: null, etag: null, loaded: false, at: 0, gen: 0, busy: 0, q: Promise.resolve(), err: '', edit: null, draft: '' }; // edit: 메모를 쓰고 있는 항목 id
 const prUrl = () => `/drives/${CFG.teamDrive}/root:/${PR_PATH.split('/').map(encodeURIComponent).join('/')}:`;
 const prOn = () => ['corp', 'fss'].includes(route());
 
@@ -19,7 +20,7 @@ async function prLoad(inSave) {
     d = JSON.parse((await G.get(`${prUrl()}/content`, { type: 'text' })) || '{}'); etag = meta.eTag;
   } catch (e) { if (e.status !== 404) throw e; } // 404 = 아직 목록 파일이 없음
   if (inSave !== true && (g !== PR.gen || PR.busy)) return false;
-  PR.d = d && typeof d === 'object' ? d : {}; PR.d.lists ||= {}; PR.d.state ||= {};
+  PR.d = d && typeof d === 'object' ? d : {}; PR.d.lists ||= {}; PR.d.state ||= {}; PR.d.memos ||= {};
   PR.etag = etag; PR.loaded = true; PR.at = Date.now(); PR.err = '';
   return true;
 }
@@ -29,7 +30,7 @@ async function prSave(fn) {
     if (!PR.loaded) await prLoad(true);
     for (let i = 0; i < 4; i++) {
       if (i) await prLoad(true);
-      fn(PR.d.state);
+      fn(PR.d);
       try {
         const r = await G.put(`${prUrl()}/content${PR.etag ? '' : '?@microsoft.graph.conflictBehavior=fail'}`, JSON.stringify(PR.d, null, 1),
           { headers: { 'Content-Type': 'application/json', ...(PR.etag ? { 'If-Match': PR.etag } : {}) } });
@@ -42,15 +43,16 @@ async function prSave(fn) {
 }
 // 화면에 먼저 적용하고 저장은 줄을 세운다. 실패하면 다시 읽어 저장 안 된 변경을 걷어낸다. fn은 여러 번 적용돼도 같은 결과여야 한다
 function prAct(fn) {
-  fn(PR.d.state); PR.busy++; PR.gen++; prDraw();
+  fn(PR.d); PR.busy++; PR.gen++; prDraw();
   PR.q = PR.q.then(async () => {
     let redraw = false;
     try { redraw = await prSave(fn); } catch (e) { toast(e.message); PR.loaded = false; await prLoad(true).catch(() => {}); redraw = true; }
     finally { PR.busy--; }
-    if (redraw && prOn() && !document.activeElement?.matches('select')) prDraw();
+    if (redraw && prOn() && !prTyping()) prDraw();
   });
 }
 
+const prTyping = () => !!PR.edit || !!document.activeElement?.matches('select');
 const prMe = () => personName(G.account?.username);
 const prStamp = () => ({ by: (G.account?.username || '').toLowerCase(), at: new Date().toISOString() });
 const prMD = (s) => { const d = parse(s); return `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`; };
@@ -59,6 +61,13 @@ const prFolder = (p) => `#files/${p.split('/').map(encodeURIComponent).join('/')
 // 사람 서류 한 칸의 상태: 기록이 없으면 그 사람이 해당 없음(na) 목록에 있는지로 정한다
 const prCell = (it, p) => PR.d.state[it.id]?.[p] || { s: (it.na || []).includes(p) ? 'na' : 'todo' };
 const prCo = (it) => ({ owner: it.owner || '', s: 'todo', ...(PR.d.state[it.id] || {}) });
+function prMemo(it) {
+  if (PR.edit === it.id) return `<div class="pr-medit"><textarea class="area" data-mtext rows="2" maxlength="500" placeholder="예: 11/12 하임에 원본 요청함, 다음 주 수령">${esc(PR.draft)}</textarea>
+    <div class="pr-mbtns"><span>Ctrl+Enter 저장, 비우고 저장하면 지움</span><button type="button" class="btn sm ghost" data-mcancel>취소</button><button type="button" class="btn sm primary" data-msave="${esc(it.id)}">저장</button></div></div>`;
+  const m = PR.d.memos[it.id];
+  return m?.t ? `<button type="button" class="pr-memo" data-medit="${esc(it.id)}" title="눌러서 고치기"><span class="pr-mt">${esc(m.t)}</span><span class="pr-mw">${esc(personName(m.by))} ${prWhen(m.at)}</span></button>` : '';
+}
+const prMemoBtn = (it) => (PR.edit === it.id || PR.d.memos[it.id]?.t ? '' : `<button type="button" class="pr-madd" data-medit="${esc(it.id)}">${ico('plus', 'sm')}메모</button>`);
 const PR_NEXT = { todo: 'done', done: 'na', na: 'todo' };
 const PR_LABEL = { todo: '미준비', done: '준비됨', na: '해당 없음' };
 
@@ -106,7 +115,7 @@ function prDraw() {
         <div class="pr-scroll"><table class="pr-tbl">
           <thead><tr><th class="pr-doc">서류</th>${L.people.map((p) => `<th class="${p === me ? 'me' : ''}">${esc(p)}</th>`).join('')}</tr></thead>
           <tbody>${sec.items.map((it) => `<tr>
-            <td class="pr-doc"><div class="pr-t">${esc(it.title)}${prDue(it.due, L.people.every((p) => prCell(it, p).s !== 'todo'))}</div>${it.detail ? `<div class="pr-det">${esc(it.detail)}</div>` : ''}</td>
+            <td class="pr-doc"><div class="pr-t">${esc(it.title)}${prDue(it.due, L.people.every((p) => prCell(it, p).s !== 'todo'))}${prMemoBtn(it)}</div>${it.detail ? `<div class="pr-det">${esc(it.detail)}</div>` : ''}${prMemo(it)}</td>
             ${L.people.map((p) => { const c = prCell(it, p);
               return `<td class="${p === me ? 'me' : ''}"><button type="button" class="pr-cell s-${c.s}" data-id="${esc(it.id)}" data-p="${esc(p)}" aria-label="${esc(`${p} ${it.title}: ${PR_LABEL[c.s]}`)}"
                 title="${esc(`${p}: ${PR_LABEL[c.s]}${c.by ? ` (${personName(c.by)} ${prWhen(c.at)})` : ''} · 누르면 ${PR_LABEL[PR_NEXT[c.s]]}`)}">${c.s === 'done' ? ico('done', 'sm') : c.s === 'na' ? '–' : ''}</button></td>`; }).join('')}
@@ -121,7 +130,7 @@ function prDraw() {
         return `<li class="${c.s === 'done' ? 'done' : ''}">
           <button type="button" class="pr-cell s-${c.s === 'done' ? 'done' : 'todo'}" data-co="${esc(it.id)}" aria-label="${esc(`${it.title}: ${c.s === 'done' ? '준비됨' : '미준비'}`)}"
             title="${esc(c.s === 'done' && c.by ? `준비됨 (${personName(c.by)} ${prWhen(c.at)})` : '누르면 준비됨')}">${c.s === 'done' ? ico('done', 'sm') : ''}</button>
-          <div class="pr-doc"><div class="pr-t">${esc(it.title)}${prDue(it.due, c.s === 'done')}</div>${it.detail ? `<div class="pr-det">${esc(it.detail)}</div>` : ''}</div>
+          <div class="pr-doc"><div class="pr-t">${esc(it.title)}${prDue(it.due, c.s === 'done')}${prMemoBtn(it)}</div>${it.detail ? `<div class="pr-det">${esc(it.detail)}</div>` : ''}${prMemo(it)}</div>
           <select class="select pr-own ${c.owner ? '' : 'none'} ${c.owner && c.owner === me ? 'me' : ''}" data-own="${esc(it.id)}" aria-label="담당">
             <option value="">담당 미정</option>${opts.map((o) => `<option ${o === c.owner ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
         </li>`; }).join('')}</ul>
@@ -136,21 +145,41 @@ function prDraw() {
   root.querySelectorAll('[data-p]').forEach((b) => b.addEventListener('click', () => {
     const id = b.dataset.id, p = b.dataset.p, it = L.sections.flatMap((s) => s.items).find((x) => x.id === id); if (!it) return;
     const to = PR_NEXT[prCell(it, p).s], st = { s: to, ...prStamp() };
-    prAct((S0) => { (S0[id] ||= {})[p] = st; });
+    prAct((d) => { (d.state[id] ||= {})[p] = st; });
   }));
   root.querySelectorAll('[data-co]').forEach((b) => b.addEventListener('click', () => {
     const id = b.dataset.co, it = L.sections.flatMap((s) => s.items).find((x) => x.id === id); if (!it) return;
     const to = prCo(it).s === 'done' ? 'todo' : 'done', st = { s: to, ...prStamp() };
-    prAct((S0) => { S0[id] = { owner: it.owner || '', ...(S0[id] || {}), ...st }; });
+    prAct((d) => { d.state[id] = { owner: it.owner || '', ...(d.state[id] || {}), ...st }; });
   }));
   root.querySelectorAll('[data-own]').forEach((sel) => sel.addEventListener('change', () => {
     const id = sel.dataset.own, it = L.sections.flatMap((s) => s.items).find((x) => x.id === id); if (!it) return;
     const owner = sel.value;
-    prAct((S0) => { S0[id] = { s: 'todo', ...(S0[id] || {}), owner }; });
+    prAct((d) => { d.state[id] = { s: 'todo', ...(d.state[id] || {}), owner }; });
   }));
+  root.querySelectorAll('[data-medit]').forEach((b) => b.addEventListener('click', () => {
+    if (PR.edit && PR.draft.trim() !== (PR.d.memos[PR.edit]?.t || '') && !confirm('쓰던 메모를 버리고 다른 메모를 열까요?')) return;
+    PR.edit = b.dataset.medit; PR.draft = PR.d.memos[PR.edit]?.t || ''; prDraw();
+    const ta = $('[data-mtext]', root); ta?.focus(); ta?.setSelectionRange(ta.value.length, ta.value.length);
+  }));
+  const ta = $('[data-mtext]', root);
+  if (ta) {
+    ta.addEventListener('input', () => { PR.draft = ta.value; });
+    ta.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); $('[data-msave]', root)?.click(); }
+      if (e.key === 'Escape') { e.preventDefault(); $('[data-mcancel]', root)?.click(); }
+    });
+  }
+  $('[data-mcancel]', root)?.addEventListener('click', () => { PR.edit = null; PR.draft = ''; prDraw(); });
+  $('[data-msave]', root)?.addEventListener('click', (e) => {
+    const id = e.currentTarget.dataset.msave, t = PR.draft.trim(), m = t ? { t, ...prStamp() } : null;
+    PR.edit = null; PR.draft = '';
+    if (t === (PR.d.memos[id]?.t || '')) { prDraw(); return; }
+    prAct((d) => { if (m) d.memos[id] = m; else delete d.memos[id]; });
+  });
 }
 // 다른 창에서 돌아오면 다른 분이 바꾼 체크를 다시 읽는다
 window.addEventListener('focus', () => {
-  if (!prOn() || PR.busy || Date.now() - PR.at < 5000 || document.activeElement?.matches('select')) return;
+  if (!prOn() || PR.busy || Date.now() - PR.at < 5000 || prTyping()) return;
   prLoad().then((ok) => { if (ok && prOn()) prDraw(); }).catch(() => {});
 });
