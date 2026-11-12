@@ -1108,9 +1108,12 @@ async function mailOpenCompose({ mode, id, box }) {
   try {
     if (mode === 'reply' || mode === 'replyAll' || mode === 'forward') {
       const fn = { reply: 'createReply', replyAll: 'createReplyAll', forward: 'createForward' }[mode];
-      const d = await G.post(`${mailMsgP(id, c.box)}/${fn}`, {});
+      // Outlook은 'Re: 제목'에 답장해도 'RE: 제목'으로 접는다. 답장은 원래 제목 앞에 RE:를 하나 더 붙여 몇 번째 답장인지 보이게(사용자 11/12)
+      const [d, orig] = await Promise.all([G.post(`${mailMsgP(id, c.box)}/${fn}`, {}),
+        mode === 'forward' ? null : G.get(`${mailMsgP(id, c.box)}?$select=subject`).catch(() => null)]);
       if (m.compose !== c) { G.del(mailMsgP(d.id, c.box)).catch(() => {}); return; } // 만드는 사이 쓰기를 닫았으면 남은 초안을 지운다
-      Object.assign(c, { draftId: d.id, auto: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(d.ccRecipients), subject: d.subject || '', quote: mailQuoteWrap(d.body?.content || '') });
+      const subj = orig?.subject?.trim() ? `RE: ${orig.subject.trim()}` : d.subject || '';
+      Object.assign(c, { draftId: d.id, auto: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(d.ccRecipients), subject: subj, quote: mailQuoteWrap(d.body?.content || '') });
       viewSet('mail.autoDraft', { id: d.id, box: c.box }); // 저장·보내기·닫기 전 F5면 지울 초안(pagehide)
       MS.acquireTokenSilent({ scopes: CFG.scopes, account: G.account }).then((r) => { c.tok = r.accessToken; }).catch(() => {});
     } else if (mode === 'draft') {
