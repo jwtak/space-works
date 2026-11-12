@@ -1395,13 +1395,45 @@ async function openNote(name) {
       if (!c.dirty && !c.conflict) { const d = new Date(), st = cur === c && $('#nst'); if (st) st.textContent = `저장됨 ${pad(d.getHours())}:${pad(d.getMinutes())}`; toast('저장했습니다'); }
     };
     ed.querySelector('#note-save').onclick = saveNow;
-    ta.addEventListener('keydown', (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveNow(); } });
+    ta.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') { e.preventDefault(); saveNow(); return; }
+      if (e.isComposing || e.keyCode === 229 || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === 'Tab') { e.preventDefault(); noteIndent(ta, e.shiftKey); }
+      else if (e.key === 'Enter' && !e.shiftKey) noteEnter(ta, e);
+    });
     ta.addEventListener('input', () => {
       c.text = ta.value; c.dirty = true; c.gen++;
       const st = $('#nst'); if (st && !c.conflict) st.textContent = '입력 중…';
       clearTimeout(noteTimer); if (!c.conflict) noteTimer = setTimeout(flushNote, 800); else noteDraftSet(c);
     });
   } catch (e) { if (tok === noteTok) ed.innerHTML = `<div class="empty" style="margin:auto">${esc(e.message)}</div>`; }
+}
+
+// 업무일지 들여쓰기: Tab=고른 줄(없으면 지금 줄)을 한 단계 안으로, Shift+Tab=한 단계 밖으로.
+// 고친 부분만 insertText로 바꿔 Ctrl+Z가 되고 input 이벤트로 자동 저장도 그대로 돈다.
+function noteReplace(ta, from, to, text, selStart, selEnd) {
+  ta.focus(); ta.setSelectionRange(from, to);
+  if (!document.execCommand('insertText', false, text)) { ta.setRangeText(text, from, to); ta.dispatchEvent(new Event('input')); }
+  ta.setSelectionRange(selStart, selEnd);
+}
+function noteIndent(ta, out) {
+  const v = ta.value, s = ta.selectionStart, e0 = ta.selectionEnd;
+  const e = e0 > s && v[e0 - 1] === '\n' ? e0 - 1 : e0; // 다음 줄 맨 앞까지 고른 경우 그 줄은 빼기
+  const a = v.lastIndexOf('\n', s - 1) + 1, z = v.indexOf('\n', e) < 0 ? v.length : v.indexOf('\n', e);
+  const lines = v.slice(a, z).split('\n');
+  const cut = (l) => (l[0] === '\t' ? 1 : (l.match(/^ {1,4}/) || [''])[0].length);
+  const next = lines.map((l) => (out ? l.slice(cut(l)) : '\t' + l));
+  if (out && next.every((l, i) => l === lines[i])) return;
+  const d0 = out ? -Math.min(cut(lines[0]), s - a) : 1, dAll = next.join('\n').length - (z - a);
+  noteReplace(ta, a, z, next.join('\n'), Math.max(a, s + d0), Math.max(a, e0 + dAll));
+}
+function noteEnter(ta, e) {
+  const v = ta.value, s = ta.selectionStart, a = v.lastIndexOf('\n', s - 1) + 1;
+  const ind = v.slice(a, s).match(/^[\t ]*/)[0];
+  if (!ind) return; // 들여쓰지 않은 줄은 원래대로
+  e.preventDefault();
+  const p = s + 1 + ind.length;
+  noteReplace(ta, s, ta.selectionEnd, '\n' + ind, p, p);
 }
 
 async function flushNote() {
