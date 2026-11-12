@@ -321,7 +321,7 @@ const OUTLOOK = {
   },
   // cal: 그 일정이 있는 캘린더('team' | 'me'). 목록 일정의 e.cal을 넘긴다
   async detail(id, cal) { // 수정 창에 채울 내용·중요·알림·반복
-    return G.get(`${OUTLOOK.evUrl(id, cal)}?$select=body,importance,isReminderOn,reminderMinutesBeforeStart,recurrence,type,attendees`, { headers: { Prefer: 'outlook.timezone="Korea Standard Time", outlook.body-content-type="text"' } });
+    return G.get(`${OUTLOOK.evUrl(id, cal)}?$select=body,importance,isReminderOn,reminderMinutesBeforeStart,recurrence,type,attendees,hasAttachments`, { headers: { Prefer: 'outlook.timezone="Korea Standard Time", outlook.body-content-type="text"' } });
   },
   async checkEditable(id, cal) {
     const e = await G.get(`${OUTLOOK.evUrl(id, cal)}?$select=isOrganizer,attendees`);
@@ -335,6 +335,15 @@ const OUTLOOK = {
   },
   async update(id, b, cal) { await OUTLOOK.checkEditable(id, cal); return OUTLOOK.teamTry(cal, () => G.patch(OUTLOOK.evUrl(id, cal), OUTLOOK.body(b), { headers: G.KST })); },
   async remove(id, cal) { await OUTLOOK.checkEditable(id, cal); return OUTLOOK.teamTry(cal, () => G.del(OUTLOOK.evUrl(id, cal))); },
+  // 다른 캘린더로 옮기기: Graph에 옮기기가 없어 새 캘린더에 만들고 원래 것을 지운다(만들기가 실패하면 원래 것은 그대로)
+  async move(id, b, from) {
+    await OUTLOOK.checkEditable(id, from);
+    await OUTLOOK.create(b);
+    try { await OUTLOOK.teamTry(from, () => G.del(OUTLOOK.evUrl(id, from))); } catch (e) {
+      const err = new Error(`옮긴 캘린더에 추가했지만 원래 일정을 지우지 못했습니다. 원래 일정을 지워 주세요 (${e.message})`);
+      err.moved = true; throw err;
+    }
+  },
   async removeMeeting(id, cal) { // 내가 연 회의는 참석자에게 취소 알림을 보내며 지우고, 받은 초대는 내 캘린더에서만 지운다
     const p = OUTLOOK.evUrl(id, cal);
     const e = await G.get(`${p}?$select=isOrganizer`);

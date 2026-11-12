@@ -887,7 +887,7 @@ async function openEventModalInner(id, events, onDone, date, pre) {
   const p = e ? {} : pre || {};
   let det = {};
   if (e) { try { det = await OUTLOOK.detail(id, e.cal); } catch { /* 내용 없이도 연다 */ } }
-  else await OUTLOOK.calendarIds().catch(() => {}); // 팀 캘린더를 고를 수 있는지(teamWritable) 먼저 확인 — 새 일정 기본은 팀 캘린더
+  await OUTLOOK.calendarIds().catch(() => {}); // 팀 캘린더를 고를 수 있는지(teamWritable) 먼저 확인 — 새 일정 기본은 팀 캘린더
   const now = new Date(); now.setMinutes(0, 0, 0); now.setHours(Math.min(Math.max(now.getHours() + 1, 9), 22));
   const day = date || ui.selDay || today();
   const sd = e ? e.start.slice(0, 10) : day;
@@ -899,11 +899,14 @@ async function openEventModalInner(id, events, onDone, date, pre) {
   const remNow = !e ? '15' : det.isReminderOn === false ? '' : String(det.reminderMinutesBeforeStart ?? 15);
   const noteNow = (det.body?.content || '').trim();
   const opts = (list, cur) => list.map(([v, t]) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${t}</option>`).join('');
+  // 있던 일정도 캘린더를 바꿀 수 있다(새로 만들고 원래 것 삭제). 반복 일정·첨부·Teams 회의는 옮기면 빠지는 게 있어 Outlook에서
+  const canMove = !e || (!series && !det.hasAttachments && !e.join && OUTLOOK.teamWritable);
+  const calNow = e ? e.cal : OUTLOOK.teamWritable ? 'team' : 'me';
   openSheet(`<h3>${e ? '일정 수정' : '일정 추가'}</h3>
     <form class="ev-form" id="evf" autocomplete="off">
-      <div class="r"><label>캘린더</label><div>${e
+      <div class="r"><label>캘린더</label><div>${!canMove
         ? `<span class="cal-tag c-${e.cal}"><i class="cdot"></i>${e.cal === 'team' ? '유니버스인베스트먼트' : '내 일정'}</span>`
-        : `<div class="cal-pick">${CALS.slice(0, 2).filter((c) => c.key !== 'team' || OUTLOOK.teamWritable).map((c, i) => `<label class="c-${c.key}"><input type="radio" name="calendar" value="${c.key}" ${i === 0 ? 'checked' : ''}><i class="cdot"></i>${c.name}<span class="muted">${c.sub}</span></label>`).join('')}</div>`}</div></div>
+        : `<div class="cal-pick">${CALS.slice(0, 2).filter((c) => c.key !== 'team' || OUTLOOK.teamWritable).map((c) => `<label class="c-${c.key}"><input type="radio" name="calendar" value="${c.key}" ${c.key === calNow ? 'checked' : ''}><i class="cdot"></i>${c.name}<span class="muted">${c.sub}</span></label>`).join('')}</div>`}</div></div>
       <div class="r"><label>담당자</label><div class="cal-pick owner-pick">${PEOPLE.map((p) => `<label><input type="checkbox" name="owner" value="${p}" ${(e ? evOwners(e) : PEOPLE.filter((x) => myName().includes(x))).includes(p) ? 'checked' : ''}>${p}</label>`).join('')}</div></div>
       <div class="r"><label for="ev-subj">제목</label><div class="line"><input class="input grow" id="ev-subj" name="subject" value="${esc(e?.subject || p.subject || '')}" placeholder="제목을 입력하세요."><label class="ck"><input type="checkbox" class="check" name="important" ${det.importance === 'high' ? 'checked' : ''}>중요</label></div></div>
       <div class="r"><label>일시</label><div>
@@ -929,17 +932,22 @@ async function openEventModalInner(id, events, onDone, date, pre) {
     f.addEventListener('submit', async (ev) => {
       ev.preventDefault();
       const v = Object.fromEntries(new FormData(f));
-      const body = { subject: v.subject, startDate: fixYmd(v.startDate), endDate: fixYmd(v.endDate), startTime: v.startTime, endTime: v.endTime, allDay: allDay.checked, location: v.location, calendar: v.calendar || 'team', important: !!v.important, reminder: v.reminder };
-      if ((v.note || '').trim() !== noteNow) body.note = v.note;
+      const body = { subject: v.subject, startDate: fixYmd(v.startDate), endDate: fixYmd(v.endDate), startTime: v.startTime, endTime: v.endTime, allDay: allDay.checked, location: v.location, calendar: v.calendar || (e ? e.cal : 'team'), important: !!v.important, reminder: v.reminder };
+      const moving = !!e && body.calendar !== e.cal;
+      if (moving || (v.note || '').trim() !== noteNow) body.note = v.note; // 옮길 땐 새로 만드니 내용도 그대로 넣는다
       body.categories = [...(e?.categories || []).filter((c) => !PEOPLE.includes(c)), ...new FormData(f).getAll('owner')];
-      if (!series && v.repeat && v.repeat !== repNow) body.repeat = v.repeat;
+      if (!series && v.repeat && (moving || v.repeat !== repNow)) body.repeat = v.repeat;
       save.disabled = true;
       try {
-        await (id ? OUTLOOK.update(id, body, e.cal) : OUTLOOK.create(body));
+        await (moving ? OUTLOOK.move(id, body, e.cal) : id ? OUTLOOK.update(id, body, e.cal) : OUTLOOK.create(body));
         close(); ui.selDay = body.startDate;
-        toast(id ? 'Outlook 일정을 고쳤습니다' : body.calendar === 'team' ? '유니버스인베스트먼트 캘린더에 추가했습니다' : '내 일정에 추가했습니다');
+        const calName = body.calendar === 'team' ? '유니버스인베스트먼트 캘린더' : '내 일정';
+        toast(moving ? `${calName}${body.calendar === 'team' ? '로' : '으로'} 옮겼습니다` : id ? 'Outlook 일정을 고쳤습니다' : `${calName}에 추가했습니다`);
         onDone?.();
-      } catch (err) { save.disabled = false; toast(err.message); }
+      } catch (err) {
+        if (err.moved) { close(); onDone?.(); } else save.disabled = false; // 새 캘린더엔 이미 들어갔으니 다시 저장하지 않게
+        toast(err.message);
+      }
     });
   }, 'wide');
 }
