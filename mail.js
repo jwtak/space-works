@@ -384,6 +384,14 @@ function mailSyncLayers() { // 앱 안 버튼(목록·취소·보내기·삭제)
     }, () => { m.composeOff = null; });
   }
 }
+// 메일 화면에서 왼쪽·하단 '메일' 메뉴를 다시 누르면: 받은편지함 목록으로 돌아가 새로 읽는다(사용자 11/12). 쓰던 메일은 닫을지 먼저 묻는다
+async function mailHome() {
+  const m = ui.mail; if (!m) return;
+  if (m.compose && !(await mailLeaveCompose())) return;
+  mailFolderSet(m, 'inbox'); m.sel = null; m.msg = null; m.q = ''; m.view = 'list'; m.scroll = 0;
+  const q = $('#mail-q'); if (q) q.value = '';
+  mailDrawShell(); mailDrawFolders(); mailDrawPane(); mailLoadCounts(); mailLoadList();
+}
 function mailBackToList() {
   const m = ui.mail;
   m.view = 'list'; mailDrawShell();

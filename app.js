@@ -311,6 +311,12 @@ function render() {
   segFit(PAGE.querySelector('.deal-seg')); // 딜소싱·시장동향 탭 줄
 }
 window.addEventListener('hashchange', render);
+// 보고 있는 메뉴를 다시 누르면 주소가 같아 hashchange가 안 온다: 메일은 받은편지함으로 돌아가 새로 읽는다
+document.addEventListener('click', (e) => {
+  const a = e.target.closest('a[data-r="mail"]');
+  if (!a || e.ctrlKey || e.metaKey || e.shiftKey || route() !== 'mail' || typeof mailHome !== 'function') return;
+  e.preventDefault(); mailHome();
+});
 
 /* 뒤로 가기: 화면 안에서 한 겹(창·패널·메일 읽기·상세) 열 때마다 기록을 하나 쌓고, 뒤로 가면 맨 위 한 겹만 닫는다.
    앱 안 버튼으로 닫은 겹의 기록은 지우지 않는다(history.go를 섞으면 메뉴 이동과 꼬인다). 대신 뒤로 갈 때 건너뛴다. */
