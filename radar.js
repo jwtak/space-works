@@ -563,7 +563,7 @@ function rdDhead(tab, x, sum, extra = '') {
       ${sum ? `<p class="ipo-sum1">${esc(sum)}</p>` : '<p></p>'}
       <div class="ipo-acts"${x.guess ? ' title="분류가 끝난 뒤 남길 수 있습니다"' : ''}><div class="seg ipo-seg">${RD_STATUS.map((s) => `<button type="button" class="${s === st ? 'on' : ''}" aria-pressed="${s === st}" data-rd-st="${s}"${off}>${s}</button>`).join('')}</div>
         <input class="input ipo-note" data-rd-note placeholder="메모" maxlength="300" value="${esc(m?.note || '')}" aria-label="메모"${off}>
-        <span class="ipo-by">${esc(rdByText(m))}</span>${extra}</div>${rdPipe(tab, x)}
+        <span class="ipo-by">${esc(rdByText(m))}</span>${extra}${x.guess ? '' : fqHead(key, x)}</div>${rdPipe(tab, x)}
     </div>`;
 }
 

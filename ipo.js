@@ -319,7 +319,7 @@ function ipoDetail(x) {
       ${x.summary ? `<p class="ipo-sum1">${esc(x.summary)}</p>` : '<p></p>'}
       <div class="ipo-acts"><div class="seg ipo-seg">${IPO_STATUS.map((s) => `<button type="button" class="${s === st ? 'on' : ''}" data-ipo-st="${s}">${s}</button>`).join('')}</div>
         <input class="input ipo-note" data-ipo-note placeholder="메모" maxlength="300" value="${esc(m?.note || '')}" aria-label="메모">
-        ${m?.at ? `<span class="ipo-by">${esc(m.by || '')} ${esc(ipoMd(m.at.slice(0, 10)))} ${esc(m.at.slice(11, 16))}</span>` : ''}</div>${ipoPipe(x)}
+        ${m?.at ? `<span class="ipo-by">${esc(m.by || '')} ${esc(ipoMd(m.at.slice(0, 10)))} ${esc(m.at.slice(11, 16))}</span>` : ''}${fqHead(`ipo:${x.code}`, x)}</div>${ipoPipe(x)}
     </div>
     ${fqBox(`ipo:${x.code}`, x, '신규상장')}<div class="ipo-tabs" role="tablist">${tabs}</div>
     <div class="ipo-pane">${ipoPane(x, tab)}</div>

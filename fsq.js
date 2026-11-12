@@ -5,11 +5,13 @@
    결과: data/fs.json {generated, slots, items{key → 팩트시트}, fail{key → {at, n, err}}} — PC 딜레이더 fs_req.py가 하루 두 번(slots) 만든다(읽기 공유).
    형식: 딜레이더\CONTRACT_fs.md. 내용 그리기는 radar.js rdFsN·rdFsGroup, 원래 화면 이동은 pipeline.js PP_TABS·ppGoTab.
    진입: fqBox(ref, x, label) — 펼친 칸에 넣을 HTML(x = 그 행 자료, 요청 때 조사 단서로 보낸다). 팩트시트 탭 '요청한 회사': fqList()·fqCount().
+   요청 버튼은 펼친 칸 머리(컨택 상태 줄)에 둔다(2026-11-12 사용자 "너무 안 보여"): 머리를 그릴 때 fqHead(ref)를 넣고, 같은 펼친 칸에서 그 뒤에 fqBox(ref)를 부른다.
+   그러면 팩트시트 칸에는 버튼 없이 상태·내용만 나온다. fqHead 없이 부른 fqBox(팩트시트 탭 목록 등)는 예전처럼 칸 안에 버튼.
    버튼 클릭은 document에서 받는다(각 탭 클릭 처리는 펼친 칸 안 클릭을 건너뛴다). */
 
 const FQ_TTL = 5 * 60000;
 const FQ_TRIES = 3; // fs_req.py TRIES와 같게: 이만큼 실패하면 다시 요청할 때까지 멈춘다
-const fqS = { req: [], ver: null, out: null, at: 0, loading: null, err: '', saving: Promise.resolve(), ctx: new Map(), open: new Set(viewGet('fq.open', [])) };
+const fqS = { req: [], ver: null, out: null, at: 0, loading: null, err: '', saving: Promise.resolve(), ctx: new Map(), open: new Set(viewGet('fq.open', [])), head: new Set() };
 
 const fqNow = () => { const d = new Date(); return `${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const fqWhen = (s) => (s ? `${md(s.slice(0, 10))} ${s.slice(11, 16)}`.trim() : '');
@@ -77,16 +79,30 @@ function fqBox(ref, x, label) {
   if (!ref || !x) return '';
   fqS.ctx.set(ref, { name: x.name || '', label: label || '', legacy: x.fs && typeof x.fs === 'object' ? x.fs : null, hint: () => fqHint(x) });
   if (!fqS.at && !fqS.loading) fqLoad();
-  return `<div class="fq-box" data-fq="${esc(ref)}">${fqInner(ref)}</div>`;
+  const head = fqS.head.delete(ref); // 바로 앞 머리에 요청 버튼을 넣었으면 칸에는 버튼을 빼고 그린다
+  return `<div class="fq-box" data-fq="${esc(ref)}"${head ? ' data-fq-head="1"' : ''}>${fqInner(ref, '', head)}</div>`;
+}
+
+// 펼친 칸 머리(컨택 상태 줄)에 넣는 요청 버튼. 눌린 상태 = 요청됨(다시 누르면 취소)
+function fqHead(ref, x) {
+  if (!ref) return '';
+  fqS.head.add(ref);
+  return `<span class="fq-slot" data-fq="${esc(ref)}">${fqSlotInner(ref, x?.fs && typeof x.fs === 'object' ? x.fs : undefined)}</span>`;
+}
+function fqSlotInner(ref, legacy = fqS.ctx.get(ref)?.legacy) {
+  if (!fqS.at || fqS.err) return '';
+  const { fs, wait, failed } = fqState(ref, legacy);
+  return wait && !failed ? fqBtn('팩트시트 요청', true) : fqBtn(fs || failed ? '팩트시트 다시 요청' : '팩트시트 요청');
 }
 
 function fqBtn(label, on) {
   return `<button type="button" class="btn sm rd-fs${on ? ' on' : ''}" data-fq-req aria-pressed="${!!on}">${on ? ico('done', 'sm') : ''}${label}</button>`;
 }
 
-function fqInner(ref, nameLink = '') {
+// head = 요청 버튼이 머리에 있다: 버튼을 빼고, 알릴 상태도 내용도 없으면 칸을 비운다(.fq-box:empty는 숨김)
+function fqInner(ref, nameLink = '', head = false) {
   const c = fqS.ctx.get(ref) || {};
-  if (!fqS.at) return `<div class="fq-bar"><span class="fq-t">팩트시트</span><span class="muted">불러오는 중…</span></div>`;
+  if (!fqS.at) return head ? '' : `<div class="fq-bar"><span class="fq-t">팩트시트</span><span class="muted">불러오는 중…</span></div>`;
   if (fqS.err) return `<div class="fq-bar"><span class="fq-t">팩트시트</span><span class="muted">${esc(fqS.err)}</span></div>`;
   const { fs, r, wait, failed, f } = fqState(ref, c.legacy);
   const who = r ? [r.by, fqWhen(r.at)].filter(Boolean).join(' ') : '';
@@ -95,13 +111,15 @@ function fqInner(ref, nameLink = '') {
   else if (wait) { msg = `${fs ? '다시 요청됨' : '요청됨'} ${esc(who)} · ${fqNext()} 처리`; btn = fqBtn('요청 취소', true); }
   else if (fs) { msg = `작성 ${esc(fs.made || '')}${fs.src && nameLink ? ` · ${esc(fs.src)}` : ''}`; btn = fqBtn('다시 요청'); }
   else { msg = ''; btn = fqBtn('팩트시트 요청'); }
+  if (head) { if (!msg && !fs) return ''; btn = ''; }
   const bar = `<div class="fq-bar"><span class="fq-t">팩트시트</span>${msg ? `<span class="muted">${msg}</span>` : ''}${nameLink}${btn}</div>`;
   return fs && typeof rdFsGroup === 'function' ? `${bar}${rdFsGroup(rdFsN(fs), false)}` : bar;
 }
 
-// 화면에 있는 팩트시트 칸을 다시 그린다(ref가 있으면 그것만)
+// 화면에 있는 팩트시트 칸·머리 버튼을 다시 그린다(ref가 있으면 그것만)
 function fqPaint(ref) {
-  document.querySelectorAll('.fq-box[data-fq]').forEach((b) => { if (!ref || b.dataset.fq === ref) b.innerHTML = fqInner(b.dataset.fq); });
+  document.querySelectorAll('.fq-box[data-fq]').forEach((b) => { if (!ref || b.dataset.fq === ref) b.innerHTML = fqInner(b.dataset.fq, '', b.dataset.fqHead === '1'); });
+  document.querySelectorAll('.fq-slot[data-fq]').forEach((s) => { if (!ref || s.dataset.fq === ref) s.innerHTML = fqSlotInner(s.dataset.fq); });
   document.querySelectorAll('.fq-list').forEach((l) => { l.innerHTML = fqListBody(); });
   document.querySelectorAll('[data-fq-count]').forEach((s) => { s.textContent = fqCount(); });
 }

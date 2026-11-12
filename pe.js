@@ -365,7 +365,7 @@ function peDhead(x, sum) {
       ${sum ? `<p class="ipo-sum1">${esc(sum)}</p>` : '<p></p>'}
       <div class="ipo-acts"><div class="seg ipo-seg">${PE_STATUS.map((s) => `<button type="button" class="${s === st ? 'on' : ''}" aria-pressed="${s === st}" data-pe-st="${s}">${s}</button>`).join('')}</div>
         <input class="input ipo-note" data-pe-note placeholder="메모" maxlength="300" value="${esc(m?.note || '')}" aria-label="메모">
-        <span class="ipo-by">${esc(peByText(m))}</span></div>${pePipe(x)}
+        <span class="ipo-by">${esc(peByText(m))}</span>${fqHead(x.key, x)}</div>${pePipe(x)}
     </div>`;
 }
 
