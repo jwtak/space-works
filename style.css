@@ -687,7 +687,7 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 @media (max-width: 760px) { .hp-seg { display: none; } .hp-card { height: calc(100dvh - 200px); border-radius: 0; } .hp-card.m .hp-frame { width: 100%; border: 0; } }
 
 /* 딜소싱 행사·IR / 신규상장 전환: 회색 트랙 위 흰 알약 */
-.deal-seg { display: inline-flex; gap: 4px; padding: 4px; margin: 0 0 16px; background: #E9EDF3; border-radius: 12px; }
+.deal-seg { display: inline-flex; gap: 4px; padding: 4px; margin: 0 0 24px; background: #E9EDF3; border-radius: 12px; }
 .deal-seg button { display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 22px; border: 0; border-radius: 9px; background: none; color: var(--text2); font-size: 16px; font-weight: 600; cursor: pointer; transition: background .15s, color .15s, box-shadow .15s; }
 .deal-seg button:hover:not(.on) { color: var(--ink); background: rgba(255, 255, 255, .55); }
 .deal-seg button.on { background: var(--card); color: var(--primary); font-weight: 700; box-shadow: 0 1px 3px rgba(15, 23, 42, .12), 0 1px 1px rgba(15, 23, 42, .04); }
