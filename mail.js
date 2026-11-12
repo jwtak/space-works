@@ -310,7 +310,7 @@ async function renderMail() {
   PAGE.querySelectorAll('[data-ref]').forEach((b) => b.addEventListener('click', () => { mailLoadCounts(); mailLoadList(); }));
   $('#mail-sf').addEventListener('submit', (e) => { e.preventDefault(); m.q = $('#mail-q').value.trim(); m.sel = null; m.msg = null; mailViewSave(); mailLoadList(); });
   $('#mail-q').addEventListener('search', () => { if (!$('#mail-q').value) { m.q = ''; mailViewSave(); mailLoadList(); } });
-  $('#mail-filter').addEventListener('change', (e) => { m.filter = e.target.value; mailViewSave(); mailLoadList(); });
+  $('#mail-filter').addEventListener('change', (e) => { m.filter = e.target.value; mailViewSave(); mailDrawFolders(); mailLoadList(); });
   PAGE.querySelectorAll('[data-scope]').forEach((b) => b.addEventListener('click', () => {
     const all = b.dataset.scope === '1'; if (all === m.qAll) return;
     m.qAll = all; m.sel = null; m.msg = null; mailViewSave(); mailLoadList();
@@ -388,8 +388,9 @@ function mailSyncLayers() { // 앱 안 버튼(목록·취소·보내기·삭제)
 async function mailHome() {
   const m = ui.mail; if (!m) return;
   if (m.compose && !(await mailLeaveCompose())) return;
-  mailFolderSet(m, 'inbox'); m.sel = null; m.msg = null; m.q = ''; m.view = 'list'; m.scroll = 0;
+  mailFolderSet(m, 'inbox'); m.sel = null; m.msg = null; m.q = ''; m.view = 'list'; m.scroll = 0; m.filter = 'all';
   const q = $('#mail-q'); if (q) q.value = '';
+  const flt = $('#mail-filter'); if (flt) flt.value = 'all';
   mailDrawShell(); mailDrawFolders(); mailDrawPane(); mailLoadCounts(); mailLoadList();
 }
 function mailBackToList() {
@@ -417,18 +418,23 @@ function mailDrawFolders() {
   const m = ui.mail;
   if (m.counts.inbox && typeof setMailCnt === 'function') setMailCnt(m.counts.inbox.unread);
   const nav = $('#mail-fnav'); if (!nav) return;
+  const unreadView = m.folder === 'inbox' && m.filter === 'unread';
   const btn = (key, name, icon, depth) => {
     const c = m.counts[key], n = mailFid(key) === 'drafts' ? c?.total : c?.unread;
-    return `<button type="button" class="mail-f${depth ? ' sub' : ''} ${m.folder === key && !m.compose ? 'on' : ''}" data-f="${esc(key)}">${icon}<span class="mail-fn">${mailBoxOf(key) === 'contact' ? '<span class="mail-fpre">contact@ </span>' : ''}${esc(name)}</span>${n ? `<span class="mail-fc">${n}</span>` : ''}</button>`;
+    return `<button type="button" class="mail-f${depth ? ' sub' : ''} ${m.folder === key && !m.compose && !(key === 'inbox' && unreadView) ? 'on' : ''}" data-f="${esc(key)}">${icon}<span class="mail-fn">${mailBoxOf(key) === 'contact' ? '<span class="mail-fpre">contact@ </span>' : ''}${esc(name)}</span>${n ? `<span class="mail-fc">${n}</span>` : ''}</button>`;
   };
+  // 받은편지함 바로 아래 '안 읽은 메일' = 받은편지함 + 보기 '안 읽은 메일'(사용자 11/12)
+  const unreadBtn = `<button type="button" class="mail-f sub ${unreadView && !m.compose ? 'on' : ''}" data-f="inbox" data-flt="unread">${mi('env', 'sm')}<span class="mail-fn">안 읽은 메일</span></button>`;
   const tree = m.tree || [];
-  nav.innerHTML = MAIL_FOLDERS.map((f) => btn(f.id, f.name, ico(f.icon, 'sm'))).join('')
+  nav.innerHTML = MAIL_FOLDERS.map((f) => btn(f.id, f.name, ico(f.icon, 'sm')) + (f.id === 'inbox' ? unreadBtn : '')).join('')
     + (tree.length ? `<div class="mail-fsep" role="separator"></div>${tree.map((f) => btn(f.id, f.name, mi('folder', 'sm'), f.depth)).join('')}` : '')
     + (m.sharedOk ? `<div class="mail-fgrp" role="separator" title="${MAIL_SHARED}">contact@</div>${MAIL_SHARED_FOLDERS.map((f) => btn(f.id, f.name, ico(f.icon, 'sm'))).join('')}` : '');
   nav.querySelectorAll('[data-f]').forEach((b) => b.addEventListener('click', async () => {
     if (m.compose && !(await mailLeaveCompose())) return;
     mailFolderSet(m, b.dataset.f); m.sel = null; m.msg = null; m.q = ''; m.view = 'list'; m.scroll = 0;
+    if (b.dataset.flt) m.filter = b.dataset.flt; else if (b.dataset.f === 'inbox' && m.filter === 'unread') m.filter = 'all';
     const q = $('#mail-q'); if (q) q.value = '';
+    const flt = $('#mail-filter'); if (flt) flt.value = m.filter;
     mailDrawShell(); mailDrawFolders(); mailDrawPane(); mailLoadList();
   }));
   mailDrawCount(); mailDrawTitle();

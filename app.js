@@ -216,6 +216,7 @@ async function mailNotify() {
     if (top > mailSeen) mailSeen = top;
     if (!fresh.length) return;
     mailUnread();
+    if (route() === 'mail' && ui.mail) mailLoadCounts(); // 폴더 옆 안 읽은 수·'0 / 74'도 같이(목록만 새로 읽어 숫자가 남던 것)
     if (route() === 'mail' && ui.mail?.folder === 'inbox' && !ui.mail.q && ui.mail.view !== 'read' && !ui.mail.compose) mailLoadList();
     for (const x of fresh) {
       const who = x.from?.emailAddress?.name || x.from?.emailAddress?.address || '';
