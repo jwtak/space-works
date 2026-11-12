@@ -1,12 +1,14 @@
 /* SPACE WORKS — 회사 계정 로그인(MSAL)과 Microsoft Graph 호출, 회사 OneDrive 데이터 저장소
    회사(spaceinve.com) 계정이면 누구나 로그인하고, 할 일·기록·메일·일정은 각자 계정 안의 것만 본다.
+   단, 팀 회의록·팀 할 일(맡기기)은 팀 파일함, 팀 캘린더는 owner 보조 캘린더에 세 사람이 같이 쓴다(2026-11-12).
    딜소싱 수집 자료(events.json·ipo.json)만 만든 사람(owner) OneDrive에서 읽기 전용 공유로 읽는다. 서버는 거치지 않는다. */
 const CFG = {
   clientId: '2c67e04d-64be-427a-a651-4fbc5f7bdb22',
   authority: 'https://login.microsoftonline.com/7ab0e21f-beca-4d6d-8954-f7decc63ceb3',
   tenantId: '7ab0e21f-beca-4d6d-8954-f7decc63ceb3',
   // .Shared = 공유받은 팀 캘린더 읽기, Files.ReadWrite.All = 공유받은 딜소싱 자료 읽기·같이 쓰는 표시 저장
-  scopes: ['User.Read', 'Calendars.ReadWrite', 'Calendars.ReadWrite.Shared', 'Mail.ReadWrite', 'Mail.Send', 'Files.ReadWrite', 'Files.ReadWrite.All', 'People.Read'],
+  // Mail.*.Shared = contact@ 공유 사서함 읽기·보내기(2026-11-12, 회사 전체 동의에 이미 있음)
+  scopes: ['User.Read', 'Calendars.ReadWrite', 'Calendars.ReadWrite.Shared', 'Mail.ReadWrite', 'Mail.Send', 'Mail.ReadWrite.Shared', 'Mail.Send.Shared', 'Files.ReadWrite', 'Files.ReadWrite.All', 'People.Read'],
   owner: 'jw.tak@universeinvest.co.kr', // 수집 자료·팀 캘린더 주인
   shared: { // owner OneDrive의 딜소싱 파일. 수집 목록은 읽기 공유, ☆·연락 상태·메모는 세 사람이 같이 쓰도록 편집 공유
     drive: 'b!AOIm8WyRCEaHEz8d3nPj0QdQF2d_uLpKsXlm4s6pxDjlwjQDNFTyT7sRaG1Hqr9v',
@@ -147,7 +149,9 @@ const G = {
 const STORE = {
   // owner가 아니면 공유받은 딜소싱 파일은 owner OneDrive의 그 파일로(같이 쓰는 표시도 같은 파일에 저장)
   sharedItem: (rel) => (!G.isOwner && CFG.shared.files[rel] ? `/drives/${CFG.shared.drive}/items/${CFG.shared.files[rel]}` : null),
-  path: (rel) => `/me/drive/root:/${[CFG.root, ...rel.split('/')].map(encodeURIComponent).join('/')}`,
+  // '팀/'으로 시작하면 팀 파일함 맨 위부터(팀 회의록), 아니면 내 OneDrive의 SPACE WORKS 아래
+  path: (rel) => (rel.startsWith('팀/') ? `/drives/${CFG.teamDrive}/root:/${rel.slice(2).split('/').map(encodeURIComponent).join('/')}`
+    : `/me/drive/root:/${[CFG.root, ...rel.split('/')].map(encodeURIComponent).join('/')}`),
 
   async meta(rel) {
     try { return await G.get(`${STORE.sharedItem(rel) || STORE.path(rel)}?$select=id,name,eTag,lastModifiedDateTime,size`); }
@@ -188,17 +192,21 @@ const STORE = {
     return STORE.writeText(`data/${name}.json`, JSON.stringify(items, null, 2), version, 'application/json; charset=utf-8');
   },
 
-  async listNotes(prev = []) {
+  listNotes: (prev = []) => STORE.notesIn('업무일지', '/me/drive', '', prev),
+  // 팀 회의록: 팀 파일함 맨 위 '회의록' 폴더(공용 폴더에서도 보인다). 이름 앞에 '팀/'을 붙여 내 기록과 구분한다
+  listTeamNotes: (prev = []) => STORE.notesIn(`팀/${STORE.TEAM_NOTES}`, `/drives/${CFG.teamDrive}`, '팀/', prev).then((a) => a.map((n) => ({ ...n, team: true }))),
+  TEAM_NOTES: '회의록',
+  async notesIn(dir, drive, prefix, prev) {
     let kids = [];
     try {
-      let url = `${STORE.path('업무일지')}:/children?$select=id,name,eTag,lastModifiedDateTime,size&$top=200`;
+      let url = `${STORE.path(dir)}:/children?$select=id,name,eTag,lastModifiedDateTime,size&$top=200`;
       while (url) { const j = await G.get(url); kids.push(...j.value); url = j['@odata.nextLink'] || null; }
     } catch (e) { if (e.status !== 404) throw e; }
     const files = kids.filter((k) => /\.(txt|md)$/i.test(k.name) && !k.name.startsWith('~$'));
     const known = new Map(prev.map((n) => [n.name, n]));
-    const previews = await Promise.all(files.map((f) => (known.get(f.name)?.version === f.eTag ? Promise.resolve(known.get(f.name).preview)
-      : G.get(`/me/drive/items/${f.id}/content`, { type: 'text' }).then((t) => t.slice(0, 400)).catch(() => ''))));
-    return files.map((f, i) => ({ name: f.name, id: f.id, version: f.eTag, mtime: Date.parse(f.lastModifiedDateTime) / 1000, preview: previews[i] }))
+    const previews = await Promise.all(files.map((f) => (known.get(prefix + f.name)?.version === f.eTag ? Promise.resolve(known.get(prefix + f.name).preview)
+      : G.get(`${drive}/items/${f.id}/content`, { type: 'text' }).then((t) => t.slice(0, 400)).catch(() => ''))));
+    return files.map((f, i) => ({ name: prefix + f.name, id: f.id, version: f.eTag, mtime: Date.parse(f.lastModifiedDateTime) / 1000, preview: previews[i] }))
       .sort((a, b) => b.mtime - a.mtime);
   },
   async readNote(name) {
@@ -208,12 +216,25 @@ const STORE = {
   async writeNote(name, text, version) {
     return STORE.writeText(`업무일지/${name}`, text.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n'), version);
   },
+  // name = '팀/파일명'
+  async readTeamNote(name) {
+    const r = await STORE.readText(`팀/${STORE.TEAM_NOTES}/${name.slice(2)}`);
+    return { name, text: r.text.replace(/\r\n/g, '\n'), version: r.version };
+  },
+  async writeTeamNote(name, text, version) {
+    if (!version) await STORE.teamNoteDir();
+    return STORE.writeText(`팀/${STORE.TEAM_NOTES}/${name.slice(2)}`, text.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n'), version);
+  },
+  teamNoteDir() { // 처음 만들 때 한 번: 폴더가 없으면 만든다(이미 있으면 409)
+    return (STORE.tnd ||= G.post(`/drives/${CFG.teamDrive}/root/children`, { name: STORE.TEAM_NOTES, folder: {}, '@microsoft.graph.conflictBehavior': 'fail' })
+      .catch((e) => { if (e.status !== 409) { STORE.tnd = null; throw e; } }));
+  },
 };
 
-/* ---------- 캘린더: 기본(내 일정) + 팀 캘린더(owner의 '스페이스인베스트먼트', 대표님께 공유) ---------- */
+/* ---------- 캘린더: 기본(내 일정) + 팀 캘린더(owner의 '유니버스인베스트먼트', 대표님께 편집 공유) ---------- */
 const OUTLOOK = {
   ids: null, idsP: null,
-  teamWritable: false, // owner만 팀 캘린더에 추가·수정(다른 사람은 보기만) — calendarIds()가 정한다
+  teamWritable: false, // 팀 캘린더를 열 수 있으면 누구나 추가·수정(2026-11-12 대표님 편집 권한). 권한이 없으면 쓸 때 403 — calendarIds()가 정한다
   /* 반환: { me: 캘린더 경로, team: 캘린더 경로 } — calendarView·events는 이 경로 뒤에 붙인다 */
   calendarIds() {
     if (OUTLOOK.ids) return Promise.resolve(OUTLOOK.ids);
@@ -226,13 +247,22 @@ const OUTLOOK = {
       if (c.isDefaultCalendar) ids.me = `/me/calendars/${c.id}`;
       else if (G.isOwner && [CFG.teamCalendar, '스페이스인베스트먼트'].includes(c.name.trim())) ids.team = `/me/calendars/${c.id}`;
     }
-    OUTLOOK.teamWritable = G.isOwner;
-    if (!G.isOwner) { // 공유받은 캘린더는 주인 사서함 쪽 경로로 읽는다(Outlook에 추가했는지와 무관)
+    if (!G.isOwner) { // 공유받은 캘린더는 주인 사서함 쪽 경로로 읽고 쓴다(Outlook에 추가했는지와 무관)
       const p = `/users/${CFG.owner}/calendars/${CFG.teamCalendarId}`;
       try { await G.get(`${p}?$select=id`); ids.team = p; } catch (e) { if (![403, 404].includes(e.status)) temporary = true; /* 403·404 = 공유 안 됨: 내 일정만 */ }
     }
+    OUTLOOK.teamWritable = !!ids.team;
     if (!temporary) OUTLOOK.ids = ids; // 네트워크 오류 한 번으로 팀 캘린더가 계속 빠지지 않게
     return ids;
+  },
+  // 일정 하나의 주소: 대표님이 팀 캘린더 일정을 고칠 때는 owner 사서함 쪽
+  evUrl: (id, cal) => `${cal === 'team' && !G.isOwner ? `/users/${CFG.owner}` : '/me'}/events/${encodeURIComponent(id)}`,
+  // 팀 캘린더에 쓰다 403이면 권한 안내로 바꾼다(개인 캘린더로 대신 넣지 않는다)
+  async teamTry(cal, fn) {
+    try { return await fn(); } catch (e) {
+      if (cal === 'team' && e.status === 403) { const err = new Error('팀 캘린더 편집 권한이 아직 없습니다'); err.status = 403; throw err; }
+      throw e;
+    }
   },
   async events(start, end) {
     const sel = 'id,subject,start,end,isAllDay,location,onlineMeeting,organizer,isOrganizer,attendees,webLink,isCancelled,bodyPreview,categories';
@@ -289,23 +319,25 @@ const OUTLOOK = {
     }
     return out;
   },
-  async detail(id) { // 수정 창에 채울 내용·중요·알림·반복
-    return G.get(`/me/events/${encodeURIComponent(id)}?$select=body,importance,isReminderOn,reminderMinutesBeforeStart,recurrence,type,attendees`, { headers: { Prefer: 'outlook.timezone="Korea Standard Time", outlook.body-content-type="text"' } });
+  // cal: 그 일정이 있는 캘린더('team' | 'me'). 목록 일정의 e.cal을 넘긴다
+  async detail(id, cal) { // 수정 창에 채울 내용·중요·알림·반복
+    return G.get(`${OUTLOOK.evUrl(id, cal)}?$select=body,importance,isReminderOn,reminderMinutesBeforeStart,recurrence,type,attendees`, { headers: { Prefer: 'outlook.timezone="Korea Standard Time", outlook.body-content-type="text"' } });
   },
-  async checkEditable(id) {
-    const e = await G.get(`/me/events/${encodeURIComponent(id)}?$select=isOrganizer,attendees`);
+  async checkEditable(id, cal) {
+    const e = await G.get(`${OUTLOOK.evUrl(id, cal)}?$select=isOrganizer,attendees`);
     if (!e.isOrganizer || (e.attendees || []).length) throw new Error('참석자가 있는 회의·받은 초대는 Outlook에서 수정하세요');
   },
   async create(b) {
     const ids = await OUTLOOK.calendarIds();
-    const cid = (b.calendar === 'team' && OUTLOOK.teamWritable ? ids.team : ids.me) || ids.me;
-    return G.post(`${cid}/events`, OUTLOOK.body(b), { headers: G.KST });
+    const cal = b.calendar === 'team' ? 'team' : 'me', cid = ids[cal];
+    if (!cid) throw new Error(cal === 'team' ? '팀 캘린더를 열 수 없습니다. 잠시 후 다시 해 주세요' : '내 캘린더를 열 수 없습니다');
+    return OUTLOOK.teamTry(cal, () => G.post(`${cid}/events`, OUTLOOK.body(b), { headers: G.KST }));
   },
-  async update(id, b) { await OUTLOOK.checkEditable(id); return G.patch(`/me/events/${encodeURIComponent(id)}`, OUTLOOK.body(b), { headers: G.KST }); },
-  async remove(id) { await OUTLOOK.checkEditable(id); return G.del(`/me/events/${encodeURIComponent(id)}`); },
-  async removeMeeting(id) { // 내가 연 회의는 참석자에게 취소 알림을 보내며 지우고, 받은 초대는 내 캘린더에서만 지운다
-    const p = `/me/events/${encodeURIComponent(id)}`;
+  async update(id, b, cal) { await OUTLOOK.checkEditable(id, cal); return OUTLOOK.teamTry(cal, () => G.patch(OUTLOOK.evUrl(id, cal), OUTLOOK.body(b), { headers: G.KST })); },
+  async remove(id, cal) { await OUTLOOK.checkEditable(id, cal); return OUTLOOK.teamTry(cal, () => G.del(OUTLOOK.evUrl(id, cal))); },
+  async removeMeeting(id, cal) { // 내가 연 회의는 참석자에게 취소 알림을 보내며 지우고, 받은 초대는 내 캘린더에서만 지운다
+    const p = OUTLOOK.evUrl(id, cal);
     const e = await G.get(`${p}?$select=isOrganizer`);
-    return e.isOrganizer ? G.post(`${p}/cancel`, { comment: '' }) : G.del(p);
+    return OUTLOOK.teamTry(cal, () => (e.isOrganizer ? G.post(`${p}/cancel`, { comment: '' }) : G.del(p)));
   },
 };

@@ -66,10 +66,14 @@ function toast(msg) {
 }
 
 async function load() {
-  const [todos, programs, milestones, brief, notes] = await Promise.all([
+  const prevN = S?.notes || [], prevT = prevN.filter((n) => n.team);
+  const [todos, programs, milestones, brief, mine, team] = await Promise.all([
     STORE.readJSON('todos'), STORE.readJSON('programs'), STORE.readJSON('milestones'),
-    STORE.readText('data/briefing.md'), STORE.listNotes(S?.notes || []),
+    STORE.readText('data/briefing.md'), STORE.listNotes(prevN.filter((n) => !n.team)),
+    STORE.listTeamNotes(prevT).catch(() => prevT), // 팀 회의록을 못 읽어도 내 기록은 보인다
+    ttLoad().catch(() => false), // 팀 할 일도 같이(못 읽으면 지난 것 그대로)
   ]);
+  const notes = [...mine, ...team].sort((a, b) => b.mtime - a.mtime);
   const me = S?.me || await G.get('/me?$select=displayName,jobTitle,department').catch(() => ({}));
   S = { todos, programs, milestones, briefing: { text: brief.text, mtime: brief.mtime }, notes, me, auth: { connected: true, upn: G.account.username } };
   meChrome();
@@ -119,7 +123,73 @@ function save(coll) {
   })().finally(() => { q.p = null; });
   return q.p;
 }
-const saving = () => Object.values(SAVING).some((q) => q.p);
+const saving = () => Object.values(SAVING).some((q) => q.p) || TT.busy > 0;
+
+/* ---------- 팀 할 일(맡기기, 2026-11-12): 팀 파일함 '_웍스/할일.json' 하나를 세 사람이 같이 쓴다 ----------
+   항목 { id, title, due, cat, memo, assignee, by, at, done, doneAt } — assignee·by는 이메일.
+   내 목록 = 내 OneDrive todos.json + 나에게 맡겨진 팀 할 일. '맡긴 일' 탭 = 내가 남에게 맡긴 것.
+   저장은 요청사항(feedback.js)처럼 eTag로 충돌을 막고, 겹치면 다시 읽어 다시 적용한다 — 바꾸는 함수는 여러 번 적용돼도 같은 결과여야 한다 */
+const PEOPLE_MAIL = { 탁지원: 'jw.tak@universeinvest.co.kr', 유선열: 'sunyeul.yu@universeinvest.co.kr', 배청준: 'chungjun.bae@universeinvest.co.kr' };
+const mailId = (s) => String(s || '').toLowerCase().split('@')[0]; // 옛 주소(@spaceinve.com)도 같은 사람
+const isMe = (email) => !!email && mailId(email) === mailId(G.account?.username);
+const personName = (email) => Object.keys(PEOPLE_MAIL).find((n) => mailId(PEOPLE_MAIL[n]) === mailId(email)) || mailId(email);
+const TT_PATH = '_웍스/할일.json';
+const TT = { items: [], etag: null, loaded: false, gen: 0, busy: 0, q: Promise.resolve() };
+const ttUrl = () => `/drives/${CFG.teamDrive}/root:/${TT_PATH.split('/').map(encodeURIComponent).join('/')}:`;
+const isTT = (t) => TT.items.includes(t);
+const ttCan = (t) => isMe(t.assignee) || isMe(t.by); // 완료·수정·삭제는 담당자와 만든 사람만
+const ttGiven = () => TT.items.filter((t) => isMe(t.by) && !isMe(t.assignee));
+const todoAll = () => [...S.todos.items, ...TT.items.filter((t) => isMe(t.assignee))];
+const todoFind = (id) => S.todos.items.find((x) => x.id === id) || TT.items.find((x) => x.id === id && ttCan(x));
+const tMemo = (t) => (isTT(t) ? t.memo : t.note) || '';
+const ttWho = (t) => (isTT(t) ? `<span class="tt-who">${esc(`${isMe(t.by) ? '나' : personName(t.by)} → ${isMe(t.assignee) ? '나' : personName(t.assignee)}`)}</span>` : '');
+const whoOpts = () => Object.entries(PEOPLE_MAIL).filter(([, m]) => !isMe(m));
+
+// inSave: ttSave 안에서 부를 때. 밖에서 부른 읽기는 저장 중이거나 그사이 저장이 있었으면 버린다(false)
+async function ttLoad(inSave) {
+  const g = TT.gen;
+  let items = [], etag = null;
+  try {
+    const meta = await G.get(`${ttUrl()}?$select=eTag`);
+    const d = JSON.parse((await G.get(`${ttUrl()}/content`, { type: 'text' })) || '{}');
+    items = Array.isArray(d.items) ? d.items.filter((x) => x && typeof x === 'object' && x.id) : []; etag = meta.eTag;
+  } catch (e) { if (e.status !== 404) throw e; } // 404 = 아직 아무도 안 맡김
+  if (inSave !== true && (g !== TT.gen || TT.busy)) return false;
+  TT.items = items; TT.etag = etag; TT.loaded = true;
+  return true;
+}
+// 다른 사람이 먼저 저장했으면(412·409) 다시 읽고 다시 적용. 다시 읽었으면 true(남이 바꾼 것도 화면에 반영)
+async function ttSave(fn) {
+  TT.gen++;
+  try {
+    if (!TT.loaded) await ttLoad(true); // 처음 읽기가 실패했으면 먼저 읽는다(빈 목록으로 남의 할 일을 덮지 않게)
+    for (let i = 0; i < 4; i++) {
+      if (i) await ttLoad(true);
+      fn(TT.items);
+      try {
+        const r = await G.put(`${ttUrl()}/content${TT.etag ? '' : '?@microsoft.graph.conflictBehavior=fail'}`, JSON.stringify({ items: TT.items }, null, 1),
+          { headers: { 'Content-Type': 'application/json', ...(TT.etag ? { 'If-Match': TT.etag } : {}) } });
+        TT.etag = r?.eTag || null;
+        return i > 0;
+      } catch (e) { if (![409, 412].includes(e.status)) throw e; }
+    }
+    throw new Error('다른 사람이 동시에 고치고 있습니다. 잠시 후 다시 해 주세요');
+  } finally { TT.gen++; }
+}
+// 화면에 먼저 적용하고 저장은 줄을 세운다. 실패하면 다시 읽어 저장 안 된 변경을 걷어낸다
+function ttAct(fn, msg) {
+  fn(TT.items); TT.busy++; TT.gen++; counts();
+  return (TT.q = TT.q.then(async () => {
+    let redraw = false;
+    try { redraw = await ttSave(fn); if (msg) toast(msg); } catch (e) { toast(e.message); TT.loaded = false; await ttLoad(true).catch(() => {}); redraw = true; }
+    finally { TT.busy--; counts(); }
+    if (redraw && ['home', 'todos', 'calendar'].includes(route()) && !ui.todoEdit && !ui.calEdit && !document.activeElement?.matches('input,textarea,select')) render();
+  }));
+}
+const ttNew = (f) => ({ id: uid(), title: f.title, due: f.due || null, cat: f.cat, memo: f.memo || '', assignee: f.assignee, by: (G.account?.username || '').toLowerCase(), at: new Date().toISOString(), done: false, doneAt: null });
+const ttAdd = (item) => ttAct((items) => { if (!items.some((x) => x.id === item.id)) items.push(item); }, `${personName(item.assignee)}님께 맡겼습니다`);
+const ttSet = (id, f) => ttAct((items) => { const x = items.find((i) => i.id === id); if (x && ttCan(x)) Object.assign(x, f); });
+const ttDel = (id) => ttAct((items) => { for (let i = items.length - 1; i >= 0; i--) if (items[i].id === id && ttCan(items[i])) items.splice(i, 1); }, '삭제했습니다');
 
 // 왼쪽 메뉴 '메일' 옆 숫자 = 받은편지함 안 읽은 메일 (1분마다, 메일 화면에선 폴더 개수와 같이 갱신)
 function setMailCnt(n) {
@@ -169,9 +239,10 @@ async function mailGoto(id) {
 }
 
 function counts() {
-  const open = S.todos.items.filter((t) => !t.done).length;
+  const all = todoAll(); // 나에게 맡겨진 팀 할 일 포함
+  const open = all.filter((t) => !t.done).length;
   document.querySelectorAll('[data-cnt=todos]').forEach((el) => { el.textContent = open || ''; });
-  const urgent = S.todos.items.filter((t) => !t.done && t.due && t.due <= today()).length;
+  const urgent = all.filter((t) => !t.done && t.due && t.due <= today()).length;
   document.querySelectorAll('[data-badge=todos]').forEach((el) => { el.textContent = urgent || ''; });
   document.querySelectorAll('[data-cnt=programs]').forEach((el) => { el.textContent = S.programs.items.filter((p) => ['설계', '개발 중'].includes(p.status)).length || ''; });
 }
@@ -290,10 +361,11 @@ function dueInfo(t) {
   if (d === 1) return { cls: '', txt: '내일' };
   return { cls: '', txt: mdw(t.due) };
 }
-const sortTodos = (a, b) => (a.due || '9999').localeCompare(b.due || '9999') || a.created.localeCompare(b.created);
+const sortTodos = (a, b) => (a.due || '9999').localeCompare(b.due || '9999') || (a.created || a.at || '').localeCompare(b.created || b.at || '');
 
 function toggleTodo(id) {
-  const t = S.todos.items.find((x) => x.id === id); if (!t) return;
+  const t = todoFind(id); if (!t) return;
+  if (isTT(t)) { const to = !t.done; ttSet(id, { done: to, doneAt: to ? today() : null }); render(); return; }
   t.done = !t.done; t.doneAt = t.done ? today() : null;
   save('todos'); render();
 }
@@ -303,14 +375,14 @@ function greet(h) { return h < 6 ? '늦은 시간까지 수고 많으십니다' 
 
 function renderHome() {
   if (isMobile()) return renderHomeMobile();
-  const td = today(), d = new Date();
-  const open = S.todos.items.filter((t) => !t.done);
+  const td = today(), d = new Date(), all = todoAll();
+  const open = all.filter((t) => !t.done);
   const over = open.filter((t) => t.due && t.due < td).sort(sortTodos);
   const dueToday = open.filter((t) => t.due === td);
   const soon = open.filter((t) => t.due && t.due > td && diffDays(t.due, td) <= 7).sort(sortTodos);
   const weekEnd = ymd(addDays(weekStart(d), 6));
   const thisWeek = open.filter((t) => t.due && t.due >= td && t.due <= weekEnd);
-  const doneWeek = S.todos.items.filter((t) => t.done && t.doneAt && t.doneAt >= ymd(weekStart(d)));
+  const doneWeek = all.filter((t) => t.done && t.doneAt && t.doneAt >= ymd(weekStart(d)));
   const ms = S.milestones.items.filter((m) => m.date >= td).sort((x, y) => x.date.localeCompare(y.date)).slice(0, 2);
   const prog = S.programs.items.filter((p) => ['설계', '개발 중'].includes(p.status));
   const b = S.briefing, bt = b.mtime ? new Date(b.mtime * 1000) : null;
@@ -379,7 +451,7 @@ function renderHome() {
         <section class="card sec-notes">
           <div class="card-head"><h2>최근 기록</h2><a class="btn sm act" href="#notes">기록</a></div>
           <div class="card-body" style="padding-top:0"><ul class="list">${S.notes.slice(0, 4).map((n) => `
-            <li class="click" data-note="${esc(n.name)}"><div class="t"><div class="ttl">${esc(n.name.replace(/\.(txt|md)$/i, ''))}</div><div class="meta">${relTime(n.mtime)} 수정</div></div></li>`).join('') || '<div class="empty">기록이 없습니다.</div>'}</ul></div>
+            <li class="click" data-note="${esc(n.name)}"><div class="t"><div class="ttl">${noteTag(n.name)}${esc(noteTitle(n.name))}</div><div class="meta">${relTime(n.mtime)} 수정</div></div></li>`).join('') || '<div class="empty">기록이 없습니다.</div>'}</ul></div>
         </section>
         <section class="card sec-prog">
           <div class="card-head"><h2>진행 중 프로그램</h2><a class="btn sm act" href="#programs">전체</a></div>
@@ -402,7 +474,7 @@ function renderHome() {
 // ---------- 폰 첫 화면: 하이웍스 앱처럼 메뉴 모음 + 오늘 한 묶음 ----------
 function renderHomeMobile() {
   const td = today(), d = new Date();
-  const open = S.todos.items.filter((t) => !t.done);
+  const open = todoAll().filter((t) => !t.done);
   const over = open.filter((t) => t.due && t.due < td).sort(sortTodos);
   const dueToday = open.filter((t) => t.due === td);
   const ms = S.milestones.items.filter((m) => m.date >= td).sort((x, y) => x.date.localeCompare(y.date)).slice(0, 2);
@@ -431,7 +503,7 @@ function renderHomeMobile() {
       <div class="mh-head"><h2>오늘</h2></div>
       <ul class="mh-list" id="mh-ev"><li class="mh-empty">불러오는 중…</li></ul>
       ${over.length || dueToday.length ? `<div class="mh-sub">할 일</div><ul class="mh-list">${[...over, ...dueToday].slice(0, 5).map((t) => `
-        <li><input type="checkbox" class="check" data-toggle="${esc(t.id)}" aria-label="완료"><span class="mh-tt">${esc(t.title)}</span><span class="mh-due ${t.due < td ? 'red' : 'blue'}">${t.due < td ? `${diffDays(td, t.due)}일 지남` : '오늘'}</span></li>`).join('')}</ul>
+        <li><input type="checkbox" class="check" data-toggle="${esc(t.id)}" aria-label="완료"><span class="mh-tt">${esc(t.title)}${ttWho(t)}</span><span class="mh-due ${t.due < td ? 'red' : 'blue'}">${t.due < td ? `${diffDays(td, t.due)}일 지남` : '오늘'}</span></li>`).join('')}</ul>
         ${over.length + dueToday.length > 5 ? `<a class="mh-more" href="#todos">할 일 ${over.length + dueToday.length}건 모두 보기</a>` : ''}` : ''}
     </section>
   </div>`;
@@ -522,7 +594,7 @@ function homeTodoBlock(label, items) {
   if (!items.length) return '';
   return `<div class="sec-label">${label} ${items.length}</div><ul class="list">${items.map((t) => {
     const di = dueInfo(t);
-    return `<li><input type="checkbox" class="check" data-toggle="${esc(t.id)}" aria-label="완료"><div class="t"><div class="ttl">${esc(t.title)}</div>${t.note ? `<div class="meta">${esc(t.note)}</div>` : ''}</div>
+    return `<li><input type="checkbox" class="check" data-toggle="${esc(t.id)}" aria-label="완료"><div class="t"><div class="ttl">${esc(t.title)}${ttWho(t)}</div>${tMemo(t) ? `<div class="meta">${esc(tMemo(t))}</div>` : ''}</div>
       <span class="chip line">${esc(t.cat)}</span><span class="due-s ${di.cls}">${di.txt}</span></li>`;
   }).join('')}</ul>`;
 }
@@ -566,20 +638,28 @@ function mdRender(text) {
 ui.todoView = (() => { try { return localStorage.getItem('todoView') === 'due' ? 'due' : 'cat'; } catch { return 'cat'; } })();
 const DUE_GROUPS = [['기한 지남', (d) => d < 0], ['오늘', (d) => d === 0], ['7일 이내', (d) => d > 0 && d <= 7], ['그 뒤', (d) => d > 7], ['기한 없음', (d) => d === null]];
 function renderTodos() {
-  viewSet('todoTab', ui.todoTab);
-  const td = today(), all = S.todos.items;
+  const td = today(), all = todoAll();
   const tabs = {
     open: ['진행 중', all.filter((t) => !t.done)],
     today: ['오늘', all.filter((t) => !t.done && t.due === td)],
     over: ['기한 지남', all.filter((t) => !t.done && t.due && t.due < td)],
     done: ['완료', all.filter((t) => t.done)],
+    given: ['맡긴 일', ttGiven()], // 내가 남에게 맡긴 팀 할 일(완료 포함, 숫자는 남은 것만)
   };
+  if (!tabs[ui.todoTab]) ui.todoTab = 'open';
+  viewSet('todoTab', ui.todoTab);
   const [, items] = tabs[ui.todoTab];
+  const byDone = (a, b) => (b.doneAt || '').localeCompare(a.doneAt || '');
+  const grp = (h, g) => (g.length ? `<div class="todo-group"><h3>${h} <span class="muted" style="font-weight:500">${g.length}</span></h3>${g.map(todoRow).join('')}</div>` : '');
   let body;
   if (ui.todoTab === 'done') {
-    body = items.sort((a, b) => (b.doneAt || '').localeCompare(a.doneAt || '')).map(todoRow).join('');
+    body = items.sort(byDone).map(todoRow).join('');
+  } else if (ui.todoTab === 'given') { // 맡은 사람별로, 남은 것 먼저
+    body = [...new Set(items.map((t) => personName(t.assignee)))].map((n) => {
+      const g = items.filter((t) => personName(t.assignee) === n);
+      return grp(esc(n), [...g.filter((t) => !t.done).sort(sortTodos), ...g.filter((t) => t.done).sort(byDone)]);
+    }).join('');
   } else {
-    const grp = (h, g) => (g.length ? `<div class="todo-group"><h3>${h} <span class="muted" style="font-weight:500">${g.length}</span></h3>${g.map(todoRow).join('')}</div>` : '');
     body = ui.todoView === 'due'
       ? DUE_GROUPS.map(([h, f]) => grp(h, items.filter((t) => f(t.due ? diffDays(t.due, td) : null)).sort(sortTodos))).join('')
       : CATS.map((c) => grp(c, items.filter((t) => (t.cat || '기타') === c).sort(sortTodos))).join('');
@@ -589,12 +669,13 @@ function renderTodos() {
     <section class="card">
     <form class="addbar" id="addf">
       <input class="input grow" id="add-title" placeholder="할 일을 입력하고 Enter" autocomplete="off">
+      <select class="select" id="add-who" aria-label="담당" title="담당"><option value="">나</option>${whoOpts().map(([n, m]) => `<option value="${m}">${n}</option>`).join('')}</select>
       <select class="select" id="add-cat">${CATS.map((c) => `<option ${c === (ui.lastCat || '사무실 세팅') ? 'selected' : ''}>${c}</option>`).join('')}</select>
       <input class="input" type="date" id="add-due" style="width:150px">
       <button class="btn primary" type="submit">${ico('plus', 'sm')}추가</button>
     </form>
-    <div class="todo-bar"><div class="tabs">${Object.entries(tabs).map(([k, [lbl, arr]]) => `<button data-tab="${k}" class="${ui.todoTab === k ? 'on' : ''}">${lbl}<span class="n">${arr.length}</span></button>`).join('')}</div>
-      ${ui.todoTab === 'done' ? '' : `<div class="seg todo-view">${[['cat', '분류별'], ['due', '기한순']].map(([k, l]) => `<button type="button" data-view="${k}" class="${ui.todoView === k ? 'on' : ''}" aria-pressed="${ui.todoView === k}">${l}</button>`).join('')}</div>`}</div>
+    <div class="todo-bar"><div class="tabs">${Object.entries(tabs).map(([k, [lbl, arr]]) => `<button data-tab="${k}" class="${ui.todoTab === k ? 'on' : ''}">${lbl}<span class="n">${k === 'given' ? arr.filter((t) => !t.done).length || '' : arr.length}</span></button>`).join('')}</div>
+      ${['done', 'given'].includes(ui.todoTab) ? '' : `<div class="seg todo-view">${[['cat', '분류별'], ['due', '기한순']].map(([k, l]) => `<button type="button" data-view="${k}" class="${ui.todoView === k ? 'on' : ''}" aria-pressed="${ui.todoView === k}">${l}</button>`).join('')}</div>`}</div>
     <div id="todo-list" style="padding-bottom:8px">${body || '<div class="empty">해당하는 할 일이 없습니다.</div>'}</div></section>
     <button class="fab" type="button" id="todo-fab" aria-label="할 일 추가">${ico('plus')}</button>`;
   $('#todo-fab').onclick = () => addTodoSheet();
@@ -603,8 +684,10 @@ function renderTodos() {
     e.preventDefault();
     const title = $('#add-title').value.trim(); if (!title) return;
     ui.lastCat = $('#add-cat').value;
-    S.todos.items.push({ id: uid(), title, cat: ui.lastCat, due: fixYmd($('#add-due').value) || null, done: false, doneAt: null, created: today(), note: '' });
-    save('todos'); renderTodos(); $('#add-title').focus();
+    const who = $('#add-who').value, due = fixYmd($('#add-due').value) || null;
+    if (who) ttAdd(ttNew({ title, cat: ui.lastCat, due, assignee: who })); // 사람을 고르면 팀 할 일
+    else { S.todos.items.push({ id: uid(), title, cat: ui.lastCat, due, done: false, doneAt: null, created: today(), note: '' }); save('todos'); }
+    renderTodos(); $('#add-title').focus();
   });
   PAGE.querySelectorAll('[data-tab]').forEach((b) => b.addEventListener('click', () => { ui.todoTab = b.dataset.tab; ui.todoEdit = null; renderTodos(); }));
   PAGE.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => {
@@ -614,17 +697,23 @@ function renderTodos() {
   PAGE.querySelectorAll('[data-toggle]').forEach((el) => el.addEventListener('change', () => toggleTodo(el.dataset.toggle)));
   PAGE.querySelectorAll('[data-edit]').forEach((el) => el.addEventListener('click', () => { ui.todoEdit = el.dataset.edit; renderTodos(); }));
   PAGE.querySelectorAll('[data-del]').forEach((el) => el.addEventListener('click', () => {
-    const t = S.todos.items.find((x) => x.id === el.dataset.del);
-    if (t && confirm(`"${t.title}" 할 일을 삭제할까요?`)) { S.todos.items = S.todos.items.filter((x) => x !== t); if (ui.todoEdit === t.id) ui.todoEdit = null; save('todos'); renderTodos(); }
+    const t = todoFind(el.dataset.del);
+    if (!t || !confirm(`"${t.title}" 할 일을 삭제할까요?`)) return;
+    if (ui.todoEdit === t.id) ui.todoEdit = null;
+    if (isTT(t)) ttDel(t.id); else { S.todos.items = S.todos.items.filter((x) => x !== t); save('todos'); }
+    renderTodos();
   }));
   const ef = $('#todo-edit');
   if (ef) {
     $('#te-title').focus();
     ef.addEventListener('submit', (e) => {
       e.preventDefault();
-      const t = S.todos.items.find((x) => x.id === ui.todoEdit);
-      Object.assign(t, { title: $('#te-title').value.trim() || t.title, note: $('#te-note').value.trim(), cat: $('#te-cat').value, due: fixYmd($('#te-due').value) || null });
-      ui.todoEdit = null; save('todos'); renderTodos();
+      const t = todoFind(ui.todoEdit);
+      if (t) {
+        const f = { title: $('#te-title').value.trim() || t.title, cat: $('#te-cat').value, due: fixYmd($('#te-due').value) || null }, memo = $('#te-note').value.trim();
+        if (isTT(t)) ttSet(t.id, { ...f, memo }); else { Object.assign(t, f, { note: memo }); save('todos'); }
+      }
+      ui.todoEdit = null; renderTodos();
     });
     ef.addEventListener('keydown', (e) => { if (e.key === 'Escape') { ui.todoEdit = null; renderTodos(); } });
     $('#te-cancel').addEventListener('click', () => { ui.todoEdit = null; renderTodos(); });
@@ -635,7 +724,7 @@ function todoRow(t) {
   if (ui.todoEdit === t.id) {
     return `<form class="todo" id="todo-edit" style="grid-template-columns:24px minmax(0,1fr) 140px 150px auto;background:var(--hover)">
       <span></span>
-      <div style="display:flex;flex-direction:column;gap:6px;padding:4px 0"><input class="edit-input" id="te-title" value="${esc(t.title)}"><input class="edit-input" id="te-note" style="border-color:var(--line2)" value="${esc(t.note)}" placeholder="메모 (선택)"></div>
+      <div style="display:flex;flex-direction:column;gap:6px;padding:4px 0"><input class="edit-input" id="te-title" value="${esc(t.title)}"><input class="edit-input" id="te-note" style="border-color:var(--line2)" value="${esc(tMemo(t))}" placeholder="메모 (선택)"></div>
       <select class="select" id="te-cat">${CATS.map((c) => `<option ${c === t.cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
       <input class="input" type="date" id="te-due" value="${t.due || ''}">
       <div style="display:flex;gap:6px"><button class="btn primary" type="submit">저장</button><button class="btn" type="button" id="te-cancel">취소</button><button class="btn ghost" type="button" data-del="${esc(t.id)}">삭제</button></div>
@@ -644,7 +733,7 @@ function todoRow(t) {
   const di = dueInfo(t);
   return `<div class="todo ${t.done ? 'done' : ''}">
     <input type="checkbox" class="check" data-toggle="${esc(t.id)}" ${t.done ? 'checked' : ''} aria-label="완료">
-    <div data-edit="${esc(t.id)}" style="min-width:0;cursor:text"><div class="ttl">${esc(t.title)}</div>${ui.todoView === 'due' && ui.todoTab !== 'done' ? `<div class="note">${esc(t.cat || '기타')}${t.note ? ` · ${esc(t.note)}` : ''}</div>` : t.note ? `<div class="note">${esc(t.note)}</div>` : ''}</div>
+    <div data-edit="${esc(t.id)}" style="min-width:0;cursor:text"><div class="ttl">${esc(t.title)}${ttWho(t)}</div>${(ui.todoView === 'due' && ui.todoTab !== 'done') || ui.todoTab === 'given' ? `<div class="note">${esc(t.cat || '기타')}${tMemo(t) ? ` · ${esc(tMemo(t))}` : ''}</div>` : tMemo(t) ? `<div class="note">${esc(tMemo(t))}</div>` : ''}</div>
     <span>${ui.todoTab === 'done' ? `<span class="chip line">${esc(t.cat)}</span>` : ''}</span>
     <span class="due ${di.cls}">${t.done && t.doneAt ? `${md(t.doneAt)} 완료` : di.txt}</span>
     <button class="iconbtn del" data-del="${esc(t.id)}" title="삭제">${ico('trash', 'sm')}</button>
@@ -657,6 +746,7 @@ function addTodoSheet(due) {
     <form id="sheet-todo">
       <div class="field"><input class="input full" name="title" placeholder="할 일" autocomplete="off" required></div>
       <div class="field"><div class="chips">${CATS.map((c) => `<label><input type="radio" name="cat" value="${c}" ${c === (ui.lastCat || '사무실 세팅') ? 'checked' : ''}>${c}</label>`).join('')}</div></div>
+      <div class="field"><label style="display:block;font-size:13px;color:var(--text2);margin-bottom:6px">담당</label><div class="chips">${[['나', ''], ...whoOpts()].map(([n, m]) => `<label><input type="radio" name="who" value="${m}" ${m ? '' : 'checked'}>${n}</label>`).join('')}</div></div>
       <div class="field"><label style="display:block;font-size:13px;color:var(--text2);margin-bottom:6px">마감일</label><input class="input full" type="date" name="due" value="${due || ''}"></div>
       <button class="btn primary full" type="submit">추가</button>
     </form>`, (el, close) => {
@@ -667,6 +757,7 @@ function addTodoSheet(due) {
       const v = Object.fromEntries(new FormData(f));
       if (!v.title.trim()) return;
       ui.lastCat = v.cat;
+      if (v.who) { close(); ttAdd(ttNew({ title: v.title.trim(), cat: v.cat, due: fixYmd(v.due) || null, assignee: v.who })); render(); return; }
       S.todos.items.push({ id: uid(), title: v.title.trim(), cat: v.cat, due: fixYmd(v.due) || null, done: false, doneAt: null, created: today(), note: '' });
       close(); save('todos'); render(); toast('추가했습니다');
     });
@@ -698,7 +789,7 @@ function dayItemsAll(k, events) {
   const ms = S.milestones.items.filter((m) => m.date === k).map((m) => ({ type: 'ms', id: m.id, time: 'D-day', title: m.title, editable: true }));
   const ev = (events || []).filter((e) => !e.cancelled && e.start.slice(0, 10) <= k && e.end > `${k}T00:00`)
     .map((e) => ({ type: 'ev', id: e.id, time: e.allDay ? '종일' : e.start.slice(0, 10) === k ? e.start.slice(11, 16) : '계속', title: e.subject, join: e.join, link: e.link, editable: e.editable, cal: e.cal, ev: e }));
-  const tds = S.todos.items.filter((t) => !t.done && t.due === k).map((t) => ({ type: 'td', id: t.id, time: '할 일', title: t.title, over: k < td, editable: true }));
+  const tds = todoAll().filter((t) => !t.done && t.due === k).map((t) => ({ type: 'td', id: t.id, time: '할 일', title: t.title, over: k < td, editable: true }));
   // 같은 일정이 두 곳에 있으면 하나만 보인다 (원본은 그대로): 팀 캘린더 ↔ 내 일정(회의 초대), D-day ↔ 캘린더 일정
   const evs = [];
   for (const e of ev) {
@@ -742,12 +833,12 @@ function calForm(kind, id, events) {
       ${actions}</form>`;
   }
   if (kind === 'td') {
-    const t = id ? S.todos.items.find((x) => x.id === id) : null;
+    const t = id ? todoFind(id) : null;
     return `<form class="cal-form" id="cf" data-kind="td">
       ${f('할 일', `<input class="input" name="title" value="${esc(t?.title || '')}" required>`, 'wide')}
       ${f('구분', `<select class="select" name="cat">${CATS.map((c) => `<option ${c === (t?.cat || ui.lastCat || '사무실 세팅') ? 'selected' : ''}>${c}</option>`).join('')}</select>`)}
       ${f('마감일', `<input class="input" type="date" name="due" value="${t?.due || ui.selDay}">`)}
-      ${f('메모', `<input class="input" name="note" value="${esc(t?.note || '')}">`, 'half')}
+      ${f('메모', `<input class="input" name="note" value="${esc(t ? tMemo(t) : '')}">`, 'half')}
       ${actions}</form>`;
   }
   const m = S.milestones.items.find((x) => x.id === id);
@@ -795,7 +886,8 @@ async function openEventModalInner(id, events, onDone, date, pre) {
   const e = id ? (events || []).find((x) => x.id === id) : null;
   const p = e ? {} : pre || {};
   let det = {};
-  if (e) { try { det = await OUTLOOK.detail(id); } catch { /* 내용 없이도 연다 */ } }
+  if (e) { try { det = await OUTLOOK.detail(id, e.cal); } catch { /* 내용 없이도 연다 */ } }
+  else await OUTLOOK.calendarIds().catch(() => {}); // 팀 캘린더를 고를 수 있는지(teamWritable) 먼저 확인 — 새 일정 기본은 팀 캘린더
   const now = new Date(); now.setMinutes(0, 0, 0); now.setHours(Math.min(Math.max(now.getHours() + 1, 9), 22));
   const day = date || ui.selDay || today();
   const sd = e ? e.start.slice(0, 10) : day;
@@ -832,7 +924,7 @@ async function openEventModalInner(id, events, onDone, date, pre) {
     const del = f.querySelector('[data-del]');
     if (del) del.onclick = async () => {
       if (!confirm('이 일정을 삭제할까요?')) return;
-      try { await OUTLOOK.remove(id); close(); toast('Outlook에서 삭제했습니다'); onDone?.(); } catch (err) { toast(err.message); }
+      try { await OUTLOOK.remove(id, e.cal); close(); toast('Outlook에서 삭제했습니다'); onDone?.(); } catch (err) { toast(err.message); }
     };
     f.addEventListener('submit', async (ev) => {
       ev.preventDefault();
@@ -843,7 +935,7 @@ async function openEventModalInner(id, events, onDone, date, pre) {
       if (!series && v.repeat && v.repeat !== repNow) body.repeat = v.repeat;
       save.disabled = true;
       try {
-        await (id ? OUTLOOK.update(id, body) : OUTLOOK.create(body));
+        await (id ? OUTLOOK.update(id, body, e.cal) : OUTLOOK.create(body));
         close(); ui.selDay = body.startDate;
         toast(id ? 'Outlook 일정을 고쳤습니다' : body.calendar === 'team' ? '유니버스인베스트먼트 캘린더에 추가했습니다' : '내 일정에 추가했습니다');
         onDone?.();
@@ -858,7 +950,7 @@ async function openEventView(e, onDone) {
   evModalBusy = true;
   try {
     let det = {};
-    try { det = await OUTLOOK.detail(e.id); } catch { /* 내용 없이도 연다 */ }
+    try { det = await OUTLOOK.detail(e.id, e.cal); } catch { /* 내용 없이도 연다 */ }
     const sd = e.start.slice(0, 10); let ed = e.end.slice(0, 10);
     if (e.allDay) ed = ymd(addDays(parse(ed), -1));
     const when = e.allDay ? `${mdw(sd)}${ed > sd ? ` ~ ${mdw(ed)}` : ''} 종일`
@@ -883,7 +975,7 @@ async function openEventView(e, onDone) {
         const msg = e.organizer_me ? `이 회의를 취소할까요?\n${who.length ? `참석자(${who.join(', ')})에게` : '참석자에게'} 취소 알림이 갑니다.` : '이 일정을 내 캘린더에서 삭제할까요?\n주최자에게는 알리지 않습니다.';
         if (!confirm(msg)) return;
         del.disabled = true;
-        try { await OUTLOOK.removeMeeting(e.id); close(); toast(e.organizer_me ? '회의를 취소했습니다' : 'Outlook에서 삭제했습니다'); onDone?.(); } catch (err) { del.disabled = false; toast(err.message); }
+        try { await OUTLOOK.removeMeeting(e.id, e.cal); close(); toast(e.organizer_me ? '회의를 취소했습니다' : 'Outlook에서 삭제했습니다'); onDone?.(); } catch (err) { del.disabled = false; toast(err.message); }
       };
     }, 'wide');
   } finally { evModalBusy = false; }
@@ -1065,7 +1157,8 @@ async function mountMonth(el) {
     if (delBtn) delBtn.onclick = async () => {
       if (!confirm('삭제할까요?')) return;
       try {
-        if (kind === 'ev') { await OUTLOOK.remove(id); ui.calEdit = null; toast('Outlook에서 삭제했습니다'); return refetch(); }
+        if (kind === 'ev') { await OUTLOOK.remove(id, (events || []).find((x) => x.id === id)?.cal); ui.calEdit = null; toast('Outlook에서 삭제했습니다'); return refetch(); }
+        if (kind === 'td' && isTT(todoFind(id))) { ttDel(id); ui.calEdit = null; return draw(); }
         const coll = kind === 'td' ? 'todos' : 'milestones';
         S[coll].items = S[coll].items.filter((x) => x.id !== id); ui.calEdit = null; await save(coll); draw();
       } catch (err) { toast(err.message); }
@@ -1077,15 +1170,16 @@ async function mountMonth(el) {
       try {
         if (kind === 'ev') {
           const body = { subject: val.subject, startDate: fixYmd(val.startDate), endDate: fixYmd(val.endDate), startTime: val.startTime, endTime: val.endTime, allDay: !!allDay.checked, location: val.location, calendar: val.calendar || 'team' };
-          await (id ? OUTLOOK.update(id, body) : OUTLOOK.create(body));
+          await (id ? OUTLOOK.update(id, body, (events || []).find((x) => x.id === id)?.cal) : OUTLOOK.create(body));
           ui.calEdit = null; ui.selDay = body.startDate; toast(id ? 'Outlook 일정을 고쳤습니다' : body.calendar === 'team' ? '유니버스인베스트먼트 캘린더에 추가했습니다' : '내 일정에 추가했습니다'); return refetch();
         }
         if (kind === 'td') {
           ui.lastCat = val.cat;
-          const t = id ? S.todos.items.find((x) => x.id === id) : null;
+          const t = id ? todoFind(id) : null;
           const fields = { title: val.title.trim(), cat: val.cat, due: fixYmd(val.due) || null, note: val.note.trim() };
-          if (t) Object.assign(t, fields); else S.todos.items.push({ id: uid(), ...fields, done: false, doneAt: null, created: today() });
           if (val.due) ui.selDay = val.due;
+          if (t && isTT(t)) { const { note, ...f } = fields; ttSet(id, { ...f, memo: note }); ui.calEdit = null; return draw(); } // 맡겨진 팀 할 일
+          if (t) Object.assign(t, fields); else S.todos.items.push({ id: uid(), ...fields, done: false, doneAt: null, created: today() });
           ui.calEdit = null; await save('todos'); return draw();
         }
         const m = S.milestones.items.find((x) => x.id === id);
@@ -1256,7 +1350,7 @@ function renderNotes() {
           <div class="row"><button class="btn" data-new="daily">${ico('plus', 'sm')}업무일지</button><button class="btn" data-new="meeting">${ico('plus', 'sm')}회의록</button><button class="btn" data-new="memo">${ico('plus', 'sm')}메모</button></div>
           <input class="input" id="nq" placeholder="제목·내용 검색" value="${esc(ui.noteQ)}">
         </div>
-        <ul>${list.map((n) => `<li data-n="${esc(n.name)}" class="${n.name === ui.note ? 'on' : ''}"><div class="nm">${esc(n.name.replace(/\.(txt|md)$/i, ''))}</div><div class="pv">${relTime(n.mtime)} · ${esc(n.preview.replace(/\s+/g, ' ').slice(0, 60))}</div></li>`).join('') || '<div class="empty">기록이 없습니다.</div>'}</ul>
+        <ul>${list.map((n) => `<li data-n="${esc(n.name)}" class="${n.name === ui.note ? 'on' : ''}"><div class="nm">${noteTag(n.name)}${esc(noteTitle(n.name))}</div><div class="pv">${relTime(n.mtime)} · ${esc(n.preview.replace(/\s+/g, ' ').slice(0, 60))}</div></li>`).join('') || '<div class="empty">기록이 없습니다.</div>'}</ul>
       </div>
       <div class="editor" id="editor"><div class="empty" style="margin:auto">왼쪽에서 기록을 고르거나 새로 만드세요.</div></div>
     </div>`;
@@ -1266,6 +1360,13 @@ function renderNotes() {
   if (ui.note) openNote(ui.note);
 }
 
+/* 팀 회의록(2026-11-12): 새 회의록은 팀 파일함 '회의록' 폴더에 만들어 세 사람이 같이 보고 고친다. 이름 앞 '팀/'으로 내 기록과 구분.
+   업무일지·메모와 옛 회의록은 그대로 내 OneDrive */
+const isTeamNote = (name) => String(name || '').startsWith('팀/');
+const noteTitle = (name) => String(name).replace(/^팀\//, '').replace(/\.(txt|md)$/i, '');
+const noteTag = (name) => (isTeamNote(name) ? '<span class="note-team">팀</span>' : '');
+const noteRead = (name) => (isTeamNote(name) ? STORE.readTeamNote(name) : STORE.readNote(name));
+const noteWrite = (name, text, version) => (isTeamNote(name) ? STORE.writeTeamNote(name, text, version) : STORE.writeNote(name, text, version));
 let cur = null, noteTok = 0; // 열린 기록 { name, version, text, dirty, gen, saving, conflict }
 const NOTE_CONFLICT = '다른 곳에서 수정됨 — 내용을 복사해 두고 다시 여세요';
 // 충돌 중에 친 내용은 저장되지 않으니 이 브라우저에 남겨 두고, 새로 고침 뒤 그 기록을 다시 열면 충돌 상태 그대로 한 번 되살린다
@@ -1277,14 +1378,14 @@ async function openNote(name) {
   try {
     // 같은 기록을 다시 그릴 때(검색·새로 그리기)는 받아 둔 내용을 그대로 — 저장 안 된 글자가 사라지지 않게
     if (!(cur && cur.name === name && (cur.dirty || cur.saving || !known || known.version === cur.version))) {
-      const n = await STORE.readNote(name);
+      const n = await noteRead(name);
       if (tok !== noteTok) return; // 그사이 다른 기록을 눌렀다
-      let draft = null; try { draft = localStorage.getItem(noteDraftKey(n.name)); localStorage.removeItem(noteDraftKey(n.name)); } catch { /* 없으면 그대로 */ }
+      let draft = null; try { draft = localStorage.getItem(noteDraftKey(name)); localStorage.removeItem(noteDraftKey(name)); } catch { /* 없으면 그대로 */ }
       const keep = draft != null && draft !== n.text;
-      cur = { name: n.name, version: n.version, text: keep ? draft : n.text, dirty: keep, gen: 0, saving: null, conflict: keep };
+      cur = { name, version: n.version, text: keep ? draft : n.text, dirty: keep, gen: 0, saving: null, conflict: keep };
     }
     if (!ed.isConnected) return;
-    ed.innerHTML = `<div class="bar"><button class="iconbtn m-only" type="button" id="note-back" aria-label="목록" style="width:44px;height:44px">${ico('left')}</button><span class="nm">${esc(cur.name.replace(/\.(txt|md)$/i, ''))}</span><span class="st" id="nst">${cur.conflict ? NOTE_CONFLICT : cur.dirty ? '입력 중…' : '저장됨'}</span><button class="btn sm primary" type="button" id="note-save">저장</button></div><textarea id="nta" spellcheck="false"></textarea>`;
+    ed.innerHTML = `<div class="bar"><button class="iconbtn m-only" type="button" id="note-back" aria-label="목록" style="width:44px;height:44px">${ico('left')}</button><span class="nm">${noteTag(cur.name)}${esc(noteTitle(cur.name))}</span><span class="st" id="nst">${cur.conflict ? NOTE_CONFLICT : cur.dirty ? '입력 중…' : '저장됨'}</span><button class="btn sm primary" type="button" id="note-save">저장</button></div><textarea id="nta" spellcheck="false"></textarea>`;
     ed.querySelector('#note-back').onclick = async () => { ui.noteOff?.(); ui.noteOff = null; await flushNote(); ui.noteOpen = false; renderNotes(); };
     const ta = ed.querySelector('#nta'), c = cur; ta.value = c.text;
     // 자동 저장(0.8초)과 별개로 손으로 저장: 버튼·Ctrl+S
@@ -1311,7 +1412,7 @@ async function flushNote() {
   const gen = c.gen, text = c.text;
   c.saving = (async () => {
     try {
-      c.version = await STORE.writeNote(c.name, text, c.version);
+      c.version = await noteWrite(c.name, text, c.version);
       if (c.gen === gen) c.dirty = false; // 저장하는 사이에 친 글자가 있으면 한 번 더
       const st = cur === c && $('#nst'); if (st && !c.dirty) { const d = new Date(); st.textContent = `저장됨 ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
       const n = S.notes.find((x) => x.name === c.name); if (n) { n.mtime = Date.now() / 1000; n.preview = text.slice(0, 400); n.version = c.version; }
@@ -1330,16 +1431,22 @@ async function newNote(kind) {
   const full = `${d.getFullYear()}.${m}.${dd}(${w})`;
   let name, text;
   if (kind === 'daily') { name = `업무 일지_${y}.${m}.${dd}.txt`; text = `업무 일지\n${full}${G.isOwner ? ` Day-${workDay(today())}` : ''}\n\n1. `; }
-  else if (kind === 'meeting') { name = `회의록_${y}.${m}.${dd}(${w}).txt`; text = `회의록\n${full}\n참석: \n안건: \n\n1. `; }
+  else if (kind === 'meeting') { name = `팀/회의록_${y}.${m}.${dd}(${w}).txt`; text = `회의록\n${full}\n참석: \n안건: \n\n1. `; } // 팀 파일함
   else { name = `메모_${y}.${m}.${dd}_${pad(d.getHours())}${pad(d.getMinutes())}.txt`; text = ''; }
+  const base = name.replace(/\.txt$/, '');
+  let i = 2;
   if (S.notes.some((n) => n.name === name)) {
     if (kind === 'daily') { ui.note = name; ui.noteOpen = true; toast('오늘 업무일지가 이미 있어 그 파일을 엽니다'); return renderNotes(); }
-    let i = 2; const base = name.replace(/\.txt$/, ''); while (S.notes.some((n) => n.name === `${base}_${i}.txt`)) i++; name = `${base}_${i}.txt`;
+    while (S.notes.some((n) => n.name === `${base}_${i}.txt`)) i++; name = `${base}_${i++}.txt`;
   }
   try {
-    try { await STORE.writeNote(name, text, null); } catch (e) {
-      if (e.status !== 409 || kind !== 'daily') throw e; // 다른 기기에서 오늘 업무일지를 먼저 만들었다 → 그 파일을 연다
-      toast('오늘 업무일지가 이미 있어 그 파일을 엽니다');
+    for (;;) {
+      try { await noteWrite(name, text, null); break; } catch (e) {
+        if (e.status !== 409) throw e;
+        if (kind === 'daily') { toast('오늘 업무일지가 이미 있어 그 파일을 엽니다'); break; } // 다른 기기에서 오늘 업무일지를 먼저 만들었다 → 그 파일을 연다
+        if (i > 9) throw e; // 같은 이름을 다른 사람·기기가 먼저 만들었다 → 다음 번호로
+        name = `${base}_${i++}.txt`;
+      }
     }
     await load(); ui.note = name; ui.noteQ = ''; ui.noteOpen = true; renderNotes();
     setTimeout(() => { const ta = $('#nta'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }, 200);
@@ -1368,13 +1475,16 @@ window.addEventListener('beforeunload', (e) => {
 async function refresh() { // 다른 기기·Claude Code가 바꾼 내용 반영 (편집 중이 아닐 때만)
   const r = route();
   if (!S || document.hidden || saving() || (r === 'todos' && ui.todoEdit) || (['home', 'calendar'].includes(r) && ui.calEdit) || ui.mail?.compose || (r === 'programs' && ui.progSel) || (cur && (cur.dirty || cur.saving)) || document.activeElement?.matches('input,textarea,select')) return;
-  const sig = () => JSON.stringify([S.todos.version, S.programs.version, S.milestones.version, S.briefing.mtime, S.notes.map((n) => n.version)]);
+  const sig = () => JSON.stringify([S.todos.version, S.programs.version, S.milestones.version, S.briefing.mtime, S.notes.map((n) => n.version), TT.etag]);
   const before = sig();
+  refresh.at = Date.now();
   try { await load(); } catch { return; }
-  if (before !== sig() && ['home', 'todos', 'calendar', 'programs'].includes(route())) render();
+  if (before !== sig() && ['home', 'todos', 'calendar', 'programs', 'notes'].includes(route())) render(); // 기록: 팀 회의록을 다른 사람이 고쳤으면 목록·열린 글을 새로(입력 중이면 위에서 건너뜀)
 }
 setInterval(refresh, 60000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { CALC = {}; refresh(); } });
+// PC는 창을 옮겨 다녀도 visibilitychange가 안 온다: 창으로 돌아올 때도(20초에 한 번까지) 팀 할 일·팀 회의록 다시 읽기
+window.addEventListener('focus', () => { if (Date.now() - (refresh.at || 0) > 20000) refresh(); });
 
 function loginScreen(msg) {
   document.body.classList.add('signed-out');
