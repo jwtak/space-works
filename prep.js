@@ -121,7 +121,7 @@ function prDraw() {
                 title="${esc(`${p}: ${PR_LABEL[c.s]}${c.by ? ` (${personName(c.by)} ${prWhen(c.at)})` : ''} · 누르면 ${PR_LABEL[PR_NEXT[c.s]]}`)}">${c.s === 'done' ? ico('done', 'sm') : c.s === 'na' ? '–' : ''}</button></td>`; }).join('')}
           </tr>`).join('')}</tbody>
         </table></div>
-        <div class="pr-foot">칸을 누를 때마다 미준비 → 준비됨 → 해당 없음으로 바뀝니다. ${done}/${n}칸 준비됨</div>
+        <div class="pr-foot">${done}/${n}칸 준비됨</div>
       </section>`;
     }
     return `<section class="card pr-sec">
