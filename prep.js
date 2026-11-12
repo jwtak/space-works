@@ -102,7 +102,7 @@ function prDraw() {
   const me = prMe(), { per, co } = prCount(L), dd = L.date ? diffDays(L.date, today()) : null;
   const sum = `<section class="pr-sum">
     ${L.people.map((p) => `<div class="pr-who ${p === me ? 'me' : ''}">
-      <div class="pr-who-h"><b>${esc(p)}</b><span>${esc(L.roles?.[p] || '')}</span>${L.personFolders?.[p] ? `<a class="pr-fd" href="${esc(prFolder(L.personFolders[p]))}" title="${esc(p)} 개인별 준비 파일 폴더">${ico('folder', 'sm')}</a>` : ''}</div>
+      <div class="pr-who-h"><b>${esc(p)}</b><span>${esc(L.roles?.[p] || '')}</span>${L.personFolders?.[p] ? `<a class="pr-fd" href="${esc(prFolder(L.personFolders[p]))}" title="${esc(p)} 서류 폴더">${ico('folder', 'sm')}</a>` : ''}</div>
       <div class="pr-who-n"><b>${per[p].done}</b> / ${per[p].n}${per[p].n && per[p].done === per[p].n ? '<span class="chip green">완료</span>' : ''}</div>${prBar(per[p].done, per[p].n)}</div>`).join('')}
     <div class="pr-who co"><div class="pr-who-h"><b>회사 서류</b>${co.mine ? `<span>내 담당 ${co.mine}건 남음</span>` : ''}</div>
       <div class="pr-who-n"><b>${co.done}</b> / ${co.n}</div>${prBar(co.done, co.n)}</div>
@@ -125,7 +125,7 @@ function prDraw() {
       </section>`;
     }
     return `<section class="card pr-sec">
-      <div class="card-head"><h2>${esc(sec.title)}</h2>${sec.note ? `<span class="meta">${esc(sec.note)}</span>` : ''}</div>
+      <div class="card-head"><h2>${esc(sec.title)}</h2>${sec.note ? `<span class="meta">${esc(sec.note)}</span>` : ''}${sec.folder ? `<a class="btn sm act" href="${esc(prFolder(sec.folder))}">${ico('folder', 'sm')}<span>회사 서류 폴더</span></a>` : ''}</div>
       <ul class="pr-co">${sec.items.map((it) => { const c = prCo(it), opts = [...new Set([...(L.owners || []), ...(c.owner ? [c.owner] : [])])];
         return `<li class="${c.s === 'done' ? 'done' : ''}">
           <button type="button" class="pr-cell s-${c.s === 'done' ? 'done' : 'todo'}" data-co="${esc(it.id)}" aria-label="${esc(`${it.title}: ${c.s === 'done' ? '준비됨' : '미준비'}`)}"
@@ -138,7 +138,7 @@ function prDraw() {
   }).join('');
   root.innerHTML = `<div class="page-head"><h1>${esc(L.title)}</h1>
       ${L.date ? `<span class="chip ${dd < 0 ? '' : dd <= 14 ? 'red' : 'blue'}">${esc(L.event || '')} ${prMD(L.date)}${dd > 0 ? ` D-${dd}` : dd === 0 ? ' 오늘' : ''}</span>` : ''}
-      <div class="tools">${L.folder ? `<a class="btn sm" href="${esc(prFolder(L.folder))}">${ico('folder', 'sm')}<span>공용 폴더</span></a>` : ''}</div></div>
+      <div class="tools">${L.folder ? `<a class="btn sm" href="${esc(prFolder(L.folder))}">${ico('folder', 'sm')}<span>서류 폴더</span></a>` : ''}</div></div>
     ${sum}${secs}
     ${L.src ? `<div class="pr-src">목록 근거: ${esc(L.src)}</div>` : ''}`;
 

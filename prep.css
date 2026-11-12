@@ -16,6 +16,7 @@
 
 .pr-sec { margin-bottom: 16px; }
 .pr-sec .card-head { flex-wrap: wrap; row-gap: 0; padding-top: 10px; padding-bottom: 10px; }
+.pr-sec .card-head .act { margin-left: auto; }
 .pr-scroll { overflow-x: auto; }
 .pr-tbl { width: 100%; border-collapse: collapse; }
 .pr-tbl th { font-size: 12px; font-weight: 600; color: var(--text3); text-align: center; padding: 8px 6px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--hover); white-space: nowrap; width: 76px; }
