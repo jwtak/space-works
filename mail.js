@@ -1655,7 +1655,9 @@ function mailBook(tok) {
 /* 보낸 사람 선택지: 나, 그리고 contact@를 열 수 있으면 contact@ */
 function mailFromOpts() {
   const me = typeof G !== 'undefined' && G.account ? G.account : null, out = [];
-  if (me?.username) out.push({ box: 'me', label: me.name ? `${me.name} <${me.username}>` : me.username });
+  // 주소는 계정의 실제 보내는 주소(/me mail). 로그인 토큰의 username은 사명 변경 전 주소(@spaceinve.com)로 남아 있을 수 있다
+  const addr = (typeof S !== 'undefined' && S?.me?.mail) || me?.username;
+  if (addr) out.push({ box: 'me', label: me?.name ? `${me.name} <${addr}>` : addr });
   if (ui.mail.sharedOk || ui.mail.compose?.box === 'contact') out.push({ box: 'contact', label: MAIL_SHARED });
   return out;
 }

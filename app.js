@@ -74,7 +74,7 @@ async function load() {
     ttLoad().catch(() => false), // 팀 할 일도 같이(못 읽으면 지난 것 그대로)
   ]);
   const notes = [...mine, ...team].sort((a, b) => b.mtime - a.mtime);
-  const me = S?.me || await G.get('/me?$select=displayName,jobTitle,department').catch(() => ({}));
+  const me = S?.me || await G.get('/me?$select=displayName,jobTitle,department,mail').catch(() => ({}));
   S = { todos, programs, milestones, briefing: { text: brief.text, mtime: brief.mtime }, notes, me, auth: { connected: true, upn: G.account.username } };
   meChrome();
   counts(); foot(); mailUnread(); if (mailSeen === null) mailNotify();
@@ -197,7 +197,13 @@ function setMailCnt(n) {
 }
 async function mailUnread() {
   if (!S || document.hidden) return;
-  try { setMailCnt((await G.get('/me/mailFolders/inbox?$select=unreadItemCount')).unreadItemCount); } catch { /* 숫자는 없어도 된다 */ }
+  try {
+    const n = (await G.get('/me/mailFolders/inbox?$select=unreadItemCount')).unreadItemCount;
+    setMailCnt(n);
+    // Outlook·폰에서 읽음/안 읽음을 바꾸면 새 메일이 없어도 폴더 숫자가 낡는다 → 받은편지함 숫자가 다르면 폴더 숫자도 다시 읽기
+    const c = route() === 'mail' && ui.mail?.counts?.inbox;
+    if (c && c.unread !== n) mailLoadCounts();
+  } catch { /* 숫자는 없어도 된다 */ }
 }
 setInterval(mailUnread, 60000);
 document.addEventListener('visibilitychange', mailUnread);
