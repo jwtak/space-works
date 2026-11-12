@@ -6,18 +6,18 @@
 .gd-hole[hidden] { display: none; }
 .gd-card { position: fixed; width: 320px; max-width: calc(100vw - 24px); padding: 20px; border-radius: 14px; background: var(--card); box-shadow: 0 16px 40px rgba(15, 23, 42, .25); }
 .gd-card.center { left: 50% !important; top: 50% !important; transform: translate(-50%, -50%); width: 380px; text-align: center; padding: 28px 24px 22px; }
-.gd-mark { font-size: 12px; font-weight: 800; letter-spacing: .12em; color: var(--primary); }
+.gd-mark { font-size: 13px; font-weight: 800; letter-spacing: .12em; color: var(--primary); }
 .gd-card h2 { margin: 10px 0 6px; font-size: 20px; line-height: 28px; font-weight: 700; }
-.gd-card h3 { margin: 4px 0 6px; font-size: 16px; line-height: 24px; font-weight: 700; }
-.gd-card p { margin: 0; font-size: 14px; line-height: 22px; color: var(--text2); }
+.gd-card h3 { margin: 4px 0 6px; font-size: 17px; line-height: 24px; font-weight: 700; }
+.gd-card p { margin: 0; font-size: 15px; line-height: 22px; color: var(--text2); }
 .gd-inst { margin-top: 14px; width: 100%; justify-content: center; border-color: #D6E2FB; background: var(--primary-soft); color: var(--primary); font-weight: 600; }
 .gd-card.center:not(:has(h2)) { text-align: left; }
 .gd-card.center:not(:has(h2)) .gd-act { justify-content: flex-start; }
-.gd-step { font-size: 12px; font-weight: 600; color: var(--primary); }
+.gd-step { font-size: 13px; font-weight: 600; color: var(--primary); }
 .gd-act { display: flex; align-items: center; gap: 8px; margin-top: 18px; }
 .gd-card.center .gd-act { justify-content: center; }
 .gd-sp { flex: 1; }
-.gd-skip { border: 0; background: none; padding: 0; font-size: 13px; color: var(--text3); cursor: pointer; }
+.gd-skip { border: 0; background: none; padding: 0; font-size: 14px; color: var(--text3); cursor: pointer; }
 .gd-skip:hover { color: var(--ink); }
 @media (max-width: 760px) {
   .gd-card { width: calc(100vw - 32px); }

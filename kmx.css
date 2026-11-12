@@ -24,7 +24,7 @@
   .kmx-page .ipo-line > .ipo-c-name { grid-column: 1; display: block; font-size: inherit; color: inherit; }
   .kmx-page .ipo-line .ipo-c-name .ipo-sub { margin-top: 2px; }
   .kmx-page .ipo-line > .ipo-c-st { grid-column: 2; grid-row: 1; }
-  .kmx-page .ipo-line > .kmx-c { grid-column: 1 / -1; display: flex; gap: 8px; min-width: 0; font-size: 13px; line-height: 20px; color: var(--text2); }
+  .kmx-page .ipo-line > .kmx-c { grid-column: 1 / -1; display: flex; gap: 8px; min-width: 0; font-size: 14px; line-height: 20px; color: var(--text2); }
   .kmx-page .ipo-line > .kmx-c.kmx-none { display: none; }
   .kmx-page .kmx-k { display: block; flex: none; width: 60px; color: var(--text3); }
   .kmx-page .kmx-v { min-width: 0; }

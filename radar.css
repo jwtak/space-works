@@ -12,7 +12,7 @@
 /* 예심청구 재무 필터 줄(최근 매출·영업이익률) — 위 필터 줄 바로 아래 */
 .rd-page .rd-finf { padding-top: 12px; padding-bottom: 12px; gap: 8px 24px; }
 .rd-fing { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
-.rd-finl { font-size: 14px; color: var(--text2); white-space: nowrap; flex: none; }
+.rd-finl { font-size: 15px; color: var(--text2); white-space: nowrap; flex: none; }
 
 /* 목록 칸 */
 .rd-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
@@ -36,8 +36,8 @@
 
 /* 자문사별 보기: 자문사 이름 줄 + 맡은 딜 */
 .rd-grp { display: flex; align-items: baseline; gap: 8px; padding: 16px 24px 8px; border-top: 1px solid var(--line); }
-.rd-grp b { font-size: 14px; line-height: 20px; font-weight: 600; }
-.rd-grp span { font-size: 12px; color: var(--text3); }
+.rd-grp b { font-size: 15px; line-height: 22px; font-weight: 600; }
+.rd-grp span { font-size: 13px; color: var(--text3); }
 .ipo-head + .rd-grp { border-top: 0; }
 .rd-grp + .ipo-row { border-top: 0; }
 /* 예심청구 가리기(눈 아이콘): 평소엔 옅게, 행에 올리면 진하게. 가린 회사 목록에서는 파랑(다시 보이기) — 컨택 상태 칸이 28 넓어짐 */
@@ -66,8 +66,8 @@
 .fq-slot { display: contents; }
 .ipo-stack > .fq-box { margin-bottom: 0; }
 .fq-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; min-height: 32px; }
-.fq-t { font-size: 16px; line-height: 24px; font-weight: 600; color: var(--ink); }
-.fq-bar .muted { font-size: 14px; line-height: 20px; }
+.fq-t { font-size: 17px; line-height: 24px; font-weight: 600; color: var(--ink); }
+.fq-bar .muted { font-size: 15px; line-height: 22px; }
 .fq-bar .ipo-a { margin-left: auto; }
 .fq-bar .ipo-a + .btn { margin-left: 0; }
 .fq-bar > .btn:last-child { margin-left: auto; }
@@ -79,11 +79,11 @@
 .fq-bad { color: var(--danger); }
 .fs-kb-only[hidden] { display: none !important; }
 /* 팩트시트가 있는 회사: 목록 회사명 옆 표시(신규상장 '직통' 표시와 같은 크기) */
-.rd-fs-tag { display: inline-flex; align-items: center; height: 20px; margin-left: 6px; padding: 0 8px; border-radius: 10px; font-size: 12px; font-weight: 500; line-height: 20px; background: var(--primary-soft); color: var(--primary); vertical-align: 1px; white-space: nowrap; }
+.rd-fs-tag { display: inline-flex; align-items: center; height: 20px; margin-left: 6px; padding: 0 8px; border-radius: 10px; font-size: 13px; font-weight: 500; line-height: 20px; background: var(--primary-soft); color: var(--primary); vertical-align: 1px; white-space: nowrap; }
 /* 펼친 칸 팩트시트 묶음: 묶음 제목(팩트시트 · 작성일 / 회사 정보), 포인트·리스크 소제목 */
-.rd-fsh { display: flex; align-items: baseline; gap: 8px; font-size: 16px; line-height: 24px; font-weight: 600; color: var(--ink); }
-.rd-fsh .muted { font-size: 13px; font-weight: 400; }
-.rd-fs-k { margin-bottom: 4px; font-size: 13px; line-height: 20px; color: var(--text3); }
+.rd-fsh { display: flex; align-items: baseline; gap: 8px; font-size: 17px; line-height: 24px; font-weight: 600; color: var(--ink); }
+.rd-fsh .muted { font-size: 14px; font-weight: 400; }
+.rd-fs-k { margin-bottom: 4px; font-size: 14px; line-height: 20px; color: var(--text3); }
 .ipo-ul + .rd-fs-k { margin-top: 12px; }
 /* 투자 라운드 표(시기 | 라운드 | 금액 | 투자자) */
 .ipo-tbl.rd-tbl-r th:nth-child(1) { width: 104px; }
@@ -136,15 +136,15 @@
     .rd-page .ipo-head { display: none; }
     .rd-page .ipo-cols, .rd-page .ipo-cols.rd-g6 { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
     /* 날짜 줄: 날짜는 끊지 않고, 넘치면 보조 값이 다음 줄로 */
-    .rd-page .ipo-line > div:nth-child(1) { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0 8px; font-size: 12px; color: var(--text3); white-space: nowrap; }
+    .rd-page .ipo-line > div:nth-child(1) { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0 8px; font-size: 13px; color: var(--text3); white-space: nowrap; }
     .rd-page .ipo-line > div:nth-child(1) .ipo-sub { margin-top: 0; min-width: 0; }
     .rd-page .ipo-c-st { grid-column: 2; grid-row: 2; }
     .rd-page .ipo-line > .rd-mh, .rd-page .rd-alt { display: none; }
-    .rd-page .ipo-line > .rd-span3 { display: block; grid-column: 1 / -1; font-size: 14px; line-height: 20px; }
-    .rd-page .rd-mob { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin-top: 4px; font-size: 13px; line-height: 20px; color: var(--text2); overflow: hidden; overflow-wrap: anywhere; }
+    .rd-page .ipo-line > .rd-span3 { display: block; grid-column: 1 / -1; font-size: 15px; line-height: 22px; }
+    .rd-page .rd-mob { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin-top: 4px; font-size: 14px; line-height: 20px; color: var(--text2); overflow: hidden; overflow-wrap: anywhere; }
     .rd-page .rd-mi { display: block; }
     /* 예심청구 대표전화는 접지 않고 요약 아래 한 줄로(번호 · 대표) */
-    .rd-yesim .ipo-line > div:nth-child(6) { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; font-size: 13px; color: var(--text2); }
+    .rd-yesim .ipo-line > div:nth-child(6) { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; font-size: 14px; color: var(--text2); }
     .rd-yesim .ipo-line > div:nth-child(6) .ipo-sub { margin-top: 0; min-width: 0; }
     /* 기사 표도 폰처럼 제목 한 줄 + 날짜·매체 한 줄 목록으로(날짜·매체가 한 줄에 안 들어가면 매체가 다음 줄로) */
     .rd-page .ipo-tbl.rd-tbl-n, .rd-page .ipo-tbl.rd-tbl-n tbody { display: block; }
@@ -154,7 +154,7 @@
     .rd-page .ipo-tbl.rd-tbl-n tr:last-child { border-bottom: 0; padding-bottom: 0; }
     .rd-page .ipo-tbl.rd-tbl-n td { padding: 0; border: 0; }
     .rd-page .ipo-tbl.rd-tbl-n td:nth-child(2) { flex: 1 1 100%; order: -1; }
-    .rd-page .ipo-tbl.rd-tbl-n td:nth-child(1), .rd-page .ipo-tbl.rd-tbl-n td:nth-child(3) { margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--text3); }
+    .rd-page .ipo-tbl.rd-tbl-n td:nth-child(1), .rd-page .ipo-tbl.rd-tbl-n td:nth-child(3) { margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text3); }
     /* 주주 표는 이름 한 줄 + 지분율·구분 한 줄 목록으로(긴 FI 이름이 좁은 칸에서 꺾이지 않게) */
     .rd-page .ipo-tbl.rd-tbl-h, .rd-page .ipo-tbl.rd-tbl-h tbody { display: block; }
     .rd-page .ipo-tbl.rd-tbl-h thead { display: none; }
@@ -163,7 +163,7 @@
     .rd-page .ipo-tbl.rd-tbl-h tr:last-child { border-bottom: 0; padding-bottom: 0; }
     .rd-page .ipo-tbl.rd-tbl-h td { padding: 0; border: 0; }
     .rd-page .ipo-tbl.rd-tbl-h td:nth-child(1) { flex: 1 1 100%; }
-    .rd-page .ipo-tbl.rd-tbl-h td:nth-child(2), .rd-page .ipo-tbl.rd-tbl-h td:nth-child(3) { margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--text3); }
+    .rd-page .ipo-tbl.rd-tbl-h td:nth-child(2), .rd-page .ipo-tbl.rd-tbl-h td:nth-child(3) { margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text3); }
     /* 투자 라운드 표도 시기·라운드·금액 한 줄 + 투자자 한 줄 목록으로 */
     .rd-page .ipo-tbl.rd-tbl-r, .rd-page .ipo-tbl.rd-tbl-r tbody { display: block; }
     .rd-page .ipo-tbl.rd-tbl-r thead { display: none; }
@@ -172,7 +172,7 @@
     .rd-page .ipo-tbl.rd-tbl-r tr:last-child { border-bottom: 0; padding-bottom: 0; }
     .rd-page .ipo-tbl.rd-tbl-r td { padding: 0; border: 0; }
     .rd-page .ipo-tbl.rd-tbl-r td:nth-child(2) { font-weight: 600; }
-    .rd-page .ipo-tbl.rd-tbl-r td:nth-child(4) { flex: 1 1 100%; margin-top: 2px; font-size: 13px; color: var(--text2); }
+    .rd-page .ipo-tbl.rd-tbl-r td:nth-child(4) { flex: 1 1 100%; margin-top: 2px; font-size: 14px; color: var(--text2); }
   }
   /* 400보다 좁으면 펼친 행은 여백을 폰처럼 줄이고(글자 시작선 24 그대로) 머리를 요약 → 상태·메모 → 파이프라인 한 줄씩, 위쪽 요약 줄의 버튼은 다음 줄로 */
   @container (max-width: 399px) {
@@ -189,7 +189,7 @@
     /* 상자 제목 옆 출처는 다음 줄로, 손익표는 폰 크기로 줄이고 그래도 넓으면 상자 안에서 옆으로 밀어 보게 */
     .rd-page .ipo-box-h { flex-wrap: wrap; }
     .rd-page .ipo-box-b:has(> .ipo-pnl) { overflow-x: auto; scrollbar-width: thin; }
-    .rd-page .ipo-pnl { font-size: 13px; table-layout: auto; }
+    .rd-page .ipo-pnl { font-size: 14px; table-layout: auto; }
     .rd-page .ipo-pnl th, .rd-page .ipo-pnl td { padding: 8px 0 8px 6px; }
     .rd-page .ipo-pnl th:first-child, .rd-page .ipo-pnl td:first-child { width: 72px; padding-left: 0; }
     .rd-page .ipo-pnl tr.r td:first-child { padding-left: 8px; }
@@ -222,8 +222,8 @@
   .rd-page .ipo-filter .seg button { margin: -1px 0 0 -1px; height: 35px; border-top: 1px solid var(--line2); border-left: 1px solid var(--line2); }
   .rd-page .ipo-sumrow { flex: 1 1 100%; }
   .rd-page .ipo-line > .rd-mh { display: none; }
-  .rd-page .ipo-line > .rd-span3 { display: block; grid-column: 1 / -1; font-size: 14px; line-height: 20px; }
-  .rd-mob { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin-top: 4px; font-size: 13px; line-height: 20px; color: var(--text2); overflow: hidden; overflow-wrap: anywhere; }
+  .rd-page .ipo-line > .rd-span3 { display: block; grid-column: 1 / -1; font-size: 15px; line-height: 22px; }
+  .rd-mob { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin-top: 4px; font-size: 14px; line-height: 20px; color: var(--text2); overflow: hidden; overflow-wrap: anywhere; }
   .rd-mi { display: block; }
   .rd-page .rd-card2 { margin-top: 0; border-top: 8px solid #F2F4F6; }
   .rd-grp { padding: 16px 16px 8px; }
@@ -236,7 +236,7 @@
   .ipo-tbl.rd-tbl-n tr:last-child { border-bottom: 0; padding-bottom: 0; }
   .ipo-tbl.rd-tbl-n td { padding: 0; border: 0; }
   .ipo-tbl.rd-tbl-n td:nth-child(2) { grid-column: 1 / -1; grid-row: 1; }
-  .ipo-tbl.rd-tbl-n td:nth-child(1), .ipo-tbl.rd-tbl-n td:nth-child(3) { grid-row: 2; margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--text3); }
+  .ipo-tbl.rd-tbl-n td:nth-child(1), .ipo-tbl.rd-tbl-n td:nth-child(3) { grid-row: 2; margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text3); }
   /* 투자 라운드 표도 시기·라운드·금액 한 줄 + 투자자 한 줄 목록으로 */
   .rd-page .ipo-tbl.rd-tbl-r, .rd-page .ipo-tbl.rd-tbl-r tbody { display: block; }
   .rd-page .ipo-tbl.rd-tbl-r thead { display: none; }
@@ -245,7 +245,7 @@
   .rd-page .ipo-tbl.rd-tbl-r tr:last-child { border-bottom: 0; padding-bottom: 0; }
   .rd-page .ipo-tbl.rd-tbl-r td { padding: 0; border: 0; }
   .rd-page .ipo-tbl.rd-tbl-r td:nth-child(2) { font-weight: 600; }
-  .rd-page .ipo-tbl.rd-tbl-r td:nth-child(4) { flex: 1 1 100%; margin-top: 2px; font-size: 13px; color: var(--text2); }
+  .rd-page .ipo-tbl.rd-tbl-r td:nth-child(4) { flex: 1 1 100%; margin-top: 2px; font-size: 14px; color: var(--text2); }
 }
 /* 컨택·검토한 곳: 목록 맨 아래 묶음, 펼치지 않은 행은 흐리게(올리면 또렷하게) */
 .rd-low b { color: var(--text2); }

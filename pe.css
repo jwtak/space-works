@@ -8,7 +8,7 @@
 .pe-grp .seg button.on .pe-gn { color: var(--primary); }
 
 /* 딜 상태 칩: 높이 20(팀 리스트 표시와 같은 크기), 칩 안 글자 시작선 = 머리글 시작선(좌우 8) */
-.pe-ds { display: inline-flex; align-items: center; height: 20px; max-width: 100%; padding: 0 8px; border-radius: 10px; font-size: 12px; font-weight: 500; line-height: 20px; background: #F3F4F6; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: 1px; }
+.pe-ds { display: inline-flex; align-items: center; height: 20px; max-width: 100%; padding: 0 8px; border-radius: 10px; font-size: 13px; font-weight: 500; line-height: 20px; background: #F3F4F6; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: 1px; }
 .pe-ds.on { background: var(--primary-soft); color: var(--primary); }
 .pe-ds.off { color: var(--text3); }
 .ipo-row.open > .ipo-line .pe-ds { background: var(--card); } /* 펼친 행 머리(연파랑) 위에서도 칩이 보이게 */
@@ -22,13 +22,13 @@
 
 /* 펼친 칸 표: 재무(항목 | 연도 셋, 네 칸 같은 폭), 신호(날짜 | 종류 | 내용) */
 .ipo-tbl.pe-fin th:nth-child(n) { width: auto; }
-.pe-fin td:first-child { color: var(--text3); font-size: 13px; }
-.pe-fin tr.r td { font-size: 13px; color: var(--text3); }
-.pe-finm { display: none; margin: 0; padding: 0; list-style: none; font-size: 13px; line-height: 20px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.pe-fin td:first-child { color: var(--text3); font-size: 14px; }
+.pe-fin tr.r td { font-size: 14px; color: var(--text3); }
+.pe-finm { display: none; margin: 0; padding: 0; list-style: none; font-size: 14px; line-height: 20px; color: var(--text2); font-variant-numeric: tabular-nums; }
 .pe-finm li + li { margin-top: 8px; }
-.pe-finm b { display: block; font-size: 13px; font-weight: 600; color: var(--ink); }
+.pe-finm b { display: block; font-size: 14px; font-weight: 600; color: var(--ink); }
 /* 재무 출처 한 줄(재무표 아래), 신호 표 '나머지 n건 보기' */
-.pe-finsrc { margin: 8px 0 0; font-size: 12px; line-height: 18px; color: var(--text3); }
+.pe-finsrc { margin: 8px 0 0; font-size: 13px; line-height: 18px; color: var(--text3); }
 .pe-page .pe-sigbox:not(.pe-all) tr.pe-more { display: none; }
 .pe-morebtn { margin-top: 12px; }
 .ipo-tbl.pe-tbl-s th:nth-child(1) { width: 104px; }
@@ -53,7 +53,7 @@
     .pe-page .ipo-tbl.pe-tbl-s tr:last-child { border-bottom: 0; padding-bottom: 0; }
     .pe-page .ipo-tbl.pe-tbl-s td { padding: 0; border: 0; }
     .pe-page .ipo-tbl.pe-tbl-s td:nth-child(3) { flex: 1 1 100%; order: -1; }
-    .pe-page .ipo-tbl.pe-tbl-s td:nth-child(1), .pe-page .ipo-tbl.pe-tbl-s td:nth-child(2) { margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--text3); }
+    .pe-page .ipo-tbl.pe-tbl-s td:nth-child(1), .pe-page .ipo-tbl.pe-tbl-s td:nth-child(2) { margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text3); }
   }
   /* 400보다 좁으면 묶음 전환은 한 줄을 반씩, 필터 이름표는 버튼 위로 */
   @container (max-width: 399px) {
@@ -85,5 +85,5 @@
   .ipo-tbl.pe-tbl-s tr:last-child { border-bottom: 0; padding-bottom: 0; }
   .ipo-tbl.pe-tbl-s td { padding: 0; border: 0; }
   .ipo-tbl.pe-tbl-s td:nth-child(3) { flex: 1 1 100%; order: -1; }
-  .ipo-tbl.pe-tbl-s td:nth-child(1), .ipo-tbl.pe-tbl-s td:nth-child(2) { margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--text3); }
+  .ipo-tbl.pe-tbl-s td:nth-child(1), .ipo-tbl.pe-tbl-s td:nth-child(2) { margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text3); }
 }

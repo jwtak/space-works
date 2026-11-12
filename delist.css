@@ -6,7 +6,7 @@
 .dl-ok { color: var(--primary); font-weight: 600; }
 
 /* 배지: 앵글 CB 파랑·바이아웃 보라, 상태 빨강(관리·정지·잠식)·주황(투자조합·탈락 사유)·초록(양호) */
-.dl-bdg { display: inline-block; margin: 2px 4px 2px 0; padding: 2px 8px; border-radius: 20px; font-size: 12px; line-height: 18px; font-weight: 600; white-space: nowrap; }
+.dl-bdg { display: inline-block; margin: 2px 4px 2px 0; padding: 2px 8px; border-radius: 20px; font-size: 13px; line-height: 18px; font-weight: 600; white-space: nowrap; }
 .dl-bdg:last-child { margin-right: 0; }
 .b-cb { background: var(--t-blue); color: var(--t-blue-c); }
 .b-bo { background: var(--t-violet); color: var(--t-violet-c); }
@@ -17,10 +17,10 @@
 /* AI 추천 */
 .dl-ai { margin-bottom: 16px; padding: 20px 24px; }
 .dl-ai-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 6px; }
-.dl-ai-head .ttl { font-size: 16px; line-height: 24px; font-weight: 700; }
-.dl-ai-head .meta { font-size: 13px; color: var(--text3); }
+.dl-ai-head .ttl { font-size: 17px; line-height: 24px; font-weight: 700; }
+.dl-ai-head .meta { font-size: 14px; color: var(--text3); }
 .dl-ai-head .meta.ipo-stale { color: var(--danger); }
-.dl-ai-note { margin: 0 0 12px; font-size: 13px; line-height: 20px; color: var(--text3); }
+.dl-ai-note { margin: 0 0 12px; font-size: 14px; line-height: 20px; color: var(--text3); }
 .dl-ai-grid { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(240px, 1fr); grid-template-rows: repeat(5, auto); gap: 0 10px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; padding-bottom: 4px; scrollbar-width: thin; }
 .dl-ai-grid .dl-card { grid-row: span 5; scroll-snap-align: start; }
 .dl-card { display: flex; flex-direction: column; min-width: 0; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); cursor: pointer; transition: border-color .15s, box-shadow .15s; }
@@ -28,18 +28,18 @@
 .dl-card:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .dl-card.off { cursor: default; }
 .dl-card.off:hover { border-color: var(--line); box-shadow: none; }
-.dl-card .nm { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; font-size: 15px; line-height: 22px; }
+.dl-card .nm { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; font-size: 16px; line-height: 22px; }
 .dl-card .nm b { font-weight: 700; }
 .dl-card:not(.off):hover .nm b { color: var(--primary); }
-.dl-card .cd { font-size: 12px; color: var(--text3); }
+.dl-card .cd { font-size: 13px; color: var(--text3); }
 .dl-card .ag { margin-left: auto; }
 .dl-card .ag .dl-bdg { margin: 0 0 0 4px; }
-.dl-card ul.th, .dl-pkb ul.th { margin: 8px 0 12px; padding-left: 17px; font-size: 13px; line-height: 20px; }
+.dl-card ul.th, .dl-pkb ul.th { margin: 8px 0 12px; padding-left: 17px; font-size: 14px; line-height: 20px; }
 .dl-card ul.th li + li, .dl-pkb ul.th li + li { margin-top: 4px; }
 .dl-card ul.th:empty, .dl-pkb ul.th:empty { display: none; }
-.dl-card .km, .dl-pkb .km { margin-top: auto; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 12px; line-height: 18px; color: var(--text3); }
-.dl-card .st, .dl-pkb .st { margin-top: 4px; font-size: 12px; line-height: 18px; color: var(--text2); }
-.dl-card .rk, .dl-pkb .rk { margin-top: 4px; font-size: 12px; line-height: 18px; color: var(--danger); }
+.dl-card .km, .dl-pkb .km { margin-top: auto; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 13px; line-height: 18px; color: var(--text3); }
+.dl-card .st, .dl-pkb .st { margin-top: 4px; font-size: 13px; line-height: 18px; color: var(--text2); }
+.dl-card .rk, .dl-pkb .rk { margin-top: 4px; font-size: 13px; line-height: 18px; color: var(--danger); }
 .dl-card .km:empty, .dl-card .st:empty, .dl-card .rk:empty { display: none; }
 .dl-pkb .km:empty, .dl-pkb .st:empty, .dl-pkb .rk:empty { display: none; }
 /* 카드끼리 투자 포인트·지표·구조·위험 줄의 시작 높이를 맞춘다 */
@@ -49,7 +49,7 @@
   .dl-ai-grid .dl-card .km:empty, .dl-ai-grid .dl-card .st:empty, .dl-ai-grid .dl-card .rk:empty, .dl-ai-grid .dl-card ul.th:empty { display: block; }
   .dl-ai-grid .dl-card .km:empty { border-top: 1px dashed var(--line); padding-top: 0; }
 }
-.dl-hist { margin-top: 14px; font-size: 13px; line-height: 20px; }
+.dl-hist { margin-top: 14px; font-size: 14px; line-height: 20px; }
 .dl-hist summary { cursor: pointer; color: var(--text3); user-select: none; }
 .dl-hist summary:hover { color: var(--ink); }
 .dl-hist .h-run { display: flex; flex-wrap: wrap; gap: 2px 10px; margin: 12px 0 4px; font-weight: 600; }
@@ -59,15 +59,15 @@
 /* 조건 줄: 검색 · 체크 셋 · 단계·시장 · 엑셀 · 오른쪽 개수 */
 .dl-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 12px; }
 .dl-ctl .dl-q { flex: 0 1 240px; }
-.dl-ck { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: var(--text2); cursor: pointer; user-select: none; white-space: nowrap; }
+.dl-ck { display: inline-flex; align-items: center; gap: 6px; font-size: 15px; color: var(--text2); cursor: pointer; user-select: none; white-space: nowrap; }
 .dl-ctl .select { margin-left: 0; }
-.dl-count { margin-left: auto; font-size: 13px; color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.dl-count { margin-left: auto; font-size: 14px; color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
 /* 넓은 표 */
 .dl-tbox { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); overscroll-behavior-x: contain; }
 .dl-tbl { width: 100%; min-width: 1560px; border-collapse: separate; border-spacing: 0; font-variant-numeric: tabular-nums; }
-.dl-tbl th, .dl-tbl td { padding: 10px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; font-size: 14px; line-height: 20px; text-align: left; vertical-align: middle; }
-.dl-tbl thead th { background: var(--dl-h); font-size: 13px; font-weight: 600; color: var(--text3); cursor: pointer; user-select: none; }
+.dl-tbl th, .dl-tbl td { padding: 10px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; font-size: 15px; line-height: 22px; text-align: left; vertical-align: middle; }
+.dl-tbl thead th { background: var(--dl-h); font-size: 14px; font-weight: 600; color: var(--text3); cursor: pointer; user-select: none; }
 .dl-tbl thead th.grp-h { text-align: center; color: var(--ink); cursor: default; }
 .dl-tbl thead th:hover[data-k], .dl-tbl thead th.sorted { color: var(--primary); }
 .dl-tbl th .arr { display: inline-flex; vertical-align: -2px; margin-left: 2px; color: var(--text3); opacity: .6; }
@@ -89,10 +89,10 @@
 .dl-tbl td.dl-nm { min-width: 280px; max-width: 360px; white-space: normal; }
 .dl-ttl { font-weight: 600; }
 .dl-tr:hover .dl-ttl, .dl-tr.open .dl-ttl { color: var(--primary); }
-.dl-tbl .dl-cd { margin-left: 6px; font-size: 12px; color: var(--text3); }
-.dl-tbl .biz { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--text3); }
-.dl-tbl .sector { max-width: 120px; overflow: hidden; text-overflow: ellipsis; font-size: 13px; color: var(--text3); }
-.dl-tbl .yr { margin-left: 4px; font-size: 11px; color: var(--text3); }
+.dl-tbl .dl-cd { margin-left: 6px; font-size: 13px; color: var(--text3); }
+.dl-tbl .biz { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text3); }
+.dl-tbl .sector { max-width: 120px; overflow: hidden; text-overflow: ellipsis; font-size: 14px; color: var(--text3); }
+.dl-tbl .yr { margin-left: 4px; font-size: 12px; color: var(--text3); }
 .dl-s1 { color: var(--danger); font-weight: 600; }
 .dl-s2 { color: var(--t-amber-c); font-weight: 600; }
 .dl-s3 { color: var(--ink); font-weight: 600; }
@@ -124,9 +124,9 @@
   .dl-page .ipo-tbl.dl-mz tr:last-child { border-bottom: 0; padding-bottom: 0; }
   .dl-page .ipo-tbl.dl-mz td { padding: 0; border: 0; }
   .dl-page .ipo-tbl.dl-mz td:nth-child(2) { font-weight: 600; }
-  .dl-page .ipo-tbl.dl-mz td:nth-child(4), .dl-page .ipo-tbl.dl-mz td:nth-child(5) { order: 2; margin-top: 2px; font-size: 13px; color: var(--text2); }
+  .dl-page .ipo-tbl.dl-mz td:nth-child(4), .dl-page .ipo-tbl.dl-mz td:nth-child(5) { order: 2; margin-top: 2px; font-size: 14px; color: var(--text2); }
   .dl-page .ipo-tbl.dl-mz td:nth-child(4)::before, .dl-page .ipo-tbl.dl-mz td:nth-child(5)::before { content: attr(data-k) ' '; color: var(--text3); }
-  .dl-page .ipo-tbl.dl-mz td:nth-child(6) { order: 3; flex: 1 1 100%; margin-top: 2px; font-size: 13px; color: var(--text2); }
+  .dl-page .ipo-tbl.dl-mz td:nth-child(6) { order: 3; flex: 1 1 100%; margin-top: 2px; font-size: 14px; color: var(--text2); }
   .dl-xin { padding: 16px 15px 20px; }
   .dl-count { flex-basis: 100%; margin-left: 0; text-align: right; }
   .dl-ctl .dl-q { flex: 1 1 100%; max-width: none; }
@@ -146,10 +146,10 @@
   .dl-ai-grid .dl-card { flex: 0 0 min(300px, 84%); scroll-snap-align: start; display: flex; grid-row: auto; }
   .dl-ai-grid .dl-card .km { margin-top: auto; }
   .dl-ctl { margin: 12px 16px; gap: 8px 12px; }
-  .dl-ck { font-size: 13px; }
+  .dl-ck { font-size: 14px; }
   .dl-tbox { border-radius: 0; border-left: 0; border-right: 0; }
   .dl-tbl { min-width: 1400px; }
-  .dl-tbl th, .dl-tbl td { padding: 8px; font-size: 13px; }
+  .dl-tbl th, .dl-tbl td { padding: 8px; font-size: 14px; }
   .dl-tbl thead th.dl-bh { padding-left: 16px; }
   .dl-tbl td.dl-nm { min-width: 120px; max-width: 150px; }
   .dl-tbl td.dl-nm .biz { display: none; }

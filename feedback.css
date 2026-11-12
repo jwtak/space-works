@@ -14,32 +14,32 @@
 }
 
 .rq-hd { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px; height: 64px; flex: none; padding: 0 12px 0 20px; background: var(--card); border-bottom: 1px solid var(--line); }
-.rq-hd h2 { margin: 0; font-size: 16px; font-weight: 700; }
+.rq-hd h2 { margin: 0; font-size: 17px; font-weight: 700; }
 .rq-seg { display: inline-flex; gap: 2px; margin-left: auto; padding: 3px; background: #E9EDF3; border-radius: 9px; }
-.rq-seg button { height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: var(--text2); font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.rq-seg button { height: 28px; padding: 0 10px; border: 0; border-radius: 6px; background: none; color: var(--text2); font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .rq-seg button.on { background: var(--card); color: var(--primary); box-shadow: 0 1px 2px rgba(15, 23, 42, .12); }
 .rq-x { flex: none; }
 
 .rq-new { padding: 16px 20px; border-bottom: 1px solid var(--line); }
-.rq-new .area, .rq-rf .area, .rq-ef .area { width: 100%; min-height: 0; resize: vertical; font: inherit; font-size: 14px; line-height: 21px; }
+.rq-new .area, .rq-rf .area, .rq-ef .area { width: 100%; min-height: 0; resize: vertical; font: inherit; font-size: 15px; line-height: 21px; }
 .rq-act { display: flex; justify-content: flex-end; gap: 6px; margin-top: 8px; }
 
 .rq-list { list-style: none; margin: 0; padding: 0; }
 .rq-it { padding: 16px 20px; border-bottom: 1px solid var(--line); }
 .rq-it.done > .rq-txt { color: var(--text3); }
-.rq-none { padding: 32px 20px; text-align: center; color: var(--text3); font-size: 13px; }
-.rq-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--text3); }
-.rq-meta b { font-size: 13px; font-weight: 600; color: var(--ink); }
+.rq-none { padding: 32px 20px; text-align: center; color: var(--text3); font-size: 14px; }
+.rq-meta { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13px; color: var(--text3); }
+.rq-meta b { font-size: 14px; font-weight: 600; color: var(--ink); }
 .rq-st { margin-left: auto; height: 22px; padding: 0 8px; }
-.rq-txt { margin: 6px 0 0; font-size: 14px; line-height: 21px; color: var(--ink); white-space: pre-wrap; }
+.rq-txt { margin: 6px 0 0; font-size: 15px; line-height: 21px; color: var(--ink); white-space: pre-wrap; }
 .rq-re { margin-top: 12px; padding: 10px 12px; border-radius: var(--r); background: var(--hover); border-left: 2px solid var(--primary); }
 .rq-re .rq-txt { margin-top: 4px; }
 .rq-rf { margin-top: 12px; }
 .rq-ef { margin-top: 6px; }
-.rq-redit { margin-left: auto; padding: 0; border: 0; background: none; font-size: 12px; color: var(--text3); cursor: pointer; }
+.rq-redit { margin-left: auto; padding: 0; border: 0; background: none; font-size: 13px; color: var(--text3); cursor: pointer; }
 .rq-redit:hover { color: var(--primary); }
 .rq-tools { display: flex; gap: 14px; margin-top: 10px; }
-.rq-tools button { border: 0; background: none; padding: 0; font-size: 13px; color: var(--text3); cursor: pointer; }
+.rq-tools button { border: 0; background: none; padding: 0; font-size: 14px; color: var(--text3); cursor: pointer; }
 .rq-tools button:hover { color: var(--primary); }
 .rq-tools .rq-del:hover { color: var(--danger); }
 
@@ -47,6 +47,6 @@
   .req { width: 100%; padding-top: env(safe-area-inset-top); }
   .rq-hd { height: 56px; padding-left: 16px; }
   .rq-new, .rq-it { padding-left: 16px; padding-right: 16px; }
-  .rq-new .area, .rq-rf .area, .rq-ef .area { font-size: 16px; }
+  .rq-new .area, .rq-rf .area, .rq-ef .area { font-size: 17px; }
   .rq-tools button { min-height: 32px; }
 }
