@@ -774,7 +774,7 @@ const rdFsUl = (a) => `<ul class="ipo-ul">${a.map((s) => `<li>${rdFsT(s)}</li>`)
 function rdFsGroup(f, head = true) { // head=false: 머리는 부르는 쪽(fsq.js 팩트시트 칸)이 그린다
   const total = f.total != null ? (f.total === 0 ? '없음' : rdEok(f.total)) : '';
   const inv = `${rdFsKv('딜 상황', f.deal)}${rdFsKv('투자 단계', f.stage)}${rdKv('누적 투자', [esc(total), rdFsT(f.totalNote)].filter(Boolean).join(' · '))}${rdFsKv('최근 밸류', f.valuation)}
-      ${rdFsKv('Pre-IPO', f.preIpo)}${rdFsKv('주요 FI', f.fi)}${rdFsKv('상장 계획', f.plan)}`;
+      ${rdFsKv('Pre-IPO', f.preIpo)}${rdFsKv('주요 FI', f.fi)}${rdFsKv('계획', f.plan)}`;
   const biz = `${rdFsKv('사업', f.biz)}${rdFsKv('주요 제품', f.product)}`;
   const rounds = f.rounds.length ? rdBox('투자 라운드', `<table class="ipo-tbl rd-tbl-r"><thead><tr><th>시기</th><th>라운드</th><th>금액</th><th>투자자</th></tr></thead><tbody>${f.rounds.map((r) => `<tr>
     <td>${rdFsT(r.when) || '–'}</td><td>${rdFsT(r.round) || '–'}</td><td>${rdFsT(r.amount) || '–'}</td><td>${rdFsT(r.investors) || '–'}</td></tr>`).join('')}</tbody></table>`, `${f.rounds.length}건`) : '';
