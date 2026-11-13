@@ -89,7 +89,10 @@ const G = {
     b.innerHTML = '<span>로그인이 만료되었습니다</span><button type="button" class="btn sm primary">다시 로그인</button>';
     b.querySelector('button').onclick = async () => {
       try { if (typeof flushNote === 'function') await flushNote(); } catch { /* 저장 못 해도 로그인은 진행 */ }
-      MS.acquireTokenRedirect({ scopes: CFG.scopes, account: G.account });
+      // 사명 변경 전에 로그인한 계정은 저장된 주소가 @spaceinve.com이고, 그 주소로는 이제 로그인이 안 된다(11/13 확인). 새 주소를 채워 연다
+      const u = G.account?.username || '';
+      if (/@spaceinve\.com$/i.test(u)) MS.acquireTokenRedirect({ scopes: CFG.scopes, loginHint: u.replace(/@spaceinve\.com$/i, '@universeinvest.co.kr') });
+      else MS.acquireTokenRedirect({ scopes: CFG.scopes, account: G.account });
     };
     document.body.appendChild(b);
   },
