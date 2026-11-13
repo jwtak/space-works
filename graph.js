@@ -24,6 +24,7 @@ const CFG = {
       'data/delist.json': '012DPUXZR4AS3D6N7LWBCYIUY5JS6LQZCW',
       'data/pe.json': '012DPUXZTXPXUP42OXLVD32JRDCOQNMVM5', 'data/kmx.json': '012DPUXZWV6BIDA7PUMRHJI2J7C24L5SDX',
       'data/fs.json': '012DPUXZTNLXQS6J6EJJD2I3XLZCAZ7UXY', 'data/fs_req.json': '012DPUXZWVBO5ZR2BFXBEIM3UO467SUFP3',
+      'data/sector_pe.json': '012DPUXZSJSMCLO52GF5C32Q5X43PEM3WI', 'data/sector_map.json': '012DPUXZRZ4KSMVLV4PFHYW6ICCMVXGA65',
     },
     writable: ['data/event_marks.json', 'data/ipo_marks.json', 'data/news_marks.json', 'data/radar_marks.json', 'data/pipeline.json', 'data/fs_req.json'], // 수집기는 같은 파일을 덮어쓰므로 id가 바뀌지 않는다
   },

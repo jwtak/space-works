@@ -1,0 +1,103 @@
+/* 딜소싱 › 섹터 (sector.js) — 목록·펼친 행·상자는 ipo.css, 묶음 줄·두 줄 말줄임·필터 이름표는 radar.css(.rd-grp·.rd-clamp·.rd-fing·.rd-finl),
+   보기 전환·칩·증감 색은 pe.css(.pe-grp·.pe-gn·.pe-ds·.pe-up·.pe-dn)를 그대로 쓰고 여기엔 새로 필요한 것만. pe.css 뒤에 읽어야 한다.
+   표는 왼쪽 정렬·머리글과 값 시작선 일치. 크기 15/14/13, 간격 4·8·12·16·24. */
+
+/* 칸 구성은 화면 폭이 아니라 실제 카드 폭으로 정한다(PC는 오른쪽 요청사항 칸만큼 본문이 좁다) */
+.sec-page { container-type: inline-size; }
+
+/* 섹터 지도: 후방 업종 | 전방 성장 | 후방 PER | PE 딜 | 갈래·펼침, PE 딜: 업종 | 최근 12개월 | 8분기 추세 | 금액 | 주요 인수자 | 펼침 */
+.sec-page .ipo-cols.sec-mcols { grid-template-columns: minmax(0, 1.6fr) repeat(3, minmax(0, 1fr)) 100px; }
+.sec-page .ipo-cols.sec-dcols { grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)) minmax(0, 1.6fr) 16px; }
+.sec-page .ipo-head > .sec-h-chip { padding-left: 8px; } /* '갈래' 머리글 = 칩 안 글자 시작선(칩 좌우 8) */
+.sec-k { display: none; }
+.sec-v { min-width: 0; }
+.sec-v > span:not(.rd-clamp) { display: block; }
+.sec-v > .ipo-sub { margin-top: 2px; }
+
+/* 갈래 칩: 모멘텀 주황, 소외 파랑, 관찰 회색(pe.css .pe-ds 모양) */
+.pe-ds.sec-l0 { background: var(--t-amber); color: var(--t-amber-c); }
+.pe-ds.sec-l1 { background: var(--primary-soft); color: var(--primary); }
+.sec-page .ipo-row.open > .ipo-line .pe-ds.sec-l0 { background: var(--t-amber); }
+
+/* 8분기 추세 막대: 업종 안 최대 분기 = 24px, 이번 분기만 진하게, 0건은 옅은 2px */
+.sec-bars { display: inline-flex; align-items: flex-end; gap: 3px; height: 24px; vertical-align: middle; }
+.sec-bars i { display: block; width: 8px; border-radius: 2px 2px 0 0; background: var(--t-blue-i); }
+.sec-bars i:last-child { background: var(--primary); }
+.sec-bars i.z { background: var(--line); }
+
+/* 펼친 행 */
+.sec-page .ipo-dhead > .sec-go { flex: none; }
+.sec-owns { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.sec-own { display: block; height: 100%; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r); color: var(--ink); text-decoration: none; }
+a.sec-own:hover { border-color: var(--primary); }
+a.sec-own:hover b { color: var(--primary); }
+.sec-own b { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sec-own-s, .sec-own-x > span { display: flex; flex-wrap: wrap; gap: 0 8px; margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text3); }
+.sec-own-x { color: var(--text3); }
+.sec-own-x b { font-weight: 500; }
+
+/* 딜 표: 날짜 | 대상 | 인수자 | 유형 | 단계 | 금액 | 기사 */
+.ipo-tbl.sec-dt th:nth-child(1) { width: 80px; }
+.ipo-tbl.sec-dt th:nth-child(2) { width: auto; }
+.ipo-tbl.sec-dt th:nth-child(3) { width: 22%; }
+.ipo-tbl.sec-dt th:nth-child(4) { width: 112px; }
+.ipo-tbl.sec-dt th:nth-child(5) { width: 96px; padding-left: 8px; } /* 머리글 = 칩 안 글자 시작선(칩 좌우 8) */
+.ipo-tbl.sec-dt th:nth-child(6) { width: 88px; }
+.ipo-tbl.sec-dt th:nth-child(7) { width: 144px; }
+.sec-n2 { white-space: nowrap; }
+.sec-dt td > .ipo-sub { white-space: normal; }
+.sec-tgt { font-weight: 600; }
+.sec-tk { display: none; }
+.sec-why { margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text2); }
+.sec-page .sec-dbox:not(.sec-all) tr.sec-more { display: none; }
+.sec-morebtn { margin-top: 12px; }
+
+/* 유형·단계 필터 줄(검색 줄 바로 아래) — radar.css .rd-finf와 같은 간격 */
+.sec-page .sec-finf { padding-top: 12px; padding-bottom: 12px; gap: 8px 24px; }
+
+@media (min-width: 761px) {
+  /* 필터 버튼이 카드보다 길면 줄을 바꿔 모두 보이게(radar.css .rd-page와 같은 모양) */
+  .sec-page .ipo-filter .seg { flex-wrap: wrap; background: var(--card); max-width: 100%; overflow: hidden; }
+  .sec-page .ipo-filter .seg button { flex: 1 1 auto; margin: -1px 0 0 -1px; height: 35px; border-top: 1px solid var(--line2); border-left: 1px solid var(--line2); }
+}
+
+/* 카드가 900보다 좁으면 딜 표를 한 건씩: 대상 / 인수자 / 날짜·유형·단계·금액·기사 */
+@container (max-width: 899px) {
+  .sec-page .ipo-tbl.sec-dt, .sec-page .ipo-tbl.sec-dt tbody { display: block; }
+  .sec-page .ipo-tbl.sec-dt thead { display: none; }
+  .sec-page .ipo-tbl.sec-dt tr { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--row); }
+  .sec-page .ipo-tbl.sec-dt tr:first-child { padding-top: 0; }
+  .sec-page .ipo-tbl.sec-dt tr:last-child { border-bottom: 0; padding-bottom: 0; }
+  .sec-page .ipo-tbl.sec-dt td { padding: 0; border: 0; font-size: 13px; line-height: 20px; color: var(--text3); }
+  .sec-page .ipo-tbl.sec-dt td:nth-child(2) { flex: 1 1 100%; order: -2; font-size: 15px; line-height: 22px; color: var(--ink); }
+  .sec-page .ipo-tbl.sec-dt td:nth-child(3) { flex: 1 1 100%; order: -1; margin: 2px 0 4px; font-size: 14px; color: var(--text2); }
+  .sec-page .ipo-tbl.sec-dt td:nth-child(3) > .ipo-sub { display: inline; margin-left: 8px; }
+  .sec-page .ipo-tbl.sec-dt .sec-tk { display: inline; margin-right: 8px; color: var(--text3); }
+  .sec-page .ipo-tbl.sec-dt td.sec-none { display: none; }
+}
+
+/* 760보다 좁으면(폰 포함) 한 업종을 여러 줄로: 이름·갈래·펼침 / 이름표 + 값 — kmx.css와 같은 배치. ipo.css 폰 배치(첫 칸 회색 한 줄, 3·4번째 칸 숨김)를 되돌린다 */
+@container (max-width: 760px) {
+  .sec-page .ipo-top { flex-wrap: wrap; row-gap: 4px; }
+  .sec-page .ipo-sumrow { flex: 1 1 100%; }
+  .sec-page .ipo-head { display: none; }
+  .sec-page .ipo-cols.sec-mcols, .sec-page .ipo-cols.sec-dcols { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
+  .sec-page .ipo-line > .ipo-c-name { grid-column: 1; display: block; font-size: inherit; color: inherit; }
+  .sec-page .ipo-line .ipo-c-name .ipo-sub { margin-top: 2px; }
+  .sec-page .ipo-line > .ipo-c-st { grid-column: 2; grid-row: 1; gap: 8px; }
+  .sec-page .ipo-line > .sec-c { grid-column: 1 / -1; display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 14px; line-height: 20px; color: var(--text2); }
+  .sec-page .ipo-line > .sec-c-bar { align-items: center; }
+  .sec-page .ipo-line > .sec-c.sec-none { display: none; }
+  .sec-page .sec-k { display: block; flex: none; width: 64px; color: var(--text3); }
+  .sec-page .sec-v { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
+  .sec-page .sec-v > .ipo-sub { margin-top: 0; }
+}
+
+@media (max-width: 760px) {
+  /* 필터 버튼은 폰에서도 옆으로 숨기지 않고 줄을 바꾼다(radar.css .rd-page와 같은 모양) */
+  .sec-page .sec-finf { gap: 12px; }
+  .sec-page .ipo-filter .seg { flex-wrap: wrap; background: var(--card); overflow: hidden; }
+  .sec-page .ipo-filter .seg button { flex: 1 1 auto; padding: 0 8px; margin: -1px 0 0 -1px; height: 35px; border-top: 1px solid var(--line2); border-left: 1px solid var(--line2); }
+  .sec-page .ipo-dhead > .sec-go { align-self: stretch; height: 40px; }
+  .sec-owns { grid-template-columns: minmax(0, 1fr); }
+}

@@ -704,8 +704,9 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 @media (max-width: 760px) { .deal-sub { gap: 24px; margin: 0 16px 12px; padding: 0 16px; } }
 @media (max-width: 760px) {
   .deal-seg { display: flex; margin: 4px 16px 12px; }
-  .deal-seg button { flex: 1; justify-content: center; padding: 0 12px; }
+  .deal-seg button { flex: 1; justify-content: center; padding: 0 12px; white-space: nowrap; }
 }
+@media (max-width: 400px) { .deal-seg button { gap: 6px; padding: 0 4px; } }
 /* 탭이 많을 때(5개 이상 — 딜소싱 묶음 4개·시장동향 3개는 해당 없음): 이름은 늘 한 줄. PC는 자리가 모자라면 탭마다 좌우 여백을 22→12px까지 똑같이 줄이고,
    그래도 모자라면 옆으로 밀어 보기(밀 수 있는 쪽 가장자리에 그림자). 폰은 5개부터 하이웍스 앱처럼 밑줄 탭을 화면 끝까지 옆으로 밀기 */
 @media (min-width: 761px) {

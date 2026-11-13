@@ -316,6 +316,7 @@ function render() {
   $('#crumb').textContent = CRUMB[r];
   ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, news: renderDeals, deals: renderDeals, pipeline: renderDeals, market: () => (typeof renderMarket === 'function' ? renderMarket() : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), weekly: () => renderFiles(PAGE, 'weekly'), files: () => (typeof renderFiles === 'function' ? renderFiles(PAGE) : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), corp: () => renderPrep(PAGE, 'corp'), fss: () => renderPrep(PAGE, 'fss'), programs: renderPrograms, notes: renderNotes, homepage: renderHomepage }[r] || renderHome)();
   segFit(PAGE.querySelector('.deal-seg')); // 딜소싱·시장동향 탭 줄
+  segFit(PAGE.querySelector('.deal-sub')); // 하위 탭 줄(타깃 다섯 탭은 1100보다 좁으면 넘친다)
 }
 window.addEventListener('hashchange', render);
 // 보고 있는 메뉴를 다시 누르면 주소가 같아 hashchange가 안 온다: 메일은 받은편지함으로 돌아가 새로 읽는다
@@ -561,9 +562,10 @@ const DEAL_SCREENS = {
   dup: ['중복상장', 'link', () => dealPe('dup')],
   delist: ['상폐 위험·CB', 'alert', () => (typeof renderDelist === 'function' ? renderDelist : null)],
   facts: ['팩트시트', 'file', () => (typeof renderFacts === 'function' ? renderFacts : null)],
+  sector: ['섹터', 'chart', () => (typeof renderSector === 'function' ? renderSector : null)],
   pipeline: ['파이프라인', 'inbox', () => (typeof renderPipeline === 'function' ? renderPipeline : null)],
 };
-const DEAL_GROUPS = [['events', '행사', 'ticket', ['events']], ['listing', '상장', 'flag', ['yesim', 'ipo']], ['offer', '매물', 'upload', ['bids', 'sell', 'kmx']], ['target', '타깃', 'link', ['heir', 'dup', 'delist', 'facts']]];
+const DEAL_GROUPS = [['events', '행사', 'ticket', ['events']], ['listing', '상장', 'flag', ['yesim', 'ipo']], ['offer', '매물', 'upload', ['bids', 'sell', 'kmx']], ['target', '타깃', 'link', ['heir', 'dup', 'delist', 'facts', 'sector']]];
 const DEAL_PAGE = { news: 'news', pipeline: 'pipeline' }; // 나머지는 딜소싱
 // 주소 끝 → 화면 키. 빈 값은 첫 묶음, 묶음 이름은 그 묶음에서 마지막으로 본 화면, pe는 PE 앵글에서 보던 묶음
 function dealSub(s) {
