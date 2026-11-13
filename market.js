@@ -1,6 +1,6 @@
 /* 투자업무 › 시장동향 — 손PB 시장 동향 화면(MarketTrendScreen.jsx)을 웍스용으로 옮긴 것 + 공모주 통계.
    데이터: OneDrive data/market.json(00. 대시보드\market\collect_market.py, 평일 07:20), data/ipo_stats.json(같은 폴더 ipo_stats.py).
-   탭: #market = 시장 지표, #market/ipo = 공모주 통계, #market/pe = PE 동향(딜레이더 yesim·bids.json 집계 + 공표 통계). 차트는 인라인 SVG(라이브러리 없음).
+   탭: #market = 시장 지표, #market/ipo = 공모주 통계, #market/pe = PE 동향(딜레이더 yesim·bids.json 집계 + 공표 통계), #market/ma = M&A 거래(ma.js). 차트는 인라인 SVG(라이브러리 없음).
    국내 관행대로 상승은 빨강, 하락은 파랑. */
 const MK_TTL = 600000;
 const mkS = { market: null, ipo: null, yesim: null, bids: null, at: 0, loading: null, tab: 'market', dd: 10, rate: 3, stock: 'KOSPI', sector: 'us', more: false, ipoMk: 'ALL', ipoQ: '', ipoAll: false, ipoVal: null, valQ: '', valAll: false, mezz: null };
@@ -649,7 +649,7 @@ function mkPeHTML() {
 
 // ---------- 화면 ----------
 function mkDraw() {
-  const host = $('#mk-host'); if (!host) return;
+  const host = $('#mk-host'); if (!host || mkS.tab === 'ma') return; // M&A 거래 탭으로 옮긴 뒤 늦게 끝난 mkLoad가 덮어쓰지 않게
   viewSet('mk', Object.fromEntries(MK_VIEW.map((k) => [k, mkS[k]])));
   host.innerHTML = mkS.tab === 'ipo' ? mkIpoHTML() : mkS.tab === 'pe' ? mkPeHTML() : mkMarketHTML();
   host.querySelectorAll('.mk-tbl').forEach((t) => { t.style.minWidth = `${150 + (t.tHead.rows[0].cells.length - 1) * 104}px`; }); // 첫 열 150px + 나머지 같은 폭, 좁으면 카드 안에서 가로 스크롤
@@ -657,8 +657,8 @@ function mkDraw() {
   [['#mk-q', 'ipoQ'], ['#mk-valq', 'valQ']].forEach(([sel, k]) => { const q = $(sel, host); if (q) q.addEventListener('input', (e) => { mkS[k] = e.target.value; const pos = e.target.selectionStart; mkDraw(); const n = $(sel); n.focus(); n.setSelectionRange(pos, pos); }); });
 }
 async function renderMarket() {
-  const r = route(); mkS.tab = r === 'market/ipo' ? 'ipo' : r === 'market/pe' ? 'pe' : 'market';
-  const tabs = [['market', '시장 지표', 'chart'], ['ipo', '공모주 통계', 'spark'], ['pe', 'PE 동향', 'flag']];
+  const r = route(); mkS.tab = r === 'market/ipo' ? 'ipo' : r === 'market/pe' ? 'pe' : r === 'market/ma' && typeof renderMa === 'function' ? 'ma' : 'market';
+  const tabs = [['market', '시장 지표', 'chart'], ['ipo', '공모주 통계', 'spark'], ['pe', 'PE 동향', 'flag'], ...(typeof renderMa === 'function' ? [['ma', 'M&A 거래', 'link']] : [])];
   PAGE.innerHTML = `<div class="page-head"><h1>시장동향</h1><span class="mk-upd" id="mk-upd"></span></div>
     <div class="deal-seg mk-tabs" role="tablist">${tabs.map(([k, t, i]) => `<button type="button" role="tab" data-mt="${k}" aria-selected="${mkS.tab === k}" class="${mkS.tab === k ? 'on' : ''}">${ico(i)}${t}</button>`).join('')}</div>
     <div id="mk-host" class="mk"><div class="card"><div class="empty">불러오는 중…</div></div></div>`;
@@ -670,6 +670,7 @@ async function renderMarket() {
     if (e.target.closest('[data-mk-ipoall]')) { mkS.ipoAll = !mkS.ipoAll; mkDraw(); return; }
     if (e.target.closest('[data-mk-valall]')) { mkS.valAll = !mkS.valAll; mkDraw(); }
   });
+  if (mkS.tab === 'ma') { renderMa($('#mk-host')); return; } // M&A 거래는 ma.js가 자기 자료(ma.json)만 읽는다
   try { await mkLoad(); } catch (e) { toast(e.message); }
   const u = mkS.market?.updated_at || mkS.market?.meta?.updated_at, t = u ? new Date(u) : null;
   if (t && !isNaN(t)) $('#mk-upd').textContent = `${t.getMonth() + 1}/${t.getDate()} ${pad(t.getHours())}:${pad(t.getMinutes())} 업데이트`;
