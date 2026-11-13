@@ -115,9 +115,9 @@ const G = {
       b = JSON.stringify(body);
       h['Content-Type'] = h['Content-Type'] || 'application/json';
     }
-    // 429(요청 과다)는 서버가 알려 준 시간만큼 기다렸다 다시(최대 4번). 503·504는 GET만 다시 —
+    // 429(요청 과다)는 서버가 알려 준 시간만큼 기다렸다 다시(최대 4번). 502·503·504는 GET만 다시 —
     // 메일 보내기·일정 만들기 같은 요청은 서버가 이미 처리했을 수 있어 두 번 보내지 않는다. 401은 토큰을 새로 받아 한 번만 다시.
-    const again = method === 'GET' ? [429, 503, 504] : [429];
+    const again = method === 'GET' ? [429, 502, 503, 504] : [429];
     const ms = type === 'blob' ? 0 : b !== undefined ? 120000 : 45000; // 응답 없는 요청이 자리를 계속 차지하지 않게
     let r, renewed = false;
     for (let i = 0; ; i++) {
@@ -132,6 +132,7 @@ const G = {
       let msg = `오류 ${r.status}`;
       try { const j = await r.json(); msg = j.error?.message || msg; } catch { /* 본문 없음 */ }
       if (r.status === 429 || /concurrency|throttl/i.test(msg)) msg = '요청이 많아 잠시 지연되고 있습니다. 잠시 후 새로고침해 주세요.';
+      else if (r.status >= 500 && msg === `오류 ${r.status}`) msg = `Microsoft 서버가 잠시 응답하지 않습니다(${r.status}). 잠시 후 다시 해 주세요.`;
       const err = new Error(msg); err.status = r.status; throw err;
     }
     if (r.status === 204 || type === 'none') return null;
