@@ -10,7 +10,7 @@ const MA_STALE = 8; // 주 1회 갱신이므로 기준일이 8일 넘게 지나�
 const MA_PAGE = 100; // 처음엔 100건만 그리고 나머지는 '나머지 n건 보기'로
 const MA_KINDS = ['PE', 'SI', 'PE+SI'];
 const MA_DONE = ['계약', '완료'];
-const MA_STAGE_OPTS = [['done', '계약·완료'], ['all', '전체']];
+const MA_STAGE_OPTS = [['done', '체결'], ['all', '전체']];
 const maSecName = (id) => (typeof SEC_NAMES === 'object' && SEC_NAMES[id]) || id;
 
 // 새로 고친 뒤에도 보던 필터·검색어·펼친 행을 이어 보게 창마다 기억한다(app.js viewGet·viewSet, 키 ma)
