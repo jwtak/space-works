@@ -353,15 +353,13 @@ function ppCpNext() {
 
 /* 메일·전화 문구. 담당 = 보내는 사람 */
 const ppWho = (o) => (o ? `${o}${PP_TITLE[o] ? ` ${PP_TITLE[o]}` : ''}` : '');
-function ppIntro(o) {
-  if (PP_TITLE[o] === '대리') return `유니버스인베스트먼트 투자운용본부 ${o} 대리입니다.`;
-  if (PP_TITLE[o] === '대표') return `유니버스인베스트먼트 대표 ${o}입니다.`;
-  return o ? `유니버스인베스트먼트 ${o}입니다.` : '유니버스인베스트먼트입니다.';
-}
+// 소개 줄 '유니버스인베스트먼트 유선열 대표입니다.'(사용자 11/14 양식)
+const ppIntro = (o) => `유니버스인베스트먼트${o ? ` ${ppWho(o)}` : ''}입니다.`;
 const ppSubject = (c) => c.mail.subject || '[투자 제안] 유니버스인베스트먼트';
+/* 사용자 11/14 양식: 인사·소개 / [회사를 좋게 본 점] / [우리 회사 소개] / [연락드린 이유와 미팅 요청] / 감사합니다. <이름> 드림. 문단 사이 한 줄 */
 function ppMailText(x, c) {
-  const m = c.mail, body = [m.hook, m.us, m.ask].filter(Boolean);
-  return [`${m.greet || `${c.ceo ? `${c.ceo} ` : ''}대표님`}, 안녕하십니까.`, ppIntro(x.owner), '', ...body, ...(body.length ? [''] : []), '감사합니다.'].join('\n');
+  const m = c.mail, paras = [m.hook, m.us, m.ask].filter(Boolean);
+  return [`${m.greet || `${c.ceo ? `${c.ceo} ` : ''}대표님`}, 안녕하십니까.\n${ppIntro(x.owner)}`, ...paras, `감사합니다.${x.owner ? `\n${x.owner} 드림` : ''}`].join('\n\n');
 }
 const ppSent = (x, co) => ppCl(x).filter((l) => l.k === 'mail' && l.co === co && /^\d{4}-\d{2}-\d{2}$/.test(l.d || '')).pop();
 function ppCallScript(x, c) {
@@ -385,7 +383,7 @@ function ppCpInner(x) {
   if (!ppS.cpAt) { if (!ppS.cpLoading) ppCpLoad(); return bar('불러오는 중…'); }
   if (ppS.cpErr) return bar(esc(ppS.cpErr));
   // 프롬프트 복사: 대표님이 직접 Claude·ChatGPT로 만들 때 쓰는 회사 공용 프롬프트(cp_req.py도 같은 파일을 읽는다)
-  const pb = '<button type="button" class="btn ghost sm" data-cp-prompt>프롬프트 복사</button>';
+  const pb = `<span class="pp-cp-pr"><button type="button" class="btn ghost sm" data-cp-prompt>프롬프트 복사</button><button type="button" class="pp-qi" data-info="pp-cp-prompt" aria-label="프롬프트 설명">${ico('info', 'sm')}</button></span>`;
   const st = ppCpState(x), btn = (l, cls = '') => `<span class="pp-cp-acts">${pb}${l ? `<button type="button" class="btn sm${cls}" data-cp-req>${l}</button>` : ''}</span>`;
   let head;
   if (st.stopped) head = bar(`만들지 못했습니다${st.f.err ? `: ${esc(String(st.f.err).slice(0, 80))}` : ''}`, btn('다시 만들기'));
@@ -496,6 +494,18 @@ async function ppCpDraft(id, co) {
 /* 회사 공용 프롬프트(팀 파일함 04. 딜소싱/컨택 플랜 프롬프트.md)의 '프롬프트 시작' 아래를 회사 이름·보내는 사람·참고 자료를 채워 복사한다.
    회사는 보고 있는 회사 탭, 플랜이 없으면 딜 이름. 보내는 사람은 담당(없으면 나) */
 const PP_PROMPT = '팀/04. 딜소싱/컨택 플랜 프롬프트.md';
+TAB_INFO['pp-cp-prompt'] = { title: '컨택 플랜 프롬프트', rows: [
+  ['무엇인가', '컨택 플랜을 만들 때 쓰는 회사 공용 지침입니다. 연락 원칙, 조사 방법, 메일 양식, 우리 회사 소개가 들어 있습니다.'],
+  ['왜 있나', [
+    '자동으로 만들어지기를 기다리지 않고 바로 만들어 보실 때 씁니다.',
+    '누가 만들어도 같은 원칙과 같은 메일 양식으로 나오게 하려는 것입니다. 자동 작성도 이 파일을 그대로 읽습니다.',
+  ]],
+  ['쓰는 법', [
+    '프롬프트 복사를 누르면 회사 이름과 보내는 사람(담당)이 채워진 채로 복사됩니다.',
+    'Claude나 ChatGPT에서 웹 검색을 켜고 붙여 넣으시면 됩니다.',
+  ]],
+  ['고칠 때', '공용 폴더 04. 딜소싱의 \'컨택 플랜 프롬프트\' 파일을 고치시면 다음 자동 작성부터 반영됩니다. \'## \'로 시작하는 제목 줄 이름은 그대로 두세요.'],
+] };
 async function ppCpPrompt(id) {
   const x = ppFind(id); if (!x) return;
   try {
