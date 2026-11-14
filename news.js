@@ -113,14 +113,13 @@ function nwBriefLine(l) { // "주체: 상황 — 액션" → 주체 굵게, 액�
   return `<li>${x ? `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" title="${esc(x.title)}">${inner}</a>` : inner}</li>`;
 }
 
-function nwRow(x, pick, rank) {
-  const meta = [x.source, `${pick && nwDay(x.published) !== today() ? '어제 ' : ''}${nwTime(x.published)}`, (x.also || []).length ? `외 ${x.also.length}곳` : ''].filter(Boolean);
-  const tags = [...(nwS.cat !== 'space' && x.cat === 'space' ? ['우주·항공·방산'] : []), ...(x.tags || [])].slice(0, 4);
+function nwRow(x, pick) { // 아침 메일과 같은 모양: 점수, 제목, 출처, 요약
+  const meta = [x.source, `${pick && nwDay(x.published) !== today() ? '어제 ' : ''}${nwTime(x.published)}`, (x.also || []).length ? `외 ${x.also.length}곳` : '', nwS.cat !== 'space' && x.cat === 'space' ? '우주·항공·방산' : ''].filter(Boolean);
   const on = nwMarked(x.id), mk = on ? nwM.items.find((m) => m.id === x.id) : null;
-  return `<li class="nw-row">${rank ? `<span class="nw-rank">${rank}</span>` : ''}
+  return `<li class="nw-row"><span class="nw-score" title="딜 소싱 관점 점수">${x.score ?? ''}</span>
     <div class="nw-main"><a class="nw-ttl" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title)}</a>
-      ${x.why ? `<div class="nw-why">${esc(x.why)}</div>` : ''}
-      <div class="nw-meta"><span title="${esc((x.also || []).join(', '))}">${meta.map(esc).join(' · ')}</span>${tags.map((t) => `<span class="chip ${t === '우주·항공·방산' ? 'blue' : 'line'}">${esc(t)}</span>`).join('')}</div></div>
+      <div class="nw-meta" title="${esc((x.also || []).join(', '))}">${meta.map(esc).join(' · ')}</div>
+      ${x.why ? `<div class="nw-why">${esc(x.why)}</div>` : ''}</div>
     <button type="button" class="nw-star${on ? ' on' : ''}" data-nw-star="${esc(x.id)}" aria-pressed="${on}" aria-label="중요" title="${on && mk?.by ? esc(`${mk.by} 체크`) : '중요'}">${NW_STAR}</button></li>`;
 }
 
@@ -142,7 +141,7 @@ function nwDraw() {
   const picked = new Set(picks.map((x) => x.id)), rest = list.filter((x) => !picked.has(x.id));
   const by = (a, b) => (b.score || 0) - (a.score || 0) || String(b.published).localeCompare(String(a.published)); // 날짜 안에서는 점수순
   const days = [...new Set(rest.map((x) => nwDay(x.published)))].sort().reverse();
-  body.innerHTML = (picks.length || brief.length ? `<section class="nw-pick"><div class="nw-pick-h">${ico('spark', 'sm')}<b>주요 기사</b></div>${brief.length ? `<ul class="nw-brief">${brief.map(nwBriefLine).join('')}</ul>` : ''}${picks.length ? `<ul class="nw-list">${picks.map((x, i) => nwRow(x, true, i + 1)).join('')}</ul>` : ''}</section>` : '') + days.map((k) => {
+  body.innerHTML = (picks.length || brief.length ? `<section class="nw-pick"><div class="nw-pick-h"><b>주요 기사</b><span class="n">${picks.length}건</span></div>${brief.length ? `<ul class="nw-brief">${brief.map(nwBriefLine).join('')}</ul>` : ''}${picks.length ? `<ul class="nw-list">${picks.map((x) => nwRow(x, true)).join('')}</ul>` : ''}</section>` : '') + days.map((k) => {
     const its = rest.filter((x) => nwDay(x.published) === k).sort(by), dd = parse(k);
     const lbl = k === td ? '오늘' : k === ymd(addDays(new Date(), -1)) ? '어제' : '';
     return `<div class="nw-grp"><b>${dd.getMonth() + 1}월 ${dd.getDate()}일 (${WD[dd.getDay()]})</b>${lbl ? `<span>${lbl}</span>` : ''}<span class="n">${its.length}건</span></div><ul class="nw-list">${its.map((x) => nwRow(x)).join('')}</ul>`;
