@@ -402,7 +402,7 @@ function render() {
   segFit(PAGE.querySelector('.deal-seg')); // 딜소싱·시장동향 탭 줄
   segFit(PAGE.querySelector('.deal-sub')); // 하위 탭 줄(타깃 다섯 탭은 1100보다 좁으면 넘친다)
 }
-window.addEventListener('hashchange', render);
+window.addEventListener('hashchange', () => { if (!updReload()) render(); }); // 새 버전이 받아져 있으면 메뉴를 옮길 때 새로 고침
 // '메일' 메뉴: 다른 메뉴에서 오면 받은편지함부터(mailInboxReset). 메일 화면에서 다시 누르면 주소가 같아 hashchange가 안 오니 직접 받은편지함으로
 document.addEventListener('click', (e) => {
   const a = e.target.closest('a[data-r="mail"]');
@@ -1691,13 +1691,19 @@ async function start() {
 }
 if ('serviceWorker' in navigator && location.protocol === 'https:') {
   navigator.serviceWorker.register('sw.js').catch(() => {});
-  // 앱을 다시 열 때마다 새 버전 확인 → 새 서비스워커가 자리 잡으면, 작성 중인 내용이 없을 때 한 번 새로 고침
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) navigator.serviceWorker.getRegistration().then((r) => r && r.update()).catch(() => {}); });
-  let reloaded = false; const hadController = !!navigator.serviceWorker.controller; // 첫 설치 때는 새로 고치지 않음
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!hadController || reloaded || (cur && cur.dirty) || ui.mail?.compose || formDirty() || window.flUploading > 0 || (typeof rdS !== 'undefined' && rdS.dirty.size) || (typeof ppS !== 'undefined' && ppS.dirty.size) || (typeof ipoState !== 'undefined' && ipoState.dirty.size) || (typeof peS !== 'undefined' && peS.dirty.size) || saving() || document.activeElement?.matches('input,textarea')) return;
-    reloaded = true; location.reload();
+  // 앱을 다시 열 때마다 새 버전 확인. 새 서비스워커가 자리 잡아도 바로 새로 고치지 않고(사용자 11/14: 일하는 중에 갑자기 새로 고쳐지면 곤란)
+  // 다음에 다른 메뉴로 옮길 때나 웍스 창을 떠날 때, 작성 중인 내용이 없으면 한 번 새로 고침(updReload). 보던 자리는 F5 유지(viewGet)로 돌아온다
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) updReload();
+    else navigator.serviceWorker.getRegistration().then((r) => r && r.update()).catch(() => {});
   });
+  const hadController = !!navigator.serviceWorker.controller; // 첫 설치 때는 새로 고치지 않음
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (hadController) { updPending = true; if (document.hidden) updReload(); } });
+}
+var updPending = false, updDone = false;
+function updReload() {
+  if (!updPending || updDone || (cur && cur.dirty) || ui.mail?.compose || formDirty() || window.flUploading > 0 || (typeof rdS !== 'undefined' && rdS.dirty.size) || (typeof ppS !== 'undefined' && ppS.dirty.size) || (typeof ipoState !== 'undefined' && ipoState.dirty.size) || (typeof peS !== 'undefined' && peS.dirty.size) || saving() || (document.activeElement?.matches('input,textarea') && document.activeElement.value)) return false;
+  updDone = true; location.reload(); return true;
 }
 // mail.js·events.js 등 뒤에 붙는 스크립트까지 다 읽힌 다음 시작 (그 전에 그리면 renderMail 등이 아직 없다)
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
