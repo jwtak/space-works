@@ -1,5 +1,5 @@
 /* SPACE WORKS 서비스워커: 앱 화면 파일만 캐시(오프라인에서도 열리게). 메일·일정·파일 같은 데이터는 캐시하지 않는다. */
-const VERSION = 'works-1794654170';
+const VERSION = 'works-1794654360';
 const SHELL = ['./', 'index.html', 'style.css', 'mail.css', 'graph.js', 'app.js', 'mail.js', 'events.js', 'events.css', 'ipo.js', 'ipo.css', 'radar.js', 'radar.css', 'fsq.js', 'pipeline.js', 'pipeline.css', 'facts.js', 'facts.css', 'delist.js', 'delist.css', 'pe.js', 'pe.css', 'kmx.js', 'kmx.css', 'sector.js', 'sector.css', 'files.js', 'files.css', 'prep.js', 'prep.css', 'news.js', 'news.css', 'market.js', 'market.css', 'ma.js', 'ma.css', 'feedback.js', 'feedback.css', 'guide.js', 'guide.css', 'vendor/msal-browser.min.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
