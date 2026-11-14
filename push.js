@@ -93,18 +93,22 @@ async function pushToggle() {
 /* Graph 받은편지함 구독 두 개
    rich : 보낸 사람·제목을 암호화해 담아 주는 구독. 최대 1440분(1일 미만)
    basic: 메일 id만 주는 구독. 최대 10080분(7일 미만). 리치 구독이 끊긴 동안(주말 등) "새 메일이 도착했습니다"만
-   남은 시간이 최대의 절반보다 적으면 PATCH로 연장, 없거나 지났으면 새로 만든다. */
+   남은 시간이 최대의 절반보다 적으면 PATCH로 연장, 없거나 지났으면 새로 만든다.
+   resource는 PATCH로 못 바꾸므로 바꿀 때는 ver를 올린다. 저장된 ver가 다르면 옛 구독을 지우고 새로 만든다(폰에서 다시 켤 필요 없음).
+   ver 2(2026-11-14): bodyPreview 추가 = Outlook 앱처럼 '제목 • 미리보기' */
 const PUSH_SUBS = {
-  rich: { max: 1435 * 60e3, resource: "me/mailFolders('inbox')/messages?$select=subject,from,isRead", extra: () => ({ includeResourceData: true, encryptionCertificate: NOTIFY_CERT, encryptionCertificateId: NOTIFY_CERT_ID }) },
+  rich: { ver: 2, max: 1435 * 60e3, resource: "me/mailFolders('inbox')/messages?$select=subject,bodyPreview,from,isRead", extra: () => ({ includeResourceData: true, encryptionCertificate: NOTIFY_CERT, encryptionCertificateId: NOTIFY_CERT_ID }) },
   basic: { max: 10070 * 60e3, resource: "me/mailFolders('inbox')/messages", extra: () => ({}) },
 };
-// 돌려주는 값: undefined = 그대로, { id, exp } = 새로 만들거나 연장함
+// 돌려주는 값: undefined = 그대로, { id, exp, ver? } = 새로 만들거나 연장함
 async function pushKeep(kind, cur, clientState, reauth) {
   const k = PUSH_SUBS[kind], now = Date.now(), exp = new Date(now + k.max).toISOString();
+  const tag = (x) => (k.ver ? { ...x, ver: k.ver } : x);
+  if (cur && k.ver && (cur.ver || 1) !== k.ver) { await pushGraphDel([cur.id]); cur = null; } // resource가 바뀐 옛 구독
   const left = cur?.exp ? Date.parse(cur.exp) - now : -1;
   if (cur && left > k.max / 2 && !reauth) return undefined;
   if (cur && left > 60e3) { // PATCH = 연장 + 재인증
-    try { const r = await G.patch(`/subscriptions/${encodeURIComponent(cur.id)}`, { expirationDateTime: exp }); return { id: r?.id || cur.id, exp: r?.expirationDateTime || exp }; } catch (e) { if (e.status !== 404) throw e; }
+    try { const r = await G.patch(`/subscriptions/${encodeURIComponent(cur.id)}`, { expirationDateTime: exp }); return tag({ id: r?.id || cur.id, exp: r?.expirationDateTime || exp }); } catch (e) { if (e.status !== 404) throw e; }
   }
   const body = { changeType: 'created', notificationUrl: `${WORKS_API}/graph-notify`, lifecycleNotificationUrl: `${WORKS_API}/graph-notify?lc=1`, resource: k.resource, expirationDateTime: exp, clientState, ...k.extra() };
   let r;
@@ -116,7 +120,7 @@ async function pushKeep(kind, cur, clientState, reauth) {
     r = await G.post('/subscriptions', body);
   }
   if (cur?.id && cur.id !== r.id) pushGraphDel([cur.id]);
-  return { id: r.id, exp: r.expirationDateTime || exp };
+  return tag({ id: r.id, exp: r.expirationDateTime || exp });
 }
 
 async function ensureGraphSub() {
@@ -133,7 +137,7 @@ async function ensureGraphSub() {
     const rich = await pushKeep('rich', st.sub, st.clientState, st.reauth);
     const basic = await pushKeep('basic', st.basic, st.clientState, st.reauth).catch(() => undefined); // 일반 구독은 실패해도 리치 구독만으로 간다
     const save = {};
-    if (rich !== undefined) Object.assign(save, { id: rich.id, exp: rich.exp });
+    if (rich !== undefined) Object.assign(save, { id: rich.id, exp: rich.exp, ver: rich.ver });
     if (basic !== undefined) Object.assign(save, { basicId: basic.id, basicExp: basic.exp });
     if (Object.keys(save).length) await worksApi('graph-sub-saved', save);
     return st;

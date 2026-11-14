@@ -1,5 +1,5 @@
 /* SPACE WORKS 서비스워커: 앱 화면 파일만 캐시(오프라인에서도 열리게). 메일·일정·파일 같은 데이터는 캐시하지 않는다. */
-const VERSION = 'works-1794658642';
+const VERSION = 'works-1794659661';
 const SHELL = ['./', 'index.html', 'style.css', 'mail.css', 'graph.js', 'app.js', 'mail.js', 'push.js', 'events.js', 'events.css', 'ipo.js', 'ipo.css', 'radar.js', 'radar.css', 'fsq.js', 'pipeline.js', 'pipeline.css', 'facts.js', 'facts.css', 'delist.js', 'delist.css', 'pe.js', 'pe.css', 'kmx.js', 'kmx.css', 'sector.js', 'sector.css', 'files.js', 'files.css', 'prep.js', 'prep.css', 'news.js', 'news.css', 'market.js', 'market.css', 'ma.js', 'ma.css', 'feedback.js', 'feedback.css', 'guide.js', 'guide.css', 'vendor/msal-browser.min.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 
 self.addEventListener('install', (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
@@ -59,12 +59,13 @@ async function hpServe(req) {
   return new Response(r.body, { status: r.status === 206 ? 206 : 200, headers });
 }
 
-/* 폰 푸시(push.js·works-api): 본문 {t, title=보낸 사람, body=메일 제목, id=메일 id}. 본문은 이 기기 키로만 풀린다 */
+/* 폰 푸시(push.js·works-api): 본문 {t, title=보낸 사람, body=메일 제목, preview=본문 미리보기, id=메일 id}. 본문은 이 기기 키로만 풀린다
+   Outlook 앱 알림처럼 제목 줄은 보낸 사람, 본문은 '메일 제목 • 미리보기' */
 self.addEventListener('push', (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch { d = { body: e.data ? e.data.text() : '' }; }
   e.waitUntil(self.registration.showNotification(d.title || 'UNIVERSE WORKS', {
-    body: d.body || '', tag: d.id || d.t || 'works', icon: 'icons/icon-192.png', data: { id: d.id || '' },
+    body: [d.body, d.preview].filter(Boolean).join(' • '), tag: d.id || d.t || 'works', icon: 'icons/icon-192.png', data: { id: d.id || '' },
   }));
 });
 // 알림을 누르면: 열린 웍스 창이 있으면 그 창에서 메일을 열고, 없으면 새로 연다(로그인을 거쳐도 push.js가 이어서 연다)
