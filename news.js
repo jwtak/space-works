@@ -105,11 +105,11 @@ function nwBriefOf(cat) {
   const by = new Map((nwS.data.items || []).map((x) => [x.id, x])); // 예전 형식(전체 한 묶음)
   return (Array.isArray(b.lines) ? b.lines : []).filter((l) => l && l.text && (l.ids || []).some((i) => by.get(i)?.cat === cat));
 }
-function nwBriefLine(l) { // "주체: 상황 — 액션" → 주체 굵게, 액션 강조. 누르면 근거 기사
+function nwBriefLine(l) { // "주체: 상황 — 액션"을 주체 칸, 상황, 액션 줄로 나눠 그림. 누르면 근거 기사
   const t = l.text, x = (l.ids || []).map((i) => nwS.data.items.find((y) => y.id === i)).find(Boolean);
   const m = /^([^:]{1,30}):\s*(.*)$/.exec(t), subj = m ? m[1] : '', rest = m ? m[2] : t;
   const k = rest.lastIndexOf(' — '), body = k > 0 ? rest.slice(0, k) : rest, act = k > 0 ? rest.slice(k + 3) : '';
-  const inner = `${subj ? `<b>${esc(subj)}</b> ` : ''}${esc(body)}${act ? ` <span class="act">— ${esc(act)}</span>` : ''}`;
+  const inner = `<span class="nb"><b class="nb-s">${esc(subj)}</b><span class="nb-b">${esc(body)}</span>${act ? `<span class="nb-a">${esc(act)}</span>` : ''}</span>`; // 회사 | 상황, 그 아래 할 일
   return `<li>${x ? `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" title="${esc(x.title)}">${inner}</a>` : inner}</li>`;
 }
 
@@ -150,8 +150,8 @@ function nwDraw() {
 
 async function renderNews(host) {
   host.innerHTML = `<section class="card nw-card" id="nw-root">
+      <div class="tabs nw-tabs">${NW_CATS.map(([k, l]) => `<button type="button" data-nw-cat="${k}" class="${nwS.cat === k ? 'on' : ''}">${k === 'star' ? NW_STAR : ''}${l}<span class="n"></span></button>`).join('')}</div>
       <div class="nw-filter">
-        <div class="nw-seg">${NW_CATS.map(([k, l]) => `<button type="button" data-nw-cat="${k}" class="${nwS.cat === k ? 'on' : ''}">${k === 'star' ? NW_STAR : ''}${l}<span class="n"></span></button>`).join('')}</div>
         <div class="nw-search"><span class="nw-sic">${ico('search', 'sm')}</span><input class="input" id="nw-q" type="search" placeholder="기사·매체·회사 검색" value="${esc(nwS.q)}"></div>
         <select class="select" id="nw-period" aria-label="기간">${NW_PERIODS.map(([k, l]) => `<option value="${k}"${nwS.period === k ? ' selected' : ''}>${l}</option>`).join('')}</select>
         <span class="nw-sum" id="nw-sum"></span>
