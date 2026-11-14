@@ -1098,7 +1098,7 @@ async function mountMonth(el) {
           return `<li class="${click ? 'click' : ''}" ${click ? `data-item="${it.type}|${esc(it.id)}" data-d="${k}"` : ''}><span class="k c-${calKey(it)}"><i class="cdot"></i>${it.time}</span><div class="t"><div class="ttl">${esc(it.title)}</div></div></li>`;
         }).join('')}</ul>`;
       }
-      upcoming = `<div class="mcal-day mcal-up"><div class="day-head"><span class="hd">앞으로 7일</span></div>${upcoming || '<div class="muted" style="font-size:14px;padding:6px 0">일정 없음</div>'}</div>`;
+      upcoming = `<div class="mcal-day mcal-up"><div class="day-head"><span class="hd">다가오는 일정</span></div>${upcoming || '<div class="muted" style="font-size:14px;padding:6px 0">일정 없음</div>'}</div>`;
     }
     el.innerHTML = `<div class="card-head">
         <div class="mcal-nav"><button class="iconbtn" data-m="-1" aria-label="이전 달">${ico('left')}</button><span class="ym">${first.getFullYear()}년 ${first.getMonth() + 1}월</span><button class="iconbtn" data-m="1" aria-label="다음 달">${ico('right')}</button></div>
@@ -1229,7 +1229,7 @@ async function mountMonth(el) {
   if (!S.auth.connected) return;
   const tok = el._tok = (el._tok || 0) + 1;
   try {
-    const r = await fetchCal(ymd(start), ymd(el.id === 'cal-month' && isMobile() ? addDays(end, 7) : end)); // 폰은 '앞으로 7일'까지
+    const r = await fetchCal(ymd(start), ymd(el.id === 'cal-month' && isMobile() ? addDays(end, 7) : end)); // 폰은 다가오는 일정 7일까지
     if (!el.isConnected || !r.connected || el._tok !== tok) return; // 그사이 다른 달로 옮겼다
     events = r.events || []; draw();
   } catch (e) { /* 일정 실패해도 D-day·할 일은 보인다 */ }
