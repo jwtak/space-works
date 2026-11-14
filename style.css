@@ -465,7 +465,14 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
   .page-head { flex-wrap: wrap; margin: 0 16px 12px; }
   .page-head h1 { display: none; }
   .page-head:not(:has(.tools)) { display: none; }
-  .page-head .tools { margin-left: 0; width: 100%; justify-content: space-between; }
+  .page-head .tools { margin-left: 0; width: 100%; justify-content: space-between; flex-wrap: wrap; row-gap: 8px; }
+  .page-head .tools .btn, .page-head .tools .seg button { white-space: nowrap; }
+
+  /* 일정 목록: 날짜는 위 한 줄, 일정은 시간 + 제목, 버튼은 제목 아래 */
+  .cal-day { grid-template-columns: minmax(0, 1fr); gap: 6px; padding: 12px 16px; }
+  .ev { grid-template-columns: 96px minmax(0, 1fr); gap: 4px 8px; }
+  .ev > span:last-child { grid-column: 2; justify-self: start; }
+  .ev > span:last-child:empty { display: none; }
 
   /* 하단 탭 */
   .tabbar {
