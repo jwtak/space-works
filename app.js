@@ -79,6 +79,7 @@ async function load() {
   meChrome();
   counts(); foot(); mailUnread(); if (mailSeen === null) mailNotify();
   if (typeof rqInit === 'function') rqInit();
+  tcSync(1500); // 할 일 마감 일정 맞추기(바뀐 게 없으면 서버를 부르지 않는다)
 }
 
 /* 로그인한 사람 이름·직급 (대표님도 각자 계정으로 쓴다) */
@@ -120,7 +121,7 @@ function save(coll) {
         break;
       }
     } while (q.again);
-  })().finally(() => { q.p = null; });
+  })().finally(() => { q.p = null; if (coll === 'todos') tcSync(); });
   return q.p;
 }
 const saving = () => Object.values(SAVING).some((q) => q.p) || TT.busy > 0;
@@ -182,7 +183,7 @@ function ttAct(fn, msg) {
   return (TT.q = TT.q.then(async () => {
     let redraw = false;
     try { redraw = await ttSave(fn); if (msg) toast(msg); } catch (e) { toast(e.message); TT.loaded = false; await ttLoad(true).catch(() => {}); redraw = true; }
-    finally { TT.busy--; counts(); }
+    finally { TT.busy--; counts(); tcSync(); }
     if (redraw && ['home', 'todos', 'calendar'].includes(route()) && !ui.todoEdit && !ui.calEdit && !document.activeElement?.matches('input,textarea,select')) render();
   }));
 }
@@ -190,6 +191,87 @@ const ttNew = (f) => ({ id: uid(), title: f.title, due: f.due || null, cat: f.ca
 const ttAdd = (item) => ttAct((items) => { if (!items.some((x) => x.id === item.id)) items.push(item); }, `${personName(item.assignee)}님께 맡겼습니다`);
 const ttSet = (id, f) => ttAct((items) => { const x = items.find((i) => i.id === id); if (x && ttCan(x)) Object.assign(x, f); });
 const ttDel = (id) => ttAct((items) => { for (let i = items.length - 1; i >= 0; i--) if (items[i].id === id && ttCan(items[i])) items.splice(i, 1); }, '삭제했습니다');
+
+/* ---------- 할 일 마감 → 내 Outlook 캘린더 종일 일정 (2026-11-14 사용자 "내 캘린더에 종일 일정으로") ----------
+   대상: 내 목록의 할 일(내 할 일 + 나에게 맡겨진 팀 할 일) 중 마감 있고 안 끝난 것. 내가 남에게 맡긴 일은 넣지 않는다.
+   연결 표: 내 OneDrive data/todo_cal.json { 할 일 id: { id: 일정 id, due, title, team? } }. todos.json은 배열이고 브리핑(run.py)·Claude Code가
+   그대로 읽어서 형식을 바꾸지 않고 따로 둔다. 팀 할 일도 같은 표(팀 파일에 내 일정 id를 남기지 않게).
+   맞추기: 할 일을 저장한 뒤·앱을 열거나 다시 읽은 뒤(바꿀 게 없으면 서버를 부르지 않는다). 실패한 것은 표를 그대로 두어 다음에 다시.
+   Outlook에서 지운 일정(404)은 마감·제목이 바뀔 때만 새로 만든다. 그대로면 지운 뜻을 따른다.
+   웍스 달력에는 할 일이 따로 보이므로 이 일정은 fetchCal에서 뺀다(tcIsEv). */
+const TC = { map: null, version: null, at: 0, ids: new Set(), busy: false, again: false, timer: null, dirty: false };
+const tcIsEv = (e) => e.cal === 'me' && (TC.ids.has(e.id) || (e.allDay && String(e.subject).startsWith(OUTLOOK.TODO_PREFIX)));
+const tcIndex = () => { TC.ids = new Set(Object.values(TC.map || {}).map((m) => m.id)); };
+async function tcLoad() {
+  const r = await STORE.readJSON('todo_cal');
+  TC.map = r.items && typeof r.items === 'object' && !Array.isArray(r.items) ? r.items : {};
+  TC.version = r.version; TC.at = Date.now(); tcIndex();
+}
+function tcWant() {
+  const w = {};
+  for (const t of todoAll()) if (t.due && !t.done && t.title) w[t.id] = { due: t.due, title: t.title, ...(isTT(t) ? { team: true } : {}) };
+  return w;
+}
+function tcPlan() {
+  const want = tcWant(), M = TC.map, ops = [];
+  for (const [tid, w] of Object.entries(want)) {
+    if (!M[tid]) ops.push({ k: 'add', tid, w });
+    else if (M[tid].due !== w.due || M[tid].title !== w.title) ops.push({ k: 'set', tid, w });
+  }
+  for (const [tid, m] of Object.entries(M)) if (!want[tid] && !(m.team && !TT.loaded)) ops.push({ k: 'del', tid }); // 팀 할 일을 못 읽은 동안엔 지우지 않는다
+  return ops;
+}
+async function tcDo(op, made) {
+  const m = TC.map[op.tid];
+  try {
+    if (op.k === 'del') { if (m?.id) await OUTLOOK.todoRemove(m.id); delete TC.map[op.tid]; TC.dirty = true; return; }
+    if (op.k === 'set') {
+      try { await OUTLOOK.todoUpdate(m.id, op.w); TC.map[op.tid] = { id: m.id, ...op.w }; TC.dirty = true; return; }
+      catch (e) { if (e.status !== 404) throw e; } // Outlook에서 지웠다 + 마감·제목이 바뀌었다: 새로 만든다
+    }
+    const ev = await OUTLOOK.todoCreate(op.w);
+    TC.map[op.tid] = { id: ev.id, ...op.w }; TC.dirty = true; made.push([op.tid, ev.id]);
+  } catch { /* 표를 그대로 두면 다음에 다시 */ }
+}
+// 다른 기기가 표를 먼저 고쳤으면(409) 그쪽 표를 받아, 이번에 만든 일정만 얹는다. 같은 할 일을 그쪽이 먼저 만들었으면 내 것을 지운다
+async function tcSave(made) {
+  if (!TC.dirty) return;
+  for (let i = 0; i < 3; i++) {
+    try { TC.version = await STORE.writeJSON('todo_cal', TC.map, TC.version); TC.dirty = false; TC.at = Date.now(); tcIndex(); return; } catch (e) {
+      if (e.status !== 409) throw e;
+      const mine = TC.map; await tcLoad();
+      for (const [tid, id] of made) {
+        const r = TC.map[tid];
+        if (r && r.id !== id) OUTLOOK.todoRemove(id).catch(() => {});
+        else if (mine[tid]?.id === id) TC.map[tid] = mine[tid];
+      }
+      TC.again = true; // 고치기·지우기는 받은 표로 다시 계산
+    }
+  }
+  throw new Error('todo_cal 저장 충돌');
+}
+async function tcPass() {
+  if (!TC.map) await tcLoad();
+  let ops = tcPlan();
+  if (!ops.length) return;
+  if (Date.now() - TC.at > 30000) { await tcLoad(); ops = tcPlan(); if (!ops.length) return; } // 다른 기기가 이미 맞췄을 수 있다
+  const made = [];
+  for (let i = 0; i < ops.length; i += 3) { // 처음 켤 때 한꺼번에 생겨도 3개씩 차례로
+    if (i) await new Promise((r) => setTimeout(r, 300));
+    await Promise.all(ops.slice(i, i + 3).map((op) => tcDo(op, made)));
+    await tcSave(made);
+  }
+  if (made.length > 1) toast(`할 일 마감 ${made.length}건을 내 캘린더에 넣었습니다`);
+}
+async function tcRun() {
+  if (TC.busy) { TC.again = true; return; }
+  TC.busy = true;
+  try { do { TC.again = false; await tcPass(); } while (TC.again); } catch { /* 다음 저장·새로 읽기 때 다시 */ } finally { TC.busy = false; }
+}
+function tcSync(delay = 800) { // 잇달아 바꿔도 한 번에
+  if (!S || !G.account || !G.isOwner) return; // 지금은 탁지원 계정만(11/14). 대표님 캘린더에는 묻기 전까지 만들지 않는다
+  clearTimeout(TC.timer); TC.timer = setTimeout(tcRun, delay);
+}
 
 // 왼쪽 메뉴 '메일' 옆 숫자 = 받은편지함 안 읽은 메일 (1분마다, 메일 화면에선 폴더 개수와 같이 갱신)
 function setMailCnt(n) {
@@ -260,6 +342,7 @@ function accountMenu() {
       <li><a href="#deals" data-close>${ico('ticket')}딜소싱</a></li>
       <li><a href="#programs" data-close>${ico('box')}프로그램</a></li>
       <li><button type="button" id="m-guide">${ico('flag')}사용 안내</button></li>
+      ${typeof pushMenuItem === 'function' ? pushMenuItem() : ''}
       <li><button type="button" id="m-req">${ico('spark')}요청사항<span class="cnt" data-cnt="req" style="margin-left:auto"></span></button></li>
       <li><button type="button" id="m-refresh">${ico('refresh')}새로고침</button></li>
       <li><button type="button" id="m-logout">${ico('ext')}로그아웃</button></li>
@@ -269,6 +352,7 @@ function accountMenu() {
     el.querySelector('#m-logout').onclick = () => G.logout();
     el.querySelector('#m-req').onclick = () => { close(); if (typeof rqOpen === 'function') rqOpen(); };
     el.querySelector('#m-guide').onclick = () => { close(); setTimeout(() => gdOpen(true), 150); };
+    el.addEventListener('click', (e) => { if (e.target.closest('[data-push-toggle]') && typeof pushToggle === 'function') pushToggle(); }); // 폰 알림 켜기·끄기(push.js)
     if (typeof rqCount === 'function') rqCount();
   });
 }
@@ -533,6 +617,8 @@ function renderHomeMobile() {
   fetchCal(ymd(s0), ymd(addDays(s0, 1))).then((r) => {
     const box = $('#mh-ev'); if (!box) return;
     const ev = r.events.filter((e) => !e.cancelled);
+    box.previousElementSibling?.matches('.cal-stale') && box.previousElementSibling.remove();
+    if (r.stale) box.insertAdjacentHTML('beforebegin', calStaleBar(r.stale));
     const n = $('#mh-cal'); if (n && ev.length) { n.textContent = ev.length; n.hidden = false; }
     box.innerHTML = ev.map((e) => `<li class="click" ${e.editable ? `data-ev="${esc(e.id)}"` : 'data-go="#calendar"'}><span class="mh-time">${e.allDay ? '종일' : e.start.slice(11, 16)}</span><span class="mh-tt">${esc(e.subject)}</span>${e.location ? `<span class="mh-loc">${esc(e.location)}</span>` : ''}</li>`).join('') || '<li class="mh-empty">오늘 일정이 없습니다.</li>';
     box.querySelectorAll('[data-go]').forEach((li) => li.addEventListener('click', () => { location.hash = li.dataset.go; }));
@@ -975,7 +1061,7 @@ async function openEventView(e, onDone) {
   evModalBusy = true;
   try {
     let det = {};
-    try { det = await OUTLOOK.detail(e.id, e.cal); } catch { /* 내용 없이도 연다 */ }
+    if (!e.stale) try { det = await OUTLOOK.detail(e.id, e.cal); } catch { /* 내용 없이도 연다 */ } // 저장분(서버 안 됨)은 바로 연다
     const sd = e.start.slice(0, 10); let ed = e.end.slice(0, 10);
     if (e.allDay) ed = ymd(addDays(parse(ed), -1));
     const when = e.allDay ? `${mdw(sd)}${ed > sd ? ` ~ ${mdw(ed)}` : ''} 종일`
@@ -992,7 +1078,7 @@ async function openEventView(e, onDone) {
         ${row('참석자', esc(who.join(', ')))}
         ${row('장소', esc(e.location || ''))}
         ${row('내용', esc(note))}
-        <div class="ev-actions">${e.cal === 'team' && !OUTLOOK.teamWritable ? '' : '<button type="button" class="btn ghost danger" data-del>삭제</button>'}<span class="sp"></span>${e.link ? `<a class="btn grey" href="${esc(e.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}${e.join ? `<a class="btn primary" href="${esc(e.join)}" target="_blank" rel="noopener">Teams 참가</a>` : '<button type="button" class="btn primary" data-close>닫기</button>'}</div>
+        <div class="ev-actions">${e.stale || (e.cal === 'team' && !OUTLOOK.teamWritable) ? '' : '<button type="button" class="btn ghost danger" data-del>삭제</button>'}<span class="sp"></span>${e.link ? `<a class="btn grey" href="${esc(e.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}${e.join ? `<a class="btn primary" href="${esc(e.join)}" target="_blank" rel="noopener">Teams 참가</a>` : '<button type="button" class="btn primary" data-close>닫기</button>'}</div>
       </div>`, (el, close) => {
       const b = el.querySelector('[data-close]'); if (b) b.onclick = close;
       const del = el.querySelector('[data-del]');
@@ -1058,7 +1144,7 @@ async function mountMonth(el) {
   if (!ui.month) { const [vm, vd] = viewGet('month', []), n = new Date(); ui.month = vm ? parse(vm) : new Date(n.getFullYear(), n.getMonth(), 1); ui.selDay ||= vd; }
   if (!ui.selDay) ui.selDay = today();
   const { first, start, end, n } = monthGrid(ui.month);
-  let events = [];
+  let events = [], stale = null;
   const refetch = () => { CALC = {}; mountMonth(el); };
 
   const draw = () => {
@@ -1083,7 +1169,7 @@ async function mountMonth(el) {
       const on = ed && ed.kind === it.type && ed.id === it.id;
       if (on) return `<li class="editing">${calForm(it.type, it.id, events)}</li>`;
       const ext = it.type === 'ev' && !it.editable
-        ? `<span class="chip line">${it.ev.cal === 'team' && !OUTLOOK.teamWritable ? '보기 전용' : it.ev.organizer_me ? '참석자 있음' : '받은 초대'}</span>${it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank" rel="noopener">Teams 참가</a>` : it.link ? `<a class="btn sm ghost" href="${esc(it.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}`
+        ? `<span class="chip line">${it.ev.stale || (it.ev.cal === 'team' && !OUTLOOK.teamWritable) ? '보기 전용' : it.ev.organizer_me ? '참석자 있음' : '받은 초대'}</span>${it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank" rel="noopener">Teams 참가</a>` : it.link ? `<a class="btn sm ghost" href="${esc(it.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}`
         : it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank" rel="noopener">Teams 참가</a>` : '';
       const click = it.editable || it.type === 'ev';
       return `<li class="${click ? 'click' : ''}" ${click ? `data-item="${it.type}|${esc(it.id)}"` : ''}><span class="k c-${calKey(it)}"><i class="cdot"></i>${it.time}</span><div class="t"><div class="ttl">${esc(it.title)}</div>${it.ev ? `<div class="meta">${it.cal === 'team' ? '유니버스인베스트먼트' : '내 일정'}${evOwners(it.ev).length ? ' · 담당 ' + evOwners(it.ev).join(', ') : ''}${it.ev.location ? ' · ' + esc(it.ev.location) : ''}</div>` : ''}</div>${ext}</li>`;
@@ -1106,7 +1192,7 @@ async function mountMonth(el) {
         ${el.id === 'home-month' ? `<button class="btn sm ghost mcal-toggle" type="button" data-mt>${ui.monthOpen ? '접기' : '월 전체'}</button>` : ''}
         <div class="cal-filter act">${CALS.filter((c) => S.auth.connected || ['ms', 'td'].includes(c.key)).map((c) =>
           `<label class="cf c-${c.key}" title="${c.sub}"><input type="checkbox" data-show="${c.key}" ${ui.calShow[c.key] !== false ? 'checked' : ''}><i class="box"></i>${c.name}</label>`).join('')}
-</div></div>
+</div></div>${calStaleBar(stale)}
       ${isMobile()
         ? `<div class="mcal">${WD.map((w, i) => `<div class="wd ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${w}</div>`).join('')}${cells}</div>`
         : `<div class="mcal bars"><div class="mwd">${WD.map((w, i) => `<div class="wd ${i === 0 ? 'sun' : i === 6 ? 'sat' : ''}">${w}</div>`).join('')}</div>${weekRowsHTML(start, n, events, first, td)}</div>`}
@@ -1231,19 +1317,33 @@ async function mountMonth(el) {
   try {
     const r = await fetchCal(ymd(start), ymd(el.id === 'cal-month' && isMobile() ? addDays(end, 7) : end)); // 폰은 향후 일정 7일까지
     if (!el.isConnected || !r.connected || el._tok !== tok) return; // 그사이 다른 달로 옮겼다
-    events = r.events || []; draw();
+    events = r.events || []; stale = r.stale; draw();
   } catch (e) { /* 일정 실패해도 D-day·할 일은 보인다 */ }
 }
 
 // ---------- 일정 ----------
+// 할 일 마감 일정([할 일])은 웍스에선 할 일로 따로 보이므로 뺀다. 서버가 안 될 때 받은 저장분(stale)은 캐시하지 않아 다음에 다시 부른다
+const calOut = (r) => ({ ...r, events: r.events.filter((x) => !tcIsEv(x)) });
 async function fetchCal(s, e, force) {
   const key = `${s}|${e}`;
-  if (CALC[key] && !force && Date.now() - CALC[key].at < 300000) return CALC[key];
+  if (CALC[key] && !force && Date.now() - CALC[key].at < 300000) return calOut(CALC[key]);
   if (force) OUTLOOK.ids = null;
-  const d = new Date();
-  const r = { connected: true, events: await OUTLOOK.events(`${s}T00:00:00`, `${e}T00:00:00`), fetched: `${pad(d.getHours())}:${pad(d.getMinutes())}`, at: Date.now() };
-  CALC[key] = r; return r;
+  const d = new Date(), events = await OUTLOOK.eventsSafe(`${s}T00:00:00`, `${e}T00:00:00`, force);
+  const r = { connected: true, events, stale: events.stale || null, fetched: `${pad(d.getHours())}:${pad(d.getMinutes())}`, at: Date.now() };
+  if (!r.stale) CALC[key] = r;
+  return calOut(r);
 }
+// 일정 서버가 안 될 때 한 줄 안내 + 다시 시도
+function calStaleBar(stale) {
+  if (!stale) return '';
+  const d = new Date(stale);
+  return `<div class="cal-stale" role="status"><span>일정 서버 연결 안 됨 · ${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())} 기준</span><button type="button" class="btn sm" data-cal-retry>다시 시도</button></div>`;
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('[data-cal-retry]')) return;
+  CALC = {}; OUTLOOK.ids = null; OUTLOOK.downAt = 0;
+  if (route() === 'calendar') renderCalendar(true); else render();
+});
 
 function weekStart(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; }
 
@@ -1297,8 +1397,8 @@ async function renderCalendar(force) {
           <span>${ev.join && !ev.cancelled ? `<a class="btn sm" href="${esc(ev.join)}" target="_blank" rel="noopener">Teams 참가</a>` : ev.link ? `<a class="btn sm ghost" href="${esc(ev.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}</span>
         </div>`).join('') : '<div class="m muted" style="padding:6px 0;font-size:14px">일정 없음</div>'}</div></div>`;
     }
-    $('#cal-body').innerHTML = `<section class="card" style="overflow:hidden">${html}</section>
-      <div class="muted" style="font-size:12px;margin-top:8px">${r.fetched} 기준</div>`;
+    $('#cal-body').innerHTML = `${calStaleBar(r.stale)}<section class="card" style="overflow:hidden">${html}</section>
+      ${r.stale ? '' : `<div class="muted" style="font-size:12px;margin-top:8px">${r.fetched} 기준</div>`}`;
   } catch (err) { const cb = $('#cal-body'); if (cb) cb.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
 }
 

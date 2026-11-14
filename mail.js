@@ -21,6 +21,11 @@ const MAIL_MAX_ATTACH = 3 * 1024 * 1024; // 이 크기까지는 한 번에 올�
 const MAIL_MAX_BIG = 150 * 1024 * 1024; // 업로드 세션 한도
 const MAIL_CHUNK = 10 * 320 * 1024; // 업로드 세션 조각은 320KiB 배수
 const MAIL_FILTERS = [{ k: 'all', label: '모든 메일' }, { k: 'unread', label: '안 읽은 메일' }, { k: 'att', label: '첨부 있는 메일' }];
+/* 수신 확인(2026-11-14): 보낼 때 웍스 서버(push.js worksApi)에서 토큰을 받아 본문 끝에 1px 이미지를 붙이고, 토큰은 메일 자체의 확장 속성에 적어 둔다.
+   보낸 초안은 그대로 보낸편지함으로 옮겨지므로(Graph send mail 과정 4단계) 보낸편지함 사본에서 $expand로 다시 읽힌다. worksApi가 없으면 기능을 숨긴다 */
+const MAIL_TRK_PROP = 'String {7d3e9a42-6b1f-4c85-9e27-3a5c0f8d14b6} Name WorksTrack';
+const MAIL_TRK_EXP = `singleValueExtendedProperties($filter=id eq '${MAIL_TRK_PROP}')`;
+const mailTrkOn = () => typeof worksApi === 'function' && typeof WORKS_API !== 'undefined' && !!WORKS_API;
 const mailBoxOf = (f) => (String(f || '').startsWith('contact:') ? 'contact' : 'me');
 const mailFid = (f) => String(f || '').replace(/^contact:/, ''); // Graph 폴더 id(기본 폴더는 inbox 같은 이름)
 const mailRoot = (box) => (box === 'contact' ? `/users/${MAIL_SHARED}` : '/me');
@@ -39,8 +44,110 @@ const mailState = () => {
   m.filter = m.filter || viewGet('mail.filter', 'all');
   if (m.qAll == null) m.qAll = viewGet('mail.qAll', true); // 검색 범위: 전체 메일함(기본) / 이 폴더
   m.fids = m.fids || {}; // 폴더 키 → 실제 Graph id (전체 검색 결과의 폴더 이름 찾기)
+  m.opens = m.opens || {}; // 수신 확인 토큰 → 열람 기록 [{ at, kind }]
   return m;
 };
+
+/* ---------- 수신 확인 ---------- */
+const mailTrkTok = (x) => { const v = (x?.singleValueExtendedProperties || [])[0]?.value; return /^[\w-]{8,}$/.test(v || '') ? v : null; }; // 'off' = 껐음
+const mailTrkImg = (tok) => `<img src="${WORKS_API}/track?t=${encodeURIComponent(tok)}" width="1" height="1" alt="" style="display:block;border:0;width:1px;height:1px">`;
+/* 보낼 본문 맨 끝(</body> 앞)에 열람 이미지. 일반 텍스트 본문은 HTML로 바꿔 붙인다 */
+function mailTrkBody(b, tok) {
+  if (!tok) return b;
+  const html = b.contentType === 'Text' ? mailTextToHtml(b.content) : b.content, i = html.search(/<\/body>/i);
+  return { contentType: 'HTML', content: i < 0 ? html + mailTrkImg(tok) : html.slice(0, i) + mailTrkImg(tok) + html.slice(i) };
+}
+/* 웍스에서 메일을 열 때 열람 이미지를 지운다(내가 보낸 메일·답장 원문·초안을 볼 때 열람으로 찍히지 않게) */
+function mailTrkStrip(html) {
+  if (!html || !/\/track\b/i.test(html)) return html;
+  const base = mailTrkOn() ? `${String(WORKS_API).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}|` : '';
+  const re = new RegExp(`<img\\b[^>]*?\\bsrc\\s*=\\s*["']?[^"'\\s>]*?(?:${base}\\.supabase\\.co/functions/v1(?:/[\\w-]+)?)/track(?=[?"'\\s/>])[^>]*>`, 'gi');
+  return html.replace(re, '');
+}
+/* 토큰들의 열람 기록을 한 번에 받아 m.opens에 넣는다. 실패하면 조용히 넘어간다 */
+async function mailTrkFetch(tokens) {
+  const m = ui.mail, want = [...new Set(tokens.filter(Boolean))];
+  if (!want.length || !mailTrkOn()) return false;
+  try {
+    const o = (await worksApi('opens', { tokens: want }))?.opens || {};
+    want.forEach((t) => { m.opens[t] = Array.isArray(o[t]) ? o[t] : []; });
+    return true;
+  } catch { return false; }
+}
+const mailTrkTag = (tok) => { const n = ui.mail.opens[tok]?.length; return n == null ? '' : n ? `열람 ${n}` : '미열람'; };
+/* 목록의 열람 표시만 고친다(목록 전체를 다시 그리지 않게) */
+function mailTrkPaint() {
+  document.querySelectorAll('#mail-items [data-trk]').forEach((el) => {
+    const t = mailTrkTag(el.dataset.trk); el.textContent = t; el.hidden = !t; el.classList.toggle('on', /^열람/.test(t));
+  });
+}
+function mailTrkTime(iso) {
+  const d = new Date(iso); if (Number.isNaN(+d)) return '';
+  const y = d.getFullYear() === new Date().getFullYear() ? '' : `${String(d.getFullYear()).slice(2)}.`;
+  return `${y}${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+/* 읽기 화면 '수신 확인' 줄의 값: 최근 순 5개 + 외 N회 */
+function mailTrkRowHtml(tok) {
+  const list = ui.mail.opens[tok];
+  if (!list) return '<span class="muted">불러오는 중…</span>';
+  if (!list.length) return '<span class="mail-trk">미열람</span>';
+  const s = [...list].sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  return s.slice(0, 5).map((o) => `<span class="mail-trkt">${mailTrkTime(o.at)}${o.kind === 'proxy' ? '<span class="mail-trkp">자동 열람 추정</span>' : ''}</span>`).join('')
+    + (s.length > 5 ? `<span class="mail-trkt muted">외 ${s.length - 5}회</span>` : '');
+}
+
+/* ---------- 장애 대비: 폴더 첫 페이지 목록을 이 기기에 저장해 두고, 서버가 안 될 때 읽기 전용으로 보여 준다 ----------
+   키는 로그인 주소(G.account.username): 장애 때는 /me(S.me.mail)도 못 받을 수 있어 늘 있는 값으로 */
+const mailCacheKey = (f) => { const u = (typeof G !== 'undefined' && G.account?.username || '').toLowerCase(); return u ? `mailList:${u}:${f}` : null; };
+function mailCacheSave(f, list) {
+  const k = mailCacheKey(f); if (!k) return;
+  const who = (r) => (r?.emailAddress ? { emailAddress: { name: r.emailAddress.name || '', address: r.emailAddress.address || '' } } : null);
+  const items = list.slice(0, 50).map((x) => ({
+    id: x.id, subject: x.subject || '', from: who(x.from), toRecipients: (x.toRecipients || []).slice(0, 3).map(who),
+    receivedDateTime: x.receivedDateTime, sentDateTime: x.sentDateTime, lastModifiedDateTime: x.lastModifiedDateTime,
+    isRead: !!x.isRead, hasAttachments: !!x.hasAttachments, isDraft: !!x.isDraft, bodyPreview: String(x.bodyPreview || '').replace(/\s+/g, ' ').slice(0, 120),
+  }));
+  try { localStorage.setItem(k, JSON.stringify({ at: Date.now(), items })); } catch { /* 용량이 차면 건너뛴다 */ }
+}
+function mailCacheGet(f) {
+  const k = mailCacheKey(f); if (!k) return null;
+  try { const v = JSON.parse(localStorage.getItem(k) || 'null'); return v && Array.isArray(v.items) ? v : null; } catch { return null; }
+}
+const mailIsDown = (e) => e?.status == null || e.status === 0 || e.status >= 500; // 네트워크 오류·응답 없음·5xx (401 로그인 만료는 아님)
+function mailDrawOff() {
+  const el = $('#mail-off'), m = ui.mail; if (!el) return;
+  el.hidden = !m.offline;
+  if (!m.offline) { el.innerHTML = ''; return; }
+  const d = new Date(m.offline.at);
+  el.innerHTML = `<b>메일 서버 연결 안 됨</b><span>${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())} 기준 목록</span><button class="btn sm" type="button" data-retry>다시 시도</button>`;
+  el.querySelector('[data-retry]').addEventListener('click', mailRetry);
+}
+async function mailRetry() {
+  const m = ui.mail;
+  mailLoadCounts();
+  await mailLoadList();
+  if (route() !== 'mail' || m.offline || m.view !== 'read' || !m.sel || m.compose) return;
+  if (m.list.some((x) => x.id === m.sel)) mailOpen(m.sel); else { m.sel = null; mailBackToList(); mailDrawPane(); }
+}
+/* 저장해 둔 목록의 메일을 눌렀을 때: 제목·보낸 사람·날짜만, 본문 자리에 안내 */
+function mailDrawOffPane(x) {
+  const pane = $('#mail-pane'); if (!pane) return;
+  const toSide = ['sentitems', 'drafts'].includes(mailFid(ui.mail.folder));
+  const iso = toSide ? x.sentDateTime || x.lastModifiedDateTime || x.receivedDateTime : x.receivedDateTime;
+  const who = toSide ? ['받는 사람', mailAddrList(x.toRecipients)] : ['보낸 사람', mailAddr(x.from)];
+  pane.innerHTML = `
+    <div class="mail-mhead"><button class="iconbtn" type="button" id="mail-mback" aria-label="목록">${ico('left')}</button></div>
+    <div class="mail-rhead mail-offhead">
+      <div class="mail-tools"><button class="mail-tbtn mail-tlist" type="button" id="mail-back">${mi('list')}목록</button></div>
+      <div class="mail-rsubj-row"><h2 class="mail-rsubj">${esc(x.subject || '(제목 없음)')}</h2></div>
+      <div class="mail-mdate">${mailDateLine(iso)}</div>
+      <dl class="mail-meta mail-offmeta"><dt>${who[0]}</dt><dd>${esc(who[1])}</dd></dl>
+    </div>
+    <div class="mail-offbody"><span>연결되면 본문을 볼 수 있습니다</span><button class="btn sm" type="button" data-retry>다시 시도</button></div>`;
+  $('#mail-back').addEventListener('click', mailBackToList);
+  $('#mail-mback').addEventListener('click', mailBackToList);
+  pane.querySelector('[data-retry]').addEventListener('click', mailRetry);
+}
 
 /* ---------- 유틸 ---------- */
 function mailTime(iso) {
@@ -300,6 +407,7 @@ async function renderMail() {
             <button class="btn sm" type="button" data-bulk="delete">삭제</button></span>
           <button class="iconbtn mail-bar-r" type="button" data-ref title="새로고침" aria-label="새로고침">${ico('refresh', 'sm')}</button>
         </div>
+        <div class="mail-off" id="mail-off" role="status" hidden></div>
         <ul class="mail-items" id="mail-items"></ul>
       </section>
       <section class="mail-pane" id="mail-pane"></section>
@@ -544,8 +652,9 @@ async function mailLoadList(more) {
   // 늦게 온 이전 요청(다른 폴더·검색·보기, 지난 "더 보기")이 새 목록을 덮지 않게 마지막 요청만 반영
   const my = (m.listSeq = (m.listSeq || 0) + 1), key = [m.folder, m.q, m.filter, !!m.qAll].join('\n');
   const mb = mailBoxOf(m.folder);
-  if (!more) { m.list = []; m.next = null; m.checked.clear(); m.listKey = key; box.innerHTML = '<li class="empty">불러오는 중…</li>'; }
+  if (!more) { m.list = []; m.next = null; m.checked.clear(); m.listKey = key; m.offline = null; mailDrawOff(); box.classList.remove('off'); box.innerHTML = '<li class="empty">불러오는 중…</li>'; }
   m.loading = true;
+  const trk = mailTrkOn() && !m.q && mailFid(m.folder) === 'sentitems'; // 보낸편지함은 수신 확인 토큰(확장 속성)도 같이 받는다
   const flt = $('#mail-filter'); if (flt) flt.disabled = !!m.q; // $search 는 $filter 와 같이 못 쓴다
   try {
     let url;
@@ -559,18 +668,30 @@ async function mailLoadList(more) {
         // $filter 와 $orderby 를 같이 쓰려면 정렬 속성이 $filter 맨 앞에 있어야 한다 (Graph 제약)
         const extra = { unread: 'isRead eq false', att: 'hasAttachments eq true' }[m.filter];
         if (extra) q.set('$filter', `${dateKey} ge 1900-01-01T00:00:00Z and ${extra}`);
+        if (trk) q.set('$expand', MAIL_TRK_EXP);
       }
       // 전체 메일함 검색은 폴더와 무관하게 그 사서함 전체(/messages)에서 찾는다
       url = m.q && m.qAll ? `${mailRoot(mb)}/messages?${q}` : `${mailRoot(mb)}/mailFolders/${encodeURIComponent(mailFid(m.folder))}/messages?${q}`;
     }
     const j = await G.get(url);
     if (my !== m.listSeq || m.listKey !== key || route() !== 'mail') return;
-    j.value.forEach((x) => { x._box = mb; });
+    j.value.forEach((x) => { x._box = mb; x._trk = mailTrkTok(x); });
     m.list = more ? m.list.concat(j.value) : j.value;
     m.next = j['@odata.nextLink'] || null;
     mailDrawList();
+    if (!more && !m.q && m.filter === 'all') mailCacheSave(m.folder, j.value);
+    // 수신 확인: 이번에 받은 메일의 토큰만 묶어 한 번에(처음 목록은 새로, 더 보기는 아직 모르는 것만)
+    const toks = j.value.map((x) => x._trk).filter((t) => t && (!more || !m.opens[t]));
+    if (toks.length) mailTrkFetch(toks).then((ok) => { if (ok && my === m.listSeq && route() === 'mail') mailTrkPaint(); });
   } catch (e) {
-    if (my === m.listSeq && box.isConnected) box.innerHTML = `<li class="empty">${esc(e.message)}</li>`;
+    if (my !== m.listSeq || !box.isConnected) return;
+    // 서버 장애·네트워크 오류: 이 기기에 저장해 둔 마지막 목록을 읽기 전용으로. 로그인 만료(401)는 그대로 알린다
+    const c = !more && !m.q && mailIsDown(e) ? mailCacheGet(m.folder) : null;
+    const items = (c?.items || []).filter((x) => (m.filter === 'unread' ? !x.isRead : m.filter === 'att' ? x.hasAttachments : true));
+    if (c && items.length) {
+      m.list = items.map((x) => ({ ...x, _box: mb, _off: true })); m.next = null; m.offline = { at: c.at };
+      mailDrawOff(); mailDrawList();
+    } else box.innerHTML = `<li class="empty">${esc(e.message)}</li>`;
   } finally { if (my === m.listSeq) m.loading = false; }
 }
 
@@ -578,6 +699,8 @@ function mailDrawList() {
   const m = ui.mail, box = $('#mail-items'); if (!box) return;
   const allQ = !!(m.q && m.qAll);
   mailDrawBulk();
+  box.classList.toggle('off', !!m.offline); // 저장해 둔 목록: 체크·별 표시 없이 읽기만
+  const ckAll = $('#mail-ckall'); if (ckAll) ckAll.disabled = !!m.offline;
   if (!m.list.length) { box.innerHTML = `<li class="empty">${m.q ? '검색 결과 없음' : '메일 없음'}</li>`; return; }
   box.innerHTML = m.list.map((x) => {
     const wk = mailWkOf(x), toSide = wk === 'sentitems' || wk === 'drafts';
@@ -585,13 +708,15 @@ function mailDrawList() {
     const who = toSide ? (x.toRecipients || []).map(mailWho).join(', ') || '(받는 사람 없음)' : mailWho(x.from) || '(보낸 사람 없음)';
     const unread = !x.isRead && !toSide, flagged = x.flag?.flagStatus === 'flagged';
     const iso = toSide ? x.sentDateTime || x.lastModifiedDateTime || x.receivedDateTime : x.receivedDateTime;
+    const tt = x._trk && mailTrkOn() ? mailTrkTag(x._trk) : null; // 수신 확인 메일: 열람 N / 미열람 (기록을 받기 전엔 숨김)
+    const trkTag = tt == null ? '' : `<span class="mail-trk${/^열람/.test(tt) ? ' on' : ''}" data-trk="${esc(x._trk)}" title="수신 확인" ${tt ? '' : 'hidden'}>${tt}</span>`;
     return `<li class="mail-item ${unread ? 'unread' : ''} ${m.sel === x.id ? 'on' : ''} ${m.checked.has(x.id) ? 'ck' : ''}" data-id="${esc(x.id)}">
       <input type="checkbox" class="check mail-ck" data-ck="${esc(x.id)}" ${m.checked.has(x.id) ? 'checked' : ''} aria-label="선택">
       <button type="button" class="mail-lstar ${flagged ? 'on' : ''}" data-star="${esc(x.id)}" aria-pressed="${flagged}" aria-label="중요 표시">${mi('star')}</button>
       <span class="mail-st ${unread ? 'unread' : ''}" title="${unread ? '안 읽음' : '읽음'}">${mi(unread ? 'env' : 'envo')}</span>
       <div class="mail-r1"><span class="mail-who">${x.isDraft && wk === 'drafts' ?'<span class="mail-draft">임시</span>' : ''}${esc(who)}</span><span class="mail-tm"><span class="m">${mailTime(iso)}</span><span class="d">${mailTimeD(iso)}</span></span></div>
       <span class="mail-lclip">${x.hasAttachments ? `<span title="첨부">${ico('clip', 'sm')}</span>` : ''}</span>
-      <div class="mail-subj">${x.hasAttachments ? `<span class="mail-clip" title="첨부">${ico('clip', 'sm')}</span>` : ''}${fl ? `<span class="mail-fl">${esc(fl)}</span>` : ''}<span class="mail-subj-t">${esc(x.subject || '(제목 없음)')}</span></div>
+      <div class="mail-subj">${x.hasAttachments ? `<span class="mail-clip" title="첨부">${ico('clip', 'sm')}</span>` : ''}${fl ? `<span class="mail-fl">${esc(fl)}</span>` : ''}${trkTag}<span class="mail-subj-t">${esc(x.subject || '(제목 없음)')}</span></div>
       <div class="mail-pv">${esc((x.bodyPreview || '').replace(/\s+/g, ' ').slice(0, 120))}</div></li>`;
   }).join('') + (m.next ? '<li class="mail-more"><button class="btn sm" type="button" id="mail-more">더 보기</button></li>' : '');
   box.querySelectorAll('[data-id]').forEach((li) => li.addEventListener('click', (e) => {
@@ -635,15 +760,17 @@ async function mailOpen(id) {
   const m = ui.mail;
   if (m.compose && !(await mailLeaveCompose())) return;
   const item = m.list.find((x) => x.id === id), mb = mailBoxX(item), p = mailMsgP(id, mb);
-  if (mailWkOf(item) === 'drafts' && item?.isDraft) return mailOpenCompose({ mode: 'draft', id, box: mb });
   const box = $('#mail-items'); if (box && m.view !== 'read') m.scroll = box.scrollTop; // ← 목록으로 돌아올 때 같은 위치
+  if (item?._off) { m.sel = id; m.msg = null; m.atts = []; m.view = 'read'; mailDrawShell(); mailDrawList(); mailDrawPane(); return; } // 저장해 둔 목록: 본문 없음
+  if (mailWkOf(item) === 'drafts' && item?.isDraft) return mailOpenCompose({ mode: 'draft', id, box: mb });
   m.sel = id; m.msg = null; m.atts = []; m.view = 'read';
   m.remote = mailWkOf(item) !== 'junkemail'; // 외부 이미지는 기본으로 보여 주고(사용자 11/9), 스팸 메일함만 막아 둔다(추적 이미지)
   const folder = mailKeyOf(item); // 안 읽음 개수는 연 폴더 기준 (읽음 처리 응답 전에 폴더를 옮겨도)
+  const trk = mailTrkOn() && mailWkOf(item) === 'sentitems'; // 보낸 메일: 수신 확인 토큰도 같이
   mailDrawShell(); mailDrawList(); mailDrawPane();
   try {
     const [msg, atts] = await Promise.all([
-      G.get(`${p}?$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,body,hasAttachments,isRead,isDraft,webLink,flag,parentFolderId`),
+      G.get(`${p}?$select=id,subject,from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,sentDateTime,body,hasAttachments,isRead,isDraft,webLink,flag,parentFolderId${trk ? `&$expand=${encodeURIComponent(MAIL_TRK_EXP)}` : ''}`),
       G.get(`${p}/attachments?$select=id,name,size,contentType,isInline`).then((r) => r.value).catch(() => []),
     ]);
     if (m.sel !== id) return;
@@ -663,7 +790,13 @@ async function mailOpen(id) {
     }
     if (m.sel !== id) return;
     m.msg = msg; m.atts = atts.filter((a) => !used.has(a.id));
+    msg._trk = trk ? mailTrkTok(msg) : null;
     mailDrawPane();
+    // 열람 기록은 열 때마다 새로 받아 '수신 확인' 줄과 목록 표시를 고친다
+    if (msg._trk) mailTrkFetch([msg._trk]).then(() => {
+      const row = $('#mail-trkv'); if (row && m.msg === msg) row.innerHTML = m.opens[msg._trk] ? mailTrkRowHtml(msg._trk) : '<span class="muted">불러오지 못함</span>';
+      mailTrkPaint();
+    });
     if (!msg.isRead) {
       G.patch(p, { isRead: true }).then(() => {
         const it = m.list.find((x) => x.id === id) || item;
@@ -755,8 +888,10 @@ function mailDrawPane() {
   const m = ui.mail, pane = $('#mail-pane'); if (!pane) return;
   if (m.compose) return mailDrawCompose();
   if (!m.sel) { pane.innerHTML = `<div class="mail-blank">${ico('mail', 'lg')}<span>메일을 선택하세요</span></div>`; return; }
+  const off = !m.msg && m.list.find((i) => i.id === m.sel && i._off);
+  if (off) return mailDrawOffPane(off);
   if (!m.msg) { pane.innerHTML = '<div class="empty">불러오는 중…</div>'; return; }
-  const x = m.msg, html = x.body?.contentType === 'html' ? x.body.content : `<pre>${esc(x.body?.content || '')}</pre>`;
+  const x = m.msg, html = x.body?.contentType === 'html' ? mailTrkStrip(x.body.content) : `<pre>${esc(x.body?.content || '')}</pre>`;
   const hasRemote = /<img[^>]+src\s*=\s*["']?\s*https?:|url\(\s*["']?\s*https?:/i.test(html);
   const inTrash = mailWkOf(x) === 'deleteditems';
   const flagged = x.flag?.flagStatus === 'flagged';
@@ -807,6 +942,7 @@ function mailDrawPane() {
         ${x.bccRecipients?.length ? `<dt>숨은참조</dt><dd>${esc(mailAddrList(x.bccRecipients))}</dd>` : ''}
         <dt class="mail-meta-d">날짜</dt><dd class="mail-meta-d">${mailFullTime(x.receivedDateTime || x.sentDateTime)}</dd>
       </dl>
+      ${x._trk && mailTrkOn() ? `<div class="mail-trkr"${(x.toRecipients?.length || 0) + (x.ccRecipients?.length || 0) + (x.bccRecipients?.length || 0) > 1 ? ' title="받는 사람이 여럿이면 누가 열었는지는 구분되지 않습니다"' : ''}><span class="mail-trkr-l">수신 확인</span><span class="mail-trkr-v" id="mail-trkv">${mailTrkRowHtml(x._trk)}</span></div>` : ''}
       ${attN ? `<div class="mail-abox ${m.attFold ? '' : 'open'}" id="mail-abox">
         <div class="mail-abox-h"><button type="button" class="mail-abox-tg" id="mail-abox-tg" aria-expanded="${!m.attFold}">${mi('caret', 'caret')}<b>첨부 ${attN}개</b><span class="muted">(${mailSize(attTotal)})</span></button><button type="button" class="mail-tbtn" data-saveall>모두 저장</button></div>
         <ul class="mail-abox-l">${m.atts.map((a) => `<li><span class="mail-fic" style="color:${mailExtColor(a.name)}">${mi('doc')}</span><button type="button" class="mail-abox-n" data-att="${esc(a.id)}" title="${esc(a.name)} 저장">${esc(a.name)}</button><span class="muted">${mailSize(a.size)}</span><span class="mail-abox-a">${mailPvKind(a.name) ? `<button type="button" class="mail-linkbtn" data-pv="${esc(a.id)}">미리보기</button>` : ''}<button type="button" class="mail-linkbtn" data-att="${esc(a.id)}">저장</button></span></li>`).join('')}${big.map((b, i) => `<li><span class="mail-fic" style="color:${mailExtColor(b.name)}">${mi('doc')}</span>${b.expired ? `<span class="mail-abox-n">${esc(b.name)}</span>` : `<button type="button" class="mail-abox-n" data-big="${i}" title="${esc(b.name)} 저장">${esc(b.name)}</button>`}<span class="muted">${mailSize(b.size)}</span>${bigTag(b)}<span class="mail-abox-a">${b.expired ? '' : `<button type="button" class="mail-linkbtn" data-big="${i}">저장</button>`}</span></li>`).join('')}</ul>
@@ -1113,7 +1249,7 @@ async function mailOpenCompose({ mode, id, box }) {
   // 보낸 사람 사서함: 답장·전달·초안은 원래 메일의 사서함, 새 메일은 보고 있던 사서함(contact@ 폴더에서 쓰면 contact@)
   if ((box || mailBoxOf(m.folder)) === 'contact') sig = ''; // contact@ 메일은 서명 없이(사용자 11/12)
   const c = { mode, src: id, box: box || mailBoxOf(m.folder), loading: mode !== 'new', draftId: null, auto: false, saved: false, kept: false, to: '', cc: '', bcc: '', subject: '', text: '', html: '', quote: '', existing: [], files: [], busy: false,
-    plain: false, important: false, receipt: false, each: false, sched: null, sigOn: !!sig && mode !== 'draft' };
+    plain: false, important: false, receipt: false, each: false, sched: null, sigOn: !!sig && mode !== 'draft', track: false, trk: null };
   if (mode !== 'draft') c.html = `<div><br></div><div><br></div>${sig ? mailSigBlock(sig) : ''}`;
   c.base = mailBase(c);
   m.backTo = back;
@@ -1127,15 +1263,17 @@ async function mailOpenCompose({ mode, id, box }) {
         mode === 'forward' ? null : G.get(`${mailMsgP(id, c.box)}?$select=subject`).catch(() => null)]);
       if (m.compose !== c) { G.del(mailMsgP(d.id, c.box)).catch(() => {}); return; } // 만드는 사이 쓰기를 닫았으면 남은 초안을 지운다
       const subj = orig?.subject?.trim() ? `RE: ${orig.subject.trim()}` : d.subject || '';
-      Object.assign(c, { draftId: d.id, auto: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(d.ccRecipients), subject: subj, quote: mailQuoteWrap(d.body?.content || '') });
+      Object.assign(c, { draftId: d.id, auto: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(d.ccRecipients), subject: subj, quote: mailQuoteWrap(mailTrkStrip(d.body?.content || '')) });
       viewSet('mail.autoDraft', { id: d.id, box: c.box }); // 저장·보내기·닫기 전 F5면 지울 초안(pagehide)
       MS.acquireTokenSilent({ scopes: CFG.scopes, account: G.account }).then((r) => { c.tok = r.accessToken; }).catch(() => {});
     } else if (mode === 'draft') {
-      const d = await G.get(`${mailMsgP(id, c.box)}?$select=id,subject,toRecipients,ccRecipients,bccRecipients,body,importance,isReadReceiptRequested`);
+      const d = await G.get(`${mailMsgP(id, c.box)}?$select=id,subject,toRecipients,ccRecipients,bccRecipients,body,importance,isReadReceiptRequested${mailTrkOn() ? `&$expand=${encodeURIComponent(MAIL_TRK_EXP)}` : ''}`);
       if (m.compose !== c) return;
-      const html = d.body?.contentType === 'html' ? mailSanitize(d.body.content) : mailTextHtml(d.body?.content || '');
+      // 수신 확인을 켜고 보내다 실패해 남은 초안: 열람 이미지는 편집기에서 빼고(열면 열람으로 찍힌다) 토큰은 이어 쓴다
+      const html = d.body?.contentType === 'html' ? mailSanitize(mailTrkStrip(d.body.content)) : mailTextHtml(d.body?.content || '');
+      const tk = mailTrkTok(d);
       Object.assign(c, { draftId: d.id, saved: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(d.ccRecipients), bcc: mailAddrList(d.bccRecipients), subject: d.subject || '',
-        html, sigOn: mailHasSig(html), important: d.importance === 'high', receipt: !!d.isReadReceiptRequested });
+        html, sigOn: mailHasSig(html), important: d.importance === 'high', receipt: !!d.isReadReceiptRequested, track: !!tk, trk: tk, trkSaved: !!tk });
     }
     c.base = mailBase(c);
     if (c.draftId) c.existing = (await G.get(`${mailMsgP(c.draftId, c.box)}/attachments?$select=id,name,size,isInline`)).value.filter((a) => !a.isInline);
@@ -1209,6 +1347,7 @@ function mailDrawCompose() {
   const fromOpts = mailFromOpts(), from = fromOpts.find((o) => o.box === c.box) || fromOpts[0];
   const fromPick = fromOpts.length > 1 && !c.draftId && c.mode === 'new'; // 초안이 생기면 그 사서함에 묶인다
   const tb = (cmd, label, inner) => `<button type="button" data-ex="${cmd}" title="${label}" aria-label="${label}">${inner}</button>`;
+  const trkOn = mailTrkOn();
   pane.innerHTML = `
     <form class="mail-compose ${ccOpen ? 'cc-open' : ''} ${bccOpen ? 'bcc-open' : ''} ${c.each ? 'each' : ''}" id="mail-cf" novalidate>
       <div class="mail-chead">
@@ -1219,7 +1358,8 @@ function mailDrawCompose() {
           <button class="mail-tbtn" type="button" data-c="save">저장하기</button>
           <span class="mail-optw"><button class="mail-tbtn" type="button" id="mail-opt" aria-haspopup="dialog" aria-expanded="false">옵션${mi('caret', 'caret')}</button></span>
           <label class="mail-each"><input type="checkbox" class="check" id="mail-each" ${c.each ? 'checked' : ''}>개인별 보내기</label>
-          ${c.important ? '<span class="mail-optchip imp">중요</span>' : ''}${c.receipt ? '<span class="mail-optchip">수신 확인</span>' : ''}${c.sched ? `<span class="mail-optchip">예약 ${mailSchedLabel(c.sched)}</span>` : ''}${c.plain ? '<span class="mail-optchip">텍스트</span>' : ''}
+          ${trkOn ? `<label class="mail-each mail-trkck"><input type="checkbox" class="check" data-trk ${c.track ? 'checked' : ''}>수신 확인</label>` : ''}
+          ${c.important ? '<span class="mail-optchip imp">중요</span>' : ''}${c.receipt ? '<span class="mail-optchip">수신 확인 요청</span>' : ''}${c.sched ? `<span class="mail-optchip">예약 ${mailSchedLabel(c.sched)}</span>` : ''}${c.plain ? '<span class="mail-optchip">텍스트</span>' : ''}
         </span>
         <h2>${title}</h2>
         <button class="mail-tbtn mail-dcancel" type="button" data-c="cancel">취소</button>
@@ -1253,6 +1393,7 @@ function mailDrawCompose() {
       <div class="mail-ctools">
         <label class="iconbtn mail-ctool" aria-label="사진 첨부">${mi('camera')}<input type="file" accept="image/*" capture="environment" hidden id="mail-cam"></label>
         <label class="iconbtn mail-ctool" aria-label="파일 첨부">${ico('clip')}<input type="file" multiple hidden id="mail-file2"></label>
+        ${trkOn ? `<label class="mail-trk-m"><input type="checkbox" class="check" data-trk ${c.track ? 'checked' : ''}>수신 확인</label>` : ''}
       </div>
     </form>`;
   const f = $('#mail-cf'), rte = $('#mail-rte');
@@ -1297,6 +1438,7 @@ function mailDrawCompose() {
     if (c.bccOpen) f.querySelector('.mail-bccf .mail-tok-in').focus();
   });
   $('#mail-each').addEventListener('change', (e) => { c.each = e.target.checked; f.classList.toggle('each', c.each); });
+  f.querySelectorAll('[data-trk]').forEach((b) => b.addEventListener('change', () => { c.track = b.checked; f.querySelectorAll('[data-trk]').forEach((x) => { x.checked = c.track; }); }));
   const fb = $('#mail-from');
   if (fb) fb.addEventListener('click', async () => {
     commit();
@@ -1801,19 +1943,23 @@ async function mailSaveDraft(c, notify) {
   if (c.loading) { toast('불러오는 중입니다'); return null; }
   if (c.busy || (notify && c.sending)) { if (notify) toast(c.sending ? '보내는 중입니다' : '저장 중입니다'); return null; }
   let msg;
+  const tok = c.track && c.trk && mailTrkOn() ? c.trk : null; // 수신 확인 토큰(보내기 직전에 받는다)
   try {
     msg = {
       subject: c.subject.trim(),
       toRecipients: mailParseAddrs(c.to, '받는 사람'),
       ccRecipients: c.each ? [] : mailParseAddrs(c.cc, '참조'), bccRecipients: c.each ? [] : mailParseAddrs(c.bcc, '숨은참조'),
-      body: mailComposeBody(c),
+      body: mailTrkBody(mailComposeBody(c), tok),
       importance: c.important ? 'high' : 'normal',
       isReadReceiptRequested: !!c.receipt,
     };
   } catch (e) { toast(e.message); return null; }
   // 발송 예약: PidTagDeferredSendTime. 예약을 껐으면 지난 시각으로 덮어 바로 보내지게 한다
   const at = c.sched ? mailSchedDate(c.sched) : c.schedSaved ? Date.now() - 60e3 : 0;
-  if (at) msg.singleValueExtendedProperties = [{ id: 'SystemTime 0x3FEF', value: new Date(at).toISOString() }];
+  const ep = at ? [{ id: 'SystemTime 0x3FEF', value: new Date(at).toISOString() }] : [];
+  // 수신 확인 토큰은 메일 자체에(보낸편지함 사본에 남는다). 껐으면 'off'로 덮는다(확장 속성은 PATCH로 지울 수 없다)
+  if (tok || c.trkSaved) ep.push({ id: MAIL_TRK_PROP, value: tok || 'off' });
+  if (ep.length) msg.singleValueExtendedProperties = ep;
   // contact@: 초안을 공유 사서함에 만들고 보낸 사람도 contact@로(SendAs). 보낸 메일은 공유 사서함 보낸편지함에 남는다
   if (c.box === 'contact') msg.from = { emailAddress: { address: MAIL_SHARED, name: 'UNIVERSE INVESTMENT' } };
   const rev = c.rev, n0 = c.existing.length;
@@ -1821,7 +1967,7 @@ async function mailSaveDraft(c, notify) {
   try {
     if (c.draftId) await G.patch(mailMsgP(c.draftId, c.box), msg);
     else { const d = await G.post(`${mailRoot(c.box)}/messages`, msg); c.draftId = d.id; }
-    c.schedSaved = !!c.sched;
+    c.schedSaved = !!c.sched; c.trkSaved = !!tok;
     while (c.files.length) {
       const file = c.files[0];
       const a = file.size > MAIL_MAX_ATTACH ? await mailUploadBig(c, file) : await G.post(`${mailMsgP(c.draftId, c.box)}/attachments`, {
@@ -1856,14 +2002,19 @@ async function mailSend(c) {
     rows: [...(c.box === 'contact' ? [['보낸 사람', MAIL_SHARED]] : []), ['받는 사람', names(to)], ['참조', names(cc)], ['숨은참조', names(bcc)], ['제목', c.subject.trim() || '(제목 없음)'],
       ['첨부', c.existing.length + c.files.length ? `${c.existing.length + c.files.length}개 (${mailSize([...c.existing, ...c.files].reduce((s, f) => s + (f.size || 0), 0))})` : ''],
       ['발송', c.sched ? `${mailSchedLabel(c.sched)} 예약` : ''],
-      ['옵션', [c.important && '중요', c.receipt && '수신 확인 요청', each && '개인별 보내기'].filter(Boolean).join(' · ')]],
+      ['옵션', [c.important && '중요', c.receipt && '수신 확인 요청', c.track && mailTrkOn() && '수신 확인', each && '개인별 보내기'].filter(Boolean).join(' · ')]],
     ok: c.sched ? '예약' : '보내기',
   });
   if (!ok || c.sending || ui.mail.compose !== c) return;
   c.sending = true; mailLockFiles(c); // 보내는 동안(첨부 올리기 포함) 닫기·첨부 빼기·저장을 막는다
   const btns = document.querySelectorAll('#mail-cf [type=submit]'); btns.forEach((b) => { b.disabled = true; });
   const mp = (x) => mailMsgP(x, c.box), sent = [];
+  let trkFail = false;
   try {
+    // 수신 확인: 토큰을 받아 본문 끝 이미지·확장 속성에 넣는다. 못 받으면 수신 확인 없이 그대로 보낸다
+    if (c.track && mailTrkOn() && !c.trk) {
+      try { const r = await Promise.race([worksApi('track-new'), new Promise((_, no) => setTimeout(() => no(new Error('timeout')), 8000))]); if (/^[\w-]{8,}$/.test(String(r?.token || ''))) c.trk = String(r.token); else trkFail = true; } catch { trkFail = true; }
+    }
     const id = await mailSaveDraft(c, false); // 큰 첨부는 여기서 업로드 세션으로 올라간다(보내기 버튼에 %)
     if (!id) { btns.forEach((b) => { if (b.isConnected) b.disabled = false; }); return; }
     try {
@@ -1880,7 +2031,8 @@ async function mailSend(c) {
         await G.patch(mp(id), { toRecipients: [to[0]] });
       }
       await G.post(`${mp(id)}/send`, {}, { type: 'none' });
-      toast(c.sched ? `${mailSchedLabel(c.sched)}에 보냅니다` : each ? `${to.length}명에게 보냈습니다` : '보냈습니다');
+      if (trkFail) toast(c.sched ? `${mailSchedLabel(c.sched)}에 수신 확인 없이 보냅니다` : '수신 확인 없이 보냈습니다');
+      else toast(c.sched ? `${mailSchedLabel(c.sched)}에 보냅니다` : each ? `${to.length}명에게 보냈습니다` : '보냈습니다');
       c.sending = false;
       if (ui.mail.compose === c) { ui.mail.compose = null; mailAfterCompose(true); }
     } catch (e) {

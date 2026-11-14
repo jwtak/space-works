@@ -779,3 +779,9 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 .mh-empty { color: var(--text3); font-size: 15px; }
 .mh-more { display: block; padding-top: 12px; font-size: 15px; font-weight: 500; color: var(--primary); text-decoration: none; }
 .card[hidden] { display: none !important; }
+/* 일정 서버가 안 될 때 기기에 남은 일정을 보여 주며 한 줄 안내(app.js calStaleBar) */
+.cal-stale { display: flex; align-items: center; gap: 12px; margin: 0 24px 12px; padding: 8px 8px 8px 14px; border-radius: var(--r); background: var(--t-amber); color: var(--t-amber-c); font-size: 15px; font-weight: 500; }
+.cal-stale span { flex: 1; min-width: 0; }
+.cal-stale .btn { flex: none; }
+#cal-body > .cal-stale { margin: 0 0 12px; }
+@media (max-width: 760px) { .cal-stale { margin: 0 12px 10px; } .mh-today .cal-stale { margin: 0 0 10px; } }

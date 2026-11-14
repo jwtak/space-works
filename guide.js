@@ -1,9 +1,11 @@
 /* 사용 안내(둘러보기): 처음 로그인한 사람에게 한 번 — 메뉴를 하나씩 밝게 짚으며 짧게 설명한다.
    계정마다 한 번만 자동으로 뜨고, 다시 보기는 오른쪽 위 이름 메뉴의 '사용 안내'. */
-const GD_KEY = () => `guide1:${(G.account?.username || '').toLowerCase()}`;
+/* 본 기록(나중에·건너뛰기·끝까지 포함)은 이 기기 localStorage와 내 OneDrive data/guide_seen.json 둘 다에 남긴다(11/14 사용자: 한 번 넘긴 사람은 다시 안 띄움).
+   기기·브라우저를 바꿔도 OneDrive 기록을 보고 안 띄운다. 옛 주소(@spaceinve.com)로 남은 계정도 같은 사람으로 본다. */
+const GD_KEY = () => `guide1:${(G.account?.username || '').toLowerCase().replace(/@spaceinve\.com$/, '@universeinvest.co.kr')}`;
 const GD_STEPS = [
   { t: '대시보드', d: '이번 달 일정과 할 일을 한 화면에서 봅니다. 날짜 칸을 누르면 바로 일정을 추가할 수 있고, 딜 뉴스 카드 맨 위에는 오늘 챙길 시사점이 정리됩니다. 팀 캘린더와 회의록은 세 분이 함께 쓰고, 할 일은 담당을 골라 맡길 수 있습니다.', pc: '.nav [data-r="home"]', m: '.mh-it[href="#calendar"]' },
-  { t: '메일', d: '회사 메일을 그대로 읽고 씁니다. 옆 숫자는 안 읽은 메일 수이고, PC에서는 새 메일이 오면 알림이 뜹니다.', pc: '.nav [data-r="mail"]', m: '.mh-it[href="#mail"]' },
+  { t: '메일', d: '회사 메일을 그대로 읽고 씁니다. 옆 숫자는 안 읽은 메일 수이고, PC에서는 새 메일이 오면 알림이 뜹니다. 휴대폰은 이름 메뉴의 ‘폰 알림 켜기’로 알림을 받을 수 있고, 보낼 때 ‘수신 확인’을 켜면 상대가 메일을 열었는지 보낸편지함에서 확인할 수 있습니다.', pc: '.nav [data-r="mail"]', m: '.mh-it[href="#mail"]' },
   { t: '뉴스', d: '딜 뉴스를 매일 아침 모읍니다. 맨 위에 주요 기사 1~5위와 우리가 할 일(시사점)을 정리하고 우주·항공·방산을 따로 모아 보며, ☆로 체크한 기사는 기간이 지나도 ‘중요’에 남습니다.', pc: '.nav [data-r="news"]', m: '.mh-it[href="#deals/news"]' },
   { t: '딜소싱', d: '연락할 회사를 네 묶음으로 봅니다. 행사에는 콥데이·기업설명회·전시회 일정이 있고, 참가사를 보고 만날 자리를 고릅니다. 상장에는 주관사를 뽑았거나 예비심사를 청구한 회사(상장 준비)와 신규상장 회사가 있습니다. 매물에는 입찰딜, 다른 PE·VC의 매각희망 자산, 한국M&A거래소 매물장터(참고용, 일주일에 한 번 갱신)가 있습니다. 타깃에는 승계 시점의 비상장 오너기업, IPO가 막힌 상장사 자회사(중복상장), 상장폐지 시총 요건에 걸릴 수 있지만 실적이 좋은 회사(상폐 위험·CB, 맨 위에 Claude AI 추천), 따로 조사한 회사의 팩트시트, 어느 업종을 볼지 정하는 섹터가 있습니다. 관심 표시와 연락 상태, 메모는 세 분이 함께 봅니다.', pc: '.nav [data-r="deals"]', m: '.mh-it[href^="#deals/events"], .mh-it[href^="#deals/listing"], .mh-it[href^="#deals/offer"], .mh-it[href^="#deals/target"]' },
   { t: '파이프라인', d: '어느 화면에서든 ‘파이프라인에 올리기’로 챙길 딜을 모아 단계와 다음 연락일을 관리합니다. 카드에서 원래 화면으로 돌아가 그 회사를 다시 볼 수 있고, 세 분이 함께 봅니다.', pc: '.nav [data-r="pipeline"]', m: '.mh-it[href="#deals/pipeline"]' },
@@ -32,9 +34,13 @@ function gdTargets(step) {
   return sel ? [...document.querySelectorAll(sel)].filter((e) => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden') : [];
 }
 
-function gdOpen(force) {
+async function gdOpen(force) {
   if (!S || document.querySelector('.gd')) return;
-  if (!force) { try { if (localStorage.getItem(GD_KEY())) return; } catch { return; } }
+  if (!force) {
+    try { const v = localStorage.getItem(GD_KEY()); if (v) { if (v !== '2') gdSeen(); return; } } catch { return; } // '1' = 예전에 이 기기에서만 남긴 기록: OneDrive에도 옮긴다
+    try { if ((await STORE.readJSON('guide_seen')).items?.seen) { try { localStorage.setItem(GD_KEY(), '1'); } catch { /* 없어도 됨 */ } return; } } catch { return; } // 못 읽으면 띄우지 않는다
+    if (!S || document.querySelector('.gd')) return;
+  }
   if (isMobile() && route() !== 'home') location.hash = '#home'; // 폰은 첫 화면 메뉴 모음에서 짚는다
   gd.steps = GD_STEPS.filter((s) => !(s.install && gdStandalone())); gd.i = -1; // 이미 앱으로 쓰고 있으면 설치 안내는 뺀다
   gd.el = document.createElement('div');
@@ -48,11 +54,17 @@ function gdOpen(force) {
   setTimeout(gdDraw, isMobile() ? 400 : 0);
 }
 
+// 본 기록 남기기: OneDrive 파일은 없을 때만 만든다(이미 있으면 409로 끝, 그래도 본 것으로 친다). 실패하면 이 기기에만 '1'로 두고 다음에 다시
+function gdSeen() {
+  try { localStorage.setItem(GD_KEY(), '1'); } catch { /* 없어도 됨 */ }
+  STORE.writeJSON('guide_seen', { seen: new Date().toISOString() }).then(() => true, (e) => e.status === 409 || e.status === 412)
+    .then((ok) => { if (ok) try { localStorage.setItem(GD_KEY(), '2'); } catch { /* 없어도 됨 */ } });
+}
 function gdClose(viaBack) {
   if (!gd.el) return;
   gd.el.remove(); gd.el = null;
   document.removeEventListener('keydown', gdKey); removeEventListener('resize', gdPlace);
-  try { localStorage.setItem(GD_KEY(), '1'); } catch { /* 다음에 또 떠도 된다 */ }
+  try { if (localStorage.getItem(GD_KEY()) !== '2') gdSeen(); } catch { /* 다음에 또 떠도 된다 */ }
   if (viaBack !== true) gd.off?.();
   gd.off = null;
 }

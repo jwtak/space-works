@@ -629,3 +629,42 @@
     .mail-subj { grid-column: 4 / span 3; grid-row: 2; }
   }
 }
+
+/* ---------- 수신 확인 · 장애 때 저장해 둔 목록 (2026-11-14) ---------- */
+.mail-trk { display: inline-block; flex: none; margin-right: 6px; padding: 0 6px; border-radius: 4px; background: #F3F4F6; color: var(--text3); font-size: 13px; font-weight: 500; line-height: 18px; vertical-align: 1px; white-space: nowrap; }
+.mail-trk[hidden] { display: none; }
+.mail-trk.on { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+.mail-item.unread .mail-trk { font-weight: 500; }
+.mail-trkr { display: grid; grid-template-columns: 72px minmax(0, 1fr); gap: 4px 12px; align-items: baseline; margin: 0 0 14px; font-size: 14px; }
+.mail-trkr-l { color: var(--text3); }
+.mail-trkr-v { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.mail-trkr-v .mail-trk { margin: 0; }
+.mail-trkt { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.mail-trkp { padding: 0 6px; border-radius: 4px; background: var(--t-amber); color: var(--t-amber-c); font-size: 13px; line-height: 18px; }
+.mail-trkck { margin-left: 2px; }
+.mail-trk-m { display: none; }
+
+.mail-off { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; flex: none; margin: 0 16px 8px; padding: 8px 8px 8px 14px; border-radius: var(--r); background: var(--t-amber); color: var(--t-amber-c); font-size: 15px; }
+.mail-off[hidden] { display: none; }
+.mail-off b { font-weight: 600; }
+.mail-off span { color: var(--text2); }
+.mail-off .btn { margin-left: auto; }
+.mail-items.off .mail-ck, .mail-items.off .mail-lstar { visibility: hidden; pointer-events: none; }
+.mail-offbody { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; flex: 1; min-height: 200px; padding: 24px; color: var(--text2); font-size: 15px; text-align: center; }
+.mail-offmeta { display: grid; }
+
+@media (min-width: 761px) {
+  .mail-trkr { grid-template-columns: 80px minmax(0, 1fr); gap: 6px 12px; font-size: 15px; }
+  .mail-off { margin: 0 28px 12px; }
+}
+@media (min-width: 761px) and (max-width: 1100px) {
+  .mail-off { margin: 0 20px 12px; }
+}
+@media (max-width: 760px) {
+  .mail-trkr { grid-template-columns: auto minmax(0, 1fr); margin: 0 0 12px; font-size: 15px; }
+  .mail-trkr-l { color: var(--text2); }
+  .mail-trk-m { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; padding: 0 10px; font-size: 15px; color: var(--text2); cursor: pointer; }
+  .mail-off { margin: 2px 16px 8px; }
+  .mail-offhead .mail-mdate { margin-bottom: 8px; }
+  .mail-offmeta { display: grid; margin-top: 8px; }
+}

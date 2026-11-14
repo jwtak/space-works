@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>UNIVERSE WORKS</title>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://spaceinve.sharepoint.com https://spaceinve-my.sharepoint.com https://outlook.office.com https://outlook.office365.com; frame-src 'self' blob: https://login.microsoftonline.com; child-src 'self' blob:; base-uri 'self'; form-action 'self'; object-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: https:; connect-src 'self' https://graph.microsoft.com https://login.microsoftonline.com https://spaceinve.sharepoint.com https://spaceinve-my.sharepoint.com https://outlook.office.com https://outlook.office365.com https://*.supabase.co; frame-src 'self' blob: https://login.microsoftonline.com; child-src 'self' blob:; base-uri 'self'; form-action 'self'; object-src 'none'">
 <meta name="theme-color" content="#FFFFFF">
 <meta name="color-scheme" content="only light">
 <meta name="mobile-web-app-capable" content="yes">
@@ -113,11 +113,13 @@
   <symbol id="i-right" viewBox="0 0 24 24"><path d="m9.5 6 6 6-6 6"/></symbol>
   <symbol id="i-ext" viewBox="0 0 24 24"><path d="M14 5h5v5M19 5l-8 8M17 14v5H5V7h5"/></symbol>
   <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M5 15v4h14v-4"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6.5 16.5V11a5.5 5.5 0 0 1 11 0v5.5l1.5 2h-14z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></symbol>
 </svg>
 <script src="vendor/msal-browser.min.js"></script>
 <script src="graph.js"></script>
 <script src="app.js"></script>
 <script src="mail.js"></script>
+<script src="push.js"></script>
 <script src="events.js"></script>
 <script src="ipo.js"></script>
 <script src="radar.js"></script>

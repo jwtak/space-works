@@ -293,8 +293,65 @@ const OUTLOOK = {
       } } catch (e) { failed++; lastErr = e; } // 팀 캘린더 하나가 막혀도 내 일정은 보여 준다
     }
     if (failed && failed === cals.length) throw lastErr;
-    return out.sort((a, b) => a.start.localeCompare(b.start) || (a.cal === 'team' ? -1 : 1));
+    const res = out.sort((a, b) => a.start.localeCompare(b.start) || (a.cal === 'team' ? -1 : 1));
+    res.partial = failed > 0; // 캘린더 하나가 빠진 결과는 기기에 남기지 않는다(eventsSafe)
+    return res;
   },
+  /* 장애 대비(2026-11-14, 11/13 저녁 일정 API 502가 이어져 일정 칸이 비었음): 성공한 조회를 이 기기 localStorage에만 남기고,
+     네트워크 오류·5xx면 요청 범위와 겹치는 저장분을 읽기 전용으로 돌려준다(배열.stale = 받은 시각 ms). 401·403·404는 그대로 던진다.
+     저장 { cov: [[시작, 끝, 받은 시각]], ev: [일정] } — 시각은 'YYYY-MM-DDTHH:MM'(KST) 문자열. 오늘 앞 5주 ~ 뒤 10주만 남긴다.
+     실패한 뒤 1분 동안은 서버를 다시 부르지 않고 저장분을 바로 보여 준다(GET 502 재시도로 15초씩 기다리지 않게). '다시 시도'는 force */
+  downAt: 0,
+  cacheKey: () => `worksCal:${(G.account?.username || '').toLowerCase()}`,
+  cacheHit: (x, s, e) => x.start < e && (x.end > s || x.start >= s),
+  cacheRead() {
+    try { const c = JSON.parse(localStorage.getItem(OUTLOOK.cacheKey()) || 'null'); if (c && Array.isArray(c.cov) && Array.isArray(c.ev)) return c; } catch { /* 없거나 깨짐 */ }
+    return { cov: [], ev: [] };
+  },
+  cacheWrite(s, e, events) {
+    const c = OUTLOOK.cacheRead(), day = (n) => { const x = new Date(); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() + n); return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}T00:00`; };
+    const lo = day(-35), hi = day(70);
+    let cov = [];
+    for (const [a, b, t] of c.cov) { if (b <= s || a >= e) cov.push([a, b, t]); else { if (a < s) cov.push([a, s, t]); if (b > e) cov.push([e, b, t]); } }
+    cov.push([s, e, Date.now()]);
+    cov = cov.map(([a, b, t]) => [a < lo ? lo : a, b > hi ? hi : b, t]).filter(([a, b]) => a < b);
+    const ev = [...c.ev.filter((x) => !OUTLOOK.cacheHit(x, s, e)), ...events].filter((x) => cov.some(([a, b]) => OUTLOOK.cacheHit(x, a, b)));
+    try { localStorage.setItem(OUTLOOK.cacheKey(), JSON.stringify({ cov, ev })); } catch { /* 저장 못 해도 화면은 그대로 */ }
+  },
+  cacheGet(s, e) {
+    const c = OUTLOOK.cacheRead(), part = c.cov.filter(([a, b]) => a < e && b > s);
+    if (!part.length) return null;
+    const ev = c.ev.filter((x) => OUTLOOK.cacheHit(x, s, e)).map((x) => ({ ...x, editable: false, stale: true }))
+      .sort((a, b) => a.start.localeCompare(b.start) || (a.cal === 'team' ? -1 : 1));
+    ev.stale = Math.min(...part.map((p) => p[2]));
+    return ev;
+  },
+  async eventsSafe(start, end, force) {
+    const s = start.slice(0, 16), e = end.slice(0, 16);
+    if (!force && Date.now() - OUTLOOK.downAt < 60000) { const old = OUTLOOK.cacheGet(s, e); if (old) return old; }
+    try {
+      const out = await OUTLOOK.events(start, end);
+      OUTLOOK.downAt = 0;
+      if (!out.partial) OUTLOOK.cacheWrite(s, e, out);
+      return out;
+    } catch (err) {
+      if (err.status >= 400 && err.status < 500) throw err; // 401(다시 로그인)·권한 문제는 원래대로
+      OUTLOOK.downAt = Date.now();
+      const old = OUTLOOK.cacheGet(s, e);
+      if (!old) throw err;
+      return old;
+    }
+  },
+  /* 할 일 마감 일정(app.js tcRun): 내 기본 캘린더에 종일·한가함·알림 없음. 분류는 비워 담당자 분류(app.js evOwners)와 섞이지 않게.
+     고칠 때는 제목·날짜만 바꾼다(Outlook에서 켠 알림·적은 내용은 둔다) */
+  TODO_PREFIX: '[할 일] ',
+  todoBody: (w) => ({ ...OUTLOOK.body({ subject: `${OUTLOOK.TODO_PREFIX}${w.title}`, startDate: w.due, allDay: true, reminder: '', note: `UNIVERSE WORKS 할 일\n${APP_URL}#todos` }), showAs: 'free' }),
+  todoCreate: (w) => G.post('/me/events', OUTLOOK.todoBody(w), { headers: G.KST }),
+  todoUpdate(id, w) {
+    const { subject, isAllDay, start, end } = OUTLOOK.todoBody(w);
+    return G.patch(`/me/events/${encodeURIComponent(id)}`, { subject, isAllDay, start, end }, { headers: G.KST });
+  },
+  todoRemove: (id) => G.del(`/me/events/${encodeURIComponent(id)}`).catch((e) => { if (e.status !== 404) throw e; }), // 이미 지워졌으면 된 것
   body(b) {
     const subject = (b.subject || '').trim();
     if (!subject) throw new Error('제목을 입력하세요');

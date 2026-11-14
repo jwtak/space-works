@@ -170,7 +170,7 @@ async function renderNews(host) {
 // ---------- 대시보드 카드 맨 위 시사점 칸(딜 뉴스·다가오는 행사·락업 해제 공통) ----------
 // 칸 머리표: Claude가 쓴 칸(딜 뉴스·행사)은 별+AI 요약, 규칙으로 만든 칸(락업 해제)은 체크+할 일 요약
 const homeBrief = (lines, [ic, lbl] = ['spark', 'AI 요약']) => (lines.length ? `<ul class="nw-brief home-brief"><li class="brief-h">${ico(ic, `sm ${ic}`)}${lbl}</li>${lines.join('')}</ul>` : '');
-const homeBriefLine = (subj, body, act, attr) => `<li><span class="lnk" ${attr}><b>${esc(subj)}</b> ${esc(body)}${act ? ` <span class="act">— ${esc(act)}</span>` : ''}</span></li>`;
+const homeBriefLine = (subj, body, act, attr) => `<li><span class="lnk" ${attr}><span class="nb"><b class="nb-s">${esc(subj)}</b><span class="nb-b">${esc(body)}</span>${act ? `<span class="nb-a">${esc(act)}</span>` : ''}</span></span></li>`; // 뉴스 화면 주요 기사 요약과 같은 모양(회사 | 상황, 아래 할 일)
 // 락업 해제 카드: 2주 안에 풀리는 3곳과 컨택 상태별 할 일 (카드 자체는 ipo.js, 여기서는 맨 위 칸만)
 function ipoHomeBrief() {
   const d = typeof ipoState !== 'undefined' && ipoState.data; if (!d) return '';

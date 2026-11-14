@@ -62,6 +62,12 @@
 .nw-hl:hover .ttl { color: var(--primary); }
 .nw-hl .meta { font-size: 13px; color: var(--text3); }
 .home-brief { margin: 16px 0 6px; background: var(--t-blue); border-color: var(--t-blue-i); }
+.home-brief li:not(.brief-h) { padding-left: 0; }
+.home-brief li:not(.brief-h)::before { display: none; }
+.home-brief li:not(.brief-h) + li { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--t-blue-i); }
+.home-brief .lnk, .home-brief a { display: block; text-decoration: none; }
+.home-brief .lnk:hover, .home-brief a:hover { text-decoration: none; }
+.home-brief .lnk:hover .nb-b, .home-brief a:hover .nb-b { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line2); }
 .nw-brief .lnk { cursor: pointer; }
 .nw-brief .lnk:hover { text-decoration: underline; text-underline-offset: 3px; text-decoration-color: var(--line2); }
 .nw-brief .lnk:hover b { color: var(--primary); }
