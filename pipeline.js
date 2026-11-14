@@ -27,6 +27,7 @@ TAB_INFO['deals/pipeline'] = { title: '파이프라인', rows: [
     '미팅·실사가 끝날 때마다 단계와 다음 할 일 날짜를 고칩니다.',
     '메일을 보내거나 전화한 뒤에는 컨택 플랜의 기록 버튼을 눌러 주세요. 다음 연락일과 다음 할 일이 채워집니다.',
     '\'전화할 곳\'을 누르면 전화할 회사와 번호, 찾을 부서가 한 목록으로 나옵니다.',
+    '직접 만들고 싶으시면 \'프롬프트 복사\'를 눌러 Claude나 ChatGPT에 붙여 넣으세요. 회사 공용 프롬프트는 공용 폴더 04. 딜소싱의 \'컨택 플랜 프롬프트\'이고, 고치면 자동 작성에도 반영됩니다.',
     '그만 볼 딜은 지우지 말고 드롭으로 둡니다. 나중에 같은 딜이 다시 와도 이력이 남습니다.',
   ]],
 ] };
@@ -383,10 +384,12 @@ function ppCpInner(x) {
   const bar = (msg, btn = '') => `<div class="fq-bar"><span class="fq-t">컨택 플랜</span>${msg ? `<span class="muted">${msg}</span>` : ''}${btn}</div>`;
   if (!ppS.cpAt) { if (!ppS.cpLoading) ppCpLoad(); return bar('불러오는 중…'); }
   if (ppS.cpErr) return bar(esc(ppS.cpErr));
-  const st = ppCpState(x), btn = (l, cls = '') => `<button type="button" class="btn sm${cls}" data-cp-req>${l}</button>`;
+  // 프롬프트 복사: 대표님이 직접 Claude·ChatGPT로 만들 때 쓰는 회사 공용 프롬프트(cp_req.py도 같은 파일을 읽는다)
+  const pb = '<button type="button" class="btn ghost sm" data-cp-prompt>프롬프트 복사</button>';
+  const st = ppCpState(x), btn = (l, cls = '') => `<span class="pp-cp-acts">${pb}${l ? `<button type="button" class="btn sm${cls}" data-cp-req>${l}</button>` : ''}</span>`;
   let head;
   if (st.stopped) head = bar(`만들지 못했습니다${st.f.err ? `: ${esc(String(st.f.err).slice(0, 80))}` : ''}`, btn('다시 만들기'));
-  else if (st.wait) head = bar(`${ppCpNext()}에 ${st.auto ? '자동으로 ' : ''}만듭니다`);
+  else if (st.wait) head = bar(`${ppCpNext()}에 ${st.auto ? '자동으로 ' : ''}만듭니다`, btn(''));
   else if (st.plan) head = bar(/^\d{4}-\d{2}-\d{2}/.test(st.plan.made || '') ? `작성 ${esc(yymd(st.plan.made))}` : '', btn('다시 만들기'));
   else head = bar('', btn('컨택 플랜 만들기', ' primary'));
   if (!st.cos.length) return head;
@@ -488,6 +491,25 @@ async function ppCpDraft(id, co) {
     toast('Outlook 임시 보관함에 넣었습니다');
   } catch (e) { toast(e.status === 403 ? '메일 권한이 없습니다.' : '초안을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.'); }
   finally { ppS.cpBusy.delete(key); ppCpPaint(id); }
+}
+
+/* 회사 공용 프롬프트(팀 파일함 04. 딜소싱/컨택 플랜 프롬프트.md)의 '프롬프트 시작' 아래를 회사 이름·보내는 사람·참고 자료를 채워 복사한다.
+   회사는 보고 있는 회사 탭, 플랜이 없으면 딜 이름. 보내는 사람은 담당(없으면 나) */
+const PP_PROMPT = '팀/04. 딜소싱/컨택 플랜 프롬프트.md';
+async function ppCpPrompt(id) {
+  const x = ppFind(id); if (!x) return;
+  try {
+    const raw = String((await STORE.readText(PP_PROMPT)).text || ''), mark = '===== 프롬프트 시작 =====';
+    if (!raw.includes(mark)) throw new Error('형식');
+    const cos = ppCpState(x).cos, co = cos.length ? cos[Math.min(ppS.cpCo[id] || 0, cos.length - 1)].co : x.name;
+    const ref = [x.introducer && `소개해 준 분 ${x.introducer}`, x.note].filter(Boolean).join(' / ').replace(/\s+/g, ' ');
+    const text = raw.split(mark)[1].replace(/^\s+/, '')
+      .replace(/^\[회사 이름\]:.*$/m, `[회사 이름]: ${co}`)
+      .replace(/^\[보내는 사람\]:.*$/m, `[보내는 사람]: ${ppWho(x.owner || ppMe())}`)
+      .replace(/^\[참고 자료\]:.*$/m, `[참고 자료]: ${ref}`);
+    await navigator.clipboard.writeText(text);
+    toast(`${co} 프롬프트를 복사했습니다`);
+  } catch (e) { toast(e.message === '형식' ? '프롬프트 파일 형식이 바뀌었습니다' : '프롬프트를 복사하지 못했습니다'); }
 }
 
 async function ppCpCopy(id, co) {
@@ -812,6 +834,7 @@ function ppBind(root) {
     if (t.closest('[data-cp-draft]') && cw) { ppCpDraft(cw.dataset.cpId, cw.dataset.cpC); return; }
     if (t.closest('[data-cp-copy]') && cw) { ppCpCopy(cw.dataset.cpId, cw.dataset.cpC); return; }
     if (t.closest('[data-cp-req]') && cpId) { ppCpReq(cpId); return; }
+    if (t.closest('[data-cp-prompt]') && cpId) { ppCpPrompt(cpId); return; }
     const ct = t.closest('[data-cp-tab]');
     if (ct && cpId) { ppS.cpCo[cpId] = Number(ct.dataset.cpTab); ppCpPaint(cpId); return; }
     if (t.closest('[data-cp-more]') && cpId) { if (ppS.cpMore.has(cpId)) ppS.cpMore.delete(cpId); else ppS.cpMore.add(cpId); ppCpPaint(cpId); return; }

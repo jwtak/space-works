@@ -143,6 +143,7 @@
 @container pp (min-width: 560px) { .pp-line { align-items: center; } }
 
 /* 컨택 플랜(펼친 행 입력 칸 아래)·전화할 곳 목록 (2026-11-14). 머리 줄은 radar.css .fq-bar·.fq-t, 상자·표는 ipo.css .ipo-box·.ipo-kv·.ipo-tbl */
+.fq-bar .pp-cp-acts { margin-left: auto; display: flex; flex-wrap: wrap; gap: 8px; }
 .pp-callbtn { flex: none; }
 .pp-callbtn.on { background: var(--primary-soft); border-color: var(--primary-soft); color: var(--primary); font-weight: 600; }
 .pp-callbtn .n { color: var(--primary); font-weight: 600; }
