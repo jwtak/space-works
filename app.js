@@ -403,10 +403,11 @@ function render() {
   segFit(PAGE.querySelector('.deal-sub')); // 하위 탭 줄(타깃 다섯 탭은 1100보다 좁으면 넘친다)
 }
 window.addEventListener('hashchange', render);
-// 보고 있는 메뉴를 다시 누르면 주소가 같아 hashchange가 안 온다: 메일은 받은편지함으로 돌아가 새로 읽는다
+// '메일' 메뉴: 다른 메뉴에서 오면 받은편지함부터(mailInboxReset). 메일 화면에서 다시 누르면 주소가 같아 hashchange가 안 오니 직접 받은편지함으로
 document.addEventListener('click', (e) => {
   const a = e.target.closest('a[data-r="mail"]');
-  if (!a || e.ctrlKey || e.metaKey || e.shiftKey || route() !== 'mail' || typeof mailHome !== 'function') return;
+  if (!a || e.ctrlKey || e.metaKey || e.shiftKey || typeof mailHome !== 'function') return;
+  if (route() !== 'mail') { mailInboxReset(); return; }
   e.preventDefault(); mailHome();
 });
 

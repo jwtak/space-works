@@ -487,6 +487,14 @@ async function mailHome() {
   const flt = $('#mail-filter'); if (flt) flt.value = 'all';
   mailDrawShell(); mailDrawFolders(); mailDrawPane(); mailLoadCounts(); mailLoadList();
 }
+// 다른 메뉴에서 '메일'을 눌러 들어오면 받은편지함 처음부터(사용자 11/14: 할 일 갔다 오니 보던 보낸편지함이 떠 있음). F5는 보던 그대로. 쓰던 메일은 그대로 둔다
+function mailInboxReset() {
+  try { sessionStorage.setItem('mailFolder', 'inbox'); } catch { /* 기억 못 해도 된다 */ }
+  viewSet('mail.q', ''); viewSet('mail.filter', 'all'); viewSet('mail.sel', null);
+  const m = ui.mail; if (!m) return;
+  mailFolderSet(m, 'inbox'); m.sel = null; m.msg = null; m.q = ''; m.scroll = 0; m.filter = 'all'; m.list = []; m.next = null;
+  if (!m.compose) m.view = 'list';
+}
 function mailBackToList() {
   const m = ui.mail;
   m.view = 'list'; mailDrawShell();
