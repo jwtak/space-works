@@ -141,3 +141,105 @@
 
 /* 표 보기에서는 칸을 세로 가운데로(ipo.css와 같은 기준, 사용자 11/9). 여러 줄로 쌓는 559 이하는 위 맞춤 그대로 */
 @container pp (min-width: 560px) { .pp-line { align-items: center; } }
+
+/* 컨택 플랜(펼친 행 입력 칸 아래)·전화할 곳 목록 (2026-11-14). 머리 줄은 radar.css .fq-bar·.fq-t, 상자·표는 ipo.css .ipo-box·.ipo-kv·.ipo-tbl */
+.pp-callbtn { flex: none; }
+.pp-callbtn.on { background: var(--primary-soft); border-color: var(--primary-soft); color: var(--primary); font-weight: 600; }
+.pp-callbtn .n { color: var(--primary); font-weight: 600; }
+.pp-callbtn .n:empty { display: none; }
+.pp-callmode .pp-filter .pp-seg, .pp-callmode .pp-filter .select { display: none; }
+
+.pp-cp { display: flex; flex-direction: column; gap: 16px; min-width: 0; max-width: 1120px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--row); }
+.pp-cp-tabs { align-self: flex-start; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.pp-cp-tabs::-webkit-scrollbar { display: none; }
+.pp-cp-tabs button { flex: none; white-space: nowrap; }
+.pp-cp .ipo-kv .k { white-space: nowrap; }
+.pp-cp-mail { margin-top: 8px; padding: 12px 16px; border-radius: var(--r); background: var(--hover); font-size: 15px; line-height: 24px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pp-cp-act { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
+.pp-cp-act .btn.primary:disabled { background: #BED6F8; border-color: #BED6F8; color: #fff; cursor: default; }
+.pp-cp-hint { margin: 8px 0 0; font-size: 14px; line-height: 20px; color: var(--text3); }
+.pp-cp-calls { margin: 0; padding: 0; list-style: none; font-size: 15px; line-height: 22px; }
+.pp-cp-calls li + li { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--row); }
+.pp-cp-tl { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+.pp-tel { font-weight: 600; }
+.pp-cp-tl .pp-tel { font-size: 16px; }
+.pp-cp-k { margin: 16px 0 4px; font-size: 14px; line-height: 20px; color: var(--text3); }
+.pp-cp-script { margin: 0; font-size: 15px; line-height: 24px; }
+.pp-cp-logbtn { display: flex; flex-wrap: wrap; gap: 8px; }
+.pp-cp-log { margin: 12px 0 0; padding: 0; list-style: none; font-size: 15px; line-height: 22px; }
+.pp-cp-log li { display: flex; align-items: center; gap: 12px; min-height: 32px; }
+.pp-cp-log .d { min-width: 72px; font-variant-numeric: tabular-nums; }
+.pp-cp-unlog { margin-left: auto; color: var(--text3); }
+.pp-cp-unlog:hover { color: var(--danger); }
+.pp-cp-more { align-self: flex-start; }
+.pp-cp-more svg.i { transform: rotate(90deg); }
+.pp-cp-more[aria-expanded="true"] svg.i { transform: rotate(-90deg); }
+.pp-cp-routes th:nth-child(1) { width: 56px; }
+.pp-cp-routes th:nth-child(2), .pp-cp-routes th:nth-child(3) { width: 18%; }
+.pp-cp-routes th:nth-child(4) { width: 22%; }
+.pp-cp-routes td { overflow-wrap: anywhere; }
+.pp-cp-routes td.rk { color: var(--primary); font-weight: 600; white-space: nowrap; }
+@container pp (max-width: 759.98px) {
+  .pp-cp .ipo-two-col { grid-template-columns: minmax(0, 1fr); }
+}
+/* 좁으면 루트 맵을 한 줄씩: 순위 | 루트·대상·채널·활용(라벨 앞) */
+@container pp (max-width: 699.98px) {
+  .pp-cp-routes, .pp-cp-routes tbody { display: block; }
+  .pp-cp-routes thead { display: none; }
+  .pp-cp-routes tr { display: grid; grid-template-columns: 52px minmax(0, 1fr); column-gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--row); }
+  .pp-cp-routes tr:first-child { padding-top: 0; }
+  .pp-cp-routes tr:last-child { padding-bottom: 0; border-bottom: 0; }
+  .pp-cp-routes td { grid-column: 2; padding: 0; border: 0; }
+  .pp-cp-routes td.rk { grid-column: 1; grid-row: 1 / span 4; }
+  .pp-cp-routes td:empty { display: none; }
+  .pp-cp-routes td[data-k] { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 8px; }
+  .pp-cp-routes td[data-k]::before { content: attr(data-k); font-size: 14px; color: var(--text3); }
+}
+
+/* 전화할 곳: 다음 연락·담당·마지막 기록·버튼은 고정, 나머지는 나눠 쓴다 */
+.pp-kcols { display: grid; grid-template-columns: 88px minmax(0, 1.2fr) 56px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 88px 72px; gap: 16px; align-items: center; padding: 0 24px; }
+.ipo-head.pp-kcols { display: grid; }
+.pp-call { padding-top: 12px; padding-bottom: 12px; border-top: 1px solid var(--row); font-variant-numeric: tabular-nums; }
+.ipo-head + .pp-call { border-top: 0; }
+.pp-call:hover { background: var(--hover); }
+.pp-call:hover .ipo-ttl { color: var(--primary); }
+.pp-call > div { min-width: 0; overflow-wrap: anywhere; }
+.pp-k-tel > div + div, .pp-k-ask > div + div, .pp-k-when > div + div { margin-top: 4px; }
+.pp-k-act { justify-self: end; }
+.pp-k-sub { display: none; }
+@container pp (max-width: 999.98px) {
+  .pp-kcols { grid-template-columns: 88px minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr) 88px 72px; }
+  .pp-kcols > .pp-k-own { display: none; }
+}
+@container pp (max-width: 819.98px) {
+  .pp-kcols { grid-template-columns: 88px minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) 88px 72px; }
+  .pp-kcols > .pp-k-when { display: none; }
+}
+/* 좁으면 한 곳 = 회사·버튼 / 다음 연락·담당 / 번호마다 찾을 곳·언제 / 마지막 기록 */
+@container pp (max-width: 679.98px) {
+  .pp-card .ipo-head.pp-kcols { display: none; }
+  .pp-kcols { grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: "name name act" "next own act" "tel tel tel" "last last last"; gap: 2px 8px; align-items: start; }
+  .pp-kcols > .pp-k-name { grid-area: name; }
+  .pp-kcols > .pp-k-act { grid-area: act; align-self: center; }
+  .pp-kcols > .pp-k-next { grid-area: next; display: flex; align-items: baseline; gap: 6px; }
+  .pp-k-next .ipo-sub { margin-top: 0; }
+  .pp-kcols > .pp-k-own { display: block; grid-area: own; align-self: baseline; color: var(--text3); }
+  .pp-kcols > .pp-k-next.none ~ .pp-k-own { grid-area: auto; grid-row: 2; grid-column: 1 / 3; }
+  .pp-kcols > .pp-k-tel { grid-area: tel; }
+  .pp-k-tel > div { display: flex; align-items: center; flex-wrap: wrap; gap: 0 8px; }
+  .pp-k-tel > div + div { margin-top: 0; }
+  .pp-k-sub { display: inline; font-size: 14px; line-height: 20px; color: var(--text2); }
+  .pp-kcols > .pp-k-ask, .pp-kcols > .pp-k-when { display: none; }
+  .pp-kcols > .pp-k-last { grid-area: last; display: flex; gap: 8px; font-size: 14px; line-height: 20px; color: var(--text2); }
+  .pp-k-last::before { content: '마지막 기록'; color: var(--text3); }
+  .pp-kcols > .none { display: none; }
+}
+@media (max-width: 760px) {
+  .pp-kcols { padding: 0 16px; }
+  .pp-call { padding-top: 14px; padding-bottom: 14px; }
+  .pp-callbtn { height: 44px; }
+  .pp-cp { margin-top: 20px; }
+  .pp-cp .btn.sm, .pp-call .btn.sm, .pp-cp-tabs button { height: 44px; }
+  .pp-cp-unlog { width: 44px; }
+  .pp-tel { display: inline-flex; align-items: center; min-height: 44px; font-size: 16px; }
+}
