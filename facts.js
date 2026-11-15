@@ -158,13 +158,13 @@ function fsPaneProd(x) {
   const imgs = x.images || [];
   const pics = imgs.length ? `<div class="fs-pics">${imgs.map((im) => `<figure class="fs-pic"><div class="fs-img" data-fs-img="${esc(im.file)}"></div><figcaption>${esc(im.caption || '')}</figcaption></figure>`).join('')}</div>` : '<p class="ipo-p muted">확보한 제품 이미지가 없습니다.</p>';
   const ps = x.products || [];
-  const tbl = ps.length ? `<table class="ipo-tbl fs-prod"><thead><tr><th>제품명</th><th>카테고리</th><th>용량</th><th>가격</th><th>특징</th></tr></thead><tbody>${ps.map((p) => `<tr><td>${fsT(p.name)}</td><td>${fsT(p.category)}</td><td>${fsT(p.size)}</td><td>${fsT(p.price)}</td><td>${fsT(p.note)}</td></tr>`).join('')}</tbody></table>` : '<p class="ipo-p muted">없음</p>';
+  const tbl = ps.length ? `<table class="ipo-tbl fs-prod"><thead><tr><th>제품명</th><th>카테고리</th><th>용량</th><th>가격</th><th>특징</th></tr></thead><tbody>${ps.map((p) => `<tr><td>${fsT(p.name)}</td><td data-k="카테고리">${fsT(p.category)}</td><td data-k="용량">${fsT(p.size)}</td><td data-k="가격">${fsT(p.price)}</td><td data-k="특징">${fsT(p.note)}</td></tr>`).join('')}</tbody></table>` : '<p class="ipo-p muted">없음</p>';
   return `<div class="ipo-stack">${fsBox('제품 · 브랜드 이미지', pics, '공식 홈페이지·공식몰, 내부 검토용')}${fsBox('대표 제품 라인업', `<div class="fs-scroll">${tbl}</div>`)}</div>`;
 }
 
 function fsPaneFin(x) {
   const s = x.shareholders || {}, rows = (s.rows || []).filter((r) => r && r.name && r.name !== '-');
-  const tbl = rows.length ? `<table class="ipo-tbl fs-hold"><thead><tr><th>주주명</th><th>관계 · 구분</th><th>주식수</th><th>지분율</th><th>취득 · 발행</th><th>비고</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${fsT(r.name)}</td><td>${fsT(r.relation)}</td><td>${fsT(r.shares)}</td><td>${fsT(r.pct)}</td><td>${fsT(r.acquired)}</td><td>${fsT(r.note)}</td></tr>`).join('')}</tbody></table>` : '<p class="ipo-p muted">없음</p>';
+  const tbl = rows.length ? `<table class="ipo-tbl fs-hold"><thead><tr><th>주주명</th><th>관계 · 구분</th><th>주식수</th><th>지분율</th><th>취득 · 발행</th><th>비고</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${fsT(r.name)}</td><td data-k="관계 · 구분">${fsT(r.relation)}</td><td data-k="주식수">${fsT(r.shares)}</td><td data-k="지분율">${fsT(r.pct)}</td><td data-k="취득 · 발행">${fsT(r.acquired)}</td><td data-k="비고">${fsT(r.note)}</td></tr>`).join('')}</tbody></table>` : '<p class="ipo-p muted">없음</p>';
   return `<div class="ipo-stack">
     <div class="ipo-two-col">${fsPnl(x)}${fsBox('재무 비고', `<p class="ipo-p">${fsT(x.fin_note || x.fin_src)}</p>`)}</div>
     ${fsBox('주주 현황 · 지분구조', `${fsKv('발행주식 총수', [s.total_shares, s.total_shares_note].filter(Boolean).join(' · '))}<div class="fs-scroll">${tbl}</div>
@@ -180,7 +180,7 @@ function fsPaneView(x) {
 
 function fsPaneInv(x) {
   const v = x.inv, c = x.contact || {}, k = x.keyman || {};
-  const rounds = x.rounds.length ? `<div class="fs-scroll"><table class="ipo-tbl fs-rounds"><thead><tr><th>시기</th><th>라운드</th><th>금액</th><th>투자자</th><th>출처</th></tr></thead><tbody>${x.rounds.map((r) => `<tr><td>${fsT(r.date)}</td><td>${fsT(r.round)}</td><td>${fsT(r.amount)}</td><td>${fsT(r.investors)}</td><td class="muted">${fsT(r.source)}</td></tr>`).join('')}</tbody></table></div>` : '';
+  const rounds = x.rounds.length ? `<div class="fs-scroll"><table class="ipo-tbl fs-rounds"><thead><tr><th>시기</th><th>라운드</th><th>금액</th><th>투자자</th><th>출처</th></tr></thead><tbody>${x.rounds.map((r) => `<tr><td>${fsT(r.date)}</td><td>${fsT(r.round)}</td><td data-k="금액">${fsT(r.amount)}</td><td data-k="투자자">${fsT(r.investors)}</td><td class="muted" data-k="출처">${fsT(r.source)}</td></tr>`).join('')}</tbody></table></div>` : '';
   const kv = (label, val) => (val ? `<div class="ipo-kv"><div class="k">${esc(label)}</div><div class="v">${fsNums(val)}</div></div>` : '');
   return `<div class="ipo-stack fs-inv-pane">
     ${fsBox('투자유치 히스토리', `${fsKv('현재 투자 단계', x.stage)}${x.total != null ? fsKv('누적 투자', `${fsTotal(x.total)}${v.total_note ? ` · ${v.total_note}` : ''}`) : ''}<p class="ipo-p fs-inv-sum">${fsT(v.summary || x.shareholders?.fi_history)}</p>${rounds}

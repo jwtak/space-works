@@ -97,7 +97,10 @@ a.sec-own:hover b { color: var(--primary); }
   /* 필터 버튼은 폰에서도 옆으로 숨기지 않고 줄을 바꾼다(radar.css .rd-page와 같은 모양) */
   .sec-page .sec-finf { gap: 12px; }
   .sec-page .ipo-filter .seg { flex-wrap: wrap; background: var(--card); overflow: hidden; }
-  .sec-page .ipo-filter .seg button { flex: 1 1 auto; padding: 0 8px; margin: -1px 0 0 -1px; height: 35px; border-top: 1px solid var(--line2); border-left: 1px solid var(--line2); }
+  .sec-page .ipo-filter .seg button { flex: 1 1 auto; padding: 0 8px; margin: -1px 0 0 -1px; height: 40px; font-size: 15px; border-top: 1px solid var(--line2); border-left: 1px solid var(--line2); }
+  .sec-page .pe-grp .seg button { height: 40px; font-size: 15px; }
+  /* 딜 한 건: 날짜·유형·단계·금액·기사 줄도 본문에 가까운 크기로 */
+  .sec-page .ipo-tbl.sec-dt td { font-size: 14px; }
   .sec-page .ipo-dhead > .sec-go { align-self: stretch; height: 40px; }
   .sec-owns { grid-template-columns: minmax(0, 1fr); }
 }

@@ -209,11 +209,11 @@
 
   .ev-cols { padding: 0 16px; }
   .ev-line { grid-template-columns: 24px 44px minmax(0, 1fr) 32px; grid-template-areas: "star sc date hide" ". main main main"; gap: 4px 8px; padding-top: 12px; padding-bottom: 14px; }
-  .ev-star { grid-area: star; }
+  .ev-star { grid-area: star; width: 36px; height: 36px; margin: -8px -2px -8px -10px; justify-content: center; }
   .ev-c-sc { grid-area: sc; }
   .ev-c-date { grid-area: date; flex-direction: row; flex-wrap: wrap; column-gap: 6px; align-items: baseline; }
   .ev-c-main { grid-area: main; }
-  .ev-hide { grid-area: hide; margin-top: -4px; color: #B6BCC6; }
+  .ev-hide { grid-area: hide; width: 36px; height: 36px; margin: -8px -4px -8px 0; color: #B6BCC6; }
   .ev-ttl { display: block; font-size: 16px; line-height: 22px; }
   .ev-sub { white-space: normal; }
 

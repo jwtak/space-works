@@ -86,4 +86,10 @@
   .ipo-tbl.pe-tbl-s td { padding: 0; border: 0; }
   .ipo-tbl.pe-tbl-s td:nth-child(3) { flex: 1 1 100%; order: -1; }
   .ipo-tbl.pe-tbl-s td:nth-child(1), .ipo-tbl.pe-tbl-s td:nth-child(2) { margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text3); }
+  /* 터치 높이 40: 필터·컨택 상태·메모·팩트시트 요청. 요약이 없는 펼친 행(중복상장)은 빈 첫 줄을 접는다 */
+  .pe-page .ipo-filter .seg button { height: 40px; font-size: 15px; }
+  .pe-page .ipo-seg button { height: 40px; font-size: 15px; }
+  .pe-page .ipo-note { height: 40px; font-size: 15px; }
+  .pe-page .rd-fs { height: 40px; padding: 0 16px; font-size: 15px; }
+  .pe-page .ipo-dhead > p:empty { display: none; }
 }

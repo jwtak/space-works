@@ -370,7 +370,7 @@ const TAB_INFO = {};
 function infoOpen(k) {
   const x = TAB_INFO[k]; if (!x) return;
   // 글: 문자열 = 문단, 배열 = 목록, {table: [[머리...], [행...], ...]} = 표. 배열 안에 표·문단을 섞어도 된다
-  const one = (t) => (t && t.table ? `<div class="info-tbl"><table><thead><tr>${t.table[0].map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${t.table.slice(1).map((r) => `<tr>${r.map((c) => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : `<p>${esc(t)}</p>`);
+  const one = (t) => (t && t.table ? `<div class="info-tbl"><table><thead><tr>${t.table[0].map((c) => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${t.table.slice(1).map((r) => `<tr>${r.map((c, i) => `<td data-h="${esc(t.table[0][i] || '')}">${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : `<p>${esc(t)}</p>`);
   const body = (t) => (Array.isArray(t) ? `<ul>${t.map((s) => (typeof s === 'string' ? `<li>${esc(s)}</li>` : `</ul>${one(s)}<ul>`)).join('')}</ul>`.replace(/<ul><\/ul>/g, '') : one(t));
   const main = `${x.asof ? `<div class="info-asof">${esc(x.asof)}</div>` : ''}<dl class="info-dl">${x.rows.map(([h, t]) => `<dt>${esc(h)}</dt><dd>${body(t)}</dd>`).join('')}</dl>`;
   openSheet(`<div class="info-head"><h3>${esc(x.title)}</h3><button class="btn sm" type="button" data-info-win>${ico('ext', 'sm')}새 창에서 열기</button></div>${main}`, (el) => {
@@ -597,7 +597,7 @@ function renderHomeMobile() {
   PAGE.innerHTML = `<div class="mhome">
     <section class="mh-hello">
       <div class="dt">${d.getMonth() + 1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일</div>
-      <div class="sub">${greet(d.getHours())}${ms.length ? ` · ${ms.map((m) => `${esc(m.title.replace(/\s*\(.*\)$/, ''))} <b>D-${diffDays(m.date, td)}</b>`).join(' · ')}` : ''}</div>
+      <div class="sub">${greet(d.getHours())}${ms.length ? ` · ${ms.map((m) => `<span class="ms">${esc(m.title.replace(/\s*\(.*\)$/, ''))} <b>D-${diffDays(m.date, td)}</b></span>`).join(' · ')}` : ''}</div>
     </section>
     <nav class="mh-grid">${menu.map(([h, i, t, n]) => `<a ${h ? `href="${h}"` : 'href="#" data-brief'} class="mh-it"><span class="mh-ic">${ico(i)}${n}</span><span class="mh-t">${t}</span></a>`).join('')}</nav>
     <section class="mh-today">
@@ -683,7 +683,7 @@ function renderDeals() {
 // 탭 줄이 넘치면 고른 탭을 가운데로(탭을 바꿀 때마다 새로 그려 처음 위치로 돌아가므로), PC 마우스 휠로도 옆으로 밀기(끝에 닿으면 화면 스크롤)
 function segFit(seg) {
   const on = seg?.querySelector('.on'); if (!on) return;
-  const fit = () => { if (seg.scrollWidth > seg.clientWidth) seg.scrollLeft += on.getBoundingClientRect().left - seg.getBoundingClientRect().left - (seg.clientWidth - on.offsetWidth) / 2; };
+  const fit = () => { seg.classList.toggle('ovf', seg.scrollWidth > seg.clientWidth + 1); if (seg.scrollWidth > seg.clientWidth) seg.scrollLeft += on.getBoundingClientRect().left - seg.getBoundingClientRect().left - (seg.clientWidth - on.offsetWidth) / 2; };
   fit();
   let w = seg.clientWidth; // 자료가 늦게 들어와 본문 세로 스크롤바가 생기면 탭 줄 폭이 줄어 끝 탭이 잘리므로 다시 맞춘다
   if (window.ResizeObserver) new ResizeObserver(() => { if (seg.clientWidth !== w) { w = seg.clientWidth; fit(); } }).observe(seg);

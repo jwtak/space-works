@@ -109,7 +109,7 @@
 /* 휴대폰: 한 줄 목록(아이콘 · 이름 + 날짜·크기 · ⋯), 경로는 옆으로 밀어 보기 */
 @media (max-width: 760px) {
   .fl-top { flex-direction: column; align-items: stretch; gap: 10px; min-height: 0; padding: 4px 16px 12px; }
-  .fl-crumb button { font-size: 16px; min-height: 36px; }
+  .fl-crumb button { font-size: 16px; min-height: 40px; }
   .fl-tools { gap: 4px; }
   .fl-search { flex: 1; }
   .fl-search .input { width: 100%; height: 44px; font-size: 17px; }
@@ -126,7 +126,8 @@
   .fl-row .c-ck, .fl-row .c-dt, .fl-row .c-by, .fl-row .c-sz { display: none; }
   .fl-item { min-height: 64px; cursor: pointer; }
   .fl-item:active { background: var(--hover); }
-  .fl-name { font-size: 16px; line-height: 22px; pointer-events: none; }
+  .fl-name { font-size: 16px; line-height: 22px; pointer-events: none; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
+  .fl-item { padding-top: 10px; padding-bottom: 10px; }
   .fl-meta { display: block; font-size: 13px; line-height: 18px; color: var(--text3); font-variant-numeric: tabular-nums; }
   .fl-more { width: 44px; height: 44px; opacity: 1; }
   .fl-ic, .fl-ic.fold svg { width: 32px; height: 32px; }

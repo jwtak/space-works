@@ -29,3 +29,8 @@
   .kmx-page .kmx-k { display: block; flex: none; width: 60px; color: var(--text3); }
   .kmx-page .kmx-v { min-width: 0; }
 }
+/* 폰: 회사 성격·업종은 말줄임 대신 줄바꿈, 본문 보조 크기로 */
+@media (max-width: 760px) {
+  .kmx-page .ipo-line > .ipo-c-name > .kmx-meta { flex-wrap: wrap; column-gap: 8px; row-gap: 0; font-size: 14px; line-height: 20px; color: var(--text2); }
+  .kmx-page .kmx-meta > span { white-space: normal; overflow: visible; }
+}

@@ -180,3 +180,48 @@ a.mk-hd:hover { color: var(--primary); }
   .mz-subrow { margin-top: 16px; }
 }
 .mk-body > .mk-sub:first-child { margin-top: 0; }
+
+/* 폰 가독성: 표는 첫 열 104 + 나머지 92(market.js mkDraw와 짝)로 좁혀 한 화면에 칸을 더 보이고, 오른쪽에 더 있으면 그림자.
+   첫 열 글자는 섹션 제목 시작선(16)에 맞추고, 이름·머리글은 줄바꿈. 차트 축 12, 작은 글씨 13 이상, 누르는 버튼 36 이상 */
+@media (max-width: 760px) {
+  .mk-scroll {
+    background: linear-gradient(to right, rgba(255, 255, 255, 0), var(--card) 70%) 100% 0 / 32px 100% no-repeat local,
+      linear-gradient(to left, rgba(15, 23, 42, .12), rgba(15, 23, 42, 0)) 100% 0 / 14px 100% no-repeat scroll;
+  }
+  .mk-tbl th, .mk-tbl td { padding-left: 8px; padding-right: 8px; }
+  .mk-tbl th { white-space: normal; word-break: keep-all; line-height: 18px; vertical-align: bottom; text-overflow: clip; }
+  .mk-tbl .st { width: 104px; padding-left: 0; }
+  .mk-tbl td.st { white-space: normal; word-break: keep-all; overflow-wrap: anywhere; line-height: 20px; text-overflow: clip; }
+  .mk-tbl td small, .mk-tbl td.st small { font-size: 13px; line-height: 18px; }
+  .mk-tl-g td { padding-left: 0; }
+
+  /* 참고 통계(항목·기간·수치·출처): 표 대신 한 건씩 — 항목 / 수치 / 기간 · 출처 */
+  .mk-scroll:has(> .mk-ref) { overflow: visible; background: none; }
+  .mk-ref, .mk-ref tbody { display: block; }
+  .mk-ref thead { display: none; }
+  .mk-ref tr { display: flex; flex-wrap: wrap; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--row); }
+  .mk-ref tr:last-child { border-bottom: 0; }
+  .mk-ref td, .mk-ref tr:last-child td { display: block; padding: 0; border: 0; white-space: normal; overflow: visible; }
+  .mk-ref td.st { position: static; flex: 1 1 100%; width: auto; background: none; box-shadow: none; font-size: 14px; line-height: 20px; }
+  .mk-ref td.st b { color: var(--text2); }
+  .mk-ref td:nth-child(3) { order: 1; flex: 1 1 100%; margin-top: 2px; font-size: 16px; line-height: 24px; font-weight: 700; color: var(--ink); }
+  .mk-ref td:nth-child(2) { order: 2; margin-top: 4px; font-size: 13px; line-height: 18px; }
+  .mk-ref td:nth-child(4) { order: 3; margin-top: 4px; font-size: 13px; line-height: 18px; }
+  .mk-ref td:nth-child(4):not(:empty)::before { content: '·'; margin: 0 6px; color: var(--text3); }
+
+  .mk-sub { margin-top: 24px; font-size: 15px; line-height: 22px; color: var(--ink); }
+  .mk-foot { padding: 0 16px; line-height: 20px; }
+  .mk > .mk-ipo-bar, .mk > .mk-tiles { margin: 0 16px; }
+  .mk-seg button { height: 36px; padding: 0 10px; }
+  .mz-subrow .mk-seg button { height: 32px; padding: 0 10px; font-size: 14px; }
+  .mk-q .input { height: 44px; font-size: 16px; }
+  .mk-tile small { font-size: 14px; }
+  .mk-big small { font-size: 13px; }
+  .mk-rank li { padding: 10px 0; }
+  .mz-rank .nm small { font-size: 13px; }
+
+  /* 차트 축·표시 글씨 11 → 12 */
+  .mk-chart .yl, .mk-chart .xt span, .lk-chart .yl, .lk-chart .xt span, .mk-mark span { font-size: 12px; }
+  .mk-chart .xt, .lk-chart .xt { height: 16px; }
+  .mk-chart .tip { font-size: 13px; }
+}

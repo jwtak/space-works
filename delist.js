@@ -15,7 +15,7 @@ const DL_COLS = 20; // 표 칸 수(펼친 칸 colspan)
 // 새로 고친 뒤에도 보던 검색어·체크·선택·정렬·펼친 행·이력 펼침을 창마다 기억한다(app.js viewGet·viewSet)
 const DL_VIEW = { q: 'string', stage: 'string', mkt: 'string', sk: 'string', good: 'boolean', cb: 'boolean', bo: 'boolean', asc: 'boolean', hist: 'boolean' };
 const dlS = (() => {
-  const s = { data: null, at: 0, loading: null, q: '', good: true, cb: false, bo: false, stage: '', mkt: '', sk: 'score', asc: false, hist: false, open: new Set(), focus: null, host: null };
+  const s = { data: null, at: 0, loading: null, q: '', good: true, cb: false, bo: false, stage: '', mkt: '', sk: 'score', asc: false, hist: false, open: new Set(), focus: null, host: null, aiAll: false };
   const v = viewGet('dl2', null) || {};
   Object.entries(DL_VIEW).forEach(([k, t]) => { if (typeof v[k] === t) s[k] = v[k]; });
   s.open = new Set(Array.isArray(v.open) ? v.open : []);
@@ -197,7 +197,30 @@ function dlHead() {
   </tr></thead>`;
 }
 
+// 폰(760 이하): 넓은 표 대신 한 회사를 카드 한 장으로 — 이름·코드 / 단계·업종 / 지표 3칸 격자 / 앵글·상태 배지
+const DL_MQ = matchMedia('(max-width: 760px)');
+const dlMob = () => DL_MQ.matches;
+const dlME = (v, d = 0) => (dlNum(v) == null ? DL_NA : `<span class="${dlNeg(v)}">${dlFmt(v, d)}억</span>`);
+function dlRowM(x, i) {
+  const open = dlS.open.has(x.code), y = dlS.data.year, f = dlFinOf(x, y), l = x.last;
+  const ang = x.angles ? Object.keys(DL_ANG_L).filter((k) => dlAngOk(x, k)).map((k) => dlAngBadge(DL_ANG_L[k])).join('') : '';
+  const kv = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
+  const ly = l && y && l.y !== y ? ` '${String(l.y).slice(2)}` : '';
+  return `<tr class="dl-tr dl-mr${open ? ' open' : ''}" data-id="${esc(x.code)}" data-n="${i}" tabindex="0" aria-expanded="${open}"><td class="dl-mc" colspan="${DL_COLS}">
+    <div class="dl-m1"><span class="dl-ttl">${dlNm(x.name)}</span><span class="dl-cd">${esc(x.code)}</span></div>
+    <div class="dl-m2">${x.stage ? `<span class="dl-s${x.stage}">${x.stage}단계</span><span>${esc(dlStageName(x.stage))}</span>` : ''}${x.sector ? `<span class="dl-m2s">${esc(x.sector)}</span>` : ''}</div>
+    <dl class="dl-mg">${kv('시총', dlME(x.mcap, 1))}${kv(`${dlNextY()} 부족분`, x.gapNext != null && x.gapNext > 0 ? dlME(x.gapNext, 1) : DL_NA)}${kv('PBR', x.pbr != null ? dlPbr(x.pbr) : DL_NA)}
+      ${kv(`${y || ''} 매출`, dlME(f?.rev))}${kv(`${y || ''} 영업이익`, dlME(f?.op))}${kv('EV/영업이익', x.evOp != null ? `<span class="${dlNeg(x.evOp)}">${dlX(x.evOp)}</span>` : DL_NA)}
+      ${kv(`자본${ly}`, dlME(l?.equity))}${kv(`부채${ly}`, dlME(l?.liab))}${kv('메자닌', x.mezz.ratio != null ? dlPct(x.mezz.ratio) : DL_NA)}</dl>
+    <div class="dl-mb">${ang}${dlStateBadges(x)}</div>
+  </td></tr>${open ? `<tr class="dl-xrow" data-x="${esc(x.code)}"><td colspan="${DL_COLS}"><div class="dl-xin">${dlDetail(x)}</div></td></tr>` : ''}`;
+}
+// 폰 정렬(표 머리글이 없으므로): 값 = 정렬 칸|작은 순
+const DL_MSORT = [['score|0', '점수순'], ['mcap|0', '시총 큰 순'], ['mcap|1', '시총 작은 순'], ['gap|1', '부족분 작은 순'], ['pbr|1', 'PBR 낮은 순'],
+  ['evop|1', 'EV/영업이익 낮은 순'], ['mezz|1', '메자닌 낮은 순'], ['r3|0', '매출 큰 순'], ['o3|0', '영업이익 큰 순'], ['name|1', '이름순']];
+
 function dlRow(x, i) {
+  if (dlMob()) return dlRowM(x, i);
   const open = dlS.open.has(x.code), ys = dlYears(), l = x.last, y = dlS.data.year;
   const mark = l && y && l.y !== y ? `<span class="yr">'${String(l.y).slice(2)}</span>` : ''; // 최근 결산이 다른 회사보다 이르면 연도 표시
   const gap = x.gapNext != null && x.gapNext > 0 ? `${dlI(x.gapNext, 1)}<span class="yr">${dlFmt(x.gapNextPct ?? 0, 0)}%</span>` : DL_NA;
@@ -279,7 +302,8 @@ function dlPicks() {
   const t = dlTime(p.at, false);
   return `<section class="card dl-ai"><div class="dl-ai-head"><span class="ttl">AI 추천</span>${t ? `<span class="meta${p.stale ? ' ipo-stale' : ''}"${p.stale ? ' title="오늘 선정 실패, 직전 추천"' : ''}>${esc(t)}</span>` : ''}</div>
     ${p.summary ? `<p class="dl-ai-note">${esc(p.summary)}</p>` : ''}
-    ${p.items.length ? `<div class="dl-ai-grid">${p.items.map(card).join('')}</div>` : ''}${hist}</section>`;
+    ${p.items.length ? `<div class="dl-ai-grid${dlS.aiAll ? ' all' : ''}">${p.items.map(card).join('')}</div>` : ''}
+    ${p.items.length > 2 && !dlS.aiAll ? `<button type="button" class="btn dl-aimore" data-dl-aimore>나머지 ${p.items.length - 2}곳 보기</button>` : ''}${hist}</section>`;
 }
 
 /* ---------- 요약 줄·조건 줄 ---------- */
@@ -300,6 +324,7 @@ function dlControls() {
     ${ck('dl-good', dlS.good, '좋은 기업만')}${ck('dl-cb', dlS.cb, 'CB 가능')}${ck('dl-bo', dlS.bo, '바이아웃 가능')}
     ${sel('dl-stage', '단계', [['', '전체 단계'], ...[1, 2, 3].map((n) => [String(n), `${n}단계 ${dlStageName(n)}`])], dlS.stage)}
     ${sel('dl-mkt', '시장', [['', '전체 시장'], ['코스피', '코스피'], ['코스닥', '코스닥']], dlS.mkt)}
+    <select class="select dl-msort" id="dl-sort" aria-label="정렬">${DL_MSORT.map(([k, l]) => `<option value="${k}"${`${dlS.sk}|${+dlS.asc}` === k ? ' selected' : ''}>${l}</option>`).join('')}</select>
     <button class="btn ghost" type="button" id="dl-xls">${ico('file', 'sm')}엑셀 다운로드</button><span class="dl-count" id="dl-count"></span>`;
 }
 
@@ -399,6 +424,7 @@ function dlCtlSync() {
   [['dl-q', 'q'], ['dl-good', 'good'], ['dl-cb', 'cb'], ['dl-bo', 'bo'], ['dl-stage', 'stage'], ['dl-mkt', 'mkt']].forEach(([id, k]) => {
     const el = h.querySelector(`#${id}`); if (el) el[el.type === 'checkbox' ? 'checked' : 'value'] = dlS[k];
   });
+  const so = h.querySelector('#dl-sort'); if (so) so.value = `${dlS.sk}|${+dlS.asc}`;
 }
 
 // AI 추천 카드 → 표에서 그 회사를 펼쳐 보여 준다(조건에 걸려 빠져 있으면 그 조건만 푼다)
@@ -426,6 +452,7 @@ function dlBind(root) {
     if (t.closest('#dl-xls')) { dlCsv(); return; }
     const pb = t.closest('[data-dl-pipe]'); if (pb) { dlPipeAdd(pb); return; }
     const go = t.closest('[data-dl-go]'); if (go) { dlGo(go.dataset.dlGo); return; }
+    const am = t.closest('[data-dl-aimore]'); if (am) { dlS.aiAll = true; am.previousElementSibling?.classList.add('all'); am.remove(); return; }
     const th = t.closest('th[data-k]');
     if (th) { const k = th.dataset.k; if (dlS.sk === k) dlS.asc = !dlS.asc; else { dlS.sk = k; dlS.asc = DL_ASC.includes(k); } dlDraw(); return; }
     if (t.closest('a, input, select, label, .dl-xrow')) return;
@@ -440,11 +467,13 @@ function dlBind(root) {
   root.addEventListener('change', (ev) => {
     const t = ev.target, k = { 'dl-good': 'good', 'dl-cb': 'cb', 'dl-bo': 'bo', 'dl-stage': 'stage', 'dl-mkt': 'mkt' }[t.id];
     if (k) { dlS[k] = t.type === 'checkbox' ? t.checked : t.value; dlDraw(); }
+    if (t.id === 'dl-sort') { const [sk, asc] = t.value.split('|'); dlS.sk = sk; dlS.asc = asc === '1'; dlDraw(); }
   });
   root.addEventListener('toggle', (ev) => { if (ev.target.id === 'dl-hist') { dlS.hist = ev.target.open; dlViewSave(); } }, true);
 }
 
 let dlRO = null;
+DL_MQ.addEventListener('change', () => { if (dlS.host?.isConnected) { dlDraw(); dlCtlSync(); } }); // PC 표 ↔ 폰 카드
 async function renderDelist(host) {
   dlS.host = host;
   host.innerHTML = `<div class="ipo-page dl-page" id="dl-root">

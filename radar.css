@@ -221,9 +221,18 @@
   /* 칸 사이 선은 버튼 위·왼쪽 테두리를 -1px 겹쳐 그린다(간격+배경색은 배율 125·150%에서 번져 안 보임 — 테두리는 항상 1 기기 픽셀) */
   .rd-page .ipo-filter .seg button { margin: -1px 0 0 -1px; height: 35px; border-top: 1px solid var(--line2); border-left: 1px solid var(--line2); }
   .rd-page .ipo-sumrow { flex: 1 1 100%; }
+  /* 업종·사업 내용은 말줄임 대신 두 줄까지, 본문 보조 크기로 */
+  #rd-root .ipo-c-name > .ipo-sub:not(.rd-alt):not(.rd-mi) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; font-size: 14px; line-height: 20px; color: var(--text2); }
+  /* 선택 상자가 둘이면(입찰딜 적합도·단계) 남은 폭을 나눠 한 줄에 */
+  #rd-root .ipo-filter .select { flex: 1 1 0; min-width: 0; padding: 0 2px 0 10px; }
+  /* 가리기 눈 아이콘: 손가락으로 누를 수 있게 36 */
+  .rd-hide { width: 36px; height: 36px; margin: -6px -4px -6px 0; }
+  /* 펼친 행 하위 탭: 옆으로 숨기지 않고 다음 줄로 */
+  #rd-root .ipo-tabs { flex-wrap: wrap; column-gap: 20px; row-gap: 0; }
   .rd-page .ipo-line > .rd-mh { display: none; }
   .rd-page .ipo-line > .rd-span3 { display: block; grid-column: 1 / -1; font-size: 15px; line-height: 22px; }
   .rd-mob { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin-top: 4px; font-size: 14px; line-height: 20px; color: var(--text2); overflow: hidden; overflow-wrap: anywhere; }
+  #rd-root .rd-mob { -webkit-line-clamp: 3; } /* 매각희망 매도 후보(조합·운용사) 이름이 잘리지 않게 세 줄까지 */
   .rd-mi { display: block; }
   .rd-page .rd-card2 { margin-top: 0; border-top: 8px solid #F2F4F6; }
   .rd-grp { padding: 16px 16px 8px; }

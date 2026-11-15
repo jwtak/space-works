@@ -89,4 +89,32 @@
   .fs-c-chev { grid-column: 2; grid-row: 2; }
   .fs-pics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .fs-inv-pane .ipo-kv { grid-template-columns: 84px minmax(0, 1fr); }
+
+  /* 목록: 순번은 이름 왼쪽 칸, 업종 한 줄은 두 줄까지, 매출·투자 줄은 본문 크기 */
+  .fs-page .fs-cols { grid-template-columns: 24px minmax(0, 1fr) auto; column-gap: 8px; }
+  .fs-page .fs-c-no { grid-column: 1; grid-row: 1; font-size: 15px; line-height: 22px; }
+  .fs-page .fs-c-no::before { content: none; }
+  .fs-page .fs-c-name { grid-column: 2; grid-row: 1; }
+  .fs-page .fs-c-chev { grid-column: 3; grid-row: 1; }
+  .fs-page .fs-c-name > .ipo-sub { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; margin-top: 2px; font-size: 14px; line-height: 20px; color: var(--text2); }
+  .fs-page .fs-c-name > .ipo-sub.fs-alt { display: block; color: var(--text2); }
+  .fs-page .fs-c-name > .ipo-sub.fs-alt:last-child { color: var(--text3); }
+  .fs-ir { height: 22px; font-size: 13px; }
+  .fs-set button { height: 40px; font-size: 15px; }
+  .fs-page .ipo-filter .seg button { height: 40px; font-size: 15px; }
+
+  /* 펼친 칸 표(투자 라운드·제품·주주)는 한 건씩: 첫 칸 굵게, 나머지는 이름표 + 값 */
+  .fs-page .fs-scroll { overflow: visible; }
+  .fs-rounds, .fs-prod, .fs-hold { min-width: 0; }
+  .fs-page :is(.fs-rounds, .fs-prod, .fs-hold), .fs-page :is(.fs-rounds, .fs-prod, .fs-hold) tbody { display: block; width: 100%; }
+  .fs-page :is(.fs-rounds, .fs-prod, .fs-hold) thead { display: none; }
+  .fs-page :is(.fs-rounds, .fs-prod, .fs-hold) tr { display: flex; flex-wrap: wrap; column-gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--row); }
+  .fs-page :is(.fs-rounds, .fs-prod, .fs-hold) tr:last-child { border-bottom: 0; }
+  .fs-page :is(.fs-rounds, .fs-prod, .fs-hold) td { position: relative; display: block; flex: 1 1 100%; padding: 2px 0 2px 96px; border: 0; font-size: 14px; line-height: 20px; color: var(--text2); overflow-wrap: anywhere; }
+  .fs-page :is(.fs-rounds, .fs-prod, .fs-hold) td::before { content: attr(data-k); position: absolute; left: 0; top: 2px; width: 84px; color: var(--text3); }
+  .fs-page :is(.fs-rounds, .fs-prod, .fs-hold) td:first-child { display: block; flex: 1 1 100%; padding: 0 0 4px; font-size: 15px; line-height: 22px; font-weight: 600; color: var(--ink); }
+  .fs-page :is(.fs-rounds, .fs-prod, .fs-hold) td:first-child::before { content: none; }
+  .fs-page .fs-rounds td:first-child { flex: none; font-weight: 400; color: var(--text3); }
+  .fs-page .fs-rounds td:nth-child(2) { display: block; flex: 1 1 0; min-width: 0; padding: 0 0 4px; font-size: 15px; line-height: 22px; font-weight: 600; color: var(--ink); }
+  .fs-page .fs-rounds td:nth-child(2)::before { content: none; }
 }

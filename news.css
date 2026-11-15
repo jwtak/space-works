@@ -88,4 +88,5 @@
   .nw-pick-h { padding: 16px 0 6px; }
   .nw-brief { margin: 6px 16px 8px; padding: 10px 12px; }
   .nw-ttl { font-size: 16px; }
+  .nw-star { width: 40px; height: 40px; margin: -9px -10px 0 0; }
 }

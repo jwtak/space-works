@@ -138,23 +138,62 @@
   .dl-xin .ipo-kv { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
 
-/* 폰: kosdaq-watch 모바일처럼 기업명 칸 좁게·사업 한 줄 숨김, AI 추천은 옆으로 밀어 보는 카드 줄 */
+/* 폰 전용 요소(정렬 고르기·추천 더 보기)는 PC에서 숨긴다 */
+.dl-msort, .dl-aimore { display: none; }
+
+/* 폰: 넓은 표 대신 회사 카드 목록(delist.js dlRowM), AI 추천은 위아래로 쌓고 두 곳만 먼저 */
 @media (max-width: 760px) {
   .dl-ai { margin-bottom: 0; padding: 16px; border-radius: 0; border-left: 0; border-right: 0; border-bottom: 8px solid #F2F4F6; }
-  .dl-ai-grid { display: flex; gap: 10px; margin: 0 -16px; padding: 0 16px 2px; overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x mandatory; scroll-padding-inline: 16px; scrollbar-width: none; }
-  .dl-ai-grid::-webkit-scrollbar { display: none; }
-  .dl-ai-grid .dl-card { flex: 0 0 min(300px, 84%); scroll-snap-align: start; display: flex; grid-row: auto; }
-  .dl-ai-grid .dl-card .km { margin-top: auto; }
-  .dl-ctl { margin: 12px 16px; gap: 8px 12px; }
-  .dl-ck { font-size: 14px; }
-  .dl-tbox { border-radius: 0; border-left: 0; border-right: 0; }
-  .dl-tbl { min-width: 1400px; }
-  .dl-tbl th, .dl-tbl td { padding: 8px; font-size: 14px; }
-  .dl-tbl thead th.dl-bh { padding-left: 16px; }
-  .dl-tbl td.dl-nm { min-width: 120px; max-width: 150px; }
-  .dl-tbl td.dl-nm .biz { display: none; }
-  .dl-tbl .dl-nm .dl-cd { display: block; margin-left: 0; }
-  .dl-tbl td.stick { box-shadow: 5px 0 8px -4px rgba(15, 23, 42, .25); }
-  .dl-tbl .dl-no { width: 36px; }
+  .dl-ai-head .ttl { font-size: 18px; }
+  .dl-ai-note { font-size: 15px; line-height: 22px; color: var(--text2); }
+  .dl-ai-grid { display: flex; flex-direction: column; gap: 12px; overflow: visible; padding: 0; }
+  .dl-ai-grid .dl-card { display: flex; grid-row: auto; padding: 16px; }
+  .dl-ai-grid:not(.all) .dl-card:nth-child(n+3) { display: none; }
+  .dl-ai-grid .dl-card .km { margin-top: 0; }
+  .dl-ai-grid .dl-card .km:empty, .dl-ai-grid .dl-card .st:empty, .dl-ai-grid .dl-card .rk:empty, .dl-ai-grid .dl-card ul.th:empty { display: none; }
+  .dl-card .nm { font-size: 17px; line-height: 24px; }
+  .dl-card .cd { font-size: 14px; }
+  .dl-card ul.th, .dl-pkb ul.th { margin: 8px 0 12px; font-size: 15px; line-height: 22px; color: var(--ink); }
+  .dl-card ul.th li + li, .dl-pkb ul.th li + li { margin-top: 6px; }
+  .dl-card .km, .dl-pkb .km, .dl-card .st, .dl-pkb .st, .dl-card .rk, .dl-pkb .rk { font-size: 14px; line-height: 20px; }
+  .dl-card .km, .dl-pkb .km { color: var(--text2); }
+  .dl-aimore { display: flex; justify-content: center; width: 100%; height: 40px; margin-top: 12px; font-size: 15px; }
+  .dl-hist { margin-top: 4px; font-size: 15px; line-height: 22px; }
+  .dl-hist summary { padding: 10px 0; }
+  .dl-hist .h-run { margin-top: 16px; }
+  .dl-hist .h-sum { flex-basis: 100%; }
+  .dl-hist .h-pick { margin: 8px 0 0; color: var(--text2); }
+
+  .dl-ctl { margin: 12px 16px; gap: 4px 16px; }
+  .dl-ctl .dl-q { flex: 1 1 100%; margin-bottom: 4px; }
+  .dl-ck { min-height: 40px; font-size: 15px; }
+  .dl-ctl .select { flex: 1 1 40%; min-width: 0; height: 40px; font-size: 15px; }
+  .dl-ctl .dl-msort { display: block; flex: 1 1 100%; }
+  .dl-count { flex-basis: auto; margin-left: auto; padding-top: 4px; font-size: 14px; }
+
+  .dl-tbox { overflow: visible; border-radius: 0; border-left: 0; border-right: 0; }
+  .dl-tbl { min-width: 0; }
+  .dl-tbl, .dl-tbl tbody { display: block; }
+  .dl-tbl thead { display: none; }
+  .dl-tbl tr { display: block; }
+  .dl-tbl tbody tr.dl-tr td.dl-mc { display: block; padding: 16px; white-space: normal; background: var(--card); }
+  .dl-tbl tbody tr.dl-tr.open td.dl-mc { background: var(--primary-soft); }
+  .dl-m1 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; }
+  .dl-m1 .dl-ttl { font-size: 17px; line-height: 24px; }
+  .dl-tbl .dl-m1 .dl-cd { margin-left: 0; font-size: 14px; }
+  .dl-m2 { display: flex; flex-wrap: wrap; gap: 0 6px; margin-top: 2px; font-size: 14px; line-height: 20px; color: var(--text3); }
+  .dl-m2 > span + .dl-m2s::before { content: '·'; margin-right: 6px; }
+  .dl-mg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 12px; margin: 12px 0 0; padding: 12px 0 0; border-top: 1px solid var(--row); font-variant-numeric: tabular-nums; }
+  .dl-mg > div { min-width: 0; }
+  .dl-mg dt { font-size: 13px; line-height: 18px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dl-mg dd { margin: 2px 0 0; font-size: 15px; line-height: 22px; font-weight: 600; color: var(--ink); white-space: nowrap; }
+  .dl-mg dd .dl-neg { color: var(--danger); }
+  .dl-mb { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .dl-mb:empty { display: none; }
+  .dl-mb .dl-bdg { margin: 0; font-size: 13px; }
+
+  .dl-tbl tr.dl-xrow > td { display: block; }
+  .dl-xin { width: auto; position: static; padding: 16px 16px 24px; }
+  .dl-xin .ipo-kv { grid-template-columns: 96px minmax(0, 1fr); gap: 8px; padding: 6px 0; }
   .dl-xin .ipo-dhead > .rd-pipe { align-self: stretch; height: 40px; justify-content: center; }
 }

@@ -114,6 +114,6 @@
 @media (max-width: 760px) {
   .ma-page .ma-finf { gap: 12px; }
   .ma-page .ipo-filter .seg { flex-wrap: wrap; background: var(--card); overflow: hidden; }
-  .ma-page .ipo-filter .seg button { flex: 1 1 auto; padding: 0 8px; margin: -1px 0 0 -1px; height: 35px; border-top: 1px solid var(--line2); border-left: 1px solid var(--line2); }
+  .ma-page .ipo-filter .seg button { flex: 1 1 auto; padding: 0 8px; margin: -1px 0 0 -1px; height: 40px; border-top: 1px solid var(--line2); border-left: 1px solid var(--line2); }
   .ma-sel { flex: 1 1 0; min-width: 0; }
 }

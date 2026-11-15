@@ -255,10 +255,25 @@ blockquote{margin:0 0 0 4px;padding-left:12px;border-left:2px solid #E5E7EB;colo
 
 /* 폭을 고정해 만든 메일(안내문·뉴스레터)이 본문 칸보다 넓으면 칸 폭에 맞게 줄인다(폰에서 오른쪽이 잘리던 문제, 11/6).
    칸 안 스크립트는 여전히 막혀 있고(sandbox에 allow-scripts 없음, CSP), 바깥에서 폭만 재서 zoom을 건다. 이미지가 늦게 오면 다시 잰다 */
+/* 폰: 줄이기 전에 고정 폭(width="640"·width:640px)을 칸 폭으로 풀어 글자 크기 그대로 다시 흐르게 한다(줄이면 글자가 8~9px로 작아졌다, 11/15).
+   화면 표시용 iframe 안만 고친다(답장 원문·보내는 HTML은 c.quote 문자열이라 그대로) */
+function mailReflow(d, cw) {
+  const b = d.body; if (!b) return;
+  const cs = getComputedStyle(b), avail = cw - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+  const px = (v) => { const mm = /^\s*(\d+(?:\.\d+)?)\s*(px)?\s*$/i.exec(v || ''); return mm ? +mm[1] : 0; };
+  b.querySelectorAll('table, td, th, div, center, p, img').forEach((el) => {
+    if (Math.max(px(el.getAttribute('width')), px(el.style.width), px(el.style.minWidth)) <= avail) return;
+    el.removeAttribute('width'); el.style.minWidth = '0';
+    if (el.tagName === 'IMG') { el.removeAttribute('height'); el.style.width = ''; el.style.maxWidth = '100%'; el.style.height = 'auto'; }
+    else el.style.width = el.tagName === 'TABLE' ? '100%' : 'auto';
+  });
+}
 function mailFitFrame(fr) {
   const d = fr.contentDocument; if (!d || !d.documentElement) return;
   const fit = () => {
     const de = d.documentElement; de.style.zoom = '';
+    if (mailIsMobile() && d.body) d.body.style.wordBreak = 'keep-all'; // 폰: 한글이 낱말 중간(바/탕으로)에서 끊기지 않게
+    if (mailIsMobile() && fr.clientWidth && de.scrollWidth > fr.clientWidth + 8) mailReflow(d, fr.clientWidth);
     const w = de.scrollWidth, cw = fr.clientWidth;
     if (cw && w > cw + 8) de.style.zoom = String(Math.max(0.4, cw / w));
   };
@@ -786,6 +801,7 @@ async function mailOpen(id) {
     mailDrawPane();
     if (!msg.isRead) {
       G.patch(p, { isRead: true }).then(() => {
+        if (typeof pushNotifClose === 'function') pushNotifClose(id); // 이 메일의 폰 알림·아이콘 숫자도 바로 지운다(push.js)
         const it = m.list.find((x) => x.id === id) || item;
         if (msg.isRead || (it && it.isRead)) return; // 그새 다른 데서 읽음 처리했으면 개수를 또 빼지 않는다
         msg.isRead = true; if (it) it.isRead = true;

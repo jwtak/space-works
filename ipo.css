@@ -290,6 +290,17 @@
   .ipo-pnl th, .ipo-pnl td { padding: 8px 0 8px 6px; }
   .ipo-pnl th:first-child, .ipo-pnl td:first-child { width: 72px; padding-left: 0; }
   .ipo-pnl tr.r td:first-child { padding-left: 8px; }
+  /* 신규상장 폰: 요약 줄은 한 줄을 다 쓰고 버튼은 다음 줄로(예심청구·매각희망과 같게, 좁은 칸에 한 항목씩 세로로 쌓이지 않게) */
+  #ipo-root .ipo-top { flex-wrap: wrap; row-gap: 4px; }
+  #ipo-root .ipo-sumrow { flex: 1 1 100%; }
+  /* 필터 버튼은 옆으로 숨기지 않고 줄을 바꾼다(radar.css 폰과 같은 테두리 겹침) */
+  #ipo-root .ipo-filter .seg { flex: 1 1 auto; flex-wrap: wrap; background: var(--card); overflow: hidden; }
+  #ipo-root .ipo-filter .seg button { flex: 1 1 auto; padding: 0 8px; margin: -1px 0 0 -1px; height: 35px; border-top: 1px solid var(--line2); border-left: 1px solid var(--line2); }
+  #ipo-root .ipo-filter .select { flex: 1 1 100%; min-width: 0; } /* 정렬 상자: 예심청구·매각희망과 같게 남은 폭을 채움 */
+  /* 사업 내용은 말줄임 대신 두 줄까지, 본문 보조 크기로 */
+  #ipo-root .ipo-c-name > .ipo-sub:not(.ipo-alt) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; font-size: 14px; line-height: 20px; color: var(--text2); }
+  /* 펼친 행 하위 탭: 옆으로 숨기지 않고 다음 줄로 */
+  #ipo-root .ipo-tabs { flex-wrap: wrap; column-gap: 20px; row-gap: 0; }
 }
 
 /* 임원 표는 카드가 560보다 좁으면(폰 포함) 한 사람씩: 이름·직위·담당 한 줄 + 주요 경력 아래 */

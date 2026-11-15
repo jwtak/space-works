@@ -91,7 +91,22 @@ svg.i.lg { width: 22px; height: 22px; }
 .info-tbl th { background: var(--row); color: var(--ink); font-weight: 600; white-space: nowrap; }
 .info-tbl td:first-child { color: var(--ink); font-weight: 500; min-width: 120px; }
 .info-tbl tr:last-child td { border-bottom: 0; }
-@media (max-width: 760px) { .info-tbl table { min-width: 560px; } }
+/* 폰: 표를 옆으로 밀지 않고 행마다 카드처럼 쌓는다(첫 칸 = 제목, 나머지 칸은 머리글 라벨 + 값) */
+@media (max-width: 760px) {
+  .info-tbl { overflow: visible; }
+  .info-tbl table, .info-tbl tbody, .info-tbl tr, .info-tbl td { display: block; }
+  .info-tbl thead { display: none; }
+  .info-tbl tr { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .info-tbl tr:last-child { border-bottom: 0; }
+  .info-tbl td, .info-tbl tr:last-child td { padding: 0; border: 0; }
+  .info-tbl td:first-child { min-width: 0; font-size: 16px; font-weight: 600; }
+  .info-tbl td + td { margin-top: 6px; }
+  .info-tbl tr:has(> :nth-child(3)) td + td[data-h]:not([data-h=""])::before { content: attr(data-h); display: block; font-size: 14px; line-height: 20px; font-weight: 500; color: var(--text3); }
+  .sheet.info { padding-left: 16px; padding-right: 16px; }
+  .info-head { flex-wrap: wrap; }
+  .info-dl dt { font-size: 17px; }
+  .info-dl dd { font-size: 16px; line-height: 24px; }
+}
 .topbar .right { margin-left: auto; display: flex; align-items: center; gap: 20px; color: var(--text2); }
 .topbar .clock { font-variant-numeric: tabular-nums; }
 .topbar .me { display: flex; align-items: center; gap: 8px; font-weight: 500; color: var(--ink); }
@@ -602,6 +617,54 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
   .editor textarea { padding: 16px; font-size: 17px; line-height: 26px; }
 
   .input, .select, textarea { font-size: 17px; } /* iOS 확대 방지 */
+
+  /* 폰 가독성·터치(11/15): 공통 버튼·입력 높이, 흐린 글자 대비 */
+  .input, .select { height: 40px; }
+  .btn.sm { height: 36px; font-size: 15px; }
+  .iconbtn { width: 40px; height: 40px; }
+  .seg button { height: 36px; font-size: 15px; }
+  .tabbar a { color: var(--text3); }
+  .tabs .n, .tabs button .n { font-size: 14px; }
+  .card-head .meta { font-size: 14px; }
+  .empty { font-size: 15px; }
+  .toast { left: 16px; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom)); transform: none; padding: 12px 16px; font-size: 15px; line-height: 22px; text-align: center; }
+
+  /* 홈: D-day 묶음은 줄이 바뀌어도 이름·D-n이 갈라지지 않게 */
+  .mh-hello .sub .ms { white-space: nowrap; }
+
+  /* 일정 목록: 위 도구 줄은 [월간|목록 · 새로고침] / [‹ 이번 주 ›] 두 줄, 'Outlook에서 열기'는 제목 시작선에 */
+  .page-head .tools:has(#cal-prev) { justify-content: flex-start; column-gap: 4px; }
+  .page-head .tools:has(#cal-prev) .seg { margin-right: auto; }
+  .page-head .tools:has(#cal-prev) #cal-ref { order: 1; }
+  .page-head .tools:has(#cal-prev)::after { content: ''; order: 2; flex: 0 0 100%; }
+  .page-head .tools:has(#cal-prev) #cal-prev, .page-head .tools:has(#cal-prev) #cal-today, .page-head .tools:has(#cal-prev) #cal-next { order: 3; }
+  .page-head .tools:has(#cal-prev) #cal-prev { margin-left: -10px; }
+  .page-head:has(#cal-prev) .sub { font-size: 15px; color: var(--text2); font-variant-numeric: tabular-nums; }
+  .cal-day .d { font-size: 16px; }
+  .ev .tm { font-size: 15px; }
+  .ev .s { font-size: 16px; line-height: 22px; }
+  .ev .m { font-size: 14px; line-height: 20px; }
+  .ev > span:last-child .btn.ghost { height: 32px; padding: 0; color: var(--text2); }
+  #cal-body > .muted { margin: 8px 16px 0; font-size: 13px !important; }
+
+  /* 달력 보기 선택: 좁은 폭에서 옆으로 잘리지 않게 줄바꿈 */
+  .cal-filter { flex-wrap: wrap; overflow: visible; row-gap: 4px; column-gap: 16px; }
+  .cf { min-height: 32px; font-size: 15px; }
+
+  /* 할 일·프로그램 탭: 360폭에서도 한 줄 */
+  .todo-bar .seg button { height: 36px; }
+
+  /* 홈페이지: 반영 시각과 '새 창'을 한 줄에 */
+  .page-head:has(.hp-when) { flex-wrap: nowrap; }
+  .page-head:has(.hp-when) .tools { width: auto; margin-left: auto; }
+  .hp-when { font-size: 15px; }
+
+  /* 기록 */
+  .notes-list .top .input { height: 44px; }
+  .editor .bar .st { font-size: 14px; }
+}
+@media (max-width: 374px) {
+  .tabs { gap: 16px; }
 }
 @media (max-width: 360px) {
   .sec-hello .dt { font-size: 20px; }
@@ -709,12 +772,24 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 .deal-sub button.on { color: var(--primary); font-weight: 700; box-shadow: inset 0 -3px 0 var(--primary); }
 .deal-sub button:focus-visible { outline-offset: -2px; }
 #deal-host.deal-heir .pe-grp, #deal-host.deal-dup .pe-grp { display: none; }
-@media (max-width: 760px) { .deal-sub { gap: 24px; margin: 0 16px 12px; padding: 0 16px; } }
+/* 폰: 하위 탭은 박스 없이 화면 폭 밑줄 탭. 다 들어가면 고르게 펴고, 넘칠 때만(app.js segFit → .ovf) 옆으로 밀기 + 가장자리 흐림 */
+@media (max-width: 760px) {
+  .deal-sub { gap: 12px; margin: 0 0 12px; padding: 0 16px; border: 0; border-radius: 0; box-shadow: inset 0 -1px 0 var(--line); scrollbar-width: none; overscroll-behavior-x: contain; scroll-padding-inline: 16px; }
+  .deal-sub:has(> :nth-child(4)) { justify-content: space-between; }
+  .deal-sub:not(:has(> :nth-child(4))) { gap: 24px; }
+  .deal-sub button { height: 46px; font-size: 16px; font-weight: 500; color: var(--text2); box-shadow: inset 0 -2px 0 transparent; }
+  .deal-sub button.on { font-weight: 600; box-shadow: inset 0 -2px 0 var(--primary); }
+  .deal-sub.ovf { justify-content: flex-start; gap: 20px; padding-right: 40px; scroll-padding-inline: 16px 40px;
+    -webkit-mask: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 40px), transparent) 0 0 / 100% calc(100% - 2px) no-repeat, linear-gradient(#000, #000) 0 100% / 100% 2px no-repeat;
+    mask: linear-gradient(90deg, transparent, #000 16px, #000 calc(100% - 40px), transparent) 0 0 / 100% calc(100% - 2px) no-repeat, linear-gradient(#000, #000) 0 100% / 100% 2px no-repeat; }
+}
+@media (max-width: 374px) { .deal-sub button { font-size: 15px; } }
 @media (max-width: 760px) {
   .deal-seg { display: flex; margin: 4px 16px 12px; }
   .deal-seg button { flex: 1; justify-content: center; padding: 0 12px; white-space: nowrap; }
 }
-@media (max-width: 400px) { .deal-seg button { gap: 6px; padding: 0 4px; } }
+@media (max-width: 400px) { .deal-seg button { gap: 6px; padding: 0 4px; font-size: 16px; } }
+@media (max-width: 374px) { .deal-seg button { font-size: 15px; } }
 /* 탭이 많을 때(5개 이상 — 딜소싱 묶음 4개·시장동향 3개는 해당 없음): 이름은 늘 한 줄. PC는 자리가 모자라면 탭마다 좌우 여백을 22→12px까지 똑같이 줄이고,
    그래도 모자라면 옆으로 밀어 보기(밀 수 있는 쪽 가장자리에 그림자). 폰은 5개부터 하이웍스 앱처럼 밑줄 탭을 화면 끝까지 옆으로 밀기 */
 @media (min-width: 761px) {

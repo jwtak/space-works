@@ -76,7 +76,7 @@ async function renderFiles(host, mode = 'files') {
         <nav class="fl-crumb" id="fl-crumb" aria-label="경로"></nav>
         <div class="fl-tools">
           <label class="fl-search">${ico('search', 'sm')}<input class="input" id="fl-q" type="search" placeholder="${flM.title} 검색" value="${esc(flS.q)}" enterkeyhint="search"></label>
-          <button class="btn" type="button" id="fl-mkdir">${ico('plus', 'sm')}<span>새 폴더</span></button>
+          <button class="btn" type="button" id="fl-mkdir" aria-label="새 폴더">${ico('folder-plus', 'sm')}<span>새 폴더</span></button>
           <button class="btn primary fl-upbtn" type="button" id="fl-upbtn">${ico('upload', 'sm')}<span>파일 올리기</span></button>
           <button class="btn fl-share" type="button" id="fl-share" title="이 폴더를 바로 여는 웍스 링크">${ico('link', 'sm')}<span>링크 복사</span></button>
           <button class="iconbtn fl-ref" type="button" id="fl-ref" aria-label="새로고침">${ico('refresh')}</button>

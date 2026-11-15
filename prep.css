@@ -68,8 +68,14 @@
   .pr-tbl td { padding: 10px 2px; }
   .pr-foot { padding: 10px 16px 14px; }
   .pr-co li { padding: 10px 16px; flex-wrap: wrap; }
-  .pr-co .pr-doc { flex-basis: calc(100% - 40px); }
-  .pr-own { margin-left: 40px; }
+  .pr-co .pr-doc { flex-basis: calc(100% - 44px); }
+  .pr-own { margin-left: 44px; }
   .pr-src { margin: 12px 16px 0; }
   .pr-mbtns span { display: none; }
+  /* 폰 터치 영역: 체크 칸 32, 메모 버튼 32, 담당 선택 40, 사람 카드 폴더 아이콘 32 */
+  .pr-cell { width: 32px; height: 32px; }
+  .pr-madd { height: 32px; padding: 0 12px 0 8px; border-radius: 16px; font-size: 14px; }
+  .pr-own { height: 40px; width: 140px; font-size: 15px; }
+  .pr-who .pr-fd { padding: 8px; margin: -8px -8px -8px auto; }
+  .pr-det { font-size: 14px; line-height: 20px; }
 }

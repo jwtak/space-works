@@ -134,7 +134,11 @@
   .ipo-row.open > .pp-line { padding: 14px 7px; }
   .pp-filter .ipo-search { flex: 1 1 140px; }
   #pp-ref .pp-txt, .pp-page .info-txt { display: none; }
-  .pp-stseg button { height: 36px; }
+  .pp-stseg button { height: 40px; font-size: 15px; }
+  /* 단계 필터는 옆으로 밀지 않고 줄을 바꿔 모두 보이게(다른 딜소싱 탭 필터와 같은 모양) */
+  .pp-filter .pp-seg { flex-wrap: wrap; background: var(--card); max-width: 100%; overflow: hidden; }
+  .pp-filter .pp-seg button { flex: 1 1 auto; padding: 0 8px; margin: -1px 0 0 -1px; height: 40px; font-size: 15px; border-top: 1px solid var(--line2); border-left: 1px solid var(--line2); }
+  .pp-form .field > label { font-size: 14px; }
   .pp-sheet .ev-form .narrow { width: 100%; }
   .pp-cf-act .btn { flex: 1; height: 48px; }
 }

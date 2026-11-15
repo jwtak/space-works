@@ -652,7 +652,8 @@ function mkDraw() {
   const host = $('#mk-host'); if (!host || mkS.tab === 'ma') return; // M&A 거래 탭으로 옮긴 뒤 늦게 끝난 mkLoad가 덮어쓰지 않게
   viewSet('mk', Object.fromEntries(MK_VIEW.map((k) => [k, mkS[k]])));
   host.innerHTML = mkS.tab === 'ipo' ? mkIpoHTML() : mkS.tab === 'pe' ? mkPeHTML() : mkMarketHTML();
-  host.querySelectorAll('.mk-tbl').forEach((t) => { t.style.minWidth = `${150 + (t.tHead.rows[0].cells.length - 1) * 104}px`; }); // 첫 열 150px + 나머지 같은 폭, 좁으면 카드 안에서 가로 스크롤
+  const mob = isMobile(); // 폰: 첫 열 104 + 나머지 92(market.css 폰 블록과 짝), 참고 통계 표는 세로로 쌓으니 폭 지정 없음
+  host.querySelectorAll('.mk-tbl').forEach((t) => { const n = t.tHead.rows[0].cells.length - 1; t.style.minWidth = mob ? (t.classList.contains('mk-ref') ? '' : `${104 + n * 92}px`) : `${150 + n * 104}px`; }); // 첫 열 150px + 나머지 같은 폭, 좁으면 카드 안에서 가로 스크롤
   mkChartHover(host);
   [['#mk-q', 'ipoQ'], ['#mk-valq', 'valQ']].forEach(([sel, k]) => { const q = $(sel, host); if (q) q.addEventListener('input', (e) => { mkS[k] = e.target.value; const pos = e.target.selectionStart; mkDraw(); const n = $(sel); n.focus(); n.setSelectionRange(pos, pos); }); });
 }
