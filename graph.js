@@ -70,7 +70,7 @@ const G = {
       return go();
     });
   },
-  logout() { return MS.logoutRedirect({ account: G.account || undefined }); },
+  async logout() { await STORE.dcClear(); return MS.logoutRedirect({ account: G.account || undefined }); }, // 기기에 둔 자료 사본도 지운다
 
   async token(force) {
     try {
@@ -159,8 +159,23 @@ const STORE = {
   path: (rel) => (rel.startsWith('팀/') ? `/drives/${CFG.teamDrive}/root:/${rel.slice(2).split('/').map(encodeURIComponent).join('/')}`
     : `/me/drive/root:/${[CFG.root, ...rel.split('/')].map(encodeURIComponent).join('/')}`),
 
+  /* 기기 사본(2026-11-15 사용자: 새로 고칠 때 느림): 파일 내용을 eTag와 함께 Cache Storage 'works-data'에 둔다.
+     정보(eTag) 한 번 물어 같으면 사본을 쓰고, 다르면 정보에 딸려 온 다운로드 주소로 바로 받는다(예전: 정보 → /content → SharePoint 세 번).
+     로그인 계정별로 나누고, 로그아웃하면 지운다. 서비스워커는 이 캐시를 지우지 않는다(sw.js activate) */
+  DC: 'works-data',
+  dcKey: (rel) => `${location.origin}/__works_data__/${encodeURIComponent((G.account?.username || '').toLowerCase())}/${encodeURIComponent(rel)}`,
+  async dcGet(rel, etag) {
+    if (!etag || typeof caches === 'undefined') return null;
+    try { const r = await (await caches.open(STORE.DC)).match(STORE.dcKey(rel)); return r && r.headers.get('x-etag') === etag ? await r.text() : null; } catch { return null; }
+  },
+  async dcPut(rel, etag, text) {
+    if (!etag || typeof caches === 'undefined') return;
+    try { await (await caches.open(STORE.DC)).put(STORE.dcKey(rel), new Response(text, { headers: { 'x-etag': etag, 'Content-Type': 'text/plain; charset=utf-8' } })); } catch { /* 사본이 없어도 된다 */ }
+  },
+  dcClear: () => (typeof caches === 'undefined' ? Promise.resolve() : caches.delete(STORE.DC).catch(() => {})),
+
   async meta(rel) {
-    try { return await G.get(`${STORE.sharedItem(rel) || STORE.path(rel)}?$select=id,name,eTag,lastModifiedDateTime,size`); }
+    try { return await G.get(`${STORE.sharedItem(rel) || STORE.path(rel)}?select=id,name,eTag,lastModifiedDateTime,size,@microsoft.graph.downloadUrl` /* $select로는 다운로드 주소가 안 온다 */); }
     catch (e) {
       if (STORE.sharedItem(rel) && [403, 404].includes(e.status)) { const err = new Error('공유받은 딜소싱 자료를 열 수 없습니다. 탁지원 대리에게 알려 주세요.'); err.status = e.status; throw err; }
       if (e.status === 404) return null;
@@ -170,8 +185,13 @@ const STORE = {
   async readText(rel) {
     const m = await STORE.meta(rel);
     if (!m) return { text: '', version: null, mtime: null };
-    const sh = STORE.sharedItem(rel);
-    const text = await G.get(sh ? `${sh}/content` : `${STORE.path(rel)}:/content`, { type: 'text' });
+    let text = await STORE.dcGet(rel, m.eTag);
+    if (text == null) {
+      const dl = m['@microsoft.graph.downloadUrl'];
+      if (dl) try { const r = await fetch(dl, { cache: 'no-store' }); if (r.ok) text = await r.text(); } catch { /* 아래 /content로 */ }
+      if (text == null) { const sh = STORE.sharedItem(rel); text = await G.get(sh ? `${sh}/content` : `${STORE.path(rel)}:/content`, { type: 'text' }); }
+      STORE.dcPut(rel, m.eTag, text);
+    }
     return { text, version: m.eTag, mtime: Date.parse(m.lastModifiedDateTime) / 1000 };
   },
   /* version 이 있으면 그 버전일 때만 덮어쓴다(다른 기기·Claude Code가 먼저 고쳤으면 409로 알림). 없으면 새 파일만 만든다. */
@@ -211,7 +231,7 @@ const STORE = {
     const files = kids.filter((k) => /\.(txt|md)$/i.test(k.name) && !k.name.startsWith('~$'));
     const known = new Map(prev.map((n) => [n.name, n]));
     const previews = await Promise.all(files.map((f) => (known.get(prefix + f.name)?.version === f.eTag ? Promise.resolve(known.get(prefix + f.name).preview)
-      : G.get(`${drive}/items/${f.id}/content`, { type: 'text' }).then((t) => t.slice(0, 400)).catch(() => ''))));
+      : STORE.dcGet(`np/${f.id}`, f.eTag).then((c) => (c != null ? c : G.get(`${drive}/items/${f.id}/content`, { type: 'text' }).then((t) => { const p = t.slice(0, 400); STORE.dcPut(`np/${f.id}`, f.eTag, p); return p; }).catch(() => ''))))));
     return files.map((f, i) => ({ name: prefix + f.name, id: f.id, version: f.eTag, mtime: Date.parse(f.lastModifiedDateTime) / 1000, preview: previews[i] }))
       .sort((a, b) => b.mtime - a.mtime);
   },

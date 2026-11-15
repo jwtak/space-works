@@ -1,10 +1,11 @@
 /* SPACE WORKS 서비스워커: 앱 화면 파일만 캐시(오프라인에서도 열리게). 메일·일정·파일 같은 데이터는 캐시하지 않는다. */
-const VERSION = 'works-1794742620';
+const VERSION = 'works-1794743041';
 const SHELL = ['./', 'index.html', 'style.css', 'mail.css', 'graph.js', 'app.js', 'mail.js', 'push.js', 'events.js', 'events.css', 'ipo.js', 'ipo.css', 'radar.js', 'radar.css', 'fsq.js', 'pipeline.js', 'pipeline.css', 'facts.js', 'facts.css', 'delist.js', 'delist.css', 'pe.js', 'pe.css', 'kmx.js', 'kmx.css', 'sector.js', 'sector.css', 'files.js', 'files.css', 'prep.js', 'prep.css', 'news.js', 'news.css', 'market.js', 'market.css', 'ma.js', 'ma.css', 'feedback.js', 'feedback.css', 'guide.js', 'guide.css', 'mobile.css', 'vendor/msal-browser.min.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 
-self.addEventListener('install', (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())); });
+// 설치 때 이 버전 화면 파일을 서버에서 새로 받아 둔다(cache:'reload' — GitHub Pages·브라우저 캐시를 건너뜀)
+self.addEventListener('install', (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== 'works-data').map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 /* 홈페이지 미리보기: ./hp/… 요청은 팀 파일함 '_홈페이지 미리보기' 폴더의 빌드 결과를 Graph로 읽어 돌려준다.
    공개 주소 없이, 웍스에 로그인한 사람(팀 구성원)만 볼 수 있다. 빌드 주소의 '/__hp__/'는 여기서 실제 경로로 바꾼다. */
@@ -90,11 +91,14 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || url.origin !== location.origin) return; // Graph·로그인 요청은 건드리지 않음
   if (url.pathname === hpPath().slice(0, -1)) { url.pathname += '/'; e.respondWith(Response.redirect(url.href, 302)); return; }
   if (url.pathname.startsWith(hpPath())) { e.respondWith(hpServe(e.request)); return; }
-  // 화면 파일: 네트워크 우선(새 버전 바로 반영), 실패하면 캐시
-  // cache:'no-cache' — GitHub Pages의 10분 캐시를 건너뛰고 서버에 새 버전이 있는지 매번 확인
-  e.respondWith(fetch(e.request, { cache: 'no-cache' }).then((r) => {
-    const copy = r.clone();
-    if (r.ok) caches.open(VERSION).then((c) => c.put(e.request, copy));
+  // 화면 파일: 이 버전 캐시를 바로 쓴다(2026-11-15: 파일마다 서버에 묻느라 시작이 수 초 걸리던 것).
+  // 새 버전은 sw.js가 바뀌면 브라우저가 새 서비스워커를 설치하며 통째로 받고, 앱은 다음 메뉴 이동 때 새로 고친다(app.js updReload).
+  // 캐시에 없는 것(글꼴·아이콘 등)만 서버에서 받아 담는다
+  e.respondWith(caches.open(VERSION).then(async (c) => {
+    const hit = await c.match(e.request, { ignoreSearch: true });
+    if (hit) return hit;
+    const r = await fetch(e.request, { cache: 'no-cache' });
+    if (r.ok) c.put(e.request, r.clone());
     return r;
   }).catch(() => caches.match(e.request, { ignoreSearch: true })));
 });
