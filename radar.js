@@ -1024,7 +1024,7 @@ function rdBrOpts() {
   if (d) [...d.mandates.filter((x) => x.pre), ...d.items].filter((x) => !rdHid(x)).forEach((x) => new Set(rdBrs(x)).forEach((b) => n.set(b, (n.get(b) || 0) + 1)));
   if (s.br && !n.has(s.br)) n.set(s.br, 0);
   const list = [...n].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko'));
-  return `<option value="">전체</option>${list.map(([b, c]) => `<option value="${esc(b)}"${b === s.br ? ' selected' : ''}>${esc(b)} ${c}</option>`).join('')}`;
+  return `<option value="">주관사 전체</option>${list.map(([b, c]) => `<option value="${esc(b)}"${b === s.br ? ' selected' : ''}>${esc(b)} ${c}</option>`).join('')}`;
 }
 /* 상장 준비 칩 옆 개수(폰): 지금 검색어·재무 필터를 그대로 따르고, 칩을 눌렀을 때 나올 회사 수(rdYsList와 같은 기준) */
 function rdFcDraw() {
@@ -1155,9 +1155,8 @@ function rdFilterHtml(tab) {
   const search = (ph) => `<div class="ipo-search"><span class="ipo-sic">${ico('search', 'sm')}</span><input class="input" id="rd-q" type="search" placeholder="${ph}" value="${esc(s.q)}" autocomplete="off" aria-label="검색"></div>`;
   const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button type="button" data-${attr}="${esc(k)}" class="${cur === k ? 'on' : ''}" aria-pressed="${cur === k}">${esc(l)}</button>`).join('')}</div>`;
   const sel = (id, label, opts, cur) => `<select class="select" id="${id}" aria-label="${label}">${opts.map(([k, l]) => `<option value="${esc(k)}"${cur === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
-  if (tab === 'yesim') return search('회사·업종·주관사·주주 검색') + seg('rd-f', RD_YS_F, s.f).replace(/(data-rd-f="([a-z]+)"[^>]*>)([^<]+)</g, '$1$3<span class="rd-fc" data-fc="$2"></span><') + sel('rd-sort', '정렬', RD_YS_SORT, s.sort); // 칩 옆 개수 자리(폰에서만 보임, rdFcDraw)
-  if (tab === 'yesim-fin') return `<div class="rd-fing"><span class="rd-finl">주관사</span><select class="select" id="rd-br" aria-label="주관사">${rdBrOpts()}</select></div>`
-    + `<div class="rd-fing"><span class="rd-finl">최근 매출</span>${seg('rd-rev', RD_YS_REV, rdS.yesim.rev)}</div>`
+  if (tab === 'yesim') return search('회사·업종·주관사·주주 검색') + `<select class="select" id="rd-br" aria-label="주관사">${rdBrOpts()}</select>` + seg('rd-f', RD_YS_F, s.f).replace(/(data-rd-f="([a-z]+)"[^>]*>)([^<]+)</g, '$1$3<span class="rd-fc" data-fc="$2"></span><') + sel('rd-sort', '정렬', RD_YS_SORT, s.sort); // 칩 옆 개수 자리(폰에서만 보임, rdFcDraw)
+  if (tab === 'yesim-fin') return `<div class="rd-fing"><span class="rd-finl">최근 매출</span>${seg('rd-rev', RD_YS_REV, rdS.yesim.rev)}</div>`
     + `<div class="rd-fing"><span class="rd-finl">영업이익률</span>${seg('rd-opm', RD_YS_OPM, rdS.yesim.opm)}</div>`;
   if (tab === 'sell') return search('회사·매도 후보·조합 검색') + seg('rd-f', [['all', '전체'], ...RD_KINDS.map((k) => [k, k])], s.f) + sel('rd-sort', '정렬', RD_SELL_SORT, s.sort);
   return search('대상·매도자·자문사 검색') + seg('rd-view', [['deal', '딜별'], ['adv', '자문사별']], s.view)

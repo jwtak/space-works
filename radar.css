@@ -13,7 +13,7 @@
 .rd-page .rd-finf { padding-top: 12px; padding-bottom: 12px; gap: 8px 24px; }
 .rd-fing { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; }
 .rd-finl { font-size: 15px; color: var(--text2); white-space: nowrap; flex: none; }
-#rd-br { width: 168px; min-width: 0; margin-left: 0; } /* 주관사 선택(상장 준비) */
+#rd-br { width: 180px; min-width: 0; margin-left: 0; } /* 주관사 선택(상장 준비, 검색칸 옆) */
 
 /* 목록 칸 */
 .rd-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
