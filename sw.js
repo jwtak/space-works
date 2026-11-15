@@ -1,9 +1,11 @@
 /* SPACE WORKS 서비스워커: 앱 화면 파일만 캐시(오프라인에서도 열리게). 메일·일정·파일 같은 데이터는 캐시하지 않는다. */
-const VERSION = 'works-1794743787';
+const VERSION = 'works-1794745225';
 const SHELL = ['./', 'index.html', 'style.css', 'mail.css', 'graph.js', 'app.js', 'mail.js', 'push.js', 'events.js', 'events.css', 'ipo.js', 'ipo.css', 'radar.js', 'radar.css', 'fsq.js', 'pipeline.js', 'pipeline.css', 'facts.js', 'facts.css', 'delist.js', 'delist.css', 'pe.js', 'pe.css', 'kmx.js', 'kmx.css', 'sector.js', 'sector.css', 'files.js', 'files.css', 'prep.js', 'prep.css', 'news.js', 'news.css', 'market.js', 'market.css', 'ma.js', 'ma.css', 'feedback.js', 'feedback.css', 'guide.js', 'guide.css', 'mobile.css', 'vendor/msal-browser.min.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 
+// index.html은 css·js를 '?v=<VERSION>'으로 부른다(배포 때 sw.js·index.html의 works-숫자를 같이 바꾼다). 캐시 열쇠도 같은 주소로
+const vUrl = (u) => (/\.(css|js)$/.test(u) ? `${u}?v=${VERSION}` : u);
 // 설치 때 이 버전 화면 파일을 서버에서 새로 받아 둔다(cache:'reload' — GitHub Pages·브라우저 캐시를 건너뜀)
-self.addEventListener('install', (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting())); });
+self.addEventListener('install', (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL.map((u) => new Request(vUrl(u), { cache: 'reload' })))).then(() => self.skipWaiting())); });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== 'works-data').map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
@@ -91,11 +93,21 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || url.origin !== location.origin) return; // Graph·로그인 요청은 건드리지 않음
   if (url.pathname === hpPath().slice(0, -1)) { url.pathname += '/'; e.respondWith(Response.redirect(url.href, 302)); return; }
   if (url.pathname.startsWith(hpPath())) { e.respondWith(hpServe(e.request)); return; }
-  // 화면 파일: 이 버전 캐시를 바로 쓴다(2026-11-15: 파일마다 서버에 묻느라 시작이 수 초 걸리던 것).
-  // 새 버전은 sw.js가 바뀌면 브라우저가 새 서비스워커를 설치하며 통째로 받고, 앱은 다음 메뉴 이동 때 새로 고친다(app.js updReload).
-  // 캐시에 없는 것(글꼴·아이콘 등)만 서버에서 받아 담는다
+  // 페이지(index.html)는 서버 우선(3초 안에 안 오면 캐시): 배포 직후 F5 한 번에 새 버전 주소(?v=)를 받는다
+  if (e.request.mode === 'navigate') {
+    e.respondWith((async () => {
+      try {
+        const r = await Promise.race([fetch(e.request, { cache: 'no-cache' }), new Promise((_, no) => setTimeout(() => no(new Error('timeout')), 3000))]);
+        if (r.ok) { const copy = r.clone(); caches.open(VERSION).then((c) => c.put('index.html', copy)); }
+        return r;
+      } catch { return (await caches.match(e.request, { ignoreSearch: true })) || (await caches.match('index.html')) || Response.error(); }
+    })());
+    return;
+  }
+  // 화면 파일(css·js는 ?v=버전 주소): 캐시에 있으면 바로(2026-11-15: 파일마다 서버에 묻느라 시작이 수 초 걸리던 것), 없으면 받아서 담는다.
+  // 버전 주소가 바뀌면 캐시에 없으니 새로 받는다. 글꼴·아이콘 등 버전 없는 파일도 같은 방식
   e.respondWith(caches.open(VERSION).then(async (c) => {
-    const hit = await c.match(e.request, { ignoreSearch: true });
+    const hit = await c.match(e.request);
     if (hit) return hit;
     const r = await fetch(e.request, { cache: 'no-cache' });
     if (r.ok) c.put(e.request, r.clone());
