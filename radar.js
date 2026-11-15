@@ -18,7 +18,11 @@ const RD_YS_F = [['all', '전체'], ['mandate', '주관사 선정'], ['review', 
 // 재무 필터(최근 연도 기준, 억원·%) — 고르면 재무가 없는 회사('확인 불가')는 빠진다
 const RD_YS_REV = [['', '전체'], ['100', '100억+'], ['300', '300억+'], ['500', '500억+'], ['1000', '1,000억+']];
 const RD_YS_OPM = [['', '전체'], ['0', '흑자'], ['5', '5%+'], ['10', '10%+'], ['15', '15%+']];
+// 주관사 필터(2026-11-15 사용자): 대표·공동 주관사 어느 쪽이든. 이름은 (주)·주식회사·띄어쓰기를 빼고 비교
+const rdBrNorm = (n) => rdStr(n).replace(/\(주\)|㈜|주식회사/g, '').replace(/\s+/g, '');
+const rdBrs = (x) => (x.mn ? [...x.lead, ...x.co] : rdSplit(x.broker)).map(rdBrNorm).filter(Boolean);
 function rdFinOk(x, s) {
+  if (s.br && !rdBrs(x).includes(s.br)) return false;
   if (!s.rev && !s.opm) return true;
   const f = x.fy ? x.fin.years[x.fy] : null, rev = f ? rdNum(f[0]) : null, op = f ? rdNum(f[1]) : null;
   if (s.rev && !(rev != null && rev >= +s.rev)) return false;
@@ -195,13 +199,13 @@ Object.assign(TAB_INFO, {
 });
 
 // 새로 고친 뒤에도 보던 검색어·필터·정렬·펼친 행을 이어 보게 창마다 기억한다(app.js viewGet·viewSet). 자료에 없는 id는 그리지 않을 뿐이다
-const RD_VIEW = { yesim: ['q', 'f', 'sort', 'rev', 'opm'], sell: ['q', 'f', 'sort'], bids: ['q', 'view', 'fit', 'stage'] };
+const RD_VIEW = { yesim: ['q', 'f', 'sort', 'rev', 'opm', 'br'], sell: ['q', 'f', 'sort'], bids: ['q', 'view', 'fit', 'stage'] };
 const rdView = (tab, s) => { const v = viewGet(`rd:${tab}`, null) || {}; RD_VIEW[tab].forEach((k) => { if (typeof v[k] === 'string') s[k] = v[k]; }); s.open = new Set(Array.isArray(v.open) ? v.open : []); return s; };
 const rdViewSave = (tab) => { const s = rdS[tab]; viewSet(`rd:${tab}`, Object.fromEntries([...RD_VIEW[tab].map((k) => [k, s[k]]), ['open', [...s.open]]])); };
 const rdS = {
   tab: null, host: null, field: null, // field = 쓰고 있는 메모 칸 {el, tab}
   marks: { items: [], version: null }, dirty: new Map(), saving: Promise.resolve(),
-  yesim: rdView('yesim', { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'filed', rev: '', opm: '', open: new Set(), focus: null }),
+  yesim: rdView('yesim', { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'filed', rev: '', opm: '', br: '', open: new Set(), focus: null }),
   sell: rdView('sell', { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'prio', open: new Set(), focus: null }),
   bids: rdView('bids', { data: null, at: 0, loading: null, q: '', view: 'deal', fit: '', stage: '', open: new Set(), focus: null }),
 };
@@ -1012,7 +1016,15 @@ function rdSummary(tab) {
 function rdSumDraw() {
   const el = rdS.host && rdS.tab && rdS.host.querySelector('#rd-sum');
   if (el) el.innerHTML = rdSummary(rdS.tab);
-  if (rdS.tab === 'yesim') rdFcDraw();
+  if (rdS.tab === 'yesim') { rdFcDraw(); const b = rdS.host.querySelector('#rd-br'), h = rdBrOpts(); if (b && b.dataset.h !== h) { b.innerHTML = h; b.dataset.h = h; } }
+}
+// 주관사 선택 상자: 가리지 않은 회사(주관사 선정 + 예심) 기준으로 맡은 곳이 많은 순, 고른 값은 자료에 없어도 남긴다
+function rdBrOpts() {
+  const s = rdS.yesim, d = s.data, n = new Map();
+  if (d) [...d.mandates.filter((x) => x.pre), ...d.items].filter((x) => !rdHid(x)).forEach((x) => new Set(rdBrs(x)).forEach((b) => n.set(b, (n.get(b) || 0) + 1)));
+  if (s.br && !n.has(s.br)) n.set(s.br, 0);
+  const list = [...n].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko'));
+  return `<option value="">전체</option>${list.map(([b, c]) => `<option value="${esc(b)}"${b === s.br ? ' selected' : ''}>${esc(b)} ${c}</option>`).join('')}`;
 }
 /* 상장 준비 칩 옆 개수(폰): 지금 검색어·재무 필터를 그대로 따르고, 칩을 눌렀을 때 나올 회사 수(rdYsList와 같은 기준) */
 function rdFcDraw() {
@@ -1144,7 +1156,8 @@ function rdFilterHtml(tab) {
   const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button type="button" data-${attr}="${esc(k)}" class="${cur === k ? 'on' : ''}" aria-pressed="${cur === k}">${esc(l)}</button>`).join('')}</div>`;
   const sel = (id, label, opts, cur) => `<select class="select" id="${id}" aria-label="${label}">${opts.map(([k, l]) => `<option value="${esc(k)}"${cur === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   if (tab === 'yesim') return search('회사·업종·주관사·주주 검색') + seg('rd-f', RD_YS_F, s.f).replace(/(data-rd-f="([a-z]+)"[^>]*>)([^<]+)</g, '$1$3<span class="rd-fc" data-fc="$2"></span><') + sel('rd-sort', '정렬', RD_YS_SORT, s.sort); // 칩 옆 개수 자리(폰에서만 보임, rdFcDraw)
-  if (tab === 'yesim-fin') return `<div class="rd-fing"><span class="rd-finl">최근 매출</span>${seg('rd-rev', RD_YS_REV, rdS.yesim.rev)}</div>`
+  if (tab === 'yesim-fin') return `<div class="rd-fing"><span class="rd-finl">주관사</span><select class="select" id="rd-br" aria-label="주관사">${rdBrOpts()}</select></div>`
+    + `<div class="rd-fing"><span class="rd-finl">최근 매출</span>${seg('rd-rev', RD_YS_REV, rdS.yesim.rev)}</div>`
     + `<div class="rd-fing"><span class="rd-finl">영업이익률</span>${seg('rd-opm', RD_YS_OPM, rdS.yesim.opm)}</div>`;
   if (tab === 'sell') return search('회사·매도 후보·조합 검색') + seg('rd-f', [['all', '전체'], ...RD_KINDS.map((k) => [k, k])], s.f) + sel('rd-sort', '정렬', RD_SELL_SORT, s.sort);
   return search('대상·매도자·자문사 검색') + seg('rd-view', [['deal', '딜별'], ['adv', '자문사별']], s.view)
@@ -1195,6 +1208,7 @@ function rdBind(root, tab) {
   root.addEventListener('change', (ev) => {
     const t = ev.target;
     if (t.id === 'rd-sort') { s.sort = t.value; rdDraw(); }
+    if (t.id === 'rd-br') { s.br = t.value; rdDraw(); }
     if (t.id === 'rd-fit') { s.fit = t.value; rdDraw(); }
     if (t.id === 'rd-stage') { s.stage = t.value; rdDraw(); }
     if (t.matches('[data-rd-note]') && !rdDrawing) rdSetNote(tab, t.closest('.ipo-row').dataset.id, t.value);
