@@ -179,3 +179,46 @@ navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.type =
   ensureGraphSub().catch(() => {});
   document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - PUSH.lastSync > 30 * 60e3) ensureGraphSub().catch(() => {}); });
 })();
+
+/* ---------- 읽은 메일의 폰 알림 지우기(2026-11-15 사용자: 알림을 안 누르고 메일에서 직접 읽어도 알림·아이콘 숫자가 남음) ----------
+   알림은 sw.js가 tag=메일 id, data.id=메일 id로 띄운다. 웍스를 볼 때(켤 때·메뉴 이동·20초마다) 떠 있는 알림의 메일이
+   읽혔거나(Outlook 등 다른 곳 포함) 지워졌으면 그 알림을 닫는다. 남은 알림이 없으면 앱 아이콘 숫자도 지운다.
+   mail.js가 메일을 읽음 처리하면 pushNotifClose(id)로 바로 닫는다. */
+async function pushNotifs() {
+  if (!('serviceWorker' in navigator)) return [];
+  const reg = await navigator.serviceWorker.getRegistration().catch(() => null);
+  return reg?.getNotifications ? reg.getNotifications().catch(() => []) : [];
+}
+async function pushBadgeSync() {
+  const left = await pushNotifs();
+  if (!left.length) navigator.clearAppBadge?.().catch(() => {});
+}
+async function pushNotifClose(id) {
+  if (!id) return;
+  for (const n of await pushNotifs()) if (n.tag === id || n.data?.id === id) n.close();
+  pushBadgeSync();
+}
+let pushNotifBusy = false;
+async function pushNotifSync() {
+  if (pushNotifBusy || document.hidden || !pushLoggedIn()) return;
+  pushNotifBusy = true;
+  try {
+    const list = await pushNotifs();
+    await Promise.all(list.map(async (n) => {
+      const id = n.data?.id;
+      if (!id) return;
+      try {
+        const m = await G.get(`/me/messages/${encodeURIComponent(id)}?$select=isRead`);
+        if (m?.isRead) n.close();
+      } catch (e) { if (e.status === 404) n.close(); } // 지운·옮긴 메일
+    }));
+    await pushBadgeSync();
+  } finally { pushNotifBusy = false; }
+}
+(async () => {
+  await new Promise((res) => { const t = setInterval(() => { if (pushLoggedIn()) { clearInterval(t); res(); } }, 400); });
+  pushNotifSync();
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) pushNotifSync(); });
+  addEventListener('hashchange', () => pushNotifSync());
+  setInterval(pushNotifSync, 20000);
+})();
