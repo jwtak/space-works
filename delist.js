@@ -130,6 +130,10 @@ function dlTime(s, withTime = true) {
 }
 const dlBox = (t, body, sub = '') => `<section class="ipo-box"><div class="ipo-box-h">${t}${sub ? `<span class="muted">${sub}</span>` : ''}</div><div class="ipo-box-b">${body}</div></section>`;
 const dlKv = (k, v) => (v ? `<div class="ipo-kv"><div class="k">${k}</div><div class="v">${v}</div></div>` : '');
+// 수치 여러 개는 '·'·'/'로 잇지 않고 이름표 위·값 아래 작은 칸으로(자리 고정)
+// 이름표가 길면(EV/영업이익, '2027년 7월 기준까지 부족') 두 칸·한 줄 전체를 쓴다 — 칸이 좁아 글자가 꺾이지 않게
+const dlKgW = (k) => { const n = String(k).replace(/<[^>]+>/g, '').length; return n > 10 ? ' class="w2"' : n > 5 ? ' class="w1"' : ''; };
+const dlKg = (cells) => `<dl class="dl-kg">${cells.map(([k, v]) => `<div${dlKgW(k)}><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>`;
 // 배지: 앵글(CB 파랑·바이아웃 보라), 상태(관리·정지·잠식 빨강, 투자조합·탈락 사유 주황, 양호 초록)
 const dlBadge = (t, c) => `<span class="dl-bdg ${c}">${esc(t)}</span>`;
 const dlAngBadge = (t) => dlBadge(t, t === 'CB' ? 'b-cb' : 'b-bo');
@@ -202,17 +206,17 @@ const DL_MQ = matchMedia('(max-width: 760px)');
 const dlMob = () => DL_MQ.matches;
 const dlME = (v, d = 0) => (dlNum(v) == null ? DL_NA : `<span class="${dlNeg(v)}">${dlFmt(v, d)}억</span>`);
 function dlRowM(x, i) {
-  const open = dlS.open.has(x.code), y = dlS.data.year, f = dlFinOf(x, y), l = x.last;
+  const open = dlS.open.has(x.code);
   const ang = x.angles ? Object.keys(DL_ANG_L).filter((k) => dlAngOk(x, k)).map((k) => dlAngBadge(DL_ANG_L[k])).join('') : '';
   const kv = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
-  const ly = l && y && l.y !== y ? ` '${String(l.y).slice(2)}` : '';
+  // 한 건 = 이름 / 단계 / 수치 세 칸 / 앵글·상태 배지 하나. 업종·재무·나머지 상태는 펼친 칸 '기업'·'재무' 상자(폰 전용)로
+  const sb = dlStateBadges(x), sb1 = sb.match(/^<span class="dl-bdg[^>]*>[^<]*<\/span>/)?.[0] || sb;
+  const showSb = !(dlS.good && x.pass && sb1.includes('b-ok')); // '좋은 기업만'이 켜져 있으면 '양호'는 되풀이라 뺀다
   return `<tr class="dl-tr dl-mr${open ? ' open' : ''}" data-id="${esc(x.code)}" data-n="${i}" tabindex="0" aria-expanded="${open}"><td class="dl-mc" colspan="${DL_COLS}">
     <div class="dl-m1"><span class="dl-ttl">${dlNm(x.name)}</span><span class="dl-cd">${esc(x.code)}</span></div>
-    <div class="dl-m2">${x.stage ? `<span class="dl-s${x.stage}">${x.stage}단계</span><span>${esc(dlStageName(x.stage))}</span>` : ''}${x.sector ? `<span class="dl-m2s">${esc(x.sector)}</span>` : ''}</div>
-    <dl class="dl-mg">${kv('시총', dlME(x.mcap, 1))}${kv(`${dlNextY()} 부족분`, x.gapNext != null && x.gapNext > 0 ? dlME(x.gapNext, 1) : DL_NA)}${kv('PBR', x.pbr != null ? dlPbr(x.pbr) : DL_NA)}
-      ${kv(`${y || ''} 매출`, dlME(f?.rev))}${kv(`${y || ''} 영업이익`, dlME(f?.op))}${kv('EV/영업이익', x.evOp != null ? `<span class="${dlNeg(x.evOp)}">${dlX(x.evOp)}</span>` : DL_NA)}
-      ${kv(`자본${ly}`, dlME(l?.equity))}${kv(`부채${ly}`, dlME(l?.liab))}${kv('메자닌', x.mezz.ratio != null ? dlPct(x.mezz.ratio) : DL_NA)}</dl>
-    <div class="dl-mb">${ang}${dlStateBadges(x)}</div>
+    ${x.stage ? `<div class="dl-m2"><span class="dl-s${x.stage}">${x.stage}단계</span><span>${esc(dlStageName(x.stage))}</span></div>` : ''}
+    <dl class="dl-mg">${kv('시총', dlME(x.mcap, 1))}${kv(`${dlNextY()} 부족분`, x.gapNext != null && x.gapNext > 0 ? dlME(x.gapNext, 1) : DL_NA)}${kv('PBR', x.pbr != null ? dlPbr(x.pbr) : DL_NA)}</dl>
+    <div class="dl-mb">${ang}${showSb && sb !== DL_NA ? sb1 : ''}</div>
   </td></tr>${open ? `<tr class="dl-xrow" data-x="${esc(x.code)}"><td colspan="${DL_COLS}"><div class="dl-xin">${dlDetail(x)}</div></td></tr>` : ''}`;
 }
 // 폰 정렬(표 머리글이 없으므로): 값 = 정렬 칸|작은 순
@@ -244,34 +248,47 @@ function dlDetail(x) {
   const h = x.holder, r = dlS.data.rules, pc = (v) => (v != null ? `<span class="${dlNeg(v)}">${dlPct(v)}</span>` : DL_NA);
   const ruleFrom = x.stage === 1 ? dlFrom(r.now.from) : dlFrom(r.next.from);
   const holder = h.name ? `${dlNm(h.name)}${h.pct != null ? ` ${dlPct(h.pct)}` : ''}${h.fund ? ` ${dlBadge('투자조합', 'b-warn')}` : ''}` : DL_NA;
-  const cap = `${dlKv('최대주주', holder)}${dlKv('시총', `${dlEok(x.mcap)}${x.close != null ? ` · 종가 ${dlWon(x.close)}` : ''}`)}
-    ${dlKv('적용 기준', x.rule != null ? `${dlEok(x.rule)}${ruleFrom ? ` · ${ruleFrom}~` : ''}` : '')}
-    ${dlKv(`${dlNextY()} 부족분`, x.gapNext != null ? (x.gapNext > 0 ? `${dlEok(x.gapNext)} · 시총의 ${dlPct(x.gapNextPct)}` : '없음') : '')}
-    ${dlKv('현행 부족분', x.stage === 1 && x.gap != null ? `${dlEok(x.gap)} · 시총의 ${dlPct(x.gapPct)}` : '')}
-    ${dlKv('연속 미달', x.below ? `${dlFmt(x.below, 0)}거래일` : '')}${dlKv('거래대금', x.turnover != null ? `${dlEok(x.turnover)} · 20일 평균` : '')}`;
+  // 값 하나에 딸린 보조 값(종가·적용 시점·시총 대비)은 '·'로 잇지 않고 값 아래 작은 줄로
+  const sub = (main, s) => `${main}${s ? `<div class="dl-vsub">${s}</div>` : ''}`;
+  const cap = `${dlKv('최대주주', holder)}${dlKv('시총', sub(dlEok(x.mcap), x.close != null ? `종가 ${dlWon(x.close)}` : ''))}
+    ${dlKv('적용 기준', x.rule != null ? sub(dlEok(x.rule), ruleFrom ? `${ruleFrom}~` : '') : '')}
+    ${dlKv(`${dlNextY()} 부족분`, x.gapNext != null ? (x.gapNext > 0 ? sub(dlEok(x.gapNext), `시총의 ${dlPct(x.gapNextPct)}`) : '없음') : '')}
+    ${dlKv('현행 부족분', x.stage === 1 && x.gap != null ? sub(dlEok(x.gap), `시총의 ${dlPct(x.gapPct)}`) : '')}
+    ${dlKv('연속 미달', x.below ? `${dlFmt(x.below, 0)}거래일` : '')}${dlKv('거래대금', x.turnover != null ? sub(dlEok(x.turnover), '20일 평균') : '')}`;
   const val = `${dlKv('순현금', x.netCash != null ? `<span class="${dlNeg(x.netCash)}">${dlEok(x.netCash)}</span>` : DL_NA)}${dlKv('유형자산', x.ppe != null ? dlEok(x.ppe) : DL_NA)}
     ${dlKv('EV', x.ev != null ? dlEok(x.ev) : DL_NA)}${dlKv('EV/영업이익', x.evOp != null ? dlX(x.evOp) : DL_NA)}${dlKv('영업이익률', pc(x.opm))}
-    ${dlKv('매출 성장', x.revCagr != null ? `${pc(x.revCagr)} · 연평균` : DL_NA)}${dlKv('PBR', x.pbr != null ? dlPbr(x.pbr) : DL_NA)}
+    ${dlKv('매출 성장', x.revCagr != null ? sub(pc(x.revCagr), '연평균') : DL_NA)}${dlKv('PBR', x.pbr != null ? dlPbr(x.pbr) : DL_NA)}
     ${dlKv('영업흑자', x.profitYears != null ? `${x.fin.length || 3}년 중 ${dlFmt(x.profitYears, 0)}년` : '')}`;
-  const one = (k) => { const a = x.angles?.[k]; return !a ? DL_NA : a.ok ? '<span class="dl-ok">가능</span>' : a.why.length ? a.why.map(esc).join(' · ') : '불가'; };
-  const verdict = `${dlKv('좋은 기업', x.pass ? '<span class="dl-ok">해당</span>' : x.reasons.length ? x.reasons.map(esc).join(' · ') : '미해당')}
+  const lines = (a) => a.map((t) => `<div>${esc(t)}</div>`).join('');
+  const one = (k) => { const a = x.angles?.[k]; return !a ? DL_NA : a.ok ? '<span class="dl-ok">가능</span>' : a.why.length ? lines(a.why) : '불가'; };
+  const verdict = `${dlKv('좋은 기업', x.pass ? '<span class="dl-ok">해당</span>' : x.reasons.length ? lines(x.reasons) : '미해당')}
     ${x.angles ? `${dlKv('CB', one('cb'))}${dlKv('바이아웃', one('buyout'))}` : ''}`;
+  // 폰 전용(넓은 표의 업종·재무 칸이 폰 카드에는 없다): 업종·상태 배지 전부, 매출·영업이익 세 해와 최근 재무상태
+  const ys = dlYears(), l = x.last, ly = l?.y ? `${l.y} 결산` : '';
+  const mInfo = `${dlKv('업종', esc(x.sector))}${dlKv('상태', dlStateBadges(x))}${dlKv('메자닌', x.mezz.ratio != null ? sub(dlPct(x.mezz.ratio), '시총 대비') : '')}`;
+  // 표(table)는 폰에서 .dl-tbl 규칙에 머리줄이 숨겨지므로 네 칸 격자로(항목 | 세 해, 같은 폭)
+  const mFin = `<div class="dl-mfin"><span class="h">억 원</span>${ys.map((yy) => `<span class="h">${yy}</span>`).join('')}
+      <span class="k">매출</span>${ys.map((yy) => `<span>${dlI(dlFinOf(x, yy)?.rev)}</span>`).join('')}
+      <span class="k">영업이익</span>${ys.map((yy) => `<span>${dlI(dlFinOf(x, yy)?.op)}</span>`).join('')}</div>
+    ${dlKg([['자산', dlME(l?.assets)], ['부채', dlME(l?.liab)], ['자본', dlME(l?.equity)]])}`;
   const pk = dlS.data.picks.items.find((k) => k.code === x.code);
   const links = [
     { url: `https://dart.fss.or.kr/dsab007/main.do?option=corp&textCrpNm=${encodeURIComponent(x.name)}`, label: 'DART' },
     { url: `https://finance.naver.com/item/main.naver?code=${encodeURIComponent(x.code)}`, label: '네이버 금융' },
   ].map((lk) => `<a class="ipo-a" href="${esc(lk.url)}" target="_blank" rel="noopener noreferrer">${esc(lk.label)}${ico('ext', 'sm')}</a>`).join('');
   return `<div class="ipo-dhead">${x.biz ? `<p class="ipo-sum1">${esc(x.biz)}</p>` : '<p></p>'}<div class="ipo-acts">${fqHead(`delist:${x.code}`, x)}</div>${dlPipe(x)}</div>
-    ${fqBox(`delist:${x.code}`, x, '상폐 위험·CB')}<div class="dl-xgrid">${dlBox('지분·시총', cap)}${dlBox('현금·밸류', val)}${dlBox('판정', verdict)}${pk ? dlBox('AI 추천', `<div class="dl-pkb">${dlPickBody(pk)}</div>`, pk.angle ? dlAngBadges(pk.angle) : '') : ''}</div>
+    ${fqBox(`delist:${x.code}`, x, '상폐 위험·CB')}<div class="dl-xgrid">${dlMob() ? `${dlBox('기업', mInfo)}${dlBox('재무', mFin, esc(ly))}` : ''}${dlBox('지분·시총', cap)}${dlBox('현금·밸류', val)}${dlBox('판정', verdict)}${pk ? dlBox('AI 추천', `<div class="dl-pkb">${dlPickBody(pk)}</div>`, pk.angle ? dlAngBadges(pk.angle) : '') : ''}</div>
     ${dlMezzBox(x)}<div class="ipo-links">${links}</div>`;
 }
 
 function dlMezzBox(x) {
   const m = x.mezz;
-  const sub = m.n != null || m.amt != null ? `최근 3년 ${dlFmt(m.n || 0, 0)}건 · ${dlEok(m.amt)} · 시총의 ${dlPct(m.ratio)}` : '';
-  if (!m.list.length) return dlBox('메자닌·유증 이력', '<p class="ipo-p muted">없음</p>', esc(sub));
-  return dlBox('메자닌·유증 이력', `<table class="ipo-tbl dl-mz"><thead><tr><th>날짜</th><th>종류</th><th>금액</th><th>전환가</th><th>리픽싱 하한</th><th>투자자</th></tr></thead><tbody>${m.list.map((e) => `<tr>
-    <td>${e.dt ? yymd(e.dt) : '–'}</td><td>${esc(e.type) || '–'}</td><td>${dlEok(e.amount)}</td><td data-k="전환가">${dlWon(e.conv)}</td><td data-k="리픽싱 하한">${dlWon(e.refix)}</td><td>${e.investors.map(dlNm).join(', ') || '–'}</td></tr>`).join('')}</tbody></table>`, esc(sub));
+  // 최근 3년 합계는 상자 제목 옆에 잇지 않고 표 위 세 칸(건수 | 금액 | 시총 대비)으로
+  const has = m.n != null || m.amt != null;
+  const sum = has ? dlKg([['건수', `${dlFmt(m.n || 0, 0)}건`], ['금액', dlEok(m.amt)], ['시총 대비', dlPct(m.ratio)]]) : '';
+  if (!m.list.length) return dlBox('메자닌·유증 이력', `${sum}<p class="ipo-p muted">없음</p>`, has ? '최근 3년' : '');
+  return dlBox('메자닌·유증 이력', `${sum}<table class="ipo-tbl dl-mz"><thead><tr><th>날짜</th><th>종류</th><th>금액</th><th>전환가</th><th>리픽싱 하한</th><th>투자자</th></tr></thead><tbody>${m.list.map((e) => `<tr>
+    <td>${e.dt ? yymd(e.dt) : '–'}</td><td>${esc(e.type) || '–'}</td><td>${dlEok(e.amount)}</td><td data-k="전환가">${dlWon(e.conv)}</td><td data-k="리픽싱 하한">${dlWon(e.refix)}</td><td>${e.investors.map(dlNm).join(', ') || '–'}</td></tr>`).join('')}</tbody></table>`, has ? '최근 3년' : '');
 }
 
 // '파이프라인에 있음' 링크의 data-pp-ref = 파이프라인 화면이 그 딜을 펼쳐 보여 줄 때 쓰는 ref
@@ -285,8 +302,11 @@ function dlPipe(x) {
 }
 
 /* ---------- AI 추천 ---------- */
-const dlPickBody = (k) => `<ul class="th">${k.thesis.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>`
-  + `<div class="km">${k.km ? `📊 ${esc(k.km)}` : ''}</div><div class="st">${esc(k.structure)}</div><div class="rk">${k.risks ? `⚠ ${esc(k.risks)}` : ''}</div>`;
+// 핵심 지표 글('시총 324 / 영업이익 93 / EV/영업이익 2.1배')은 '이름 값' 조각마다 한 칸으로
+const dlKm = (s) => (s ? dlKg(String(s).split(/\s+\/\s+/).filter(Boolean).map((t) => { const m = t.match(/^(.*\S)\s+([-+]?[\d.,]+\S*)$/); return m ? [esc(m[1]), esc(m[2])] : ['', esc(t)]; })) : '');
+// 카드(full=false)는 투자 포인트·지표만, 구조·위험은 회사 행을 펼친 'AI 추천' 상자에(빈 칸은 카드끼리 줄 높이를 맞추려고 남긴다)
+const dlPickBody = (k, full = true) => `<ul class="th">${k.thesis.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>`
+  + `<div class="km">${dlKm(k.km)}</div><div class="st">${full ? esc(k.structure) : ''}</div><div class="rk">${full && k.risks ? `⚠ ${esc(k.risks)}` : ''}</div>`;
 function dlPicks() {
   const d = dlS.data, p = d?.picks;
   if (!p || (!p.items.length && !d.hist.length)) return '';
@@ -294,11 +314,11 @@ function dlPicks() {
     const x = d.byCode.get(k.code);
     return `<div class="dl-card${x ? '' : ' off'}"${x ? ` role="button" tabindex="0" data-dl-go="${esc(k.code)}"` : ''}>
       <div class="nm"><b>${dlNm(k.name || x?.name || k.code)}</b>${k.code ? `<span class="cd">${esc(k.code)}</span>` : ''}${k.angle ? `<span class="ag">${dlAngBadges(k.angle)}</span>` : ''}</div>
-      ${dlPickBody(k)}</div>`;
+      ${dlPickBody(k, !x)}</div>`;
   };
   const hist = d.hist.length ? `<details class="dl-hist" id="dl-hist"${dlS.hist ? ' open' : ''}><summary>지난 추천 이력</summary>${d.hist.map((hh) => `
       <div class="h-run">${esc(dlTime(hh.at, false) || hh.at)}${hh.summary ? `<span class="h-sum">${esc(hh.summary)}</span>` : ''}</div>
-      ${hh.items.map((k) => `<div class="h-pick">${k.angle ? `[${esc(k.angle)}] ` : ''}<b>${dlNm(k.name)}</b>${k.code ? `(${esc(k.code)})` : ''}${k.thesis.length ? ` — ${esc(k.thesis.join(' · '))}` : ''}</div>`).join('')}`).join('')}</details>` : '';
+      ${hh.items.map((k) => `<div class="h-pick"><div class="h-nm"><b>${dlNm(k.name)}</b>${k.code ? `<span class="cd">${esc(k.code)}</span>` : ''}${k.angle ? dlAngBadges(k.angle) : ''}</div>${k.thesis.length ? `<ul>${k.thesis.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}</div>`).join('')}`).join('')}</details>` : '';
   const t = dlTime(p.at, false);
   return `<section class="card dl-ai"><div class="dl-ai-head"><span class="ttl">AI 추천</span>${t ? `<span class="meta${p.stale ? ' ipo-stale' : ''}"${p.stale ? ' title="오늘 선정 실패, 직전 추천"' : ''}>${esc(t)}</span>` : ''}</div>
     ${p.summary ? `<p class="dl-ai-note">${esc(p.summary)}</p>` : ''}

@@ -68,6 +68,8 @@ const fsTotal = (v) => (v == null ? '–' : v === 0 ? '없음' : fsEok(v)); // �
 const fsT = (s) => esc(s == null || s === '' ? '–' : s).replace(/확인 필요/g, '<span class="fs-chk">확인 필요</span>');
 const fsUrlOf = (u) => (u ? (/^https?:\/\//i.test(u) ? u : `http://${u.replace(/^https?:\/?\/?/i, '')}`) : '');
 const fsKv = (k, v) => (v ? `<div class="ipo-kv"><div class="k">${esc(k)}</div><div class="v">${fsT(v)}</div></div>` : '');
+// 값 + 그 아래 작은 보조 줄('·'로 잇지 않는다)
+const fsKvSub = (k, v, s) => (v ? `<div class="ipo-kv"><div class="k">${esc(k)}</div><div class="v">${fsT(v)}${s ? `<div class="fs-vsub">${fsT(s)}</div>` : ''}</div></div>` : '');
 const fsKvs = (obj, keys) => keys.map((k) => fsKv(k, obj?.[k])).join('');
 const fsList = (a) => (a?.length ? `<ul class="ipo-ul">${a.map((s) => `<li>${fsT(s)}</li>`).join('')}</ul>` : '<p class="ipo-p muted">없음</p>');
 const fsNums = (s) => { const p = String(s || '').split(/\s*(?=[①②③④⑤⑥⑦⑧⑨]|Step \d)/).map((t) => t.replace(/^[①②③④⑤⑥⑦⑧⑨]\s*/, '').replace(/\s*→\s*$/, '').trim()).filter(Boolean); return p.length > 1 ? `<ol class="ipo-ol">${p.map((t) => `<li>${fsT(t)}</li>`).join('')}</ol>` : `<p class="ipo-p">${fsT(s)}</p>`; };
@@ -93,8 +95,7 @@ function fsRow(x, i) {
     <div class="ipo-line fs-cols">
       <div class="fs-c-no">${i + 1}</div>
       <div class="fs-c-name"><div class="fs-name-l"><button type="button" class="ipo-ttl" aria-expanded="${open}">${esc(x.name)}</button>${x.ir.some((d) => d.file || d.url) ? `<span class="chip line fs-ir" title="IR·회사 자료 ${x.ir.length}건(펼치면 투자유치·컨택 칸에 있음)">PDF ${x.ir.length}</span>` : ''}</div><div class="ipo-sub">${esc(sec)}</div>
-        <div class="ipo-sub fs-alt">${esc(`매출 ${fsEok(x.r25)} · 영업이익 ${fsEok(x.o25)} · 성장 ${fsPct(x.cagr, true)}`)}</div>
-        <div class="ipo-sub fs-alt">${esc(`${x.stage || '단계 –'} · 누적 투자 ${fsTotal(x.total)}`)}</div></div>
+        <dl class="fs-mg"><div><dt>2025 매출</dt><dd>${fsEok(x.r25)}</dd></div><div><dt>투자 단계</dt><dd>${x.stage ? fsT(x.stage) : '–'}</dd></div></dl></div>
       <div class="fs-c-rev">${fsEok(x.r25)}<div class="ipo-sub">영업이익 ${fsEok(x.o25)}</div></div>
       <div class="fs-c-opm">${fsPct(x.opm)}</div>
       <div class="fs-c-grow"><span class="${x.cagr > 0 ? 'fs-up' : x.cagr < 0 ? 'fs-dn' : ''}">${fsPct(x.cagr, true)}</span></div>
@@ -134,7 +135,7 @@ function fsPnl(x) {
   const row = (k, g, cls = '') => `<tr class="${cls}"><td>${k}</td>${ys.map((y) => { const t = g(f[y] || []); return `<td${t.startsWith('-') ? ' class="neg"' : ''}>${t}</td>`; }).join('')}</tr>`;
   return fsBox('주요 손익', `<table class="ipo-pnl"><thead><tr><th>억 원</th>${ys.map((y) => `<th>${y}</th>`).join('')}</tr></thead><tbody>
     ${row('매출액', (c) => n(c[0]))}${row('영업이익', (c) => n(c[1]))}${row('OPM', (c) => pct(c[1], c[0]), 'r')}${row('당기순이익', (c) => n(c[2]))}${row('NPM', (c) => pct(c[2], c[0]), 'r')}
-    </tbody></table>`, '개별 기준');
+    </tbody></table>${x.cagr != null ? fsKv('매출 성장', fsPct(x.cagr, true)) : ''}`, '개별 기준');
 }
 
 function fsPaneOv(x) {
@@ -167,7 +168,7 @@ function fsPaneFin(x) {
   const tbl = rows.length ? `<table class="ipo-tbl fs-hold"><thead><tr><th>주주명</th><th>관계 · 구분</th><th>주식수</th><th>지분율</th><th>취득 · 발행</th><th>비고</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${fsT(r.name)}</td><td data-k="관계 · 구분">${fsT(r.relation)}</td><td data-k="주식수">${fsT(r.shares)}</td><td data-k="지분율">${fsT(r.pct)}</td><td data-k="취득 · 발행">${fsT(r.acquired)}</td><td data-k="비고">${fsT(r.note)}</td></tr>`).join('')}</tbody></table>` : '<p class="ipo-p muted">없음</p>';
   return `<div class="ipo-stack">
     <div class="ipo-two-col">${fsPnl(x)}${fsBox('재무 비고', `<p class="ipo-p">${fsT(x.fin_note || x.fin_src)}</p>`)}</div>
-    ${fsBox('주주 현황 · 지분구조', `${fsKv('발행주식 총수', [s.total_shares, s.total_shares_note].filter(Boolean).join(' · '))}<div class="fs-scroll">${tbl}</div>
+    ${fsBox('주주 현황 · 지분구조', `${s.total_shares ? fsKvSub('발행주식 총수', s.total_shares, s.total_shares_note) : fsKv('발행주식 총수', s.total_shares_note)}<div class="fs-scroll">${tbl}</div>
       ${fsKv('RCPS · CB · BW', s.mezz)}${fsKv('FI 투자 이력', s.fi_history)}${fsKv('특이사항', s.special)}`)}
   </div>`;
 }
@@ -183,7 +184,7 @@ function fsPaneInv(x) {
   const rounds = x.rounds.length ? `<div class="fs-scroll"><table class="ipo-tbl fs-rounds"><thead><tr><th>시기</th><th>라운드</th><th>금액</th><th>투자자</th><th>출처</th></tr></thead><tbody>${x.rounds.map((r) => `<tr><td>${fsT(r.date)}</td><td>${fsT(r.round)}</td><td data-k="금액">${fsT(r.amount)}</td><td data-k="투자자">${fsT(r.investors)}</td><td class="muted" data-k="출처">${fsT(r.source)}</td></tr>`).join('')}</tbody></table></div>` : '';
   const kv = (label, val) => (val ? `<div class="ipo-kv"><div class="k">${esc(label)}</div><div class="v">${fsNums(val)}</div></div>` : '');
   return `<div class="ipo-stack fs-inv-pane">
-    ${fsBox('투자유치 히스토리', `${fsKv('현재 투자 단계', x.stage)}${x.total != null ? fsKv('누적 투자', `${fsTotal(x.total)}${v.total_note ? ` · ${v.total_note}` : ''}`) : ''}<p class="ipo-p fs-inv-sum">${fsT(v.summary || x.shareholders?.fi_history)}</p>${rounds}
+    ${fsBox('투자유치 히스토리', `${fsKv('현재 투자 단계', x.stage)}${x.total != null ? fsKvSub('누적 투자', fsTotal(x.total), v.total_note) : ''}<p class="ipo-p fs-inv-sum">${fsT(v.summary || x.shareholders?.fi_history)}</p>${rounds}
       ${fsKv('현재 FI', v.current_fi)}${fsKv('RCPS · CB · BW', v.mezz || x.shareholders?.mezz)}${fsKv('기존 투자자 활용', k['기존 투자자 (레버리지)'])}${fsKv('확인한 곳', v.checked)}`)}
     ${fsIrBox(x)}
     ${fsBox('컨택 방법', `${fsKv('누구에게', k['1순위 키맨 (대표)'])}${fsKv('재무 키맨', k['재무 키맨 (CFO급)'])}${fsKv('대표 연락처', c['대표 연락처'])}${fsKv('문의 창구', c['대표 이메일'])}${fsKv('본사 주소', c['본사 주소'])}
@@ -193,7 +194,7 @@ function fsPaneInv(x) {
 
 /* IR·회사 자료: 회사 홈페이지에서 받은 회사소개서·브로슈어·카탈로그 PDF(팀 파일함 _웍스/팩트시트/ir/). 40곳 모두 비상장이라 KIND IR 자료실에는 없다 */
 function fsIrBox(x) {
-  const rows = x.ir.map((d) => `<li class="fs-ir-i"><span class="fs-ir-t">${esc(d.title || '자료')}</span><span class="muted">${esc([d.kind, d.date].filter(Boolean).join(' · '))}</span>
+  const rows = x.ir.map((d) => `<li class="fs-ir-i"><span class="fs-ir-t">${esc(d.title || '자료')}</span>${d.kind ? `<span class="muted">${esc(d.kind)}</span>` : ''}${d.date ? `<span class="muted">${esc(d.date)}</span>` : ''}
     ${d.file ? `<button type="button" class="btn sm" data-fs-ir="${esc(d.file)}">${ico('file', 'sm')}열기</button>` : ''}${d.url && /^https?:\/\//i.test(d.url) ? `<a class="ipo-a" href="${esc(d.url)}" target="_blank" rel="noopener">원본${ico('ext', 'sm')}</a>` : ''}</li>`).join('');
   if (!rows && !x.ir_checked) return '';
   return fsBox('IR · 회사 자료', `${rows ? `<ul class="fs-ir-l">${rows}</ul>` : '<p class="ipo-p muted">찾은 자료 없음</p>'}${fsKv('찾아본 곳', x.ir_checked)}`, x.ir.length ? `${x.ir.length}건` : '');

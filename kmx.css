@@ -13,6 +13,8 @@
 .kmx-k { display: none; }
 .kmx-c.kmx-none .kmx-v { color: var(--text3); }
 .kmx-text { white-space: pre-line; }
+.kmx-dkv { display: none; } /* 펼친 칸 위 항목(회사 성격·업종·찾는 대상·특징): 표 칸에서 빠지는 좁은 카드·폰에서만 */
+.kmx-page .rd-pair > .kmx-w1 { width: 112px; } /* 규모·인수 금액(1,000억원 이상 95px) */
 
 /* 760보다 좁으면(폰 포함) 한 회사를 여러 줄로: 이름·펼침 / 회사 성격·업종 / 이름표 + 값 / 특징. ipo.css 폰 배치(첫 칸 회색 한 줄, 3·4번째 칸 숨김)를 되돌린다 */
 @container (max-width: 760px) {
@@ -23,11 +25,11 @@
   .kmx-page .ipo-cols, .kmx-page .ipo-cols.kmx-3 { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
   .kmx-page .ipo-line > .ipo-c-name { grid-column: 1; display: block; font-size: inherit; color: inherit; }
   .kmx-page .ipo-line .ipo-c-name .ipo-sub { margin-top: 2px; }
-  .kmx-page .ipo-line > .ipo-c-st { grid-column: 2; grid-row: 1; }
-  .kmx-page .ipo-line > .kmx-c { grid-column: 1 / -1; display: flex; gap: 8px; min-width: 0; font-size: 14px; line-height: 20px; color: var(--text2); }
-  .kmx-page .ipo-line > .kmx-c.kmx-none { display: none; }
-  .kmx-page .kmx-k { display: block; flex: none; width: 60px; color: var(--text3); }
-  .kmx-page .kmx-v { min-width: 0; }
+  .kmx-page .ipo-line > .ipo-c-st { display: flex; grid-column: 2; grid-row: 1; } /* 매도는 펼침 칸이 4번째라 ipo.css 폰 규칙(3·4번째 칸 숨김)에 걸린다 */
+  /* 한 회사 = 이름(+ 펼침) / 둘째 줄(rd-pair) 두 줄. 칸 값(회사 성격·업종·특징 등)은 펼친 칸 위 항목으로 */
+  .kmx-page .ipo-line > .kmx-c, .kmx-page .ipo-line .kmx-meta { display: none; }
+  .kmx-page .rd-pair { display: flex; gap: 12px; margin-top: 4px; font-size: 14px; line-height: 20px; color: var(--text2); }
+  .kmx-page .kmx-dkv { display: block; margin-bottom: 12px; }
 }
 /* 폰: 회사 성격·업종은 말줄임 대신 줄바꿈, 본문 보조 크기로 */
 @media (max-width: 760px) {

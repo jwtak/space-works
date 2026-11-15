@@ -45,8 +45,13 @@
 .ipo-c-writer > .ipo-sub { white-space: normal; }
 .ipo-pn { margin-right: 6px; white-space: nowrap; }
 .ipo-pn + .ipo-direct { margin-left: 0; }
-.ipo-alt { display: none; } /* 접은 칸 값(카드가 좁을 때만). 줄이 바뀌면 '·'에서 바뀌게 값마다 한 덩어리 */
-.ipo-alt > span { display: inline-block; }
+.ipo-dd { white-space: nowrap; } /* 락업 칸 D-day: 날짜 옆, 칸이 좁으면 한 덩어리로 다음 줄 */
+/* 미접촉은 칩을 그리지 않으므로 펼침 표시만 남으면 칸 오른쪽 끝에 */
+#ipo-root .ipo-c-st > .ipo-chev:only-child { margin-left: auto; }
+/* 폰 둘째 줄(ipo.js ipoPair, 모양은 radar.css rd-pair): 락업 D-day 칸 폭 고정 */
+#ipo-root .rd-pair > .ipo-w1 { width: 84px; }
+/* 홈 '신규상장 락업 해제' 카드 보조 줄: 지분율과 작성책임자를 '·' 없이 띄워 둔다 */
+.ipo-hm + .ipo-hm { margin-left: 12px; }
 
 .ipo-st { display: inline-flex; align-items: center; height: 24px; padding: 0 10px; border-radius: 12px; font-size: 13px; font-weight: 500; white-space: nowrap; background: #F3F4F6; color: var(--text2); }
 .ipo-st.s-1 { background: var(--primary-soft); color: var(--primary); }
@@ -237,7 +242,6 @@
   @container (max-width: 999px) {
     #ipo-root .ipo-cols { grid-template-columns: 72px repeat(3, minmax(0, 1fr)) 100px; }
     #ipo-root .ipo-c-cap, #ipo-root .ipo-c-rev { display: none; }
-    #ipo-root .ipo-alt { display: block; white-space: normal; }
   }
   /* 640보다 좁으면 폰처럼 한 회사를 여러 줄로(상장일·시장 / 회사·상태 / 작성책임자 / 락업) */
   @container (max-width: 639px) {
@@ -249,6 +253,10 @@
     #ipo-root .ipo-c-writer, #ipo-root .ipo-c-lock { grid-column: 1 / -1; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
     #ipo-root .ipo-c-writer .ipo-sub, #ipo-root .ipo-c-lock .ipo-sub { margin-top: 0; }
     #ipo-root .ipo-c-lock::before { content: '락업'; font-size: 13px; color: var(--text3); }
+    /* 한 회사 = 이름(+ 컨택 상태·펼침) / 락업 D-day | 사업 내용 두 줄. 상장일·작성책임자는 펼친 칸 연락처 탭에 */
+    #ipo-root .ipo-c-date, #ipo-root .ipo-c-writer, #ipo-root .ipo-c-lock, #ipo-root .ipo-line > .ipo-c-name > .ipo-sub { display: none; }
+    #ipo-root .ipo-c-st { grid-row: 1; align-self: start; }
+    #ipo-root .rd-pair { display: flex; gap: 12px; margin-top: 4px; font-size: 14px; line-height: 20px; color: var(--text2); font-variant-numeric: tabular-nums; }
   }
   /* 300보다 좁으면 한 회사를 한 줄 폭으로 쌓는다(이름 칸이 57px까지 줄어 회사 이름이 꺾이지 않게, 컨택 상태는 맨 아래) — radar.css와 같은 방식 */
   @container (max-width: 299px) {
@@ -301,6 +309,10 @@
   #ipo-root .ipo-c-name > .ipo-sub:not(.ipo-alt) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; font-size: 14px; line-height: 20px; color: var(--text2); }
   /* 펼친 행 하위 탭: 옆으로 숨기지 않고 다음 줄로 */
   #ipo-root .ipo-tabs { flex-wrap: wrap; column-gap: 20px; row-gap: 0; }
+  /* 한 회사 = 이름(+ 컨택 상태·펼침) / 락업 D-day | 사업 내용 두 줄. 상장일·작성책임자는 펼친 칸 연락처 탭에 */
+  #ipo-root .ipo-c-date, #ipo-root .ipo-c-writer, #ipo-root .ipo-c-lock, #ipo-root .ipo-line > .ipo-c-name > .ipo-sub { display: none; }
+  #ipo-root .ipo-c-st { grid-row: 1; align-self: start; }
+  #ipo-root .rd-pair { display: flex; gap: 12px; margin-top: 4px; font-size: 14px; line-height: 20px; color: var(--text2); font-variant-numeric: tabular-nums; }
 }
 
 /* 임원 표는 카드가 560보다 좁으면(폰 포함) 한 사람씩: 이름·직위·담당 한 줄 + 주요 경력 아래 */

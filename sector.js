@@ -142,7 +142,6 @@ const secChev = () => `<span class="ipo-chev" aria-hidden="true">${ico('right', 
 const secBox = (t, body, sub = '', cls = '') => `<section class="ipo-box${cls ? ` ${cls}` : ''}"><div class="ipo-box-h">${t}${sub ? `<span class="muted">${sub}</span>` : ''}</div><div class="ipo-box-b">${body}</div></section>`;
 const secKv = (k, v) => `<div class="ipo-kv"><div class="k">${k}</div><div class="v">${v || SEC_NA}</div></div>`;
 const SEC_NONE = '<p class="ipo-p muted">없음</p>';
-const secLane = (l) => `<span class="pe-ds sec-lane sec-l${SEC_LANES.findIndex(([k]) => k === l)}">${esc(l)}</span>`;
 const secStageChip = (st) => (st ? `<span class="pe-ds${st === '완료' ? ' on' : st === '무산' ? ' off' : ''}">${esc(st)}</span>` : SEC_NA);
 // 값 칸: 넓으면 표 칸(머리글이 이름) + 보조 줄, 좁으면 이름표 + 값 + 보조를 한 줄로(kmx.js kmxCell과 같은 방식)
 const secCell = (k, main, sub = '', cls = '') => `<div class="sec-c${cls ? ` ${cls}` : ''}${main || sub ? '' : ' sec-none'}"><span class="sec-k">${k}</span><div class="sec-v"><span>${main || SEC_NA}</span>${sub ? `<span class="ipo-sub">${sub}</span>` : ''}</div></div>`;
@@ -150,7 +149,7 @@ const secPeerLinks = (peers) => (peers.length ? peers.map((p) => (/^\d{6}$/.test
   ? `<a class="rd-link" href="https://finance.naver.com/item/main.naver?code=${encodeURIComponent(p.code)}" target="_blank" rel="noopener noreferrer">${esc(p.name)}</a>` : esc(p.name))).join(', ') : '');
 
 /* ---------- 섹터 지도 ---------- */
-const SEC_MAP_HEAD = '<div class="ipo-head ipo-cols sec-mcols"><div>후방 업종</div><div>전방 성장</div><div>후방 PER</div><div>PE 딜 12개월</div><div class="sec-h-chip">갈래</div></div>';
+const SEC_MAP_HEAD = '<div class="ipo-head ipo-cols sec-mcols"><div>후방 업종</div><div>전방 성장</div><div>후방 PER</div><div>PE 딜 12개월</div><div></div></div>';
 
 function secMapList() {
   const d = secS.map; if (!d) return [];
@@ -168,7 +167,7 @@ function secMapRow(c) {
       ${secCell('전방 성장', grow, growSub)}
       ${secCell('후방 PER', b.per != null ? secPer(b.per) : '', f.per != null ? `전방 ${secPer(f.per)}` : '')}
       ${secCell('PE 딜', c.pe.n12 != null ? `${c.pe.n12}건${secChg(c.pe.n12, c.pe.prev)}` : '', c.pe.prev != null ? `전년 ${c.pe.prev}건` : '')}
-      <div class="ipo-c-st">${secLane(c.lane)}${secChev()}</div>
+      <div class="ipo-c-st">${secChev()}</div>
     </div>${open ? secMapDetail(c) : ''}</div>`;
 }
 
@@ -273,7 +272,7 @@ function secDealRow(r) {
       ${secCell('12개월', r.n12 != null ? `${r.n12}건${secChg(r.n12, r.prev)}` : '', r.prev != null ? `전년 ${r.prev}건` : '')}
       ${secCell('추세', secBars(r.nq), '', 'sec-c-bar')}
       ${secCell('금액', r.amt != null ? secEok(r.amt) : '')}
-      <div class="sec-c${r.buyers.length ? '' : ' sec-none'}"><span class="sec-k">인수자</span><div class="sec-v"><span class="rd-clamp">${r.buyers.length ? esc(r.buyers.join(', ')) : SEC_NA}</span></div></div>
+      <div class="sec-c sec-c-buy${r.buyers.length ? '' : ' sec-none'}"><span class="sec-k">인수자</span><div class="sec-v"><span class="rd-clamp">${r.buyers.length ? esc(r.buyers.join(', ')) : SEC_NA}</span></div></div>
       <div class="ipo-c-st">${secChev()}</div>
     </div>${open ? secDealDetail(r) : ''}</div>`;
 }

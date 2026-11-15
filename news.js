@@ -113,12 +113,17 @@ function nwBriefLine(l) { // "주체: 상황 — 액션"을 주체 칸, 상황, 
   return `<li>${x ? `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" title="${esc(x.title)}">${inner}</a>` : inner}</li>`;
 }
 
+// 출처 칸('매체 외 n곳') + 시간 칸, 우주·항공·방산 기사는 전체·중요 탭에서만 칩 하나
+function nwMeta(x, pick) {
+  const also = (x.also || []).length, tm = `${pick && nwDay(x.published) !== today() ? '어제 ' : ''}${nwTime(x.published)}`;
+  const src = x.source ? `<span class="nw-src"${also ? ` title="${esc(x.also.join(', '))}"` : ''}>${esc(x.source)}${also ? ` 외 ${also}곳` : ''}</span>` : '';
+  return `${src}${tm.trim() ? `<span class="nw-tm">${tm}</span>` : ''}${nwS.cat !== 'space' && x.cat === 'space' ? '<span class="chip nw-cat">우주·항공·방산</span>' : ''}`;
+}
 function nwRow(x, pick) { // 아침 메일과 같은 모양: 점수, 제목, 출처, 요약
-  const meta = [x.source, `${pick && nwDay(x.published) !== today() ? '어제 ' : ''}${nwTime(x.published)}`, (x.also || []).length ? `외 ${x.also.length}곳` : '', nwS.cat !== 'space' && x.cat === 'space' ? '우주·항공·방산' : ''].filter(Boolean);
   const on = nwMarked(x.id), mk = on ? nwM.items.find((m) => m.id === x.id) : null;
   return `<li class="nw-row"><span class="nw-score" title="딜 소싱 관점 점수">${x.score ?? ''}</span>
     <div class="nw-main"><a class="nw-ttl" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title)}</a>
-      <div class="nw-meta" title="${esc((x.also || []).join(', '))}">${meta.map(esc).join(' · ')}</div>
+      <div class="nw-meta">${nwMeta(x, pick)}</div>
       ${x.why ? `<div class="nw-why">${esc(x.why)}</div>` : ''}</div>
     <button type="button" class="nw-star${on ? ' on' : ''}" data-nw-star="${esc(x.id)}" aria-pressed="${on}" aria-label="중요" title="${on && mk?.by ? esc(`${mk.by} 체크`) : '중요'}">${NW_STAR}</button></li>`;
 }
@@ -191,7 +196,7 @@ async function newsHomeBlock() {
   const lines = nwBriefOf('all'), top = nwPicksOf('all'), shown = new Set(top.map((x) => x.id));
   const space = nwPicksOf('space').filter((x) => !shown.has(x.id)).slice(0, 3);
   if (!top.length && !space.length && !lines.length) return '';
-  const li = (x) => `<li><a class="nw-hl" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><span class="ttl">${esc(x.title)}</span><span class="meta">${esc([x.source, `${nwDay(x.published) === today() ? '' : '어제 '}${nwTime(x.published)}`].filter(Boolean).join(' · '))}</span></a></li>`;
+  const li = (x) => `<li><a class="nw-hl" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><span class="ttl">${esc(x.title)}</span><span class="meta">${x.source ? `<span>${esc(x.source)}</span>` : ''}<span>${nwDay(x.published) === today() ? '' : '어제 '}${nwTime(x.published)}</span></span></a></li>`;
   return `<section class="card nw-home">
     <div class="card-head"><h2>딜 뉴스</h2><a class="btn sm act" href="#deals/news">전체 보기</a></div>
     <div class="card-body">${homeBrief(lines.map(nwBriefLine))}${top.length ? `<ul class="list">${top.map(li).join('')}</ul>` : ''}

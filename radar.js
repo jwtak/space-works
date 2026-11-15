@@ -522,12 +522,16 @@ function rdDday(s) {
 // 조합 만기: 지난 만기는 기간 제한 없이 n일 지남, 다가오는 만기는 rdDday와 같게
 const rdExp = (s) => { const d = rdDay(s); if (!d) return ''; const n = diffDays(d, today()); return n < 0 ? `${-n}일 지남` : rdDday(d); };
 const rdByText = (m) => (m && typeof m.at === 'string' && m.at ? `${rdStr(m.by)} ${rdMd(m.at.slice(0, 10))} ${m.at.slice(11, 16)}`.trim() : '');
-const rdChip = (st) => `<span class="ipo-st s-${RD_STATUS.indexOf(st)}">${esc(st)}</span>`;
+// 목록 행의 컨택 상태 칩: 미접촉(기본값)은 그리지 않는다 — 컨택한 곳은 '컨택·검토한 곳' 묶음으로 내려가 칩만 보면 된다(2026-11-15 요소 줄이기)
+const rdChip = (st) => (st === RD_STATUS[0] ? '' : `<span class="ipo-st s-${RD_STATUS.indexOf(st)}">${esc(st)}</span>`);
+// 폰 목록 둘째 줄: 값을 '·'로 잇지 않고 자리를 고정한 칸으로(첫 칸들은 폭 고정 cls, 마지막 칸은 남은 폭). 빈 값은 '–'로 자리를 지킨다
+const rdPair = (cells) => `<div class="rd-pair">${cells.map(([v, cls = '']) => `<span class="${cls}">${v || RD_NA}</span>`).join('')}</div>`;
 const rdChev = () => `<span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span>`;
 const rdClamp = (t, f = esc) => (t ? `<div class="rd-clamp">${f(t)}</div>` : RD_NA);
 
 /* 묶음 = 제목 줄 + 본문의 라운드 박스 (ipo.js ipoBox와 같은 모양) */
-const rdBox = (t, body, sub = '') => `<section class="ipo-box"><div class="ipo-box-h">${t}${sub ? `<span class="muted">${sub}</span>` : ''}</div><div class="ipo-box-b">${body}</div></section>`;
+// sub: 제목 옆 흐린 글. 배열이면 값마다 따로 띄워 둔다('·'로 잇지 않게)
+const rdBox = (t, body, sub = '') => `<section class="ipo-box"><div class="ipo-box-h">${t}${[].concat(sub).filter(Boolean).map((s) => `<span class="muted">${s}</span>`).join('')}</div><div class="ipo-box-b">${body}</div></section>`;
 const RD_NONE = '<p class="ipo-p muted">없음</p>';
 const rdKv = (k, v) => (v ? `<div class="ipo-kv"><div class="k">${k}</div><div class="v">${v}</div></div>` : '');
 
@@ -556,7 +560,7 @@ function rdPnl(fin, years) {
     ${row('OPM', (c) => pct(c[2], c[1]), 'r')}
     ${row('당기순이익', (c) => n(c[3]))}
     ${row('NPM', (c) => pct(c[3], c[1]), 'r')}
-    </tbody></table>`, esc([fin.basis, fin.src].map(rdStr).filter(Boolean).join(' · ')));
+    </tbody></table>`, [fin.basis, fin.src].map(rdStr).filter(Boolean).map(esc));
 }
 
 /* 펼친 행 머리: 요약 한 줄 + 컨택 상태 + 메모 + 작성자(+ extra = 주관사 선정 행의 팩트시트 요청), 그리고 파이프라인(좁으면 요약 줄 오른쪽) */
@@ -676,7 +680,23 @@ function rdYsList() {
   return rdGroups(list, (x) => (x.mn ? '주관사선정' : x.status || '기타'), (a, b) => rank(a) - rank(b) || a.localeCompare(b, 'ko'));
 }
 const rdGrpRow = (x) => `<div class="rd-grp"><b>${esc(x.grp === '주관사선정' ? '주관사 선정' : rdYsLabel(x.grp))}</b><span>${x.n}곳</span></div>`;
-const rdHideBtn = (x) => { const h = rdHid(x); return `<button type="button" class="iconbtn rd-hide${h ? ' on' : ''}" data-rd-hide aria-label="${h ? '다시 보이기' : '가리기'}" title="${h ? '다시 보이기' : '가리기'}">${h ? RD_EYE : RD_EYE_OFF}</button>`; };
+// 가리기·다시 보이기: 목록 행에서 빼고 펼친 칸 머리(컨택 상태 줄)에 둔다(2026-11-15 요소 줄이기)
+const rdHideBtn = (x) => { const h = rdHid(x); return `<button type="button" class="btn sm ghost rd-hide${h ? ' on' : ''}" data-rd-hide>${h ? RD_EYE : RD_EYE_OFF}${h ? '다시 보이기' : '가리기'}</button>`; };
+/* 행에 단계명을 쓸지: 묶음 제목(전체·가린 회사의 진행 순서 묶음)이나 필터(주관사 선정·심사 중·승인)가 이미 단계를 말하면 쓰지 않는다.
+   단계가 섞이는 곳(새 소식·철회·미승인, 주관사순 묶음, 맨 아래 '컨택·검토한 곳' 묶음)만 쓴다 */
+function rdYsStageOn(x) {
+  const s = rdS.yesim;
+  if (s.f === 'new' || s.f === 'drop' || s.sort === 'broker') return true;
+  return s.f !== 'hidden' && rdSt(rdKey('yesim', x.id)) !== RD_STATUS[0];
+}
+// 진행 칸: 단계를 쓰면 단계 + 보조 줄(경과·결과일), 아니면 경과 한 줄(결과일은 단계와 함께 — 날짜만 두면 무슨 날인지 모른다)
+function rdProgCell(x, p) {
+  if (rdYsStageOn(x)) return `${p.label ? `<span class="${p.cls || ''}">${esc(p.label)}</span>` : RD_NA}${p.sub ? `<div class="ipo-sub">${esc(p.sub)}</div>` : ''}`;
+  if (!p.sub) return RD_NA;
+  return /(일|개월)째$/.test(p.sub) ? esc(p.sub) : `<span class="${p.cls || ''}">${esc(p.label)}</span> ${esc(p.sub)}`;
+}
+// 폰 둘째 줄: 주관사 | 업종. 주관사순 묶음(제목이 주관사)이면 주관사 대신 단계
+const rdYsPair = (x, lead, sector) => rdPair([[rdS.yesim.sort === 'broker' ? esc(x.mn ? '주관사 선정' : rdYsProg(x).label) : lead ? rdNm(lead) : '', 'rd-w1'], [esc(sector)]]);
 
 function rdSetHide(id) {
   const x = rdFind('yesim', id); if (!x) return;
@@ -688,36 +708,35 @@ function rdSetHide(id) {
   toast(on ? `${x.name}: 가렸습니다. '가린 회사'에서 다시 볼 수 있습니다` : `${x.name}: 다시 보이게 했습니다`);
 }
 
-const RD_YS_HEAD = '<div class="ipo-head ipo-cols"><div>청구일</div><div>회사</div><div>진행</div><div class="rd-c2">주관사</div><div class="rd-c2">최근 매출</div><div>대표전화</div><div class="rd-h-st">컨택 상태</div></div>';
+/* 목록 칸은 값 한 줄씩(회사 칸만 업종 보조 줄). 시장·공동주관사·영업이익·대표 이름은 펼친 칸에 있다.
+   카드가 좁으면 최근 매출·대표전화를 접는다(주관사는 필터로 쓸 만큼 중요해 남긴다) */
+const RD_YS_HEAD = '<div class="ipo-head ipo-cols"><div>청구일</div><div>회사</div><div>진행</div><div>주관사</div><div class="rd-c2">최근 매출</div><div class="rd-c2">대표전화</div><div class="rd-h-st">컨택 상태</div></div>';
 
 function rdYsRow(x) {
   const open = rdS.yesim.open.has(x.id), st = rdSt(rdKey('yesim', x.id)), p = rdYsProg(x), br = rdSplit(x.broker);
-  const f = x.fy ? x.fin.years[x.fy] : [];
-  const mob = [esc(x.product || x.sector), br.length ? rdNm(br[0]) : '', esc(p.sub && !/일째$/.test(p.sub) ? `${p.label} ${p.sub}` : p.sub)].filter(Boolean).join(' · '); // 폰 보조 줄: 업종 · 주관사 · 경과(단계명은 묶음 제목과 겹쳐 뺌, 2026-11-15)
-  // rd-alt = 카드가 좁아 주관사·최근 매출 칸을 접었을 때 남은 칸에 보이는 보조 줄
   return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
-      <div>${rdMd(x.filed) || RD_NA}<div class="ipo-sub">${esc(x.market)}</div></div>
-      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${rdNm(x.name)}</button><div class="ipo-sub">${esc(x.product || x.sector)}</div>${x.rev != null ? `<div class="ipo-sub rd-alt">매출 ${rdEok(x.rev)}</div>` : ''}${mob ? `<div class="rd-mob">${mob}</div>` : ''}</div>
-      <div class="rd-mh">${p.label ? `<span class="${p.cls}">${esc(p.label)}</span>` : RD_NA}<div class="ipo-sub">${esc(p.sub)}</div>${br.length ? `<div class="ipo-sub rd-alt">${rdNm(br[0])}</div>` : ''}</div>
-      <div class="rd-mh rd-c2">${br.length ? rdNm(br[0]) : RD_NA}<div class="ipo-sub">${br.slice(1).map(rdNm).join(', ')}</div></div>
-      <div class="rd-mh rd-c2">${x.rev != null ? rdEok(x.rev) : RD_NA}<div class="ipo-sub rd-sub2">${x.fy ? `${esc(x.fy)} 영업이익 ${rdEok(f[1])}` : ''}</div></div>
-      <div class="rd-mh">${x.phone ? esc(x.phone) : RD_NA}<div class="ipo-sub">${x.ceo ? `대표 ${rdNm(x.ceo)}` : ''}</div></div>
-      <div class="ipo-c-st">${rdChip(st)}${rdHideBtn(x)}${rdChev()}</div>
+      <div>${rdMd(x.filed) || RD_NA}</div>
+      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${rdNm(x.name)}</button><div class="ipo-sub">${esc(x.product || x.sector)}</div>${rdYsPair(x, br[0], x.product || x.sector)}</div>
+      <div class="rd-mh">${rdProgCell(x, p)}</div>
+      <div class="rd-mh">${br.length ? rdNm(br[0]) : RD_NA}</div>
+      <div class="rd-mh rd-c2">${x.rev != null ? rdEok(x.rev) : RD_NA}</div>
+      <div class="rd-mh rd-c2">${x.phone ? esc(x.phone) : RD_NA}</div>
+      <div class="ipo-c-st">${rdChip(st)}${rdChev()}</div>
     </div>${open ? rdYsDetail(x) : ''}</div>`;
 }
 
 function rdYsDetail(x) {
-  const p = rdYsProg(x);
+  const p = rdYsProg(x), sum = x.product || x.sector;
   const links = rdLinkRow([{ url: rdUrl(x.home), label: '홈페이지' }, { url: rdHttp(x.kindUrl) ? x.kindUrl : '', label: 'KIND' }, { url: rdHttp(x.dartUrl) ? x.dartUrl : '', label: 'DART 원문' }]);
   const contact = `${x.ceo ? `<div class="ipo-lead"><div class="ipo-lead-k">대표이사</div><div class="ipo-lead-v">${rdNm(x.ceo)}</div></div>` : ''}
       ${rdKv('대표전화', rdTel(x.phone))}${rdKv('주소', esc(x.addr))}${rdKv('주관사', rdNm(x.broker))}${rdKv('설립', esc(rdYmd(x.founded)))}${links}`;
   // 상장한 회사는 신규상장 탭에서 그 회사를 펼쳐 보여 준다(ipo.js data-ipo-go). 신규상장 자료를 이미 읽었으면 그 목록에 있는 회사만
   const ipoItems = typeof ipoState === 'object' && Array.isArray(ipoState.data?.items) ? ipoState.data.items : null;
   const toIpo = x.code && typeof renderIpo === 'function' && (!ipoItems || ipoItems.some((i) => i.code === x.code)) ? `<div class="ipo-links"><a class="ipo-a" href="#deals/ipo" data-ipo-go="${esc(x.code)}">신규상장에서 보기${ico('right', 'sm')}</a></div>` : '';
-  const flow = `${rdKv('상태', esc(p.label))}${rdKv('주관사 선정', x.mnDay ? rdDateDd(x.mnDay, rdMnGap(x.mnDay, x.filed)) : '')}${rdKv('청구일', esc(x.filed))}${rdKv('결과일', esc(x.decided))}${rdKv('상장일', esc(x.listed))}${rdKv('종목코드', esc(x.code))}
+  const flow = `${rdKv('상태', p.label ? rdDateDd(p.label, esc(p.sub)) : '')}${x.product && x.sector && x.product !== x.sector ? rdKv('업종', esc(x.sector)) : ''}${rdKv('주관사 선정', x.mnDay ? rdDateDd(x.mnDay, rdMnGap(x.mnDay, x.filed)) : '')}${rdKv('청구일', esc(x.filed))}${rdKv('결과일', esc(x.decided))}${rdKv('상장일', esc(x.listed))}${rdKv('종목코드', esc(x.code))}
       ${rdKv('상태 변경', esc(x.changedAt))}${rdKv('상장 유형', esc(x.type))}${rdKv('시장', esc(x.market))}${rdKv('기술특례', esc(x.techSpecial))}${toIpo}`;
-  return `<div class="ipo-detail">${rdDhead('yesim', x, [x.sector, x.product].filter(Boolean).join(' · '))}
+  return `<div class="ipo-detail">${rdDhead('yesim', x, sum, rdHideBtn(x))}
     <div class="ipo-pane"><div class="ipo-stack">${fqBox(rdKey('yesim', x.id), x, '예심청구')}
       <div class="ipo-two-col">
         <div class="ipo-stack">${rdBox('컨택 포인트', contact.trim() ? contact : RD_NONE)}${rdBox('진행', flow.trim() ? flow : RD_NONE)}</div>
@@ -730,7 +749,7 @@ function rdYsDetail(x) {
 
 function rdHoldersBox(hs) {
   const fi = hs.filter((h) => h.fi), fiPct = fi.filter((h) => h.pct != null);
-  const fiSub = fi.length ? [`FI ${fi.length}곳`, fiPct.length ? rdPct(Math.round(fiPct.reduce((a, h) => a + h.pct, 0) * 100) / 100) : ''].filter(Boolean).join(' · ') : '';
+  const fiSub = fi.length ? [`FI ${fi.length}곳`, fiPct.length ? rdPct(Math.round(fiPct.reduce((a, h) => a + h.pct, 0) * 100) / 100) : ''] : '';
   const holders = hs.length ? `<table class="ipo-tbl rd-tbl-h"><thead><tr><th>주주</th><th>지분율</th><th>구분</th></tr></thead><tbody>${hs.map((h) => `<tr><td>${rdNm(h.name)}</td><td>${h.pct != null ? rdPct(h.pct) : '–'}</td><td>${h.top ? '최대주주' : h.fi ? 'FI' : ''}</td></tr>`).join('')}</tbody></table>` : RD_NONE;
   return rdBox('주주·FI', holders, fiSub);
 }
@@ -755,17 +774,15 @@ const RD_MN_HEAD = RD_YS_HEAD.replace('청구일', '선정일');
 
 function rdMnRow(x) {
   const open = rdS.yesim.open.has(x.id), st = rdSt(rdKey('yesim', x.id)), p = rdMnProg(x);
-  const f = x.fy ? x.fin.years[x.fy] : [];
-  const mob = [esc(x.sector), x.lead.length ? rdNm(x.lead[0]) : '', esc(p.sub)].filter(Boolean).join(' · ');
   return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
-      <div>${rdMd(x.selected) || RD_NA}<div class="ipo-sub">${esc(x.market)}</div></div>
-      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${rdNm(x.name)}</button>${x.fs ? '<span class="rd-fs-tag">팩트시트</span>' : ''}<div class="ipo-sub">${esc(x.sector)}</div>${x.rev != null ? `<div class="ipo-sub rd-alt">매출 ${rdEok(x.rev)}</div>` : ''}${mob ? `<div class="rd-mob">${mob}</div>` : ''}</div>
-      <div class="rd-mh">${esc(p.label)}<div class="ipo-sub">${esc(p.sub)}</div>${x.lead.length ? `<div class="ipo-sub rd-alt">${rdNm(x.lead[0])}</div>` : ''}</div>
-      <div class="rd-mh rd-c2">${x.lead.length ? x.lead.map(rdNm).join(', ') : RD_NA}<div class="ipo-sub">${x.co.map(rdNm).join(', ')}</div></div>
-      <div class="rd-mh rd-c2">${x.rev != null ? rdEok(x.rev) : '<span class="muted">확인 불가</span>'}<div class="ipo-sub rd-sub2">${x.fy ? `${esc(x.fy)} 영업이익 ${rdEok(f[1])}` : ''}</div></div>
-      <div class="rd-mh">${x.phone ? esc(x.phone) : RD_NA}<div class="ipo-sub">${x.ceo ? `대표 ${rdNm(x.ceo)}` : ''}</div></div>
-      <div class="ipo-c-st">${rdChip(st)}${rdHideBtn(x)}${rdChev()}</div>
+      <div>${rdMd(x.selected) || RD_NA}</div>
+      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${rdNm(x.name)}</button>${x.fs ? '<span class="rd-fs-tag">팩트시트</span>' : ''}<div class="ipo-sub">${esc(x.sector)}</div>${rdYsPair(x, x.lead[0], x.sector)}</div>
+      <div class="rd-mh">${rdProgCell(x, p)}</div>
+      <div class="rd-mh">${x.lead.length ? rdClamp(x.lead.join(', '), rdNm) : RD_NA}</div>
+      <div class="rd-mh rd-c2">${x.rev != null ? rdEok(x.rev) : '<span class="muted">확인 불가</span>'}</div>
+      <div class="rd-mh rd-c2">${x.phone ? esc(x.phone) : RD_NA}</div>
+      <div class="ipo-c-st">${rdChip(st)}${rdChev()}</div>
     </div>${open ? rdMnDetail(x) : ''}</div>`;
 }
 
@@ -777,12 +794,12 @@ const rdFsUl = (a) => `<ul class="ipo-ul">${a.map((s) => `<li>${rdFsT(s)}</li>`)
 /* 펼친 칸 맨 위 팩트시트 묶음: 사업·제품 / 투자 현황 / 라운드 / 컨택 경로 / 포인트·리스크 / 출처 */
 function rdFsGroup(f, head = true) { // head=false: 머리는 부르는 쪽(fsq.js 팩트시트 칸)이 그린다
   const total = f.total != null ? (f.total === 0 ? '없음' : rdEok(f.total)) : '';
-  const inv = `${rdFsKv('딜 상황', f.deal)}${rdFsKv('투자 단계', f.stage)}${rdKv('누적 투자', [esc(total), rdFsT(f.totalNote)].filter(Boolean).join(' · '))}${rdFsKv('최근 밸류', f.valuation)}
+  const inv = `${rdFsKv('딜 상황', f.deal)}${rdFsKv('투자 단계', f.stage)}${rdKv('누적 투자', [esc(total), f.totalNote ? `<span class="muted">${rdFsT(f.totalNote)}</span>` : ''].filter(Boolean).join(' '))}${rdFsKv('최근 밸류', f.valuation)}
       ${rdFsKv('Pre-IPO', f.preIpo)}${rdFsKv('주요 FI', f.fi)}${rdFsKv('계획', f.plan)}`;
   const biz = `${rdFsKv('사업', f.biz)}${rdFsKv('주요 제품', f.product)}`;
   const rounds = f.rounds.length ? rdBox('투자 라운드', `<table class="ipo-tbl rd-tbl-r"><thead><tr><th>시기</th><th>라운드</th><th>금액</th><th>투자자</th></tr></thead><tbody>${f.rounds.map((r) => `<tr>
     <td>${rdFsT(r.when) || '–'}</td><td>${rdFsT(r.round) || '–'}</td><td>${rdFsT(r.amount) || '–'}</td><td>${rdFsT(r.investors) || '–'}</td></tr>`).join('')}</tbody></table>`, `${f.rounds.length}건`) : '';
-  const contact = f.contact.length ? `<ul class="ipo-ul">${f.contact.map((c) => `<li>${c.who ? `<span class="rd-strong">${rdFsT(c.who)}</span>${c.how ? ' · ' : ''}` : ''}${rdFsT(c.how)}</li>`).join('')}</ul>` : RD_NONE;
+  const contact = f.contact.length ? `<ul class="ipo-ul">${f.contact.map((c) => `<li>${c.who ? `<span class="rd-strong">${rdFsT(c.who)}</span>${c.how ? '<br>' : ''}` : ''}${rdFsT(c.how)}</li>`).join('')}</ul>` : RD_NONE;
   const pr = [['포인트', f.points], ['리스크', f.risks]].filter(([, a]) => a.length).map(([k, a]) => `<div class="rd-fs-k">${k}</div>${rdFsUl(a)}`).join('');
   return `${head ? `<div class="rd-fsh">팩트시트${f.made ? `<span class="muted">작성 ${esc(f.made)}</span>` : ''}</div>` : ''}
       <div class="ipo-two-col">${rdBox('사업·제품', biz.trim() ? biz : RD_NONE)}${rdBox('투자 현황', inv.trim() ? inv : RD_NONE)}</div>
@@ -801,7 +818,7 @@ function rdMnDetail(x) {
   const flow = `${rdKv('선정일', x.selected ? rdDateDd(x.selected, p.sub) : '')}${rdKv('대표주관사', x.lead.map(rdNm).join(', '))}${rdKv('공동주관사', x.co.map(rdNm).join(', '))}
       ${rdKv('목표 시장', esc(x.market))}${rdKv('목표 시기', esc(x.target))}${rdKv('기술특례', esc(x.tech))}${rdKv('내용', esc(x.line))}`;
   const pnl = (x.fin && rdPnl(x.fin, x.years)) || rdBox('주요 손익', `<p class="ipo-p muted">${esc(x.finNote || '확인 불가')}</p>`);
-  return `<div class="ipo-detail">${rdDhead('yesim', x, x.sector)}
+  return `<div class="ipo-detail">${rdDhead('yesim', x, x.sector, rdHideBtn(x))}
     <div class="ipo-pane"><div class="ipo-stack">${fqBox(rdKey('yesim', x.id), x, '주관사 선정')}
       <div class="ipo-two-col">
         <div class="ipo-stack">${rdBox('컨택 포인트', contact.trim() ? contact : RD_NONE)}${rdBox('진행', flow.trim() ? flow : RD_NONE)}</div>
@@ -818,7 +835,7 @@ function rdSignals() {
   if (!d || !d.signals.length || !['all', 'new'].includes(s.f)) return '';
   const q = s.q.trim().toLowerCase(), d7 = ymd(addDays(new Date(), -7));
   const list = d.signals.filter((x) => (!q || x.q.includes(q)) && (s.f !== 'new' || (x.dt && x.dt >= d7)));
-  const row = (x) => `<div class="ipo-row rd-static"><div class="ipo-line ipo-cols">
+  const row = (x) => `<div class="ipo-row rd-static rd-sig"><div class="ipo-line ipo-cols">
       <div>${rdMd(x.dt) || RD_NA}${x.kind ? `<div class="ipo-sub rd-mi rd-alt">${esc(x.kind)}</div>` : ''}${x.src ? `<div class="ipo-sub rd-mi">${esc(x.src)}</div>` : ''}</div>
       <div class="ipo-c-name"><span class="rd-strong">${rdNm(x.name) || RD_NA}</span></div>
       <div class="rd-mh rd-c2">${esc(x.kind) || RD_NA}</div>
@@ -848,7 +865,8 @@ function rdSellList() {
   return list.sort(by);
 }
 
-const RD_SELL_HEAD = '<div class="ipo-head ipo-cols"><div>날짜</div><div>회사</div><div>신호</div><div>매도 후보</div><div class="rd-c2">근거</div><div class="rd-c2">지분율</div><div class="rd-h-st">컨택 상태</div></div>';
+// 카드가 좁으면 신호·근거를 접는다(신호는 날짜 보조 줄 앞에 붙는다). 종목코드는 펼친 칸에
+const RD_SELL_HEAD = '<div class="ipo-head ipo-cols"><div>날짜</div><div>회사</div><div class="rd-c2">신호</div><div>매도 후보</div><div class="rd-c2">근거</div><div>지분율</div><div class="rd-h-st">컨택 상태</div></div>';
 
 // 날짜 보조 줄: 만기는 지난 만기도 기간 제한 없이 n일 지남(만기 임박 조합과 같은 기준)
 // 펼친 행 날짜 + D-day: 사이에 줄바꿈 자리(<wbr>)를 두고 간격 8은 날짜 쪽 오른쪽 여백으로 — 칸이 좁으면 D-day만 한 덩어리로 다음 줄 첫머리에(radar.css .rd-dt·.rd-dd)
@@ -859,16 +877,17 @@ function rdSellRow(x) {
   const open = rdS.sell.open.has(x.id), st = rdSt(rdKey('sell', x.id)), pct = rdPct(x.pct);
   // 매도 후보에 운용사 이름(' · '로 이어 쓴 각각)이 모두 들어 있으면('조합명 (운용사)') 보조 줄에 다시 쓰지 않는다
   const gp = x.fund?.gp && !x.fund.gp.split(/\s+·\s+/).every((g) => x.seller.includes(g.trim())) ? x.fund.gp : '';
-  // 폰 한 줄: 지분율을 긴 매도 후보보다 앞에 둔다. 매도 후보에 없는 운용사는 '조합명 (운용사)'로 붙인다
-  const mob = [esc(x.kind), esc(pct), gp ? (x.seller ? `${rdNm(x.seller)} (${rdNm(gp)})` : rdNm(gp)) : rdNm(x.seller)].filter(Boolean).join(' · ');
+  // 폰 둘째 줄: 신호·때(만기 D-13, 철회 17일 전) | 지분율. 신호는 필터로 하나를 골랐으면 뺀다. 매도 후보는 펼친 칸에
+  const dd = rdSellDd(x), kind = rdS.sell.f === 'all' ? esc(x.kind) : '';
+  const when = [kind && `<span class="rd-lb">${kind}</span>`, dd || esc(rdMd(x.date))].filter(Boolean).join(' ');
   return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
-      <div>${rdMd(x.date) || RD_NA}<div class="ipo-sub">${rdSellDd(x)}</div></div>
-      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${rdNm(x.name)}</button><div class="ipo-sub">${esc(x.code)}</div>${mob ? `<div class="rd-mob">${mob}</div>` : ''}</div>
-      <div class="rd-mh">${esc(x.kind) || RD_NA}${pct ? `<div class="ipo-sub rd-alt">${esc(pct)}</div>` : ''}</div>
+      <div>${rdMd(x.date) || RD_NA}<div class="ipo-sub">${kind ? `<span class="rd-alt-i">${kind} </span>` : ''}${dd}</div></div>
+      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${rdNm(x.name)}</button>${rdPair([[when, 'rd-w2'], [esc(pct)]])}</div>
+      <div class="rd-mh rd-c2">${esc(x.kind) || RD_NA}</div>
       <div class="rd-mh">${rdClamp(x.seller, rdNm)}<div class="ipo-sub">${rdNm(gp)}</div></div>
       <div class="rd-mh rd-c2">${rdClamp(x.detail)}</div>
-      <div class="rd-mh rd-c2">${rdPct(x.pct) || RD_NA}</div>
+      <div class="rd-mh">${pct || RD_NA}</div>
       <div class="ipo-c-st">${rdChip(st)}${rdChev()}</div>
     </div>${open ? rdSellDetail(x) : ''}</div>`;
 }
@@ -894,17 +913,18 @@ function rdFunds() {
   if (!d || !d.funds.length || !['all', '만기'].includes(s.f)) return '';
   const q = s.q.trim().toLowerCase(), list = d.funds.filter((x) => !q || x.q.includes(q));
   const row = (x) => {
-    const mob = [rdNm(x.gp), esc(x.size), esc(x.src)].filter(Boolean).join(' · ');
-    const src = x.src || (x.url ? rdHost(x.url) : '');
-    const sub = [x.stage, x.companies.length ? `보유 ${x.companies.join(', ')}` : ''].filter(Boolean).join(' · ');
-    const subH = [esc(x.stage), x.companies.length ? `보유 ${x.companies.map(rdNm).join(', ')}` : ''].filter(Boolean).join(' · '); // 보이는 글(이름 칸 <wbr>), title은 sub 그대로
+    // 출처는 '·'로 이어 온 원문(DIVA 조합현황 · 모태 출자 · …) 중 첫 출처만 칸에, 전체는 마우스를 올리면. 단계(stage)는 보유 회사가 없을 때만 보조 줄에
+    const src = x.src || (x.url ? rdHost(x.url) : ''), src1 = src.split(/\s+·\s+/)[0];
+    const sub = x.companies.length ? `보유 ${x.companies.join(', ')}` : x.stage;
+    const subH = x.companies.length ? `보유 ${x.companies.map(rdNm).join(', ')}` : esc(x.stage); // 보이는 글(이름 칸 <wbr>)
+    const tip = [x.stage, sub].filter((t, i, a) => t && a.indexOf(t) === i).join('\n');
     return `<div class="ipo-row rd-static"><div class="ipo-line ipo-cols rd-g6">
-      <div>${rdMd(x.expiry) || esc(x.expiry) || RD_NA}<div class="ipo-sub">${rdExp(x.expiry)}</div>${x.formed ? `<div class="ipo-sub rd-mi">결성 ${esc(rdMd(x.formed) || x.formed)}</div>` : ''}</div>
-      <div class="ipo-c-name"><span class="rd-strong">${rdNm(x.name)}</span>${sub ? `<div class="ipo-sub" title="${esc(sub)}">${subH}</div>` : ''}${mob ? `<div class="rd-mob">${mob}</div>` : ''}</div>
+      <div>${rdMd(x.expiry) || esc(x.expiry) || RD_NA}<div class="ipo-sub">${rdExp(x.expiry)}</div></div>
+      <div class="ipo-c-name"><span class="rd-strong">${rdNm(x.name)}</span>${rdPair([[rdExp(x.expiry) || esc(rdMd(x.expiry)), 'rd-w3'], [esc(x.size), 'rd-w4'], [rdNm(x.gp)]])}${sub ? `<div class="ipo-sub" title="${esc(tip)}">${subH}</div>` : ''}</div>
       <div class="rd-mh">${rdNm(x.gp) || RD_NA}</div>
       <div class="rd-mh rd-c2">${esc(rdMd(x.formed) || x.formed) || RD_NA}</div>
       <div class="rd-mh">${esc(x.size) || RD_NA}${x.formed ? `<div class="ipo-sub rd-alt">결성 ${esc(rdMd(x.formed) || x.formed)}</div>` : ''}</div>
-      <div class="rd-mh rd-c2">${!src ? RD_NA : x.url ? `<a class="rd-link rd-clamp" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(src)}</a>` : `<div class="rd-clamp">${esc(src)}</div>`}</div>
+      <div class="rd-mh rd-c2">${!src ? RD_NA : x.url ? `<a class="rd-link rd-clamp" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" title="${esc(src)}">${esc(src1)}</a>` : `<div class="rd-clamp" title="${esc(src)}">${esc(src1)}</div>`}</div>
     </div></div>`;
   };
   return `<section class="card ipo-card rd-card2"><div class="card-head"><h2>만기 임박 조합 <span class="n">${list.length}</span></h2></div>
@@ -912,14 +932,19 @@ function rdFunds() {
 }
 
 /* ---------- 입찰딜 ---------- */
+// 아래로: 인수자가 정해진 단계, 또는 일정의 입찰 날짜(인수의향서 마감·예비입찰·본입찰)가 모두 지난 딜
+function rdBidsShut(x) {
+  const td = today(), ds = [...x.schedule.matchAll(/(\d{4}-\d{2}-\d{2}) (?:인수의향서 마감|예비입찰|본입찰)/g)].map((m) => m[1]);
+  return RD_BIDS_DONE.includes(x.stage) || (ds.length > 0 && ds.every((d) => d < td));
+}
+// 딜별 보기 묶음: 적합도 상 / 적합도 중 / 입찰 마감(목록 순서 그대로 — 마감은 맨 아래). 적합도는 묶음 제목에 있으니 행에서는 마감·컨택한 묶음에서만 표시
+const RD_BIDS_SHUT = '입찰 마감';
+const rdBidsGrp = (x) => (rdBidsShut(x) ? RD_BIDS_SHUT : `적합도 ${x.fit || '–'}`);
+const rdBidsGroups = (list) => rdGroups(list, rdBidsGrp, (a, b) => (a === RD_BIDS_SHUT) - (b === RD_BIDS_SHUT) || a.localeCompare(b, 'ko'));
 function rdBidsList() {
   const s = rdS.bids, d = s.data; if (!d) return [];
   const q = s.q.trim().toLowerCase();
-  // 아래로: 인수자가 정해진 단계, 또는 일정의 입찰 날짜(인수의향서 마감·예비입찰·본입찰)가 모두 지난 딜
-  const td = today(), shut = (x) => {
-    const ds = [...x.schedule.matchAll(/(\d{4}-\d{2}-\d{2}) (?:인수의향서 마감|예비입찰|본입찰)/g)].map((m) => m[1]);
-    return RD_BIDS_DONE.includes(x.stage) || (ds.length > 0 && ds.every((d) => d < td));
-  };
+  const shut = rdBidsShut;
   return d.items.filter((x) => (!q || x.q.includes(q)) && (!s.fit || x.fit === s.fit) && (!s.stage || x.stage === s.stage))
     .sort((a, b) => shut(a) - shut(b) || RD_FITS.indexOf(a.fit) - RD_FITS.indexOf(b.fit)
       || b.last.localeCompare(a.last) || a.name.localeCompare(b.name, 'ko'));
@@ -930,17 +955,16 @@ const RD_BIDS_HEAD = '<div class="ipo-head ipo-cols"><div>최근일</div><div>�
 // go = 자문사별 보기의 행(누르면 딜별 보기에서 그 딜을 펼친다)
 function rdBidsRow(x, go) {
   const open = !go && rdS.bids.open.has(x.id), st = rdSt(rdKey('bids', x.id)), adv = rdSplit(x.advisor);
-  const mob = [esc(x.stage), x.fit ? `적합도 ${esc(x.fit)}` : '', rdNm(x.seller)].filter(Boolean).join(' · ');
-  const fit = x.fit ? `<span class="${x.fit === '상' ? 'rd-ok' : ''}">적합도 ${esc(x.fit)}</span>` : '';
-  const alt = [fit, esc(x.size)].filter(Boolean).join(' · '); // 카드가 좁아 매도자·규모 칸을 접었을 때 단계 칸 보조 줄
+  // 적합도는 '상'만 이름 옆 표시(중은 기본값이라 뺀다). 출처·공동 자문사는 펼친 칸에. 폰 둘째 줄: 단계 | 업종(없으면 매도자)
+  const fit = x.fit === '상' && (go || rdBidsShut(x) || rdSt(rdKey('bids', x.id)) !== RD_STATUS[0]) ? '<span class="rd-fs-tag">적합도 상</span>' : '';
   return `<div class="ipo-row${open ? ' open' : ''}" ${go ? 'data-rd-go' : 'data-id'}="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
-      <div>${rdMd(x.last) || RD_NA}<div class="ipo-sub">${esc(x.src.join('·'))}</div></div>
-      <div class="ipo-c-name"><button type="button" class="ipo-ttl"${go ? '' : ` aria-expanded="${open}"`}>${rdNm(x.name)}</button><div class="ipo-sub">${esc(x.sector)}</div>${x.seller ? `<div class="ipo-sub rd-alt">매도자 ${rdNm(x.seller)}</div>` : ''}${mob ? `<div class="rd-mob">${mob}</div>` : ''}</div>
-      <div class="rd-mh">${esc(x.stage) || RD_NA}<div class="ipo-sub">${esc(x.schedule)}</div>${alt ? `<div class="ipo-sub rd-alt">${alt}</div>` : ''}</div>
+      <div>${rdMd(x.last) || RD_NA}</div>
+      <div class="ipo-c-name"><button type="button" class="ipo-ttl"${go ? '' : ` aria-expanded="${open}"`}>${rdNm(x.name)}</button>${fit}<div class="ipo-sub">${esc(x.sector)}</div>${rdPair([[esc(x.stage), 'rd-w2'], [x.sector ? esc(x.sector) : rdNm(x.seller)]])}</div>
+      <div class="rd-mh">${esc(x.stage) || RD_NA}<div class="ipo-sub">${esc(x.schedule)}</div></div>
       <div class="rd-mh rd-c2">${rdClamp(x.seller, rdNm)}</div>
-      <div class="rd-mh">${adv.length ? rdNm(adv[0]) : RD_NA}<div class="ipo-sub">${adv.slice(1).map(rdNm).join(', ')}</div></div>
-      <div class="rd-mh rd-c2">${esc(x.size) || RD_NA}<div class="ipo-sub">${fit}</div></div>
+      <div class="rd-mh">${adv.length ? rdClamp(adv.join(', '), rdNm) : RD_NA}</div>
+      <div class="rd-mh rd-c2">${esc(x.size) || RD_NA}</div>
       <div class="ipo-c-st">${rdChip(st)}${rdChev()}</div>
     </div>${open ? rdBidsDetail(x) : ''}</div>`;
 }
@@ -948,7 +972,7 @@ function rdBidsRow(x, go) {
 function rdBidsDetail(x) {
   const ov = `${rdKv('매도자', rdNm(x.seller))}${rdKv('자문사', rdNm(x.advisor))}${rdKv('인수 후보', x.bidders.map(rdNm).join(', '))}${rdKv('단계', esc(x.stage))}${rdKv('일정', esc(x.schedule))}
       ${rdKv('규모', esc(x.size))}${rdKv('업종', esc(x.sector))}${rdKv('적합도', esc(x.fit))}`;
-  const src = `${rdKv('출처', esc(x.src.join(' · ')))}${rdKv('처음 포착', esc(x.first))}${rdKv('최근 소식', esc(x.last))}${rdLinkRow(x.links)}`;
+  const src = `${rdKv('출처', esc(x.src.join(', ')))}${rdKv('처음 포착', esc(x.first))}${rdKv('최근 소식', esc(x.last))}${rdLinkRow(x.links)}`;
   const base = rdBox('딜 개요', ov.trim() ? ov : RD_NONE);
   return `<div class="ipo-detail">${rdDhead('bids', x, x.summary)}
     <div class="ipo-pane"><div class="ipo-stack">${fqBox(rdKey('bids', x.id), x, '입찰딜')}
@@ -973,7 +997,7 @@ function rdStageOpts() {
 
 /* ---------- 그리기 ---------- */
 const RD_LIST = { yesim: rdYsList, sell: rdSellList, bids: rdBidsList };
-const RD_ROW = { yesim: (x) => (x.grp != null ? rdGrpRow(x) : x.mn ? rdMnRow(x) : rdYsRow(x)), sell: rdSellRow, bids: (x) => rdBidsRow(x, false) };
+const RD_ROW = { yesim: (x) => (x.grp != null ? rdGrpRow(x) : x.mn ? rdMnRow(x) : rdYsRow(x)), sell: rdSellRow, bids: (x) => (x.grp != null ? `<div class="rd-grp"><b>${esc(x.grp)}</b><span>${x.n}건</span></div>` : rdBidsRow(x, false)) };
 const RD_HEAD = { yesim: RD_YS_HEAD, sell: RD_SELL_HEAD, bids: RD_BIDS_HEAD };
 // 컨택했거나 다 본 곳(미접촉이 아닌 상태)은 맨 아래 '컨택·검토한 곳' 묶음으로 내리고 흐리게(사용자 2026-11-10).
 // 묶음 머리가 있는 목록(예심청구 전체·주관사순)은 남은 행 수로 머리를 다시 세고, 다 빠진 묶음은 지운다
@@ -990,7 +1014,7 @@ function rdSink(tab, list) {
   });
   return [...out, { grp: '__low', n: low.length }, ...low];
 }
-const rdLowRow = (x) => `<div class="rd-grp rd-low"><b>컨택·검토한 곳</b><span>${x.n}곳 · 연락함·미팅·보류·검토 완료</span></div>`;
+const rdLowRow = (x) => `<div class="rd-grp rd-low"><b>컨택·검토한 곳</b><span>${x.n}곳</span></div>`;
 const rdRowEl = (root, id) => [...root.querySelectorAll('.ipo-row[data-id]')].find((r) => r.dataset.id === id);
 
 function rdSummary(tab) {
@@ -1046,7 +1070,7 @@ function rdBody(tab) {
   if (!s.data) return `<div class="empty">아직 수집된 ${RD_TAB[tab].label} 데이터가 없습니다.</div>`;
   const raw = RD_LIST[tab]();
   if (tab === 'bids' && s.view === 'adv') return rdAdvBody(raw);
-  const list = tab === 'yesim' && s.f === 'hidden' ? raw : rdSink(tab, raw);
+  const list = tab === 'yesim' && s.f === 'hidden' ? raw : rdSink(tab, tab === 'bids' ? rdBidsGroups(raw) : raw);
   if (!list.length) return `<div class="empty">조건에 맞는 ${tab === 'yesim' ? '회사가' : tab === 'sell' ? '신호가' : '딜이'} 없습니다.</div>`;
   // 예심청구 전체·가린 회사는 주관사 선정(선정일)과 예심(청구일)이 섞이므로 첫 칸 머리를 '날짜'로
   const head = tab !== 'yesim' ? RD_HEAD[tab] : s.f === 'mandate' ? RD_MN_HEAD : s.f === 'all' || s.f === 'hidden' ? RD_YS_HEAD.replace('청구일', '날짜') : RD_HEAD[tab];

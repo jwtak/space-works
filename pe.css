@@ -16,6 +16,17 @@
 .pe-nchip { display: none; margin-left: 6px; }
 .pe-dl { display: contents; } /* 상폐 위험·CB 링크 자리(비어 있으면 간격도 없음) */
 
+/* 목록 한 건의 수치 칸(매출·OPM, 모회사·지분율): 이름표 위·값 아래, 자리 고정. 넓은 표에서는 칸이 따로 있어 숨기고 좁은 폭·폰에서만 */
+.pe-mg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin: 0; font-variant-numeric: tabular-nums; }
+.pe-mg > div { min-width: 0; }
+.pe-mg dt { font-size: 13px; line-height: 18px; color: var(--text3); white-space: nowrap; }
+.pe-mg dd { margin: 2px 0 0; font-size: 15px; line-height: 22px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ipo-line .pe-mg, .pe-msig { display: none; }
+/* 신호 칸: 한 줄에 하나씩 두 줄까지 */
+.pe-sigl span { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+/* 주주 상자: 표 아래 개인 합계·같은 성·모회사 */
+.pe-hkv { margin-top: 8px; }
+
 /* 오르면 빨강·내리면(손실) 파랑 */
 .pe-up { color: var(--danger); }
 .pe-dn { color: var(--primary); }
@@ -26,7 +37,7 @@
 .pe-fin tr.r td { font-size: 14px; color: var(--text3); }
 .pe-finm { display: none; margin: 0; padding: 0; list-style: none; font-size: 14px; line-height: 20px; color: var(--text2); font-variant-numeric: tabular-nums; }
 .pe-finm li + li { margin-top: 8px; }
-.pe-finm b { display: block; font-size: 14px; font-weight: 600; color: var(--ink); }
+.pe-finm b { display: block; margin-bottom: 4px; font-size: 14px; font-weight: 600; color: var(--ink); }
 /* 재무 출처 한 줄(재무표 아래), 신호 표 '나머지 n건 보기' */
 .pe-finsrc { margin: 8px 0 0; font-size: 13px; line-height: 18px; color: var(--text3); }
 .pe-page .pe-sigbox:not(.pe-all) tr.pe-more { display: none; }
@@ -46,6 +57,9 @@
   @container (max-width: 699px) {
     .pe-heir .ipo-cols { grid-template-columns: minmax(0, 1fr) auto; }
     .pe-page .pe-nchip { display: inline-flex; }
+    .pe-page .ipo-line .pe-mg { display: grid; margin-top: 8px; }
+    .pe-page .pe-msig { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin-top: 4px; overflow: hidden; overflow-wrap: anywhere; font-size: 14px; line-height: 20px; color: var(--text2); }
+    .pe-page .pe-biz { display: none; }
     .pe-page .ipo-tbl.pe-tbl-s, .pe-page .ipo-tbl.pe-tbl-s tbody { display: block; }
     .pe-page .ipo-tbl.pe-tbl-s thead { display: none; }
     .pe-page .ipo-tbl.pe-tbl-s tr { display: flex; flex-wrap: wrap; column-gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--row); }
@@ -77,6 +91,9 @@
   .pe-grp .seg { display: flex; }
   .pe-grp .seg button { flex: 1 1 0; justify-content: center; }
   .pe-page .pe-nchip { display: inline-flex; }
+  .pe-page .ipo-line .pe-mg { display: grid; margin-top: 8px; }
+  .pe-page .pe-msig { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin-top: 4px; overflow: hidden; overflow-wrap: anywhere; font-size: 14px; line-height: 20px; color: var(--text2); }
+  .pe-page .ipo-c-name > .pe-biz { display: none; }
   /* 신호 표는 폰에서 내용 한 줄 + 날짜·종류 한 줄 목록으로 */
   .ipo-tbl.pe-tbl-s, .ipo-tbl.pe-tbl-s tbody { display: block; }
   .ipo-tbl.pe-tbl-s thead { display: none; }

@@ -128,7 +128,7 @@
   .fl-item:active { background: var(--hover); }
   .fl-name { font-size: 16px; line-height: 22px; pointer-events: none; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow-wrap: anywhere; }
   .fl-item { padding-top: 10px; padding-bottom: 10px; }
-  .fl-meta { display: block; font-size: 13px; line-height: 18px; color: var(--text3); font-variant-numeric: tabular-nums; }
+  .fl-meta { display: flex; gap: 12px; font-size: 13px; line-height: 18px; color: var(--text3); font-variant-numeric: tabular-nums; }
   .fl-more { width: 44px; height: 44px; opacity: 1; }
   .fl-ic, .fl-ic.fold svg { width: 32px; height: 32px; }
   .fl-pv-wrap { padding: 0; }

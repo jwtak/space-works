@@ -1383,7 +1383,7 @@ function mailDrawCompose() {
           <span class="mail-drop-tx">에서 첨부하거나, 여기로 파일을 끌어놓으세요.</span>
         </div>
         ${files.length ? `<div class="mail-flist">${files.map((f, i) => `<span class="mail-file">${mi('doc')}<span class="mail-file-n">${esc(f.name)}</span><span class="muted">${mailSize(f.size)}</span>${f.file && f.size > MAIL_MAX_ATTACH ? `<span class="mail-file-pct" data-fk="${mailFileKey(f.file)}">${c.pct?.has(f.file) ? `${c.pct.get(f.file)}%` : ''}</span>` : ''}<button type="button" class="iconbtn" data-rm="${i}" aria-label="첨부 빼기" ${c.busy || c.sending ? 'disabled' : ''}>${mi('close')}</button></span>`).join('')}</div>
-        <div class="mail-drop-sz">${files.length}개 · ${mailSize(files.reduce((s, f) => s + (f.size || 0), 0))}</div>` : ''}
+        <div class="mail-drop-sz">${files.length}개, 총 ${mailSize(files.reduce((s, f) => s + (f.size || 0), 0))}</div>` : ''}
       </div></div>
       ${c.plain ? `<textarea class="mail-body" name="text" placeholder="내용">${esc(c.text)}</textarea>` : `
       <div class="mail-editor${c.quote ? ' has-quote' : ''}">
@@ -2002,7 +2002,7 @@ async function mailSend(c) {
     rows: [...(c.box === 'contact' ? [['보낸 사람', MAIL_SHARED]] : []), ['받는 사람', names(to)], ['참조', names(cc)], ['숨은참조', names(bcc)], ['제목', c.subject.trim() || '(제목 없음)'],
       ['첨부', c.existing.length + c.files.length ? `${c.existing.length + c.files.length}개 (${mailSize([...c.existing, ...c.files].reduce((s, f) => s + (f.size || 0), 0))})` : ''],
       ['발송', c.sched ? `${mailSchedLabel(c.sched)} 예약` : ''],
-      ['옵션', [c.important && '중요', c.receipt && '수신 확인 요청', each && '개인별 보내기'].filter(Boolean).join(' · ')]],
+      ['옵션', [c.important && '중요', c.receipt && '수신 확인 요청', each && '개인별 보내기'].filter(Boolean).join(', ')]],
     ok: c.sched ? '예약' : '보내기',
   });
   if (!ok || c.sending || ui.mail.compose !== c) return;

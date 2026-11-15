@@ -106,13 +106,15 @@ function fqInner(ref, nameLink = '', head = false) {
   if (fqS.err) return `<div class="fq-bar"><span class="fq-t">팩트시트</span><span class="muted">${esc(fqS.err)}</span></div>`;
   const { fs, r, wait, failed, f } = fqState(ref, c.legacy);
   const who = r ? [r.by, fqWhen(r.at)].filter(Boolean).join(' ') : '';
+  // 상태 글은 '·'로 잇지 않고 값마다 따로 띄운다(fq-bar 간격 12)
   let msg, btn;
-  if (failed) { msg = `만들지 못했습니다${f.err ? ` · ${esc(String(f.err).slice(0, 60))}` : ''}`; btn = fqBtn('다시 요청'); }
-  else if (wait) { msg = `${fs ? '다시 요청됨' : '요청됨'} ${esc(who)} · ${fqNext()} 처리`; btn = fqBtn('요청 취소', true); }
-  else if (fs) { msg = `작성 ${esc(fs.made || '')}${fs.src && nameLink ? ` · ${esc(fs.src)}` : ''}`; btn = fqBtn('다시 요청'); }
-  else { msg = ''; btn = fqBtn('팩트시트 요청'); }
-  if (head) { if (!msg && !fs) return ''; btn = ''; }
-  const bar = `<div class="fq-bar"><span class="fq-t">팩트시트</span>${msg ? `<span class="muted">${msg}</span>` : ''}${nameLink}${btn}</div>`;
+  if (failed) { msg = ['만들지 못했습니다', f.err && esc(String(f.err).slice(0, 60))]; btn = fqBtn('다시 요청'); }
+  else if (wait) { msg = [`${fs ? '다시 요청됨' : '요청됨'} ${esc(who)}`, `${fqNext()} 처리`]; btn = fqBtn('요청 취소', true); }
+  else if (fs) { msg = [`작성 ${esc(fs.made || '')}`, fs.src && nameLink && esc(fs.src)]; btn = fqBtn('다시 요청'); }
+  else { msg = []; btn = fqBtn('팩트시트 요청'); }
+  msg = msg.filter(Boolean);
+  if (head) { if (!msg.length && !fs) return ''; btn = ''; }
+  const bar = `<div class="fq-bar"><span class="fq-t">팩트시트</span>${msg.map((m) => `<span class="muted">${m}</span>`).join('')}${nameLink}${btn}</div>`;
   return fs && typeof rdFsGroup === 'function' ? `${bar}${rdFsGroup(rdFsN(fs), false)}` : bar;
 }
 

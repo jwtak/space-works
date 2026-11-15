@@ -3,8 +3,17 @@
 .mk .up { color: var(--mk-up); font-weight: 600; }
 .mk .dn { color: var(--mk-dn); font-weight: 600; }
 .mk-dim { color: var(--text3); }
-.mk-upd { margin-left: auto; font-size: 14px; color: var(--text3); align-self: flex-end; }
+.mk-upd { font-size: 14px; color: var(--text3); }
 .page-head:has(.mk-upd) { display: flex; align-items: baseline; gap: 12px; }
+.mk-hr { margin-left: auto; display: inline-flex; align-items: center; gap: 12px; align-self: center; }
+
+/* 보조 수치: '·'로 잇지 않고 라벨 + 값 작은 칸(mkKv), 칸 사이 12 */
+.mk-kv { display: inline-flex; align-items: baseline; gap: 4px; white-space: nowrap; color: var(--text2); }
+.mk-kv > i { font-style: normal; color: var(--text3); }
+.mk-tile p, .mk-kvs { display: flex; flex-wrap: wrap; gap: 2px 12px; }
+/* 일부 종목만 기간이 찬 값: 점선 밑줄, 마우스를 올리면 'n건 기준'(mkPart) */
+.mk-part { text-decoration: underline dotted; text-decoration-color: var(--text3); text-underline-offset: 3px; cursor: help; }
+.mk-unit { margin-left: 4px; font-weight: 400; color: var(--text3); }
 
 .mk-sec .card-head { gap: 12px; flex-wrap: wrap; }
 .mk-body { padding: 16px 24px 20px; }
@@ -27,6 +36,8 @@
 .mk-tbl .bl { border-left: 1px solid var(--line); }
 .mk-ref td { white-space: normal; text-overflow: clip; }
 .mk-ref a { color: var(--primary); text-decoration: none; }
+.mk-ref .mk-kv { color: var(--ink); white-space: normal; }
+.mk-ref .mk-kv > i { font-weight: 400; }
 .mk-ref a:hover { text-decoration: underline; }
 
 .mk-grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
@@ -96,6 +107,7 @@
 .mk-tl-mr .l b { font-size: 15px; font-weight: 600; color: var(--ink); }
 .mk-tl-mr.tot .l b { font-weight: 700; }
 .mk-tl-mr small { display: block; margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text3); }
+.mk-tl-mr .v small.mk-kvs { display: flex; justify-content: flex-end; }
 .mk-tl-mr .v { flex: none; text-align: right; font-variant-numeric: tabular-nums; }
 .mk-tl-mr .v b { font-size: 16px; font-weight: 700; color: var(--ink); }
 @media (max-width: 760px) { .mk-tl-t { display: none; } .mk-tl-m { display: block; } }
@@ -176,6 +188,10 @@ a.mk-hd:hover { color: var(--primary); }
 .mz-rank .nm { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); }
 .mz-rank .nm small { margin-left: 8px; font-size: 12px; color: var(--text3); }
 .mz-rank b { flex: none; }
+/* 투자자 순위: 건수·금액을 자리 고정 두 칸으로 */
+.mz-rank .mz-v { flex: none; display: grid; grid-template-columns: 48px 76px; gap: 8px; text-align: right; font-variant-numeric: tabular-nums; }
+.mz-rank .mz-v > span { color: var(--text2); }
+.mz-mkt .st { width: 88px; }
 @media (max-width: 760px) {
   .mz-subrow { margin-top: 16px; }
 }
@@ -207,7 +223,11 @@ a.mk-hd:hover { color: var(--primary); }
   .mk-ref td:nth-child(3) { order: 1; flex: 1 1 100%; margin-top: 2px; font-size: 16px; line-height: 24px; font-weight: 700; color: var(--ink); }
   .mk-ref td:nth-child(2) { order: 2; margin-top: 4px; font-size: 13px; line-height: 18px; }
   .mk-ref td:nth-child(4) { order: 3; margin-top: 4px; font-size: 13px; line-height: 18px; }
-  .mk-ref td:nth-child(4):not(:empty)::before { content: '·'; margin: 0 6px; color: var(--text3); }
+  .mk-ref td:nth-child(4):not(:empty) { margin-left: 12px; }
+  /* 연도별로 나눈 수치는 칸마다 연도가 붙어 있어 기간 줄을 빼고, 연도 라벨은 작게 */
+  .mk-ref td.dup { display: none; }
+  .mk-ref td.dup ~ td:nth-child(4) { margin-left: 0; }
+  .mk-ref .mk-kv > i { font-size: 13px; }
 
   .mk-sub { margin-top: 24px; font-size: 15px; line-height: 22px; color: var(--ink); }
   .mk-foot { padding: 0 16px; line-height: 20px; }

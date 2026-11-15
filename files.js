@@ -175,7 +175,7 @@ function flRowHTML(it) {
     <span class="c-ck">${flLocked(it) ? '' : `<input type="checkbox" class="check" aria-label="${esc(it.name)} 선택" ${flS.sel.has(it.id) ? 'checked' : ''}>`}</span>
     <span class="c-nm">${flIcon(it)}<span class="fl-nmw"><button type="button" class="fl-name" title="${esc(it.name)}">${esc(it.name)}</button>
       ${where !== '' || flS.results ? `<span class="fl-where">${esc(flRel(where) ? `${flM.root} › ${flRel(where).replace(/\//g, ' › ')}` : flM.root)}</span>` : ''}
-      <span class="fl-meta">${flDate(it.lastModifiedDateTime)} · ${flSize(it)}</span></span></span>
+      <span class="fl-meta"><span>${flDate(it.lastModifiedDateTime)}</span><span>${flSize(it)}</span></span></span></span>
     <span class="c-dt">${flDate(it.lastModifiedDateTime)}</span>
     <span class="c-by">${esc(by)}</span>
     <span class="c-sz">${flSize(it)}</span>

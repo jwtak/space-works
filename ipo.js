@@ -204,7 +204,14 @@ function ipoChange(x) {
 function ipoLockCell(x) {
   if (!x.next) return '<span class="muted">–</span>';
   const n = diffDays(x.next.d, today());
-  return `<span class="${n <= 14 ? 'ipo-soon' : ''}">${ipoMd(x.next.d)} · ${n ? `D-${n}` : '오늘'}</span><div class="ipo-sub">${esc(x.next['지분율'] || '')}</div>`;
+  // 날짜와 D-day는 '·'로 잇지 않고 띄워 둔다(줄이 바뀌면 D-day만 다음 줄로 — radar.css .rd-dt·.rd-dd)
+  return `<span class="${n <= 14 ? 'ipo-soon' : ''}"><span class="rd-dt">${ipoMd(x.next.d)}</span><wbr><span class="ipo-dd">${n ? `D-${n}` : '오늘'}</span></span><div class="ipo-sub">${esc(x.next['지분율'] || '')}</div>`;
+}
+// 폰 둘째 줄: 락업 D-day | 사업 내용(radar.css rd-pair). 상장일·시장·작성책임자는 PC 칸과 펼친 칸에
+function ipoPair(x) {
+  const n = x.next ? diffDays(x.next.d, today()) : null;
+  const lock = n == null ? '<span class="muted">–</span>' : `<span class="${n <= 14 ? 'ipo-soon' : ''}">${n ? `D-${n}` : '오늘'}</span>`;
+  return `<div class="rd-pair ipo-pair"><span class="ipo-w1"><span class="rd-lb">락업</span> ${lock}</span><span>${esc(x.product || x.sector) || '<span class="muted">–</span>'}</span></div>`;
 }
 
 function ipoWriterCell(x) {
@@ -234,18 +241,17 @@ function ipoList() {
 
 function ipoRow(x) {
   const open = ipoState.open.has(x.code), st = ipoSt(x.code), f25 = x.fin?.years?.['2025'] || [];
-  // ipo-alt = 카드가 좁아 현재 시총·2025 매출 칸을 접었을 때 회사 칸에 보이는 보조 줄(radar.js rd-alt와 같은 방식)
-  const alt = [x.mcapNow != null && `시총 ${ipoEok(x.mcapNow)} ${ipoChange(x)}`, f25[0] != null && `매출 ${ipoEok(f25[0])}`].filter(Boolean)
-    .map((t, i, a) => `<span>${t}${i < a.length - 1 ? ' ·' : ''}</span>`).join(' ');
+  // 칸마다 값 한 줄(회사 칸 사업 내용, 작성책임자 번호, 락업 지분율만 보조 줄). 시장·공모가 기준 시총·영업이익은 펼친 칸에. 카드가 좁으면 시총·매출 칸을 접는다.
+  // 컨택 상태 칩은 미접촉(기본값)이면 그리지 않는다(2026-11-15 요소 줄이기)
   return `<div class="ipo-row${open ? ' open' : ''}" data-code="${esc(x.code)}">
     <div class="ipo-line ipo-cols">
-      <div class="ipo-c-date">${md(x.listed)}<div class="ipo-sub">${esc(x.market)}</div></div>
-      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${ipoNm(x.name)}</button><div class="ipo-sub">${esc(x.product || x.sector)}</div>${alt ? `<div class="ipo-sub ipo-alt">${alt}</div>` : ''}</div>
-      <div class="ipo-c-cap">${ipoEok(x.mcapNow)} ${ipoChange(x)}<div class="ipo-sub">공모가 기준 ${ipoEok(x.mcapOffer)}</div></div>
-      <div class="ipo-c-rev">${ipoEok(f25[0])}<div class="ipo-sub">영업이익 ${ipoEok(f25[1])}</div></div>
+      <div class="ipo-c-date">${md(x.listed)}</div>
+      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${ipoNm(x.name)}</button><div class="ipo-sub">${esc(x.product || x.sector)}</div>${ipoPair(x)}</div>
+      <div class="ipo-c-cap">${ipoEok(x.mcapNow)} ${ipoChange(x)}</div>
+      <div class="ipo-c-rev">${ipoEok(f25[0])}</div>
       <div class="ipo-c-writer">${ipoWriterCell(x)}</div>
       <div class="ipo-c-lock">${ipoLockCell(x)}</div>
-      <div class="ipo-c-st"><span class="ipo-st s-${IPO_STATUS.indexOf(st)}">${esc(st)}</span><span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span></div>
+      <div class="ipo-c-st">${st === IPO_STATUS[0] ? '' : `<span class="ipo-st s-${IPO_STATUS.indexOf(st)}">${esc(st)}</span>`}<span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span></div>
     </div>${open ? ipoDetail(x) : ''}</div>`;
 }
 
@@ -333,7 +339,8 @@ function ipoPane(x, tab) {
 }
 
 /* 묶음 = 제목 줄 + 본문의 라운드 박스 (모든 하위 탭 공통) */
-const ipoBox = (t, body, sub = '') => `<section class="ipo-box"><div class="ipo-box-h">${t}${sub ? `<span class="muted">${sub}</span>` : ''}</div><div class="ipo-box-b">${body}</div></section>`;
+// sub: 제목 옆 흐린 글. 배열이면 값마다 따로 띄워 둔다('·'로 잇지 않게)
+const ipoBox = (t, body, sub = '') => `<section class="ipo-box"><div class="ipo-box-h">${t}${[].concat(sub).filter(Boolean).map((s) => `<span class="muted">${s}</span>`).join('')}</div><div class="ipo-box-b">${body}</div></section>`;
 const ipoNone = '<p class="ipo-p muted">없음</p>';
 const ipoKv = (k, v) => (v ? `<div class="ipo-kv"><div class="k">${k}</div><div class="v">${v}</div></div>` : '');
 const ipoPerson = (p) => [p?.['직책'], p?.['성명']].filter((s) => s && s !== '확인 필요').map(ipoNm).join(' ');
@@ -370,6 +377,8 @@ function ipoPaneContact(x) {
       ${ipoKv('대표전화', x.phone ? ipoTel(x.phone) : '')}
       ${ipoKv('팩스', esc(x.fax))}
       ${ipoKv('주관사', ipoNm(x.broker))}
+      ${ipoKv('상장일', esc(x.listed))}
+      ${ipoKv('시장', esc(x.market))}
       ${links ? `<div class="ipo-links">${links}</div>` : ''}`;
   return `<div class="ipo-two-col">
     ${ipoBox('컨택 포인트', people)}
@@ -401,9 +410,9 @@ function ipoPaneFin(x) {
   const fv = (y, i) => ipoEokU((fin.years?.[y] || [])[i]);
   return `<div class="ipo-stack">${ipoBox('손익', `<table class="ipo-fin"><thead><tr><th></th>${years.map((y) => `<th>${y}</th>`).join('')}${half ? `<th>${esc(half)}</th>` : ''}</tr></thead>
     <tbody><tr><td>매출</td>${years.map((y) => `<td>${fv(y, 0)}</td>`).join('')}${half ? `<td>${ipoEokU(fin.half.rev)}</td>` : ''}</tr>
-    <tr><td>영업이익</td>${years.map((y) => `<td>${fv(y, 1)}</td>`).join('')}${half ? `<td>${ipoEokU(fin.half.op)}</td>` : ''}</tr></tbody></table>`, `${esc(fin.basis || '')} · 억원`)}
+    <tr><td>영업이익</td>${years.map((y) => `<td>${fv(y, 1)}</td>`).join('')}${half ? `<td>${ipoEokU(fin.half.op)}</td>` : ''}</tr></tbody></table>`, [esc(fin.basis || ''), '억원'])}
     ${ipoBox('유동성', `${ipoKv('현금성자산', esc(fin.cash))}${ipoKv('차입금', esc(fin.debt))}${ipoKv('부채비율', esc(fin.lev))}
-    ${ipoKv('시가총액', `${ipoEok(x.mcapNow)} · 공모가 기준 ${ipoEok(x.mcapOffer)} ${ipoChange(x)}`)}`)}
+    ${ipoKv('시가총액', `${ipoEok(x.mcapNow)} ${ipoChange(x)}`)}${ipoKv('공모가 기준', ipoEok(x.mcapOffer))}`)}
     ${fin.note ? ipoBox('재무 특징', `<p class="ipo-p">${esc(fin.note)}</p>`) : ''}</div>`;
 }
 
@@ -589,8 +598,8 @@ async function ipoHomeBlock() {
   const lim = ymd(addDays(new Date(), 14));
   const list = d.items.filter((x) => x.next && x.next.d <= lim).sort((a, b) => a.next.d.localeCompare(b.next.d));
   const li = (x) => `<li class="click" data-ipo-go="${esc(x.code)}"><span class="time">${ipoMd(x.next.d)}</span>
-    <div class="t"><div class="ttl">${esc(x.name)}</div><div class="meta">${esc([x.next['지분율'], x.writer?.name && `${x.writer.title} ${x.writer.name}`].filter(Boolean).join(' · '))}</div></div>
-    <span class="ipo-st s-${IPO_STATUS.indexOf(ipoSt(x.code))}">${esc(ipoSt(x.code))}</span></li>`;
+    <div class="t"><div class="ttl">${esc(x.name)}</div><div class="meta">${[x.next['지분율'], x.writer?.name && `${x.writer.title} ${x.writer.name}`].filter(Boolean).map((t) => `<span class="ipo-hm">${esc(t)}</span>`).join('')}</div></div>
+    ${ipoSt(x.code) === IPO_STATUS[0] ? '' : `<span class="ipo-st s-${IPO_STATUS.indexOf(ipoSt(x.code))}">${esc(ipoSt(x.code))}</span>`}</li>`;
   return `<section class="card ipo-home">
     <div class="card-head"><h2>신규상장 락업 해제 <span class="n">${list.length}</span></h2><a class="btn sm act" href="#deals/ipo">신규상장 전체 보기</a></div>
     <div class="card-body">${list.length ? `<ul class="list">${list.slice(0, 5).map(li).join('')}</ul>` : '<div class="empty">2주 안에 락업이 풀리는 회사가 없습니다.</div>'}</div></section>`;

@@ -189,7 +189,7 @@ const evIsDefault = () => !EV_FKEYS.some(evChanged) && !evState.q.trim();
 /* ---------- 조각 ---------- */
 const evRange = (e) => (e.start === e.end ? mdw(e.start) : `${md(e.start)}~${md(e.end)}`);
 const evScore = (e) => {
-  const tip = e.scores ? EV_SCORE.filter(([k]) => e.scores[k] != null).map(([k, l]) => `${l} ${e.scores[k]}`).concat(Number(e.penalty) ? [`지역 ${e.penalty}`] : []).join(' · ') : '';
+  const tip = e.scores ? EV_SCORE.filter(([k]) => e.scores[k] != null).map(([k, l]) => `${l} ${e.scores[k]}`).concat(Number(e.penalty) ? [`지역 ${e.penalty}`] : []).join('\n') : '';
   return `<span class="ev-sc t${evTier(e.score)}"${tip ? ` title="${esc(tip)}"` : ''}>${e.score}</span>`;
 };
 const evAway = (e) => (['충청권', '지방', '해외', '온라인'].includes(e.region) ? e.region : '');
@@ -213,54 +213,62 @@ function evWhen(e) {
   return `${y}${mdw(e.start)}${e.end !== e.start ? ` ~ ${mdw(e.end)}` : ''}${e.time ? ` ${esc(e.time)}` : ''}`;
 }
 
-// 목록 날짜는 연도까지 한 줄로(점수순 정렬 때 내년 행사와 섞여도 바로 구분): 26.11.4~11.6, 27.3.10(수)
-const evYmd = (d) => `${d.slice(2, 4)}.${Number(d.slice(5, 7))}.${Number(d.slice(8, 10))}`;
+// 목록 날짜: 올해는 월.일, 다른 해만 연도를 붙인다(점수순 정렬 때 내년 행사와 섞여도 구분): 11.4~11.6, 27.3.10(수)
+const evThisYear = (d) => d.slice(0, 4) === String(new Date().getFullYear());
+const evYmd = (d) => `${evThisYear(d) ? '' : `${d.slice(2, 4)}.`}${Number(d.slice(5, 7))}.${Number(d.slice(8, 10))}`;
 const evMd = (d) => `${Number(d.slice(5, 7))}.${Number(d.slice(8, 10))}`;
+// 등록 마감이 일주일 안이면 칩 하나(목록·요약 창 공통)
+const evDueChip = (e) => { const due = evDue(e); return due && due.n >= 0 && due.n <= 7 && e.end >= today() ? `<span class="chip ev-due">등록 ${due.txt}</span>` : ''; };
 function evDateCell(e) {
-  if (e.extra.estimated) { const m = e.extra.month || e.start; return `<span class="ev-d">${m.slice(2, 4)}년 ${Number(m.slice(5, 7))}월</span><span class="ev-d2">예상</span>`; }
-  const due = evDue(e);
-  const d2 = e.time ? esc(e.time) : '';
+  if (e.extra.estimated) { const m = e.extra.month || e.start; return `<span class="ev-d">${evThisYear(m) ? '' : `${m.slice(2, 4)}년 `}${Number(m.slice(5, 7))}월 예상</span>`; }
   const range = e.start === e.end ? `${evYmd(e.start)}(${WD[parse(e.start).getDay()]})`
     : `${evYmd(e.start)}~${e.end.slice(0, 4) === e.start.slice(0, 4) ? evMd(e.end) : evYmd(e.end)}`;
-  return `<span class="ev-d">${range}</span>${d2 ? `<span class="ev-d2">${d2}</span>` : ''}${due && due.n >= 0 && due.n <= 7 && e.end >= today() ? `<span class="ev-d2 ev-due">등록 ${due.txt}</span>` : ''}`;
+  return `<span class="ev-d">${range}</span>${e.time ? `<span class="ev-d2">${esc(e.time)}</span>` : ''}`;
 }
 
+/* 한 줄 = 관심 별 · 날짜(+시간) · 점수 · 제목 · 장소 · 산업 칸. 유형·주최·지역·숨기기는 펼친 상세로 */
 function evRow(e) {
-  const st = evSt(e.id), open = evState.open.has(e.id), away = evAway(e);
+  const st = evSt(e.id), open = evState.open.has(e.id), due = evDueChip(e);
   return `<div class="ev-row${st ? ` m-${st}` : ''}${open ? ' open' : ''}" data-id="${esc(e.id)}" data-k="${evKey(e)}" data-e="${e.end}">
     <div class="ev-line ev-cols">
       <button type="button" class="ev-star${st === 'star' ? ' on' : ''}" data-mark="star" aria-pressed="${st === 'star'}" aria-label="관심">${EV_STAR}</button>
-      <div class="ev-c-date">${evDateCell(e)}</div>
+      <div class="ev-c-date">${evDateCell(e)}${due}</div>
       <div class="ev-c-sc">${evScore(e)}</div>
       <div class="ev-c-main"><button type="button" class="ev-ttl" aria-expanded="${open}">${esc(e.title)}</button>
-        <div class="ev-sub">${[e.type, e.host].filter(Boolean).map(esc).join(' · ')}</div>
-        <div class="ev-sub ev-mplace">${esc([e.venue, away].filter(Boolean).join(' · '))}</div></div>
-      <div class="ev-c-place"><div class="ev-pv">${esc(e.venue)}</div>${away ? `<div class="ev-sub">${away}</div>` : ''}</div>
-      <div class="ev-c-ind">${esc(e.industry.join(' · '))}</div>
-      <button type="button" class="iconbtn ev-hide" data-mark="pass" aria-label="${st === 'pass' ? '다시 보이기' : '숨기기'}" title="${st === 'pass' ? '다시 보이기' : '숨기기'}">${st === 'pass' ? EV_SHOW : EV_HIDE}</button>
+        ${e.venue ? `<div class="ev-sub ev-mplace">${esc(e.venue)}</div>` : ''}</div>
+      <div class="ev-c-place"><div class="ev-pv">${esc(e.venue)}</div></div>
+      <div class="ev-c-ind">${e.industry.map((x) => `<div>${esc(x)}</div>`).join('')}</div>
     </div>${open ? evDetail(e) : ''}</div>`;
 }
 
 function evDetail(e) {
-  const due = evDue(e), x = e.extra, parts = Array.isArray(x.participants) ? x.participants : [];
+  const due = evDue(e), x = e.extra, parts = Array.isArray(x.participants) ? x.participants : [], st = evSt(e.id);
   const irl = x.ir_links && typeof x.ir_links === 'object' ? x.ir_links : {}; // KIND 묶음 행사: 참가사별 상세 주소(ir.py _kind_links)
-  const row = (k, v) => (v ? `<dt>${k}</dt><dd>${v}</dd>` : '');
+  const row = (k, v, c = '') => (v ? `<dt${c}>${k}</dt><dd${c}>${v}</dd>` : '');
   const link = (u, label) => (/^https?:\/\//i.test(u || '') ? `<a class="btn sm" href="${esc(u)}" target="_blank" rel="noopener">${label}${ico('ext', 'sm')}</a>` : '');
-  const links = (x.estimated ? '' : '<button type="button" class="btn sm ev-addcal" data-evcal>일정에 추가</button>') + link(e.url, '상세 페이지') + link(x.homepage, '홈페이지');
+  const links = (x.estimated ? '' : '<button type="button" class="btn sm ev-addcal" data-evcal>일정에 추가</button>') + link(e.url, '상세 페이지') + link(x.homepage, '홈페이지')
+    + `<button type="button" class="btn sm ev-dhide" data-mark="pass">${st === 'pass' ? EV_SHOW : EV_HIDE}${st === 'pass' ? '다시 보이기' : '숨기기'}</button>`;
+  // 점수: 총점 옆에 항목별 점수를 칸으로(라벨 값)
+  const parts5 = e.scores ? EV_SCORE.filter(([k]) => e.scores[k] != null).map(([k, l]) => [l, e.scores[k]]).concat(Number(e.penalty) ? [['지역', e.penalty]] : []) : [];
+  const score = `<span class="ev-dsc">${evScore(e)}${parts5.map(([l, v]) => `<span class="ev-dsc-i"><i>${l}</i>${esc(String(v))}</span>`).join('')}</span>`;
   return `<div class="ev-detail"><dl>
       ${row('추천 이유', esc(e.reason))}
       ${row('현장 팁', esc(e.tip))}
       ${row('소개', esc(e.desc))}
       ${row('일시', evWhen(e))}
-      ${row('장소', esc([e.venue, e.region !== '미상' && e.region].filter(Boolean).join(' · ')))}
+      ${row('장소', esc(e.venue))}
+      ${row('지역', e.region !== '미상' ? esc(e.region) : '')}
+      ${row('유형', esc(e.type))}
       ${row('주최', esc(e.host))}
+      ${row('산업', esc(e.industry.join(', ')), ' class="ev-dind"')}
+      ${row('점수', score)}
       ${row('대상', esc(e.audience))}
       ${row('참가비', esc(e.fee))}
-      ${row('등록 마감', due ? `${mdw(e.reg_deadline)} · ${due.txt}` : '')}
+      ${row('등록 마감', due ? `<span class="ev-ddue">${mdw(e.reg_deadline)}<span class="chip${due.n >= 0 && due.n <= 7 ? ' ev-due' : ''}">${due.txt}</span></span>` : '')}
       ${row('IR 회사', esc(e.company))}
-      ${row('참가사', parts.length ? `${parts.length}곳 · ${parts.map((n) => (irl[n] ? `<a class="ev-part" href="${esc(irl[n])}" target="_blank" rel="noopener">${esc(n)}</a>` : esc(n))).join(', ')}` : '')}
+      ${row('참가사', parts.length ? `<div class="ev-n">${parts.length}곳</div>${parts.map((n) => (irl[n] ? `<a class="ev-part" href="${esc(irl[n])}" target="_blank" rel="noopener">${esc(n)}</a>` : esc(n))).join(', ')}` : '')}
       ${row('출처', esc(e.sources.join(', ')))}
-    </dl>${links ? `<div class="ev-links">${links}</div>` : ''}</div>`;
+    </dl><div class="ev-links">${links}</div></div>`;
 }
 
 function evRefreshRow(id) {
@@ -338,7 +346,7 @@ function evPopEventHTML(e, back) {
       ${row('장소', esc(e.venue))}
       ${row('주최', esc(e.host))}
       ${row('IR 회사', esc(e.company))}
-      ${row('등록 마감', due ? `${mdw(e.reg_deadline)} · ${due.txt}` : '')}
+      ${row('등록 마감', due ? `<span class="ev-ddue">${mdw(e.reg_deadline)}<span class="chip${due.n >= 0 && due.n <= 7 ? ' ev-due' : ''}">${due.txt}</span></span>` : '')}
     </dl>
     ${e.reason ? `<p class="ev-pop-why">${esc(e.reason)}</p>` : ''}
     <div class="ev-pop-act">
@@ -355,7 +363,7 @@ function evPopDayHTML(k) {
   const its = evDayItems(k), d = parse(k);
   return `<div class="ev-pop-hd"><strong class="ev-pop-day">${d.getMonth() + 1}월 ${d.getDate()}일 (${WD[d.getDay()]})</strong><span class="ev-pop-meta">${its.length}건</span>
       <button class="iconbtn ev-pop-x" type="button" data-pop-x aria-label="닫기">${EV_X}</button></div>
-    ${its.length ? `<ul class="ev-pop-list">${its.map((e) => `<li><button type="button" data-pop-ev="${esc(e.id)}">${evScore(e)}<span class="t">${esc(e.title)}</span><span class="d">${evRange(e)}</span></button></li>`).join('')}</ul>` : '<div class="ev-pop-none">행사가 없습니다.</div>'}`;
+    ${its.length ? `<ul class="ev-pop-list">${its.map((e) => `<li><button type="button" data-pop-ev="${esc(e.id)}"><span class="t">${esc(e.title)}</span><span class="d">${evRange(e)}</span></button></li>`).join('')}</ul>` : '<div class="ev-pop-none">행사가 없습니다.</div>'}`;
 }
 
 function evPopDraw() {
@@ -497,7 +505,7 @@ function evHeadHTML() {
     const flt = k === 'ind' ? (f.inds.length ? String(f.inds.filter((i) => EV_INDS.includes(i)).length) : '') : d.radio && evChanged(d.radio[0]); // 이 칸으로 걸러 보는 중(산업은 고른 개수)
     return `<button type="button" class="ev-hbtn${c}${on ? ' on' : ''}" data-hm="${k}" aria-haspopup="menu" aria-expanded="${evState.hm?.k === k}">${d.label}${k === 'ind' && flt ? `<b>${flt}</b>` : flt ? '<i class="dot"></i>' : ''}${EV_ARROW}</button>`;
   };
-  return `<div class="ev-head ev-cols"><span></span>${h('date')}${h('score')}${h('title')}${h('place', ' ev-c-place')}${h('ind', ' ev-c-ind')}<span></span></div>`;
+  return `<div class="ev-head ev-cols"><span></span>${h('date')}${h('score')}${h('title')}${h('place', ' ev-c-place')}${h('ind', ' ev-c-ind')}</div>`;
 }
 
 function evListHTML(list) {
@@ -647,7 +655,7 @@ async function eventsHomeBlock() {
   const td = today(), lim = ymd(addDays(new Date(), 14));
   const all = d.items.filter((e) => e.score >= 60 && !e.extra.estimated && e.end >= td && e.start <= lim && evSt(e.id) !== 'pass').sort(evByDate);
   const li = (e) => `<li class="click" data-ev-go="${esc(e.id)}"><span class="time">${evRange(e)}</span>
-      <div class="t"><div class="ttl">${esc(e.title)}</div><div class="meta">${[evRel(e), e.venue, evAway(e)].filter(Boolean).map(esc).join(' · ')}</div></div>${evScore(e)}</li>`;
+      <div class="t"><div class="ttl">${esc(e.title)}</div>${e.venue ? `<div class="meta">${esc(e.venue)}</div>` : ''}</div>${/^(오늘|내일|진행 중)$/.test(evRel(e)) ? `<span class="chip blue ev-rel">${evRel(e)}</span>` : ''}</li>`;
   return `<section class="card ev-home">
     <div class="card-head"><h2>다가오는 행사 <span class="n">${all.length}</span></h2><a class="btn sm act" href="${evLink}">전체 보기</a></div>
     <div class="card-body">${all.length ? `${evHomeBrief(all)}<ul class="list">${all.slice(0, 5).map(li).join('')}</ul>` : '<div class="empty">2주 안에 갈 만한 행사가 없습니다.</div>'}</div></section>`;

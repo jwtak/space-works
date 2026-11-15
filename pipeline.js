@@ -561,7 +561,7 @@ function ppCallRow({ x, c, last }) {
     <div class="pp-k-next pp-c-next${cls}">${next}</div>
     <div class="pp-k-name"><button type="button" class="ipo-ttl" data-cp-open>${esc(c.co)}</button>${c.co !== x.name ? `<div class="ipo-sub">${esc(x.name)}</div>` : ''}</div>
     <div class="pp-k-own${x.owner ? '' : ' none'}">${x.owner ? esc(x.owner) : ppDash}</div>
-    <div class="pp-k-tel">${col((k) => `${ppTel(k.tel)}${k.ask || k.when ? `<span class="pp-k-sub">${esc([k.ask, k.when].filter(Boolean).join(', '))}</span>` : ''}`)}</div>
+    <div class="pp-k-tel">${col((k) => `${ppTel(k.tel)}${k.ask || k.when ? `<span class="pp-k-sub">${k.ask ? `<span>${esc(k.ask)}</span>` : ''}${k.when ? `<span class="w">${esc(k.when)}</span>` : ''}</span>` : ''}`)}</div>
     <div class="pp-k-ask${asks ? '' : ' none'}">${col((k) => esc(k.ask))}</div>
     <div class="pp-k-when${whens ? '' : ' none'}">${col((k) => esc(k.when))}</div>
     <div class="pp-k-last${last ? '' : ' none'}">${last ? `${esc(PP_CL_S[last.k] || '')} ${esc(md(last.d))}` : ppDash}</div>
@@ -916,7 +916,7 @@ async function pipeHomeBlock() {
   if (!list.length) return '';
   const li = (x) => {
     const n = diffDays(ppNext(x), today()), when = n < 0 ? `${-n}일 지남` : n === 0 ? '오늘' : n === 1 ? '내일' : ppMd(ppNext(x));
-    const meta = [x.action, x.owner].filter(Boolean).join(' · ');
+    const meta = x.action || ''; // 한 줄에 하나만: 다음 할 일(담당은 파이프라인 목록에)
     return `<li class="click" data-pp-go="${esc(x.id)}"><span class="time${n < 0 ? ' pp-over' : n === 0 ? ' pp-today' : ''}">${esc(when)}</span>
       <div class="t"><div class="ttl">${esc(x.name)}</div>${meta ? `<div class="meta">${esc(meta)}</div>` : ''}</div>${ppChip(ppStage(x))}</li>`;
   };

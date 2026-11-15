@@ -7,7 +7,12 @@
 /* 요약 줄 맨 앞 묶음 토글(K-Beauty Expo 2026) */
 .fs-set button { height: 30px; padding: 0 12px; font-size: 14px; }
 .fs-c-chev { display: flex; justify-content: flex-end; padding-top: 2px; }
-.fs-alt { display: none; }
+/* 좁은 폭·폰 목록 한 건의 수치 두 칸(2025 매출 | 투자 단계): 이름표 위·값 아래, 자리 고정 */
+.fs-mg { display: none; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin: 8px 0 0; font-variant-numeric: tabular-nums; }
+.fs-mg > div { min-width: 0; }
+.fs-mg dt { font-size: 13px; line-height: 18px; color: var(--text3); white-space: nowrap; }
+.fs-mg dd { margin: 2px 0 0; font-size: 15px; line-height: 22px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fs-vsub { font-size: 13px; line-height: 18px; color: var(--text3); }
 .fs-up { color: var(--danger); }
 .fs-dn { color: var(--primary); }
 .fs-chk { color: var(--danger); }
@@ -68,7 +73,7 @@
     #fs-root .fs-c-no::before { content: 'No.'; }
     #fs-root .fs-c-rev, #fs-root .fs-c-grow { display: none; }
     #fs-root .fs-c-stage, #fs-root .fs-c-total { display: none; }
-    #fs-root .fs-alt { display: block; white-space: normal; }
+    #fs-root .fs-mg { display: grid; }
     #fs-root .fs-c-chev { grid-column: 2; grid-row: 2; }
   }
 }
@@ -85,7 +90,7 @@
   .fs-c-no::before { content: 'No.'; }
   .fs-c-grow { display: none; }
   .fs-c-stage, .fs-c-total { display: none; }
-  .fs-alt { display: block; white-space: normal; }
+  .fs-mg { display: grid; }
   .fs-c-chev { grid-column: 2; grid-row: 2; }
   .fs-pics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .fs-inv-pane .ipo-kv { grid-template-columns: 84px minmax(0, 1fr); }
@@ -96,9 +101,7 @@
   .fs-page .fs-c-no::before { content: none; }
   .fs-page .fs-c-name { grid-column: 2; grid-row: 1; }
   .fs-page .fs-c-chev { grid-column: 3; grid-row: 1; }
-  .fs-page .fs-c-name > .ipo-sub { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; margin-top: 2px; font-size: 14px; line-height: 20px; color: var(--text2); }
-  .fs-page .fs-c-name > .ipo-sub.fs-alt { display: block; color: var(--text2); }
-  .fs-page .fs-c-name > .ipo-sub.fs-alt:last-child { color: var(--text3); }
+  .fs-page .fs-c-name > .ipo-sub { margin-top: 2px; font-size: 14px; line-height: 20px; color: var(--text2); }
   .fs-ir { height: 22px; font-size: 13px; }
   .fs-set button { height: 40px; font-size: 15px; }
   .fs-page .ipo-filter .seg button { height: 40px; font-size: 15px; }

@@ -78,16 +78,25 @@ function kmxRow(x) {
   const meta = [x.corp, x.industry].filter(Boolean).map((t) => `<span>${esc(t)}</span>`).join('');
   return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols${kmxColCls(x.side)}">
-      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${esc(x.name || '분류 전 글')}</button>${meta ? `<div class="ipo-sub kmx-meta">${meta}</div>` : ''}</div>
+      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${esc(x.name || '분류 전 글')}</button>${meta ? `<div class="ipo-sub kmx-meta">${meta}</div>` : ''}${kmxPair(x)}</div>
       ${x.side === '매도' ? kmxCell(c2, [x.size, x.price].filter(Boolean).join(', ')) : kmxCell(c2, x.size) + kmxCell(c3, x.want)}
       <div class="kmx-c kmx-pt${x.point ? '' : ' kmx-none'}"><span class="kmx-v rd-clamp">${x.point ? esc(x.point) : '–'}</span></div>
       <div class="ipo-c-st">${kmxChev()}</div>
     </div>${open ? kmxDetail(x) : ''}</div>`;
 }
 
+/* 좁은 카드·폰 목록 둘째 줄(radar.css rd-pair): 매도 = 규모 | 업종, 매수 = 인수 금액 | 찾는 대상. 나머지(회사 성격·업종·특징)는 펼친 칸 위 항목으로 */
+const kmxNa = '<span class="muted">–</span>';
+function kmxPair(x) {
+  const a = x.side === '매도' ? [x.size, x.price].filter(Boolean).join(', ') : x.size, b = x.side === '매도' ? x.industry : x.want;
+  return `<div class="rd-pair"><span class="kmx-w1">${a ? esc(a) : kmxNa}</span><span>${b ? esc(b) : kmxNa}</span></div>`;
+}
+const kmxKv = (k, v) => (v ? `<div class="ipo-kv"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>` : '');
+
 function kmxDetail(x) {
   const link = x.url ? `<div class="ipo-links"><a class="ipo-a" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">원문 보기${ico('ext', 'sm')}</a></div>` : '';
-  return `<div class="ipo-detail">${x.text ? `<p class="ipo-p kmx-text">${esc(x.text)}</p>` : ''}${link}</div>`;
+  const kv = `${kmxKv('회사 성격', x.corp)}${kmxKv('업종', x.industry)}${x.side === '매수' ? kmxKv('찾는 대상', x.want) : ''}${kmxKv('특징', x.point)}`;
+  return `<div class="ipo-detail">${kv ? `<div class="kmx-dkv">${kv}</div>` : ''}${x.text ? `<p class="ipo-p kmx-text">${esc(x.text)}</p>` : ''}${link}</div>`;
 }
 
 function kmxBody() {

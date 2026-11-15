@@ -32,6 +32,8 @@ const maObj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
 const maArr = (v) => (Array.isArray(v) ? v.filter((x) => x && typeof x === 'object') : []);
 const maDay = (v) => { const s = maStr(v).slice(0, 10); return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : ''; };
 const maHttp = (v) => { const s = maStr(v); return /^https?:\/\/\S+$/i.test(s) ? s : ''; };
+// '사업 내용 미상'처럼 모른다는 말은 칸을 비운다(목록에 줄만 늘린다)
+const maSub = (v) => { const s = maStr(v); return /미상|확인 불가|알 수 없/.test(s) ? '' : s; };
 const maYearMap = (v) => Object.fromEntries(Object.entries(maObj(v)).map(([k, x]) => [k, maNum(x)]));
 
 function maNorm(raw) {
@@ -43,7 +45,7 @@ function maNorm(raw) {
     const sources = maArr(x.sources).filter((n) => maStr(n.title) || maHttp(n.url))
       .map((n) => ({ title: maStr(n.title), url: maHttp(n.url), date: maDay(n.date), src: maStr(n.src) })).sort((a, b) => b.date.localeCompare(a.date));
     const o = {
-      id, date: maDay(x.date), dateText: maStr(x.date_text), stage: maStr(x.stage), sector: maStr(x.sector) || 'etc', sub: maStr(x.sub),
+      id, date: maDay(x.date), dateText: maStr(x.date_text), stage: maStr(x.stage), sector: maStr(x.sector) || 'etc', sub: maSub(x.sub),
       target, listed: x.listed === true, buyer: maStr(x.buyer), kind: maStr(x.buyer_kind), seller: maStr(x.seller), sellerKind: maStr(x.seller_kind), type: maStr(x.type),
       stake: maNum(x.stake), stakeText: maStr(x.stake_text), amount: maNum(x.amount), equity100: maNum(x.equity100), netDebt: maNum(x.net_debt), netDebtYear: maStr(x.net_debt_year),
       ev: maNum(x.ev), evBasis: maStr(x.ev_basis), ebitda: maNum(x.ebitda), ebitdaBasis: maStr(x.ebitda_basis), evEbitda: maNum(x.ev_ebitda),
@@ -122,7 +124,7 @@ const MA_COLS = [ // 키, 머리글, 값
   ['evebitda', 'EV/<wbr>EBITDA', (x) => (x.evEbitda != null ? maVal(maX(x.evEbitda), maEst(x, 'ev_ebitda')) : MA_NM)],
   ['evop', 'EV/<wbr>영업이익', (x) => (x.evOp != null ? maVal(maX(x.evOp), maEst(x, 'ev_op')) : MA_NM)],
 ];
-const MA_HEAD = `<div class="ma-head ma-cols"><div class="ma-c-date">거래일</div><div>대상회사</div><div class="ma-c-sub">세부 업종</div><div>매수자</div><div class="ma-c-sell">매도자</div>${MA_COLS.map(([, t]) => `<div>${t}</div>`).join('')}<div></div></div>`;
+const MA_HEAD = `<div class="ma-head ma-cols"><div class="ma-c-date">거래일</div><div>대상회사</div><div class="ma-c-sub">세부 업종</div><div>매수자</div><div class="ma-c-sell">매도자</div>${MA_COLS.map(([k, t]) => `<div class="ma-n-${k}">${t}</div>`).join('')}<div></div></div>`;
 
 /* ---------- 목록 ---------- */
 function maRow(x) {
@@ -131,9 +133,9 @@ function maRow(x) {
   return `<div class="ipo-row ma-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
     <div class="ma-line ma-cols">
       <div class="ma-c-date"><span>${x.date ? yymd(x.date) : '–'}</span>${x.stage ? `<span class="ipo-sub">${esc(x.stage)}</span>` : ''}</div>
-      <div class="ma-c-tgt"><button type="button" class="ipo-ttl" aria-expanded="${open}">${esc(x.target)}</button>${x.listed ? '<span class="ma-tag">상장</span>' : ''}${x.sub ? `<div class="ipo-sub ma-alt">${esc(x.sub)}</div>` : ''}<div class="ipo-sub ma-alt-date">${x.date ? yymd(x.date) : '–'}${x.stage ? ` ${esc(x.stage)}` : ''}</div></div>
+      <div class="ma-c-tgt"><button type="button" class="ipo-ttl" aria-expanded="${open}">${esc(x.target)}</button>${x.listed ? '<span class="ma-tag">상장</span>' : ''}${x.sub ? `<div class="ipo-sub ma-alt">${esc(x.sub)}</div>` : ''}</div>
       <div class="ma-c-sub">${x.sub ? esc(x.sub) : MA_NA}</div>
-      <div class="ma-c-buy"><span class="rd-clamp ma-buyer"${x.buyer ? ` title="${esc(x.buyer)}"` : ''}>${x.buyer ? maBuyer(x.buyer) : MA_NA}</span>${x.kind || x.seller ? `<div class="ma-buy2">${maKind(x.kind)}${x.seller ? `<span class="ipo-sub ma-alt">매도 ${esc(x.seller)}</span>` : ''}</div>` : ''}</div>
+      <div class="ma-c-buy"><span class="rd-clamp ma-buyer"${x.buyer ? ` title="${esc(x.buyer)}"` : ''}>${x.buyer ? maBuyer(x.buyer) : MA_NA}</span>${x.kind ? `<div class="ma-buy2">${maKind(x.kind)}</div>` : ''}</div>
       <div class="ma-c-sell">${x.seller ? esc(x.seller) : MA_NA}</div>
       ${nums}
       <div class="ma-c-chev">${maChev()}</div>
@@ -164,6 +166,8 @@ function maDetail(x) {
   ].join('');
   const val = [
     maKv('100% 가치', eok(x.equity100, 'equity100')),
+    maKv('EV/EBITDA', x.evEbitda != null ? maVal(maX(x.evEbitda), maEst(x, 'ev_ebitda')) : ''),
+    maKv('EV/영업이익', x.evOp != null ? maVal(maX(x.evOp), maEst(x, 'ev_op')) : ''),
     maKv('순차입금', x.netDebt != null ? `${eok(x.netDebt, 'net_debt')}${x.netDebtYear ? ` <span class="muted">${esc(x.netDebtYear)}말</span>` : ''}` : ''),
     maKv('EV 산식', esc(x.evBasis)),
     maKv('EBITDA 기준', x.ebitdaBasis ? `${x.ebitda != null ? `${eok(x.ebitda, 'ebitda')} ` : ''}<span class="muted">${esc(x.ebitdaBasis)}</span>` : eok(x.ebitda, 'ebitda')),
@@ -200,8 +204,8 @@ function maSummary() {
 function maMedHtml() {
   const m = maS.data?.deals.length ? maMed() : null; if (!m) return '';
   const v = (x) => (x != null ? `<b>${maX(x)}</b>` : '<b class="muted">N/M</b>');
-  return `<span class="ma-med-t">${esc(maS.f.sector ? maSecName(maS.f.sector) : '전체 업종')} 중앙값</span>
-    <span>EV/EBITDA ${v(m.evEbitda)}</span><span>EV/영업이익 ${v(m.evOp)}</span><span class="muted">${m.n != null ? `${m.n}건 기준` : ''}</span><span class="ma-unit muted">단위 억원</span>`;
+  return `<span class="ma-med-t">중앙값</span>
+    <span>EV/EBITDA ${v(m.evEbitda)}</span><span>EV/영업이익 ${v(m.evOp)}</span>${m.n != null ? `<span class="muted">표본 ${m.n.toLocaleString('ko-KR')}건</span>` : ''}<span class="ma-unit muted">단위 억원</span>`;
 }
 
 const maSeg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button type="button" data-${attr}="${esc(k)}" class="${cur === k ? 'on' : ''}" aria-pressed="${cur === k}">${esc(l)}</button>`).join('')}</div>`;
@@ -320,7 +324,7 @@ function maInfo() {
         '멀티플의 EBITDA와 영업이익은 거래일이 10~12월이면 그해, 1~9월이면 전년 실적을 씁니다. EBITDA가 0 이하이거나 EV를 모르면 N/M입니다.',
         '감사보고서가 없는 회사는 기사 본문에 나온 매출, 영업이익, EBITDA를 씁니다. 이런 값과 보도 숫자를 역산한 값은 회색 기울임 글씨로 표시합니다.',
         '위 중앙값은 계약, 완료 거래 가운데 멀티플이 있는 것만 셉니다. 매수자, 기간, 검색어를 걸면 그 조건으로 다시 계산합니다.',
-        '행을 누르면 5개 연도 매출과 영업이익, EV 산식, 메모, 출처 기사와 공시가 나옵니다.',
+        '행을 누르면 5개 연도 매출과 영업이익, 매도자, 인수 지분, 멀티플, EV 산식, 메모, 출처 기사와 공시가 나옵니다. 화면이 좁을 때 목록에서 빠지는 칸도 여기 있습니다.',
         '자료는 일주일에 한 번 새로 만듭니다. 기준일이 8일 넘게 지나면 빨간 글씨로 표시합니다.',
       ]],
     ],

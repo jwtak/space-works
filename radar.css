@@ -6,6 +6,8 @@
 
 /* '컨택 상태' 머리글 = 칩 안 글자 시작선(칩 좌우 10) */
 .rd-page .ipo-head > .rd-h-st { padding-left: 10px; }
+/* 미접촉은 칩을 그리지 않으므로 펼침 표시만 남으면 칸 오른쪽 끝에 */
+.rd-page .ipo-c-st > .ipo-chev:only-child { margin-left: auto; }
 .rd-page .ipo-by:empty { display: none; }
 /* 선택 상자가 둘이면(입찰딜 적합도·단계) 오른쪽에 붙여 둔다 */
 .rd-page .ipo-filter .select + .select { margin-left: 0; }
@@ -24,6 +26,16 @@
 .rd-strong { font-weight: 600; }
 .rd-span3 { grid-column: span 3; min-width: 0; }
 .rd-mob, .rd-mi, .rd-alt { display: none; }
+/* 폰 목록 둘째 줄(radar.js rdPair): 값을 '·'로 잇지 않고 폭 고정 칸 + 남은 칸. 넓은 표에서는 숨김 */
+.rd-pair { display: none; }
+.rd-pair > span { flex: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-pair > span:last-child { flex: 1 1 auto; }
+.rd-pair > .rd-w1 { width: 96px; }  /* 주관사(미래에셋증권 84px) */
+.rd-pair > .rd-w2 { width: 104px; } /* 단계·신호와 때(만기 58일 지남 95px) */
+.rd-pair > .rd-w3 { width: 76px; }  /* 만기(158일 지남) */
+.rd-pair > .rd-w4 { width: 64px; }  /* 결성액(1,360억) */
+.rd-lb { color: var(--text3); }
+.rd-alt-i { display: none; } /* 매각희망 날짜 보조 줄 앞 신호(카드가 좁아 신호 칸을 접었을 때만) */
 .rd-link { color: var(--ink); text-decoration: none; }
 .rd-link:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
 .rd-static > .ipo-line { cursor: default; }
@@ -41,10 +53,9 @@
 .rd-grp span { font-size: 13px; color: var(--text3); }
 .ipo-head + .rd-grp { border-top: 0; }
 .rd-grp + .ipo-row { border-top: 0; }
-/* 예심청구 가리기(눈 아이콘): 평소엔 옅게, 행에 올리면 진하게. 가린 회사 목록에서는 파랑(다시 보이기) — 컨택 상태 칸이 28 넓어짐 */
-.rd-hide { width: 28px; height: 28px; flex: none; color: #C4C9D1; }
-.ipo-line:hover .rd-hide { color: var(--text3); }
-.rd-hide:hover { color: var(--ink) !important; }
+/* 상장 준비 가리기·다시 보이기: 펼친 칸 머리(컨택 상태 줄)의 글자 버튼. 가린 회사에서는 파랑 */
+.rd-hide { flex: none; }
+.rd-hide svg { width: 16px; height: 16px; }
 .rd-hide.on { color: var(--primary); }
 
 /* 상자 안 표: 주주(이름 | 지분율 | 구분), 기사(날짜 | 제목 | 매체) */
@@ -102,7 +113,7 @@
   /* 만기 임박 조합: 상태 칸이 없는 6칸 */
   .rd-page .ipo-cols.rd-g6 { grid-template-columns: 80px repeat(5, minmax(0, 1fr)); }
   /* 예심청구 대표전화: 번호가 한 줄에 들어가게 112 아래로 줄이지 않는다(넓으면 다른 칸과 같은 폭) */
-  .rd-yesim .ipo-cols { grid-template-columns: 80px repeat(4, minmax(0, 1fr)) minmax(112px, 1fr) 128px; }
+  .rd-yesim .ipo-cols { grid-template-columns: 80px repeat(4, minmax(0, 1fr)) minmax(112px, 1fr) 100px; }
   /* 필터 버튼이 카드보다 길면 옆으로 숨기지 않고 줄을 바꿔 모두 보이게(칸 사이 1px 선은 간격 + 묶음 바탕색으로 — 줄이 바뀌어도 선이 이어지고 줄마다 꽉 참) */
   .rd-page .ipo-filter .seg { flex-wrap: wrap; background: var(--card); max-width: 100%; overflow: hidden; }
   .rd-page .ipo-filter .seg button { flex: 1 1 auto; }
@@ -123,14 +134,11 @@
     .rd-page .rd-c2 { display: none; }
     .rd-page .rd-alt { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
     .rd-page .rd-span3 { grid-column: span 2; }
+    .rd-page .rd-alt-i { display: inline; }
   }
   /* 765보다 좁으면 펼친 행 상자는 한 줄로(세 탭 공통 — 예심청구는 두 단이면 주주 칸이 155px 안팎으로 줄어 열세 글자 조합 이름 153.7px이 꺾이거나 빠듯하다) */
   @container (max-width: 764px) {
     .rd-page .ipo-two-col { grid-template-columns: minmax(0, 1fr); }
-  }
-  /* 두 칸을 접어도 대표전화는 112 밑으로 줄이지 않는다(700보다 좁으면 아래 여러 줄 배치) */
-  @container (min-width: 700px) and (max-width: 999px) {
-    .rd-yesim .ipo-cols { grid-template-columns: 80px repeat(2, minmax(0, 1fr)) minmax(112px, 1fr) 128px; }
   }
   /* 700보다 좁으면 다섯 칸으로는 회사 칸이 가장 긴 회사 이름(130px)보다 좁아지므로 폰처럼 한 건을 여러 줄로(날짜 / 이름·컨택 상태 / 한 줄 요약) — ipo.css와 같은 방식 */
   @container (max-width: 699px) {
@@ -144,9 +152,10 @@
     .rd-page .ipo-line > .rd-span3 { display: block; grid-column: 1 / -1; font-size: 15px; line-height: 22px; }
     .rd-page .rd-mob { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin-top: 4px; font-size: 14px; line-height: 20px; color: var(--text2); overflow: hidden; overflow-wrap: anywhere; }
     .rd-page .rd-mi { display: block; }
-    /* 예심청구 대표전화는 접지 않고 요약 아래 한 줄로(번호 · 대표) */
-    .rd-yesim .ipo-line > div:nth-child(6) { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; font-size: 14px; color: var(--text2); }
-    .rd-yesim .ipo-line > div:nth-child(6) .ipo-sub { margin-top: 0; min-width: 0; }
+    /* 한 건 = 이름(+ 컨택 상태·펼침) / 둘째 줄(rd-pair) 두 줄. 날짜·업종 보조 줄은 둘째 줄에 들어 있거나 펼친 칸에 */
+    .rd-page .ipo-row:not(.rd-sig) > .ipo-line > div:nth-child(1), .rd-page .ipo-row:not(.rd-static) .ipo-c-name > .ipo-sub { display: none; }
+    .rd-page .ipo-line > .ipo-c-st { grid-column: 2; grid-row: 1; align-self: start; }
+    .rd-page .rd-pair { display: flex; gap: 12px; margin-top: 4px; font-size: 14px; line-height: 20px; color: var(--text2); font-variant-numeric: tabular-nums; }
     /* 기사 표도 폰처럼 제목 한 줄 + 날짜·매체 한 줄 목록으로(날짜·매체가 한 줄에 안 들어가면 매체가 다음 줄로) */
     .rd-page .ipo-tbl.rd-tbl-n, .rd-page .ipo-tbl.rd-tbl-n tbody { display: block; }
     .rd-page .ipo-tbl.rd-tbl-n thead { display: none; }
@@ -226,8 +235,6 @@
   #rd-root .ipo-c-name > .ipo-sub:not(.rd-alt):not(.rd-mi) { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; font-size: 14px; line-height: 20px; color: var(--text2); }
   /* 선택 상자가 둘이면(입찰딜 적합도·단계) 남은 폭을 나눠 한 줄에 */
   #rd-root .ipo-filter .select { flex: 1 1 0; min-width: 0; padding: 0 2px 0 10px; }
-  /* 가리기 눈 아이콘: 손가락으로 누를 수 있게 36 */
-  .rd-hide { width: 36px; height: 36px; margin: -6px -4px -6px 0; }
   /* 펼친 행 하위 탭: 옆으로 숨기지 않고 다음 줄로 */
   #rd-root .ipo-tabs { flex-wrap: wrap; column-gap: 20px; row-gap: 0; }
   .rd-page .ipo-line > .rd-mh { display: none; }
@@ -235,6 +242,10 @@
   .rd-mob { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin-top: 4px; font-size: 14px; line-height: 20px; color: var(--text2); overflow: hidden; overflow-wrap: anywhere; }
   #rd-root .rd-mob { -webkit-line-clamp: 3; } /* 매각희망 매도 후보(조합·운용사) 이름이 잘리지 않게 세 줄까지 */
   .rd-mi { display: block; }
+  /* 한 건 = 이름(+ 컨택 상태·펼침) / 둘째 줄(rd-pair) 두 줄. 날짜·업종 보조 줄은 둘째 줄에 들어 있거나 펼친 칸에 */
+  #rd-root .ipo-row:not(.rd-sig) > .ipo-line > div:nth-child(1), #rd-root .ipo-row:not(.rd-static) .ipo-c-name > .ipo-sub { display: none; }
+  #rd-root .ipo-line > .ipo-c-st { grid-column: 2; grid-row: 1; align-self: start; }
+  #rd-root .rd-pair { display: flex; gap: 12px; margin-top: 4px; font-size: 14px; line-height: 20px; color: var(--text2); font-variant-numeric: tabular-nums; }
   .rd-page .rd-card2 { margin-top: 0; border-top: 8px solid #F2F4F6; }
   .rd-grp { padding: 16px 16px 8px; }
   .rd-page .ipo-dhead > .rd-pipe { height: 40px; justify-content: center; }

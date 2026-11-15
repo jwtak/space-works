@@ -38,6 +38,7 @@
 .dl-card ul.th li + li, .dl-pkb ul.th li + li { margin-top: 4px; }
 .dl-card ul.th:empty, .dl-pkb ul.th:empty { display: none; }
 .dl-card .km, .dl-pkb .km { margin-top: auto; padding-top: 8px; border-top: 1px dashed var(--line); font-size: 13px; line-height: 18px; color: var(--text3); }
+.dl-card .km .dl-kg, .dl-pkb .km .dl-kg { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .dl-card .st, .dl-pkb .st { margin-top: 4px; font-size: 13px; line-height: 18px; color: var(--text2); }
 .dl-card .rk, .dl-pkb .rk { margin-top: 4px; font-size: 13px; line-height: 18px; color: var(--danger); }
 .dl-card .km:empty, .dl-card .st:empty, .dl-card .rk:empty { display: none; }
@@ -54,7 +55,28 @@
 .dl-hist summary:hover { color: var(--ink); }
 .dl-hist .h-run { display: flex; flex-wrap: wrap; gap: 2px 10px; margin: 12px 0 4px; font-weight: 600; }
 .dl-hist .h-sum { font-weight: 400; color: var(--text3); }
-.dl-hist .h-pick { margin-left: 12px; color: var(--text2); }
+.dl-hist .h-pick { margin: 8px 0 0 12px; color: var(--text2); }
+.dl-hist .h-nm { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; }
+.dl-hist .h-nm b { color: var(--ink); }
+.dl-hist .h-nm .cd { font-size: 13px; color: var(--text3); }
+.dl-hist .h-nm .dl-bdg { margin: 0; }
+.dl-hist .h-pick ul { margin: 4px 0 0; padding-left: 17px; }
+
+/* 수치 칸 묶음(AI 추천 지표, 메자닌 최근 3년 합계, 폰 재무): 이름표 위·값 아래, 자리 고정 */
+.dl-kg { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px 12px; margin: 0; font-variant-numeric: tabular-nums; }
+.dl-kg > div { min-width: 0; }
+.dl-kg dt { font-size: 13px; line-height: 18px; color: var(--text3); word-break: keep-all; }
+.dl-kg > .w1 { grid-column: span 2; }
+.dl-kg > .w2 { grid-column: 1 / -1; }
+.dl-kg dd { margin: 2px 0 0; font-size: 15px; line-height: 22px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ipo-box-b > .dl-kg + * { margin-top: 12px; }
+/* 펼친 칸 값 아래 보조 줄(종가·적용 시점·시총 대비) */
+.dl-vsub { font-size: 13px; line-height: 18px; color: var(--text3); }
+/* 폰 전용 재무 상자: 항목 | 세 해, 전부 왼쪽 */
+.dl-mfin { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-bottom: 12px; font-size: 15px; line-height: 22px; font-variant-numeric: tabular-nums; }
+.dl-mfin > span { padding: 8px 12px 8px 0; border-bottom: 1px solid var(--row); white-space: nowrap; }
+.dl-mfin > .h { padding-top: 0; font-size: 14px; font-weight: 600; color: var(--text3); border-bottom-color: var(--line); }
+.dl-mfin > .k { font-size: 14px; color: var(--text3); }
 
 /* 조건 줄: 검색 · 체크 셋 · 단계·시장 · 엑셀 · 오른쪽 개수 */
 .dl-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 12px; }
@@ -162,7 +184,7 @@
   .dl-hist summary { padding: 10px 0; }
   .dl-hist .h-run { margin-top: 16px; }
   .dl-hist .h-sum { flex-basis: 100%; }
-  .dl-hist .h-pick { margin: 8px 0 0; color: var(--text2); }
+  .dl-hist .h-pick { margin: 12px 0 0; color: var(--text2); }
 
   .dl-ctl { margin: 12px 16px; gap: 4px 16px; }
   .dl-ctl .dl-q { flex: 1 1 100%; margin-bottom: 4px; }
@@ -182,7 +204,6 @@
   .dl-m1 .dl-ttl { font-size: 17px; line-height: 24px; }
   .dl-tbl .dl-m1 .dl-cd { margin-left: 0; font-size: 14px; }
   .dl-m2 { display: flex; flex-wrap: wrap; gap: 0 6px; margin-top: 2px; font-size: 14px; line-height: 20px; color: var(--text3); }
-  .dl-m2 > span + .dl-m2s::before { content: '·'; margin-right: 6px; }
   .dl-mg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 12px; margin: 12px 0 0; padding: 12px 0 0; border-top: 1px solid var(--row); font-variant-numeric: tabular-nums; }
   .dl-mg > div { min-width: 0; }
   .dl-mg dt { font-size: 13px; line-height: 18px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

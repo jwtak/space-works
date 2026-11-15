@@ -188,7 +188,7 @@ const STORE = {
     let text = await STORE.dcGet(rel, m.eTag);
     if (text == null) {
       const dl = m['@microsoft.graph.downloadUrl'];
-      if (dl) try { const r = await fetch(dl, { cache: 'no-store' }); if (r.ok) text = await r.text(); } catch { /* 아래 /content로 */ }
+      if (dl) try { const r = await fetch(dl, { cache: 'no-store', signal: AbortSignal.timeout ? AbortSignal.timeout(20000) : undefined }); if (r.ok) text = await r.text(); } catch { /* 늦거나 실패하면 아래 /content로 */ }
       if (text == null) { const sh = STORE.sharedItem(rel); text = await G.get(sh ? `${sh}/content` : `${STORE.path(rel)}:/content`, { type: 'text' }); }
       STORE.dcPut(rel, m.eTag, text);
     }

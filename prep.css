@@ -4,8 +4,10 @@
 .pr-who.me { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary) inset; }
 .pr-who.co { background: var(--hover); }
 .pr-who-h { display: flex; align-items: center; gap: 6px; min-height: 22px; }
-.pr-who-h b { font-weight: 600; }
-.pr-who-h span { font-size: 13px; color: var(--text3); }
+.pr-who-h b { flex: none; font-weight: 600; white-space: nowrap; }
+.pr-who-h span { min-width: 0; font-size: 13px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* PC 사람 카드는 폭이 좁아 직함은 이름에 마우스를 올렸을 때만(폰은 2열이라 그대로) */
+@media (min-width: 761px) { .pr-who-h .pr-role { display: none; } }
 .pr-who .pr-fd { margin-left: auto; color: var(--text3); display: inline-flex; padding: 2px; border-radius: 6px; }
 .pr-who .pr-fd:hover { color: var(--primary); background: var(--primary-soft); }
 .pr-who-n { display: flex; align-items: center; gap: 8px; margin: 6px 0 8px; color: var(--text3); }
@@ -49,6 +51,10 @@
 .pr-madd { display: inline-flex; align-items: center; gap: 3px; height: 24px; padding: 0 9px 0 6px; border: 1px solid var(--line2); border-radius: 12px; background: var(--card); color: var(--text2); font-size: 13px; font-weight: 500; cursor: pointer; }
 .pr-madd svg.i { width: 14px; height: 14px; }
 .pr-madd:hover { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+/* PC: 행마다 붙는 '메모' 버튼은 그 행에 마우스를 올리거나 포커스했을 때만 */
+@media (hover: hover) and (min-width: 761px) {
+  .pr-tbl tr:not(:hover):not(:focus-within) .pr-madd, .pr-co li:not(:hover):not(:focus-within) .pr-madd { visibility: hidden; }
+}
 .pr-memo { display: block; width: 100%; text-align: left; margin-top: 6px; padding: 6px 10px; border: 0; border-radius: 8px; background: #FFF8EC; cursor: pointer; font-size: 14px; line-height: 19px; }
 .pr-memo:hover { background: #FCEFD6; }
 .pr-mt { white-space: pre-wrap; word-break: break-word; color: var(--ink); }

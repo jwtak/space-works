@@ -246,7 +246,7 @@ const peUpDn = (v, s) => (peNum(v) == null || v === 0 ? s : `<span class="${v > 
 const peNm = (s) => esc(s).replace(/[A-Za-z0-9]-(?=\d)|-(?=[A-Za-z(가-힣ㄱ-ㅣ一-鿿])|·(?=[가-힣ㄱ-ㅣ一-鿿])/g, '$&<wbr>');
 const peMd = (s) => (peDay(s) ? yymd(s) : '');
 const peByText = (m) => (m && typeof m.at === 'string' && m.at ? `${peStr(m.by)} ${peMd(m.at.slice(0, 10))} ${m.at.slice(11, 16)}`.trim() : '');
-const peChip = (st) => `<span class="ipo-st s-${PE_STATUS.indexOf(st)}">${esc(st)}</span>`;
+const peChip = (st) => (st === PE_STATUS[0] ? '' : `<span class="ipo-st s-${PE_STATUS.indexOf(st)}">${esc(st)}</span>`); // 기본값 '미접촉'은 칩 없이(상장·매물 화면과 같게, 컨택한 곳은 아래 묶음으로 내려감)
 const peChev = () => `<span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span>`;
 const peTeam = (x) => (x.team ? '<span class="rd-fs-tag">팀 리스트</span>' : '');
 const peBox = (t, body, sub = '', cls = '') => `<section class="ipo-box${cls ? ` ${cls}` : ''}"><div class="ipo-box-h">${t}${sub ? `<span class="muted">${sub}</span>` : ''}</div><div class="ipo-box-b">${body}</div></section>`;
@@ -301,35 +301,38 @@ function peSink(list) {
   if (!low.length) return list;
   return [...list.filter((x) => !low.includes(x)), { low: true, n: low.length }, ...low];
 }
-const peLowRow = (x) => `<div class="rd-grp rd-low"><b>컨택·검토한 곳</b><span>${x.n}곳 · 연락함·미팅·보류·검토 완료</span></div>`;
+const peLowRow = (x) => `<div class="rd-grp rd-low"><b>컨택·검토한 곳</b><span>${x.n}곳</span></div>`;
 
 /* 오너기업: 점수 | 회사 | 최근 매출 | 영업이익률 | 최대주주 | 업력 | 신호 | 컨택 상태
    카드가 좁으면 업력·신호 칸(rd-c2)을 접어 회사 칸 보조 줄(rd-alt)로, 더 좁으면 한 건을 여러 줄로(rd-mob) — radar.css 배치 */
 const PE_HEIR_HEAD = '<div class="ipo-head ipo-cols"><div>점수</div><div>회사</div><div>최근 매출</div><div>영업이익률</div><div>최대주주</div><div class="rd-c2">업력</div><div class="rd-c2">신호</div><div class="rd-h-st">컨택 상태</div></div>';
 
+// 최대주주 칸: 이름·지분 + 구분(개인 합계·상장 모회사는 펼친 행 '주주' 상자에)
 function peHolder(x) {
   const t = x.top;
-  if (!t) return { main: PE_NA, sub: '', mob: '' };
-  const pct = t.pct != null ? ` ${pePct(t.pct)}` : '';
-  const sub = [t.kind, t.kind === '개인' && x.ownerPct != null ? `개인 합계 ${pePct(x.ownerPct)}` : '', x.parent?.code ? `상장 ${x.parent.code}` : ''].filter(Boolean).join(' · ');
-  return { main: `${peNm(t.name)}${pct}`, sub: esc(sub), mob: `${esc(t.name)}${pct}${t.kind ? ` ${esc(t.kind)}` : ''}` };
+  if (!t) return { main: PE_NA, sub: '' };
+  return { main: `${peNm(t.name)}${t.pct != null ? ` ${pePct(t.pct)}` : ''}`, sub: esc(t.kind) };
 }
-// 신호 글: 업력은 따로 보여 주므로 '업력 …' 신호는 뺀다
-const peSigs = (x) => esc(x.signals.filter((t) => !(x.years != null && /^업력/.test(t))).join(' · '));
+// 신호 칸: 업력은 따로 보여 주므로 '업력 …' 신호는 빼고 한 줄에 하나씩 두 줄까지(전부는 펼친 행 '회사' 상자)
+const peSigs = (x) => x.signals.filter((t) => !(x.years != null && /^업력/.test(t)));
+// 좁은 폭·폰 목록 한 건의 수치 칸(이름표 위·값 아래, 자리 고정)
+const peMg = (cells) => `<dl class="pe-mg">${cells.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>`;
 
 function peHeirRow(x) {
-  const open = peS.heir.open.has(x.id), st = peSt(x.key), f = x.last, h = peHolder(x), sig = peSigs(x);
-  const rs = x.reasons.join(', '), alt = [x.years != null ? `업력 ${x.years}년` : '', sig].filter(Boolean).join(' · ');
-  const mob = [f ? `매출 ${peEok(f.rev)}` : '', x.opm != null ? `OPM ${peDn(x.opm, pePct(x.opm))}` : '', h.mob, x.years != null ? `업력 ${x.years}년` : ''].filter(Boolean).join(' · ');
+  const s = peS.heir, open = s.open.has(x.id), st = peSt(x.key), f = x.last, h = peHolder(x), sig = peSigs(x);
+  const rs = x.reasons.join(', ');
+  // 통과·근접 필터가 걸려 있으면 판정은 행마다 되풀이하지 않는다
+  const pass = s.f === 'all' ? `<div class="ipo-sub"${!x.pass && rs ? ` title="${esc(rs)}"` : ''}>${x.pass ? '통과' : '근접'}</div>` : '';
+  const mg = peMg([['매출', f ? peEok(f.rev) : PE_NA], ['OPM', x.opm != null ? peDn(x.opm, pePct(x.opm)) : PE_NA]]);
   return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
-      <div>${x.score != null ? `${peFmt(x.score, 0)}점` : PE_NA}<div class="ipo-sub"${!x.pass && rs ? ` title="${esc(rs)}"` : ''}>${x.pass ? '통과' : '근접'}</div></div>
-      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${peNm(x.name)}</button>${peTeam(x)}<div class="ipo-sub">${esc([x.induty, x.region].filter(Boolean).join(' · '))}</div>${alt ? `<div class="ipo-sub rd-alt">${alt}</div>` : ''}${mob ? `<div class="rd-mob">${mob}</div>` : ''}${sig ? `<div class="rd-mob">${sig}</div>` : ''}</div>
+      <div>${x.score != null ? `${peFmt(x.score, 0)}점` : PE_NA}${pass}</div>
+      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${peNm(x.name)}</button>${s.team ? '' : peTeam(x)}${x.induty ? `<div class="ipo-sub">${esc(x.induty)}</div>` : ''}${mg}</div>
       <div class="rd-mh">${f ? peEok(f.rev) : PE_NA}<div class="ipo-sub">${f ? esc(f.y) : ''}</div></div>
       <div class="rd-mh">${x.opm != null ? peDn(x.opm, pePct(x.opm)) : PE_NA}<div class="ipo-sub">${f?.op != null ? `영업이익 ${peDn(f.op, peEok(f.op))}` : ''}</div></div>
       <div class="rd-mh">${h.main}<div class="ipo-sub">${h.sub}</div></div>
       <div class="rd-mh rd-c2">${x.years != null ? `${x.years}년` : PE_NA}<div class="ipo-sub">${x.est ? `${x.est.slice(0, 4)} 설립` : ''}</div></div>
-      <div class="rd-mh rd-c2">${sig ? `<div class="rd-clamp">${sig}</div>` : PE_NA}</div>
+      <div class="rd-mh rd-c2">${sig.length ? `<div class="pe-sigl">${sig.slice(0, 2).map((t) => `<span>${esc(t)}</span>`).join('')}</div>` : PE_NA}</div>
       <div class="ipo-c-st">${peChip(st)}${peChev()}</div>
     </div>${open ? peHeirDetail(x) : ''}</div>`;
 }
@@ -337,21 +340,21 @@ function peHeirRow(x) {
 /* 중복상장: 날짜(최근 신호) | 자회사 | 딜 상태 | 모회사 | 최근 신호 | 최근 매출 | 컨택 상태 — radar.css 일곱 칸 그대로 */
 const PE_DUP_HEAD = '<div class="ipo-head ipo-cols"><div>날짜</div><div>자회사</div><div class="pe-h-chip">딜 상태</div><div class="rd-c2">모회사</div><div>최근 신호</div><div class="rd-c2">최근 매출</div><div class="rd-h-st">컨택 상태</div></div>';
 
-function peParentLine(x) {
-  const p = x.parent;
-  return [p.name ? `${peNm(p.name)}${p.pct != null ? ` ${pePct(p.pct)}` : ''}` : '', p.mcap != null ? `시총 ${peEok(p.mcap)}` : ''].filter(Boolean).join(' · ');
-}
+// 신호 글 앞에 종류가 또 붙어 있으면('상장 추진 · [더벨]…') 떼고 보인다 — 종류는 날짜 칸 아래에 있다
+const peSgText = (sg) => (sg?.text ? (sg.type ? sg.text.replace(new RegExp(`^${sg.type.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*[·:|/-]\\s*`), '') : sg.text) : '');
 
 function peDupRow(x) {
-  const open = peS.dup.open.has(x.id), st = peSt(x.key), sg = x.signals[0], f = x.last, p = x.parent;
-  const pl = peParentLine(x);
+  const s = peS.dup, open = s.open.has(x.id), st = peSt(x.key), sg = x.signals[0], f = x.last, p = x.parent, sgt = peSgText(sg);
+  // 딜 상태 필터가 한 가지(실제 매물·진행 중 …)로 걸려 있으면 이름 옆 칩은 되풀이라 뺀다
+  const nchip = x.status && (s.f === 'all' || s.f === 'live') ? `<span class="pe-ds pe-nchip${peDsCls(x.sg)}">${esc(x.status)}</span>` : '';
+  const pn = p.name ? `${peNm(p.name)}${p.pct != null ? ` ${pePct(p.pct)}` : ''}` : '';
   return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div>${peMd(x.lastDay) || PE_NA}<div class="ipo-sub">${esc(sg?.type || '')}</div></div>
-      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${peNm(x.name)}</button>${x.status ? `<span class="pe-ds pe-nchip${peDsCls(x.sg)}">${esc(x.status)}</span>` : ''}${peTeam(x)}<div class="ipo-sub">${esc(x.biz)}</div>${pl ? `<div class="ipo-sub rd-alt">${pl}</div>` : ''}${pl ? `<div class="rd-mob">${pl}</div>` : ''}${sg?.text ? `<div class="rd-mob">${esc(sg.text)}</div>` : ''}</div>
+      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${peNm(x.name)}</button>${nchip}${s.team ? '' : peTeam(x)}<div class="ipo-sub pe-biz">${esc(x.biz)}</div>${pn ? `<div class="ipo-sub rd-alt">${pn}</div>` : ''}${sgt ? `<div class="pe-msig">${esc(sgt)}</div>` : ''}${pn ? peMg([['모회사', p.name ? peNm(p.name) : PE_NA], ['지분율', p.pct != null ? pePct(p.pct) : PE_NA]]) : ''}</div>
       <div class="rd-mh">${peDs(x)}</div>
-      <div class="rd-mh rd-c2">${p.name ? peNm(p.name) : PE_NA}<div class="ipo-sub">${[p.mcap != null ? `시총 ${peEok(p.mcap)}` : '', p.pct != null ? `지분 ${pePct(p.pct)}` : ''].filter(Boolean).join(' · ')}</div></div>
-      <div class="rd-mh">${sg?.text ? `<div class="rd-clamp">${esc(sg.text)}</div>` : PE_NA}</div>
+      <div class="rd-mh rd-c2">${p.name ? peNm(p.name) : PE_NA}<div class="ipo-sub">${p.pct != null ? `지분 ${pePct(p.pct)}` : ''}</div></div>
+      <div class="rd-mh">${sgt ? `<div class="rd-clamp">${esc(sgt)}</div>` : PE_NA}</div>
       <div class="rd-mh rd-c2">${f ? peDn(f.rev, peEok(f.rev)) : PE_NA}<div class="ipo-sub">${f?.op != null ? `영업이익 ${peDn(f.op, peEok(f.op))}` : ''}</div></div>
       <div class="ipo-c-st">${peChip(st)}${peChev()}</div>
     </div>${open ? peDupDetail(x) : ''}</div>`;
@@ -389,33 +392,34 @@ function peFinBox(fin, sub, src = '') {
   const tbl = `<table class="ipo-tbl pe-fin"><thead><tr><th>억 원</th>${fin.map((f) => `<th>${esc(f.y)}</th>`).join('')}</tr></thead><tbody>
     ${row('매출액', (f) => n(f.rev), 'rev')}${row('영업이익', (f) => n(f.op), 'op')}${row('OPM', (f) => (opm(f) == null ? '–' : peDn(opm(f), pePct(opm(f)))), 'op', 'r')}${row('당기순이익', (f) => n(f.ni), 'ni')}
     </tbody></table>`;
-  const list = `<ul class="pe-finm">${[...fin].reverse().map((f) => `<li><b>${esc(f.y)}</b>${[`매출 ${peEok(f.rev)}`, f.op != null ? `영업이익 ${peDn(f.op, peEok(f.op))}` : '', opm(f) != null ? `OPM ${peDn(opm(f), pePct(opm(f)))}` : '', f.ni != null ? `순이익 ${peDn(f.ni, peEok(f.ni))}` : ''].filter(Boolean).join(' · ')}</li>`).join('')}</ul>`;
+  const list = `<ul class="pe-finm">${[...fin].reverse().map((f) => `<li><b>${esc(f.y)}</b>${peMg([['매출', peEok(f.rev)], ['영업이익', f.op != null ? peDn(f.op, peEok(f.op)) : '–'], ['OPM', opm(f) != null ? peDn(opm(f), pePct(opm(f))) : '–'], ['순이익', f.ni != null ? peDn(f.ni, peEok(f.ni)) : '–']])}</li>`).join('')}</ul>`;
   return peBox('재무', tbl + list + (src ? `<p class="pe-finsrc">${esc(src)}</p>` : ''), sub);
 }
+// 항목 여러 개(신호·탈락 이유·메자닌·출처)는 한 줄에 잇지 않고 줄마다 하나씩
+const peLines = (a) => a.map((t) => `<div>${esc(t)}</div>`).join('');
 
 function peHeirDetail(x) {
-  const sum = [x.induty, x.ceo ? `대표 ${x.ceo}` : '', x.region].filter(Boolean).join(' · ');
-  const finSub = [PE_FS[x.fs] || x.fs, x.cagr != null ? `매출 CAGR ${peUpDn(x.cagr, pePct(x.cagr))}` : ''].filter(Boolean).join(' · ');
+  const finSub = esc(PE_FS[x.fs] || x.fs);
   const holders = x.holders.length ? `<table class="ipo-tbl rd-tbl-h"><thead><tr><th>주주</th><th>지분율</th><th>구분</th></tr></thead><tbody>${x.holders.map((h) => `<tr><td>${peNm(h.name)}</td><td>${h.pct != null ? pePct(h.pct) : '–'}</td><td>${esc(h.kind)}</td></tr>`).join('')}</tbody></table>` : PE_NONE;
-  const hSub = [x.ownerPct != null ? `개인 합계 ${pePct(x.ownerPct)}` : '', x.family > 1 ? `같은 성 ${x.family}명` : ''].filter(Boolean).join(' · ');
-  const parent = x.parent ? peKv('모회사', `${peNm(x.parent.name)}${x.parent.code ? ` · 상장 ${esc(x.parent.code)}` : ''}`) : '';
+  const hKv = `${peKv('개인 합계', x.ownerPct != null ? pePct(x.ownerPct) : '')}${peKv('같은 성', x.family > 1 ? `${x.family}명` : '')}`;
+  const parent = x.parent ? `${peKv('모회사', peNm(x.parent.name))}${peKv('상장 코드', esc(x.parent.code))}` : '';
   const cash = `${peKv('현금성자산', x.cash != null ? peEok(x.cash) : PE_NA)}${peKv('차입금', x.debt != null ? peEok(x.debt) : PE_NA)}${peKv('순현금', x.netCash != null ? peDn(x.netCash, peEok(x.netCash)) : PE_NA)}
-    ${peKv('메자닌', x.mezz.length ? esc(x.mezz.join(' · ')) : '없음')}${peKv('FI', x.fi.length ? x.fi.map(peNm).join(', ') : '없음')}`;
+    ${peKv('메자닌', x.mezz.length ? peLines(x.mezz) : '없음')}${peKv('FI', x.fi.length ? x.fi.map(peNm).join(', ') : '없음')}`;
   const links = [x.dart ? peA(x.dart, 'DART 감사보고서') : '', peA(`https://dart.fss.or.kr/dsab007/main.do?option=corp&textCrpNm=${encodeURIComponent(x.name)}`, 'DART 검색')].join('');
-  const co = `${peKv('판정', `${x.pass ? '통과' : '근접'}${x.score != null ? ` · ${peFmt(x.score, 0)}점` : ''}`)}${peKv('탈락 이유', x.reasons.length ? esc(x.reasons.join(' · ')) : '')}
-    ${peKv('대표', peNm(x.ceo))}${peKv('설립', [x.est, x.years != null ? `업력 ${x.years}년` : ''].filter(Boolean).join(' · '))}${peKv('업종', esc(x.induty))}${peKv('지역', esc(x.region))}${peKv('감사인', esc(x.auditor))}
-    ${peKv('신호', x.signals.length ? esc(x.signals.join(' · ')) : '')}<div class="ipo-links">${links}</div>`;
-  return `<div class="ipo-detail">${peDhead(x, sum)}
+  const co = `${peKv('판정', x.pass ? '통과' : '근접')}${peKv('점수', x.score != null ? `${peFmt(x.score, 0)}점` : '')}${peKv('탈락 이유', x.reasons.length ? peLines(x.reasons) : '')}
+    ${peKv('대표', peNm(x.ceo))}${peKv('설립', esc(x.est))}${peKv('업력', x.years != null ? `${x.years}년` : '')}${peKv('업종', esc(x.induty))}${peKv('지역', esc(x.region))}${peKv('감사인', esc(x.auditor))}
+    ${peKv('매출 CAGR', x.cagr != null ? peUpDn(x.cagr, pePct(x.cagr)) : '')}${peKv('신호', x.signals.length ? peLines(x.signals) : '')}<div class="ipo-links">${links}</div>`;
+  return `<div class="ipo-detail">${peDhead(x, '')}
     <div class="ipo-pane">${fqBox(x.key, x, '오너기업')}<div class="ipo-two-col">
       <div class="ipo-stack">${peFinBox(x.fin, finSub)}${peBox('현금·차입', cash)}</div>
-      <div class="ipo-stack">${peBox('주주', holders + parent, hSub)}${peBox('회사', co)}</div>
+      <div class="ipo-stack">${peBox('주주', holders + (hKv || parent ? `<div class="pe-hkv">${hKv}${parent}</div>` : ''))}${peBox('회사', co)}</div>
     </div></div>
   </div>`;
 }
 
 function peDupDetail(x) {
   const p = x.parent;
-  const deal = `${peKv('딜 상태', peDs(x))}${peKv('FI', esc(x.fi))}${peKv('IPO', esc(x.ipo))}${peKv('딜 현황', esc(x.deal))}${peKv('출처', esc(x.src.join(' · ')))}${peKv('처음 본 날', esc(x.first))}`;
+  const deal = `${peKv('딜 상태', peDs(x))}${peKv('FI', esc(x.fi))}${peKv('IPO', esc(x.ipo))}${peKv('딜 현황', esc(x.deal))}${peKv('출처', peLines(x.src))}${peKv('처음 본 날', esc(x.first))}`;
   const links = [peA(`https://dart.fss.or.kr/dsab007/main.do?option=corp&textCrpNm=${encodeURIComponent(x.name)}`, 'DART 검색'),
     /^\d{6}$/.test(p.code) ? peA(`https://finance.naver.com/item/main.naver?code=${encodeURIComponent(p.code)}`, '모회사 네이버 금융') : '',
     /^\d{6}$/.test(p.code) && peDlOk() ? `<span class="pe-dl" data-pe-dls="${esc(p.code)}">${peDlLink(p.code)}</span>` : ''].join('');

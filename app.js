@@ -96,7 +96,7 @@ function evOwners(e) {
   return m ? PEOPLE.filter((p) => m[1].includes(p)) : [];
 }
 const myTitle = () => S?.me?.jobTitle || (TITLES[(G.account?.username || '').toLowerCase()] || [])[1] || '';
-const myRole = () => [S?.me?.department || (TITLES[(G.account?.username || '').toLowerCase()] || [])[0], myTitle()].filter(Boolean).join(' · ');
+const myRole = () => [S?.me?.department || (TITLES[(G.account?.username || '').toLowerCase()] || [])[0], myTitle()].filter(Boolean).join(' ');
 function meChrome() {
   const b = $('#me'); if (!b) return;
   const n = myName();
@@ -309,7 +309,7 @@ async function mailNotify() {
     if (route() === 'mail' && ui.mail?.folder === 'inbox' && !ui.mail.q && ui.mail.view !== 'read' && !ui.mail.compose) mailLoadList();
     for (const x of fresh) {
       const who = x.from?.emailAddress?.name || x.from?.emailAddress?.address || '';
-      if (document.hasFocus()) { toast(`새 메일 · ${who} · ${x.subject || '(제목 없음)'}`); continue; }
+      if (document.hasFocus()) { toast(`${who || '새 메일'}: ${x.subject || '(제목 없음)'}`); continue; }
       if (Notification.permission !== 'granted') continue;
       const n = new Notification(who || '새 메일', { body: x.subject || '(제목 없음)', tag: x.id, icon: 'icons/icon-192.png' });
       n.onclick = () => { window.focus(); n.close(); mailGoto(x.id); };
@@ -456,7 +456,7 @@ function dueInfo(t) {
   if (!t.due) return { cls: '', txt: '' };
   const d = diffDays(t.due, today());
   if (t.done) return { cls: '', txt: md(t.due) };
-  if (d < 0) return { cls: 'over', txt: `${md(t.due)} · ${-d}일 지남` };
+  if (d < 0) return { cls: 'over', txt: `${-d}일 지남` };
   if (d === 0) return { cls: 'today', txt: '오늘' };
   if (d === 1) return { cls: '', txt: '내일' };
   return { cls: '', txt: mdw(t.due) };
@@ -486,43 +486,32 @@ function renderHome() {
   const ms = S.milestones.items.filter((m) => m.date >= td).sort((x, y) => x.date.localeCompare(y.date)).slice(0, 2);
   const prog = S.programs.items.filter((p) => ['설계', '개발 중'].includes(p.status));
   const b = S.briefing, bt = b.mtime ? new Date(b.mtime * 1000) : null;
-  const tile = (color, icon, title, value, sub, tab) => `<a class="tile ${color}" href="#todos"${tab ? ` data-tab-link="${tab}"` : ''}>
-    <div class="top"><span class="h">${title}</span><span class="ic">${ico(icon)}</span></div>
+  const tile = (color, title, value, sub) => `<a class="tile ${color}" href="#calendar">
+    <div class="top"><span class="h">${title}</span></div>
     <div><div class="v">${value}</div><div class="s2">${sub}</div></div></a>`;
 
   PAGE.innerHTML = `
     <div class="home">
       <div class="col">
-        <section class="sec-hello m-only">
-          <div class="dt">${d.getMonth() + 1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일</div>
-          <div class="sub">${greet(d.getHours())}${G.isOwner ? ` · Day-${workDay(td)}` : ''}</div>
-          <div class="chips">
-            ${ms.map((m) => `<span class="dchip">${esc(m.title.replace(/\s*\(.*\)$/, ''))} <b>D-${diffDays(m.date, td)}</b></span>`).join('')}
-            <a class="dchip blue" href="#todos" data-tab-link="today">오늘 마감 <b>${dueToday.length}</b></a>
-            <a class="dchip ${over.length ? 'red' : ''}" href="#todos" data-tab-link="over">기한 지남 <b>${over.length}</b></a>
-          </div>
-        </section>
         <section class="card sec-month" id="home-month"></section>
-        <section class="card sec-tiles">
-          <div class="card-head"><h2>주요 현황</h2></div>
+        ${ms.length ? `<section class="card sec-tiles">
+          <div class="card-head"><h2>D-day</h2></div>
           <div class="tiles">
-            ${ms.map((m, i) => tile(i ? 'violet' : 'blue', 'flag', esc(m.title.replace(/\s*\(.*\)$/, '')), `D-${diffDays(m.date, td)}`, mdw(m.date))).join('')}
-            ${tile('amber', 'clock', '오늘 마감', `${dueToday.length}<small>건</small>`, `7일 안 ${soon.length}건`, 'today')}
-            ${tile(over.length ? 'red' : 'green', over.length ? 'alert' : 'done', '기한 지남', `${over.length}<small>건</small>`, `남은 할 일 ${open.length}건`, 'over')}
+            ${ms.map((m, i) => tile(i ? 'violet' : 'blue', esc(m.title.replace(/\s*\(.*\)$/, '')), `D-${diffDays(m.date, td)}`, mdw(m.date))).join('')}
           </div>
-        </section>
+        </section>` : ''}
         <div id="home-pp"></div>
         <div id="home-ev"></div>
         <div id="home-ipo"></div>
         <div id="home-news"></div>
         <section class="card sec-brief" ${!b.text && !G.isOwner ? 'hidden' : ''}>
-          <div class="card-head"><h2>AI 브리핑</h2><span class="meta">${bt ? `Claude · ${bt.getMonth() + 1}/${bt.getDate()} ${pad(bt.getHours())}:${pad(bt.getMinutes())} 갱신` : ''}</span></div>
+          <div class="card-head"><h2>AI 브리핑</h2><span class="meta">${bt ? `${bt.getMonth() + 1}/${bt.getDate()} ${pad(bt.getHours())}:${pad(bt.getMinutes())} 갱신` : ''}</span></div>
           <div class="card-body brief">${b.text ? mdRender(b.text) : '<div class="empty">브리핑 없음</div>'}</div>
         </section>
         <section class="card sec-todo">
           <div class="card-head"><h2>해야 할 일 <span class="n">${over.length + dueToday.length + soon.length}</span></h2><a class="btn sm act" href="#todos">전체 보기</a></div>
           <div class="card-body" style="padding-top:0">
-            ${homeTodoBlock('기한 지남', over)}${homeTodoBlock('오늘', dueToday)}${homeTodoBlock('7일 안', soon)}
+            ${homeTodoBlock('기한 지남', over)}${homeTodoBlock('오늘', dueToday, true)}${homeTodoBlock('7일 안', soon)}
             ${!over.length && !dueToday.length && !soon.length ? '<div class="empty">7일 안에 마감인 할 일이 없습니다.</div>' : ''}
           </div>
         </section>
@@ -556,7 +545,7 @@ function renderHome() {
         <section class="card sec-prog">
           <div class="card-head"><h2>진행 중 프로그램</h2><a class="btn sm act" href="#programs">전체</a></div>
           <div class="card-body" style="padding-top:0"><ul class="list">${prog.map((p) => `
-            <li><div class="t"><div class="ttl">${esc(p.name)}</div><div class="meta">${esc(p.desc)}</div></div><span class="chip blue">${esc(p.status)}</span></li>`).join('') || '<div class="empty">진행 중인 프로그램이 없습니다.</div>'}</ul></div>
+            <li><div class="t"><div class="ttl">${esc(p.name)}</div></div><span class="chip blue">${esc(p.status)}</span></li>`).join('') || '<div class="empty">진행 중인 프로그램이 없습니다.</div>'}</ul></div>
         </section>
       </div>
     </div>`;
@@ -598,7 +587,8 @@ function renderHomeMobile() {
   PAGE.innerHTML = `<div class="mhome">
     <section class="mh-hello">
       <div class="dt">${d.getMonth() + 1}월 ${d.getDate()}일 ${WD[d.getDay()]}요일</div>
-      <div class="sub">${greet(d.getHours())}${ms.length ? ` · ${ms.map((m) => `<span class="ms">${esc(m.title.replace(/\s*\(.*\)$/, ''))} <b>D-${diffDays(m.date, td)}</b></span>`).join(' · ')}` : ''}</div>
+      <div class="sub">${greet(d.getHours())}</div>
+      ${ms.length ? `<div class="mh-dd">${ms.map((m) => `<a class="mh-ddc" href="#calendar"><span>${esc(m.title.replace(/\s*\(.*\)$/, ''))}</span><b>D-${diffDays(m.date, td)}</b></a>`).join('')}</div>` : ''}
     </section>
     <nav class="mh-grid">${menu.map(([h, i, t, n]) => `<a ${h ? `href="${h}"` : 'href="#" data-brief'} class="mh-it"><span class="mh-ic">${ico(i)}${n}</span><span class="mh-t">${t}</span></a>`).join('')}</nav>
     <section class="mh-today">
@@ -730,12 +720,11 @@ function segFit(seg) {
   }, { passive: false });
 }
 
-function homeTodoBlock(label, items) {
+function homeTodoBlock(label, items, noDue) {
   if (!items.length) return '';
   return `<div class="sec-label">${label} ${items.length}</div><ul class="list">${items.map((t) => {
     const di = dueInfo(t);
-    return `<li><input type="checkbox" class="check" data-toggle="${esc(t.id)}" aria-label="완료"><div class="t"><div class="ttl">${esc(t.title)}${ttWho(t)}</div>${tMemo(t) ? `<div class="meta">${esc(tMemo(t))}</div>` : ''}</div>
-      <span class="chip line">${esc(t.cat)}</span><span class="due-s ${di.cls}">${di.txt}</span></li>`;
+    return `<li><input type="checkbox" class="check" data-toggle="${esc(t.id)}" aria-label="완료"><div class="t"><div class="ttl">${esc(t.title)}${ttWho(t)}</div></div>${noDue ? '' : `<span class="due-s ${di.cls}">${di.txt}</span>`}</li>`;
   }).join('')}</ul>`;
 }
 
@@ -747,8 +736,10 @@ async function homeCalendar() {
     if (!$('#home-cal')) return;
     const ev = r.events.filter((e) => !e.cancelled);
     if (!ev.length) { box.innerHTML = '<div class="empty">오늘·내일 일정이 없습니다.</div>'; return; }
-    box.innerHTML = `<ul class="list">${ev.map((e) => `<li><span class="time">${e.allDay ? '종일' : e.start.slice(11, 16)}</span>
-      <div class="t"><div class="ttl">${esc(e.subject)}</div><div class="meta">${e.start.slice(0, 10) <= today() ? '오늘' : '내일'}${e.location || e.organizer ? ' · ' + esc(e.location || e.organizer) : ''}</div></div>${e.join ? `<a class="btn sm" href="${esc(e.join)}" target="_blank" rel="noopener">참가</a>` : ''}</li>`).join('')}</ul>`;
+    const row = (e) => `<li><span class="time">${e.allDay ? '종일' : e.start.slice(11, 16)}</span>
+      <div class="t"><div class="ttl">${esc(e.subject)}</div>${e.location ? `<div class="meta">${esc(e.location)}</div>` : ''}</div>${e.join ? `<a class="btn sm" href="${esc(e.join)}" target="_blank" rel="noopener">참가</a>` : ''}</li>`;
+    const td = today(), a = ev.filter((e) => e.start.slice(0, 10) <= td), b = ev.filter((e) => e.start.slice(0, 10) > td);
+    box.innerHTML = [['오늘', a], ['내일', b]].filter(([, l]) => l.length).map(([h, l]) => `<div class="sec-label">${h}</div><ul class="list">${l.map(row).join('')}</ul>`).join('');
   } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
 }
 
@@ -873,8 +864,8 @@ function todoRow(t) {
   const di = dueInfo(t);
   return `<div class="todo ${t.done ? 'done' : ''}">
     <input type="checkbox" class="check" data-toggle="${esc(t.id)}" ${t.done ? 'checked' : ''} aria-label="완료">
-    <div data-edit="${esc(t.id)}" style="min-width:0;cursor:text"><div class="ttl">${esc(t.title)}${ttWho(t)}</div>${(ui.todoView === 'due' && ui.todoTab !== 'done') || ui.todoTab === 'given' ? `<div class="note">${esc(t.cat || '기타')}${tMemo(t) ? ` · ${esc(tMemo(t))}` : ''}</div>` : tMemo(t) ? `<div class="note">${esc(tMemo(t))}</div>` : ''}</div>
-    <span>${ui.todoTab === 'done' ? `<span class="chip line">${esc(t.cat)}</span>` : ''}</span>
+    <div data-edit="${esc(t.id)}" style="min-width:0;cursor:text"><div class="ttl">${esc(t.title)}${ui.todoTab === 'given' ? '' : ttWho(t)}</div>${tMemo(t) ? `<div class="note">${esc(tMemo(t))}</div>` : ''}</div>
+    <span>${ui.todoTab === 'done' || ui.todoTab === 'given' || ui.todoView === 'due' ? `<span class="chip line">${esc(t.cat || '기타')}</span>` : ''}</span>
     <span class="due ${di.cls}">${t.done && t.doneAt ? `${md(t.doneAt)} 완료` : di.txt}</span>
     <button class="iconbtn del" data-del="${esc(t.id)}" title="삭제">${ico('trash', 'sm')}</button>
   </div>`;
@@ -1209,7 +1200,7 @@ async function mountMonth(el) {
         ? `<span class="chip line">${it.ev.stale || (it.ev.cal === 'team' && !OUTLOOK.teamWritable) ? '보기 전용' : it.ev.organizer_me ? '참석자 있음' : '받은 초대'}</span>${it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank" rel="noopener">Teams 참가</a>` : it.link ? `<a class="btn sm ghost" href="${esc(it.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}`
         : it.join ? `<a class="btn sm" href="${esc(it.join)}" target="_blank" rel="noopener">Teams 참가</a>` : '';
       const click = it.editable || it.type === 'ev';
-      return `<li class="${click ? 'click' : ''}" ${click ? `data-item="${it.type}|${esc(it.id)}"` : ''}><span class="k c-${calKey(it)}"><i class="cdot"></i>${it.time}</span><div class="t"><div class="ttl">${esc(it.title)}</div>${it.ev ? `<div class="meta">${it.cal === 'team' ? '유니버스인베스트먼트' : '내 일정'}${evOwners(it.ev).length ? ' · 담당 ' + evOwners(it.ev).join(', ') : ''}${it.ev.location ? ' · ' + esc(it.ev.location) : ''}</div>` : ''}</div>${ext}</li>`;
+      return `<li class="${click ? 'click' : ''}" ${click ? `data-item="${it.type}|${esc(it.id)}"` : ''}><span class="k c-${calKey(it)}"><i class="cdot"></i>${it.time}</span><div class="t"><div class="ttl">${esc(it.title)}</div>${it.ev?.location ? `<div class="meta">${esc(it.ev.location)}</div>` : ''}</div>${ext}</li>`;
     }).join('');
     const newForm = ed && ed.kind.startsWith('new-') ? `<div class="new-wrap">${calForm(ed.kind.slice(4), null, events)}</div>` : '';
     let upcoming = ''; // 폰 일정 화면: 고른 날 다음 7일
@@ -1374,7 +1365,7 @@ async function fetchCal(s, e, force) {
 function calStaleBar(stale) {
   if (!stale) return '';
   const d = new Date(stale);
-  return `<div class="cal-stale" role="status"><span>일정 서버 연결 안 됨 · ${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())} 기준</span><button type="button" class="btn sm" data-cal-retry>다시 시도</button></div>`;
+  return `<div class="cal-stale" role="status"><span>일정 서버 연결 안 됨</span><em>${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())} 기준</em><button type="button" class="btn sm" data-cal-retry>다시 시도</button></div>`;
 }
 document.addEventListener('click', (e) => {
   if (!e.target.closest('[data-cal-retry]')) return;
@@ -1430,7 +1421,7 @@ async function renderCalendar(force) {
         <div class="d ${d.getDay() === 0 ? 'sun' : d.getDay() === 6 ? 'sat' : ''}">${d.getMonth() + 1}/${d.getDate()} (${WD[d.getDay()]})<small>${k === td ? '오늘' : ''}</small></div>
         <div>${list.length ? list.map((ev) => `<div class="ev">
           <span class="tm">${ev.allDay ? '종일' : `${ev.start.slice(11, 16)} – ${ev.end.slice(11, 16)}`}</span>
-          <div><div class="s ${ev.cancelled ? 'cx' : ''}">${esc(ev.subject)}</div><div class="m">${esc([ev.location, ev.organizer].filter(Boolean).join(' · '))}</div></div>
+          <div><div class="s ${ev.cancelled ? 'cx' : ''}">${esc(ev.subject)}</div>${ev.location ? `<div class="m">${esc(ev.location)}</div>` : ''}</div>
           <span>${ev.join && !ev.cancelled ? `<a class="btn sm" href="${esc(ev.join)}" target="_blank" rel="noopener">Teams 참가</a>` : ev.link ? `<a class="btn sm ghost" href="${esc(ev.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}</span>
         </div>`).join('') : '<div class="m muted" style="padding:6px 0;font-size:14px">일정 없음</div>'}</div></div>`;
     }
@@ -1523,7 +1514,7 @@ function renderNotes() {
           <div class="row"><button class="btn" data-new="daily">${ico('plus', 'sm')}업무일지</button><button class="btn" data-new="meeting">${ico('plus', 'sm')}회의록</button><button class="btn" data-new="memo">${ico('plus', 'sm')}메모</button></div>
           <input class="input" id="nq" placeholder="제목·내용 검색" value="${esc(ui.noteQ)}">
         </div>
-        <ul>${list.map((n) => `<li data-n="${esc(n.name)}" class="${n.name === ui.note ? 'on' : ''}"><div class="nm">${noteTag(n.name)}${esc(noteTitle(n.name))}</div><div class="pv">${relTime(n.mtime)} · ${esc(n.preview.replace(/\s+/g, ' ').slice(0, 60))}</div></li>`).join('') || '<div class="empty">기록이 없습니다.</div>'}</ul>
+        <ul>${list.map((n) => `<li data-n="${esc(n.name)}" class="${n.name === ui.note ? 'on' : ''}"><div class="nm">${noteTag(n.name)}${esc(noteTitle(n.name))}</div><span class="tm">${relTime(n.mtime)}</span></li>`).join('') || '<div class="empty">기록이 없습니다.</div>'}</ul>
       </div>
       <div class="editor" id="editor"><div class="empty" style="margin:auto">왼쪽에서 기록을 고르거나 새로 만드세요.</div></div>
     </div>`;

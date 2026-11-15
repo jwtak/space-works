@@ -24,7 +24,12 @@ const mkPct = (v, d = 1) => `<span class="${mkCls(v)}">${mkSigned(v, d)}</span>`
 const mkWon = (v) => { if (v == null) return '-'; const a = Math.abs(v); return a >= 1e12 ? `${mkNum(v / 1e12, 1)}조` : a >= 1e8 ? `${mkNum(v / 1e8, 0)}억` : mkNum(v, 0); };
 const mkUsd = (v) => (v == null ? '-' : v >= 1e12 ? `$${mkNum(v / 1e12, 2)}T` : v >= 1e9 ? `$${mkNum(v / 1e9, 0)}B` : `$${mkNum(v, 0)}`);
 const mkDays = (d) => { if (d == null) return '-'; if (d < 60) return `${d}일`; const y = Math.floor(d / 365), m = Math.round((d % 365) / 30); return y === 0 ? `${Math.round(d / 30)}개월` : m > 0 ? `${y}년 ${m}개월` : `${y}년`; };
-const mkRet = (r) => (r ? `${mkPct(r.total, 2)}${r.annualized != null ? `<small>연 ${mkSigned(r.annualized)}</small>` : ''}` : '<span class="mk-dim">-</span>');
+// 1년은 연환산이 총수익률과 같아 아래 줄을 빼고, 2년 이상만 '연 …'을 붙인다
+const mkRet = (r, k) => (r ? `${mkPct(r.total, 2)}${r.annualized != null && k !== '1y' ? `<small>연 ${mkSigned(r.annualized)}</small>` : ''}` : '<span class="mk-dim">-</span>');
+// 보조 수치: '·'로 잇지 않고 라벨이 붙은 작은 칸으로 [[라벨, 값 HTML], ...]
+const mkKv = (pairs) => pairs.filter((p) => p && p[1] != null && p[1] !== '').map(([l, v]) => `<span class="mk-kv"><i>${esc(l)}</i>${v}</span>`).join('');
+// 일부 종목만 기간이 찬 칸: 숫자 아래 'n건 기준' 줄 대신 마우스를 올리면. 전체의 90% 미만일 때만 점선 밑줄(거의 다 찬 칸까지 밑줄이면 표가 시끄럽다)
+const mkPart = (html, n, all) => `<span class="${all && n / all >= 0.9 ? '' : 'mk-part'}" title="${n}건 기준">${html}</span>`;
 const MK_SHORT = [['1m', '1개월'], ['3m', '3개월'], ['6m', '6개월']];
 const MK_LONG = [['1y', '1년'], ['3y', '3년'], ['5y', '5년'], ['10y', '10년'], ['20y', '20년']];
 const mkSeg = (key, opts, cur) => `<div class="mk-seg">${opts.map(([v, l]) => `<button type="button" data-mk-seg="${key}" data-v="${v}" class="${String(cur) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</div>`;
@@ -97,9 +102,15 @@ const mkLegend = (items) => `<div class="mk-legend">${items.map((i) => `<span><i
 // ---------- 시장 지표 ----------
 function mkIndexTable(ix) {
   const rows = Object.entries(ix || {}).filter(([, v]) => v); if (!rows.length) return '';
+  // 기준일은 지수마다 거의 같아 행마다 쓰지 않고 섹션 제목 옆 한 번(mkIndexDate), 다른 날짜인 지수만 이름에 마우스를 올리면
+  const day = mkIndexDate(ix);
   return `<div class="mk-scroll"><table class="mk-tbl"><thead><tr><th class="st">지수</th><th>종가</th><th>일간</th>${MK_SHORT.map(([, l]) => `<th>${l}</th>`).join('')}${MK_LONG.map(([k, l]) => `<th class="${k === '1y' ? 'bl' : ''}">${l}</th>`).join('')}</tr></thead><tbody>${rows.map(([n, d]) => `<tr>
-    <td class="st"><b>${esc(n)}</b><small>${esc(d.latest_date || '')}</small></td><td class="strong">${mkNum(d.latest_close)}</td><td>${mkPct(d.daily_return, 2)}</td>
-    ${MK_SHORT.map(([k]) => `<td>${mkPct(d.returns?.[k]?.total, 2)}</td>`).join('')}${MK_LONG.map(([k]) => `<td class="${k === '1y' ? 'bl' : ''}">${mkRet(d.returns?.[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    <td class="st"${d.latest_date && d.latest_date !== day ? ` title="${esc(d.latest_date)} 종가"` : ''}><b>${esc(n)}</b></td><td class="strong">${mkNum(d.latest_close)}</td><td>${mkPct(d.daily_return, 2)}</td>
+    ${MK_SHORT.map(([k]) => `<td>${mkPct(d.returns?.[k]?.total, 2)}</td>`).join('')}${MK_LONG.map(([k]) => `<td class="${k === '1y' ? 'bl' : ''}">${mkRet(d.returns?.[k], k)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+function mkIndexDate(ix) {
+  const c = {}; Object.values(ix || {}).forEach((d) => { if (d?.latest_date) c[d.latest_date] = (c[d.latest_date] || 0) + 1; });
+  return Object.entries(c).sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0]?.[0] || '';
 }
 function mkDrawdowns(dd) {
   const rows = Object.entries(dd || {}).filter(([, v]) => v); if (!rows.length) return '';
@@ -107,7 +118,8 @@ function mkDrawdowns(dd) {
   return `<div class="mk-grid2">${rows.map(([name, d]) => {
     const src = years == null ? d.dd_series : (d.dd_weekly || d.dd_series), data = mkWindow(src, years);
     const worst = data.length ? data.reduce((a, b) => (b.v < a.v ? b : a)) : null, ath = d.current_dd > -0.05;
-    return `<div class="mk-card"><div class="mk-card-h"><div><b>${esc(name)}</b><p>직전 고점 ${mkNum(d.ath)} · ${esc(d.ath_date || '')}${d.days_since_ath > 0 ? ` · ${mkDays(d.days_since_ath)} 전` : ''}</p></div>
+    const athDay = d.ath_date ? `<span${d.days_since_ath > 0 ? ` title="${esc(mkDays(d.days_since_ath))} 전"` : ''}>${esc(String(d.ath_date).slice(2).replace(/-/g, '.'))}</span>` : '';
+    return `<div class="mk-card"><div class="mk-card-h"><div><b>${esc(name)}</b><p class="mk-kvs">${mkKv([['직전 고점', mkNum(d.ath)], ['고점일', athDay]])}</p></div>
       <div class="mk-big"><small>고점 대비</small><strong class="${ath ? 'ath' : ''}">${ath ? '고점' : `${mkNum(d.current_dd)}%`}</strong></div></div>
       ${mkChart(data.length ? [{ name, color: C, freq: src.freq, data }] : [], { mode: 'area', h: 140, fmt: (v) => `${mkNum(v, 0)}%`, marker: worst && { t: worst.t, label: `${mkDate(worst.t, false)} ${mkNum(worst.v, 1)}%` } })}</div>`;
   }).join('')}</div>`;
@@ -123,15 +135,15 @@ function mkRates(d) {
   if (kr.length) out.push(`<div class="mk-card"><div class="mk-card-h"><b>국내 시장금리</b><span class="mk-dim">${y == null || y > 3 ? '최근 3년' : esc(d.kr_rates.date || '')}</span></div>${mkChart(kr, { fmt: (v) => `${mkNum(v, 2)}%` })}${mkLegend(kr.map((s) => ({ name: s.name, color: s.color, value: `${mkNum(s.last, 2)}%` })))}</div>`);
   if (fxd.length) out.push(`<div class="mk-card"><div class="mk-card-h"><b>원달러 환율</b><span class="mk-dim">${esc(fx.date || '')}</span></div>${mkChart([{ name: 'USD/KRW', color: '#2563EB', freq: 'W', data: fxd }], { fmt: (v) => mkNum(v, 0) })}
     <div class="mk-fx"><b>${mkNum(fx.rate)}원</b>${[['일간', fx.daily_return], ['1개월', fx['1m']], ['3개월', fx['3m']], ['연초 대비', fx.ytd], ['1년', fx['1y']]].map(([l, v]) => `<span>${l} ${mkPct(v, 2)}</span>`).join('')}</div></div>`);
-  const tiles = (d.kr_rates?.rates || []).map((r) => mkTile(r.label, mkNum(r.rate, 2), '%', r.change != null ? `<span class="${mkCls(r.change)}">${r.change > 0 ? '+' : ''}${mkNum(r.change, 3)}</span>` : '')).join('');
-  return `${out.length ? `<div class="mk-grid3">${out.join('')}</div>` : ''}${tiles ? `<div class="mk-sub">국내 시장금리 현황 · 전일 대비</div><div class="mk-tiles">${tiles}</div>` : ''}`;
+  const tiles = (d.kr_rates?.rates || []).map((r) => mkTile(r.label, mkNum(r.rate, 2), '%', r.change != null ? mkKv([['전일 대비', `<span class="${mkCls(r.change)}">${r.change > 0 ? '+' : ''}${mkNum(r.change, 3)}</span>`]]) : '')).join('');
+  return `${out.length ? `<div class="mk-grid3">${out.join('')}</div>` : ''}${tiles ? `<div class="mk-sub">시장금리 현황</div><div class="mk-tiles">${tiles}</div>` : ''}`;
 }
 const mkTile = (label, value, unit, sub) => `<div class="mk-tile"><small>${esc(label)}</small><strong>${value}<em>${unit}</em></strong>${sub ? `<p>${sub}</p>` : ''}</div>`;
 function mkStocks(rows, usd) {
   if (!rows?.length) return '<div class="empty">데이터가 없습니다.</div>';
   return `<div class="mk-scroll"><table class="mk-tbl"><thead><tr><th class="st">종목</th><th>종가</th><th>일간</th><th>시총</th>${MK_LONG.map(([, l]) => `<th>${l}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>
     <td class="st"><b>${esc(r.name)}</b><small>${esc(r.code || '')}</small></td><td class="strong">${mkNum(r.close ?? r.price, usd ? 2 : 0)}</td><td>${mkPct(r.daily_return, 2)}</td>
-    <td class="mk-dim">${usd ? mkUsd(r.market_cap) : mkWon(r.market_cap)}</td>${MK_LONG.map(([k]) => `<td>${mkRet(r.returns?.[k])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+    <td class="mk-dim">${usd ? mkUsd(r.market_cap) : mkWon(r.market_cap)}</td>${MK_LONG.map(([k]) => `<td>${mkRet(r.returns?.[k], k)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 const MK_SECT = [['1d', '일간'], ['1w', '1주'], ['1m', '1개월'], ['3m', '3개월'], ['ytd', '연초 대비'], ['1y', '1년']];
 const mkSectors = (rows) => (rows?.length ? `<div class="mk-scroll"><table class="mk-tbl"><thead><tr><th class="st">섹터</th>${MK_SECT.map(([, l]) => `<th>${l}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr><td class="st"><b>${esc(r.name)}</b><small>${esc(r.code || '')}</small></td>${MK_SECT.map(([k]) => `<td>${mkPct(r[k], 2)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>` : '<div class="empty">데이터가 없습니다.</div>');
@@ -144,10 +156,10 @@ function mkMarketHTML() {
   const pol = (d.policy_rates || []).map((r) => mkTile(`${r.country} 기준금리`, mkNum(r.rate, 2), '%', esc(r.last_updated || ''))).join('')
     + Object.entries(d.cpi || {}).filter(([, v]) => v).map(([c, v]) => mkTile(`${c} 물가(전년비)`, mkNum(v.yoy, 2), '%', esc(v.date || ''))).join('');
   const parts = [
-    mkSec('주요 지수', '', mkIndexTable(d.indexes)),
+    mkSec('주요 지수', mkIndexDate(d.indexes) ? `<span class="mk-dim mk-hd">${esc(mkIndexDate(d.indexes))} 종가</span>` : '', mkIndexTable(d.indexes)),
     Object.keys(d.drawdowns || {}).length ? mkSec('고점 대비 낙폭', mkSeg('dd', DD, mkS.dd ?? 'null'), mkDrawdowns(d.drawdowns)) : '',
-    mkSec('금리 · 환율', mkSeg('rate', RT, mkS.rate ?? 'null'), mkRates(d)),
-    pol ? mkSec('기준금리 · 물가', '', `<div class="mk-tiles">${pol}</div>`) : '',
+    mkSec('금리·환율', mkSeg('rate', RT, mkS.rate ?? 'null'), mkRates(d)),
+    pol ? mkSec('기준금리·물가', '', `<div class="mk-tiles">${pol}</div>`) : '',
   ];
   const more = mkS.more ? [
     mkSec('국내 시가총액 TOP 10', mkSeg('stock', [['KOSPI', '코스피'], ['KOSDAQ', '코스닥']], mkS.stock), mkStocks(d.top_stocks?.[mkS.stock])),
@@ -155,8 +167,7 @@ function mkMarketHTML() {
     mkSec('섹터별 수익률', mkSeg('sector', [['us', '미국'], ['kr', '국내']], mkS.sector), mkSectors(mkS.sector === 'us' ? d.us_sectors : d.kr_sectors)),
     d.top_etfs?.length ? mkSec('국내 ETF 순자산 TOP 10', '', mkStocks(d.top_etfs)) : '',
   ].join('') : '';
-  return `${parts.join('')}${more}<button type="button" class="btn mk-more" data-mk-more>${mkS.more ? '접기' : '더보기'}</button>
-    <p class="mk-foot">지수·낙폭은 배당 미반영 종가 기준, 종목·ETF 수익률은 배당 재투자 기준입니다.</p>`;
+  return `${parts.join('')}${more}<button type="button" class="btn mk-more" data-mk-more>${mkS.more ? '접기' : '더보기'}</button>`;
 }
 
 // ---------- 공모주 통계 ----------
@@ -241,8 +252,8 @@ const MK_REF = [
   ],
   [
   "기술특례 상장 수",
-  "2021~2025.10",
-  "31 · 28 · 35 · 42 · 22곳",
+  "2021 · 2022 · 2023 · 2024 · 2025.10",
+  "31곳 · 28곳 · 35곳 · 42곳 · 22곳",
   "https://dealsite.co.kr/articles/150647",
   "딜사이트"
   ],
@@ -256,7 +267,7 @@ const MK_REF = [
   [
   "코스닥 상장폐지 결정",
   "2022 · 2023 · 2024 · 2025",
-  "16 · 8 · 20 · 38개사",
+  "16개사 · 8개사 · 20개사 · 38개사",
   "https://bizhankook.com/articles/31448.html",
   "거래소(비즈한국)"
   ],
@@ -282,6 +293,22 @@ function mkBucket(title, rows) {
   if (!rows?.length) return '';
   return mkSec(title, '', `<div class="mk-scroll"><table class="mk-tbl"><thead><tr><th class="st">구간</th><th>건수</th><th>시초가 평균</th><th>6개월 평균</th><th>6개월 하회</th></tr></thead><tbody>${rows.map((r) => `<tr><td class="st"><b>${esc(r.bucket || r.label || '')}</b></td><td>${r.n ?? '-'}</td><td>${mkPct(r.open_mean)}</td><td>${mkPct(r.m6_mean)}</td><td>${r.m6_below == null ? '-' : `${mkNum(r.m6_below, 0)}%`}</td></tr>`).join('')}</tbody></table></div>`);
 }
+// 참고 통계 표: 기간·수치가 '·'나 '/'로 같은 개수씩 이어진 값(2023 · 2024 / 26.4% · 18.1%)은 '연도 값' 칸으로 나누고(→ 추세는 그대로), 출처의 ', 뒤 설명'은 마우스를 올리면
+function mkRefVal(per, val) {
+  for (const sep of [' · ', ' / ']) {
+    const p = String(per).split(sep), v = String(val).split(sep);
+    if (p.length < 2 || p.length !== v.length) continue;
+    const yr = p.every((x) => /^\d{4}/.test(x)) && !p.some((x) => x.includes('~'));
+    return { split: true, per: esc(yr ? `${p[0]}~${p[p.length - 1]}` : p.join(', ')), val: `<span class="mk-kvs">${mkKv(p.map((x, i) => [x, esc(v[i])]))}</span>` };
+  }
+  return { per: esc(per), val: esc(val) };
+}
+function mkRefTbl(rows) {
+  return `<div class="mk-scroll"><table class="mk-tbl mk-ref"><thead><tr><th class="st">항목</th><th>기간</th><th>수치</th><th>출처</th></tr></thead><tbody>${rows.map((r) => {
+    const { split, per, val } = mkRefVal(r[1], r[2]), i = String(r[4] || '').indexOf(', '), src = i > 0 ? r[4].slice(0, i) : r[4] || '원문', note = i > 0 ? r[4].slice(i + 2) : '';
+    return `<tr><td class="st"><b>${esc(r[0])}</b></td><td class="mk-dim${split ? ' dup' : ''}">${per}</td><td class="strong">${val}</td><td class="mk-dim"${note ? ` title="${esc(note)}"` : ''}>${r[3] ? `<a href="${esc(r[3])}" target="_blank" rel="noopener noreferrer">${esc(src)}</a>` : esc(src)}</td></tr>`;
+  }).join('')}</tbody></table></div>`;
+}
 function mkIpoHTML() {
   const d = mkS.ipo;
   if (!d) return '<div class="card"><div class="empty">아직 집계 전입니다.</div></div>';
@@ -289,32 +316,31 @@ function mkIpoHTML() {
   // 요약 칸: 기간이 다 찬 가장 최근 연도로(올해는 6개월·1년이 거의 비어 있다)
   const cur = rows[0], full = (nk) => rows.find((r) => r[nk] && r[nk] === r.n);
   const m6 = full('n_m6'), y1 = full('n_y1');
-  const below = (v) => `공모가 하회 ${v == null ? '-' : `${mkNum(v, 0)}%`}`;
+  const below = (v) => ['공모가 하회', v == null ? '-' : `${mkNum(v, 0)}%`];
   const tiles = cur ? [
     mkTile(`${cur.year}년 신규상장`, cur.n ?? '-', '건', ''),
-    mkTile(`${cur.year}년 시초가 매도 평균`, mkSigned(cur.open_mean, 1).replace('%', ''), '%', `중앙값 ${mkSigned(cur.open_median, 1)} · 상승 ${cur.open_win == null ? '-' : `${mkNum(cur.open_win, 0)}%`}`),
-    m6 ? mkTile(`${m6.year}년 상장 6개월 보유`, mkSigned(m6.m6_mean, 1).replace('%', ''), '%', `중앙값 ${mkSigned(m6.m6_median, 1)} · ${below(m6.m6_below)}`) : '',
-    y1 ? mkTile(`${y1.year}년 상장 1년 보유`, mkSigned(y1.y1_mean, 1).replace('%', ''), '%', `중앙값 ${mkSigned(y1.y1_median, 1)} · ${below(y1.y1_below)}`) : '',
+    mkTile(`${cur.year}년 시초가 매도 평균`, mkSigned(cur.open_mean, 1).replace('%', ''), '%', mkKv([['중앙값', mkSigned(cur.open_median, 1)], ['상승', cur.open_win == null ? '-' : `${mkNum(cur.open_win, 0)}%`]])),
+    m6 ? mkTile(`${m6.year}년 상장 6개월 보유`, mkSigned(m6.m6_mean, 1).replace('%', ''), '%', mkKv([['중앙값', mkSigned(m6.m6_median, 1)], below(m6.m6_below)])) : '',
+    y1 ? mkTile(`${y1.year}년 상장 1년 보유`, mkSigned(y1.y1_mean, 1).replace('%', ''), '%', mkKv([['중앙값', mkSigned(y1.y1_median, 1)], below(y1.y1_below)])) : '',
   ].join('') : '';
-  const table = rows.length ? `<div class="mk-scroll"><table class="mk-tbl"><thead><tr><th class="st">연도</th>${MK_IPO_COLS.map(([, l]) => `<th>${l}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr><td class="st"><b>${r.year}</b></td>${MK_IPO_COLS.map(([k, , f]) => { const nk = { m1_mean: 'n_m1', m3_mean: 'n_m3', m6_mean: 'n_m6', m6_below: 'n_m6', y1_mean: 'n_y1', y1_below: 'n_y1' }[k], nn = nk ? r[nk] : null; return `<td>${f(r[k])}${nn != null && nn < r.n && r[k] != null ? `<small>${nn}건 기준</small>` : ''}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>` : '<div class="empty">데이터가 없습니다.</div>';
+  const table = rows.length ? `<div class="mk-scroll"><table class="mk-tbl"><thead><tr><th class="st">연도</th>${MK_IPO_COLS.map(([, l]) => `<th>${l}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr><td class="st"><b>${r.year}</b></td>${MK_IPO_COLS.map(([k, , f]) => { const nk = { m1_mean: 'n_m1', m3_mean: 'n_m3', m6_mean: 'n_m6', m6_below: 'n_m6', y1_mean: 'n_y1', y1_below: 'n_y1' }[k], nn = nk ? r[nk] : null; return `<td>${nn != null && nn < r.n && r[k] != null ? mkPart(f(r[k]), nn, r.n) : f(r[k])}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>` : '<div class="empty">데이터가 없습니다.</div>';
   const q = mkS.ipoQ.trim().toLowerCase();
   const items = (d.items || []).filter((x) => !x.spac && !x.reit && !x.excluded && (mkS.ipoMk === 'ALL' || x.market === mkS.ipoMk) && (!q || `${x.name} ${x.code}`.toLowerCase().includes(q)))
     .sort((a, b) => String(b.listed).localeCompare(String(a.listed)));
   const shown = mkS.ipoAll || q ? items : items.slice(0, 20);
   const list = `<div class="mk-scroll"><table class="mk-tbl"><thead><tr><th class="st">회사</th><th>상장일</th><th>공모가</th><th>시초가</th><th>첫날 종가</th><th>1개월</th><th>3개월</th><th>6개월</th><th>1년</th><th>현재</th><th>확약</th><th>경쟁률</th></tr></thead><tbody>${shown.map((x) => `<tr>
-    <td class="st"><b>${esc(x.name)}</b><small>${esc([x.market === 'KOSPI' ? '코스피' : '코스닥', x.track === '기술특례' ? '기술특례' : ''].filter(Boolean).join(' · '))}</small></td><td class="mk-dim">${esc(String(x.listed || '').slice(2).replace(/-/g, '.'))}</td><td>${mkNum(x.offer, 0)}</td>
+    <td class="st" title="${x.market === 'KOSPI' ? '코스피' : '코스닥'}"><b>${esc(x.name)}</b>${x.track === '기술특례' ? '<small>기술특례</small>' : ''}</td><td class="mk-dim">${esc(String(x.listed || '').slice(2).replace(/-/g, '.'))}</td><td>${mkNum(x.offer, 0)}</td>
     <td>${mkPct(x.r_open)}</td><td>${mkPct(x.r_close1)}</td><td>${mkPct(x.r_1m)}</td><td>${mkPct(x.r_3m)}</td><td>${mkPct(x.r_6m)}</td><td>${mkPct(x.r_1y)}</td><td>${mkPct(x.r_now)}</td>
     <td class="mk-dim">${x.demand?.lockup == null ? '-' : `${mkNum(x.demand.lockup, 1)}%`}</td><td class="mk-dim">${x.demand?.comp == null ? '-' : `${mkNum(x.demand.comp, 0)}:1`}</td></tr>`).join('')}</tbody></table></div>
     ${!q && items.length > 20 ? `<button type="button" class="btn mk-more in" data-mk-ipoall>${mkS.ipoAll ? '최근 20건만' : `전체 ${items.length}건 보기`}</button>` : ''}`;
   const gen = new Date(d.generated);
-  return `<div class="mk-ipo-bar">${mkSeg('ipoMk', [['ALL', '전체'], ['KOSPI', '코스피'], ['KOSDAQ', '코스닥']], mkS.ipoMk)}<span class="mk-dim">${isNaN(gen) ? '' : `${gen.getMonth() + 1}/${gen.getDate()} 집계`} · 스팩·리츠·이전상장 제외</span></div>
+  return `<div class="mk-ipo-bar">${mkSeg('ipoMk', [['ALL', '전체'], ['KOSPI', '코스피'], ['KOSDAQ', '코스닥']], mkS.ipoMk)}${isNaN(gen) ? '' : `<span class="mk-dim">${gen.getMonth() + 1}/${gen.getDate()} 집계</span>`}</div>
     ${tiles ? `<div class="mk-tiles mk-tiles4">${tiles}</div>` : ''}
     ${mkSec('연도별 공모가 대비 수익률', '', table)}
     ${mkBucket('의무보유확약 비율별', d.summary?.by_lockup)}${mkBucket('수요예측 경쟁률별', d.summary?.by_comp)}
     ${mkLockupHTML()}${mkBandHTML()}${mkValHTML()}
     ${mkSec('종목별', `<div class="nw-search mk-q"><span class="nw-sic">${ico('search', 'sm')}</span><input class="input" id="mk-q" type="search" placeholder="회사 검색" value="${esc(mkS.ipoQ)}"></div>`, list)}
-    ${typeof MK_REF !== 'undefined' && MK_REF.length ? mkSec('참고 통계', '', `<div class="mk-scroll"><table class="mk-tbl mk-ref"><thead><tr><th class="st">항목</th><th>기간</th><th>수치</th><th>출처</th></tr></thead><tbody>${MK_REF.map((r) => `<tr><td class="st"><b>${esc(r[0])}</b></td><td class="mk-dim">${esc(r[1])}</td><td class="strong">${esc(r[2])}</td><td class="mk-dim">${r[3] ? `<a href="${esc(r[3])}" target="_blank" rel="noopener noreferrer">${esc(r[4] || '원문')}</a>` : esc(r[4] || '')}</td></tr>`).join('')}</tbody></table></div>`) : ''}
-    <p class="mk-foot">공모가 대비 수익률입니다. 시초가는 상장일 시가, 1개월·3개월·6개월·1년은 상장 후 약 20·60·120·250거래일 종가 기준입니다.</p>`;
+    ${typeof MK_REF !== 'undefined' && MK_REF.length ? mkSec('참고 통계', '', mkRefTbl(MK_REF)) : ''}`;
 }
 
 // ---------- 보호예수 해제·공모가 확정 위치 ----------
@@ -351,9 +377,9 @@ function mkLockupHTML() {
   const L = mkS.ipo?.lockup_fx, M = L?.markets?.[mkS.ipoMk];
   if (!M) return '';
   const hs = L.horizons || [['1m', '1개월'], ['3m', '3개월'], ['6m', '6개월'], ['1y', '1년']];
-  const tiles = hs.map(([h, l]) => { const s = M.total?.[h]; return s?.n ? mkTile(`${l} 해제 초과수익률`, mkSigned(s.ex_mean, 1).replace('%', ''), '%', `중앙값 ${mkSigned(s.ex_median, 1)} · 하락 ${lkShare(s.ex_down)}`) : ''; }).join('');
+  const tiles = hs.map(([h, l]) => { const s = M.total?.[h]; return s?.n ? mkTile(`${l} 해제 초과수익률`, mkSigned(s.ex_mean, 1).replace('%', ''), '%', mkKv([['중앙값', mkSigned(s.ex_median, 1)], ['하락', lkShare(s.ex_down)]])) : ''; }).join('');
   const point = lkTbl(['시점', '건수', '수익률 평균', '수익률 중앙값', '하락 비율', '초과 평균', '초과 중앙값', '초과 하락'], hs.filter(([h]) => M.total?.[h]?.n).map(([h, l]) => { const s = M.total[h]; return `<tr><td class="st"><b>${l}</b></td><td>${s.n}</td><td>${mkPct(s.r_mean)}</td><td>${mkPct(s.r_median)}</td><td>${lkShare(s.r_down)}</td><td>${mkPct(s.ex_mean)}</td><td>${mkPct(s.ex_median)}</td><td>${lkShare(s.ex_down)}</td></tr>`; }));
-  const cross = (first, rows, label) => lkTbl([first, ...hs.map(([, l]) => l)], rows.map((r) => `<tr><td class="st"><b>${esc(label(r))}</b></td>${hs.map(([h]) => { const s = r.h?.[h]; return `<td>${s?.n ? `${mkPct(s.ex_mean)}${s.n < r.n ? `<small>${s.n}건 기준</small>` : ''}` : '-'}</td>`; }).join('')}</tr>`));
+  const cross = (first, rows, label) => lkTbl([first, ...hs.map(([, l]) => l)], rows.map((r) => `<tr><td class="st"><b>${esc(label(r))}</b></td>${hs.map(([h]) => { const s = r.h?.[h]; return `<td>${s?.n ? (s.n < r.n ? mkPart(mkPct(s.ex_mean), s.n, r.n) : mkPct(s.ex_mean)) : '-'}</td>`; }).join('')}</tr>`));
   const mk = { KOSPI: '코스피', KOSDAQ: '코스닥' };
   const body = `<div class="mk-tiles mk-tiles4">${tiles}</div>
     <div class="mk-sub">해제일 전후 누적 초과수익률</div>${lkCurve(M.car || {}, hs)}
@@ -361,7 +387,7 @@ function mkLockupHTML() {
     <div class="mk-sub">연도별 초과수익률</div>${cross('상장 연도', M.by_year || [], (r) => r.year)}
     <div class="mk-sub">확약 비율별 초과수익률</div>${cross('확약 비율', (M.by_lockup || []).filter((r) => r.n), (r) => r.bucket)}
     ${mkS.ipoMk === 'ALL' && L.by_market?.length ? `<div class="mk-sub">시장별 초과수익률</div>${cross('시장', L.by_market, (r) => mk[r.market] || r.market)}` : ''}`;
-  return mkSec('보호예수 해제 전후 주가', '<span class="mk-dim mk-hd">D−5 → D+5 종가 · 지수 대비</span>', body);
+  return mkSec('보호예수 해제 전후 주가', '', body);
 }
 
 function mkBandHTML() {
@@ -369,12 +395,12 @@ function mkBandHTML() {
   if (!M) return '';
   const order = B.order || [['above', '상단 초과'], ['top', '상단'], ['in', '밴드 안'], ['bottom', '하단'], ['below', '하단 미만']];
   const years = (M.by_year || []).filter((r) => r.n);
-  const stack = `<div class="lk-stack">${years.map((r) => `<div class="r"><b>${r.year}</b><div class="bar">${order.filter(([p]) => r.cnt?.[p]).map(([p, l]) => `<i style="width:${r.pct[p]}%;background:${LK_BAND_COLORS[p]}" title="${esc(`${l} ${r.cnt[p]}건 · ${mkNum(r.pct[p], 1)}%`)}"></i>`).join('')}</div></div>`).join('')}</div>
+  const stack = `<div class="lk-stack">${years.map((r) => `<div class="r"><b>${r.year}</b><div class="bar">${order.filter(([p]) => r.cnt?.[p]).map(([p, l]) => `<i style="width:${r.pct[p]}%;background:${LK_BAND_COLORS[p]}" title="${esc(`${l} ${r.cnt[p]}건 (${mkNum(r.pct[p], 1)}%)`)}"></i>`).join('')}</div></div>`).join('')}</div>
     ${mkLegend(order.map(([p, l]) => ({ name: l, color: LK_BAND_COLORS[p], value: lkShare(M.total?.pct?.[p]) })))}`;
-  const dist = lkTbl(['상장 연도', '건수', ...order.map(([, l]) => l), '상단 초과폭'], years.map((r) => `<tr><td class="st"><b>${r.year}</b></td><td>${r.n}</td>${order.map(([p]) => `<td>${r.cnt?.[p] ? `${lkShare(r.pct[p])}<small>${r.cnt[p]}건</small>` : '-'}</td>`).join('')}<td>${mkPct(r.above_prem_mean)}</td></tr>`));
+  const dist = lkTbl(['상장 연도', '건수', ...order.map(([, l]) => l), '상단 초과폭'], years.map((r) => `<tr><td class="st"><b>${r.year}</b></td><td>${r.n}</td>${order.map(([p]) => `<td>${r.cnt?.[p] ? `<span title="${r.cnt[p]}건">${lkShare(r.pct[p])}</span>` : '-'}</td>`).join('')}<td>${mkPct(r.above_prem_mean)}</td></tr>`));
   const era = mkS.bandEra || 'all';
   const pos = (M.by_pos?.[era] || []).filter((r) => r.n);
-  const part = (v, n, all) => `${mkPct(v)}${n != null && n < all && v != null ? `<small>${n}건 기준</small>` : ''}`;
+  const part = (v, n, all) => (n != null && n < all && v != null ? mkPart(mkPct(v), n, all) : mkPct(v));
   const ret = pos.length ? lkTbl(['확정 위치', '건수', '시초가 평균', '시초가 중앙값', '1개월 평균', '6개월 평균', '6개월 하회'], pos.map((r) => `<tr><td class="st"><b>${esc(r.label)}</b></td><td>${r.n}</td><td>${mkPct(r.open_mean)}</td><td>${mkPct(r.open_median)}</td><td>${part(r.m1_mean, r.n_m1, r.n)}</td><td>${part(r.m6_mean, r.n_m6, r.n)}</td><td>${lkShare(r.m6_below)}</td></tr>`)) : '<div class="empty">데이터가 없습니다.</div>';
   return `${mkSec('공모가 확정 위치', '', `${stack}<div class="mk-sub">연도별 분포</div>${dist}`)}
     ${mkSec('확정 위치별 수익률', mkSeg('bandEra', [['all', '전체'], ['pre', '23.6 이전'], ['post', '23.6 이후']], era), ret)}`;
@@ -414,7 +440,7 @@ const vlRow = (label, s, cols) => `<tr><td class="st"><b>${esc(String(label))}</
 
 function vlMetric(m) {
   if (!m) return '-';
-  const y = (m.years || []).map((v) => `'${String(v).slice(2)}`).join('·');
+  const ys = (m.years || []).map((v) => `'${String(v).slice(2)}`), y = ys.length > 1 ? `${ys[0]}~${ys[ys.length - 1]}` : ys[0] || '';
   const k = m.est == null ? '' : m.est ? '추정' : (m.kind || '실적');
   return `${esc([y, k].filter(Boolean).join(' ') || '-')}${m.pv_rate != null ? `<small>현가 ${mkNum(m.pv_rate, 0)}%</small>` : ''}`;
 }
@@ -464,10 +490,10 @@ function mkValHTML() {
   const shown = mkS.valAll || q ? rows : rows.slice(0, 20);
   const list = !shown.length ? '<div class="empty">검색 결과가 없습니다.</div>' : vlTbl(['회사', '방법', '비교기업', '멀티플', '적용 이익', '할인율', '밴드', '공모가', '시초가'], shown.map((x) => {
     const peers = (x.peers || []).join(', ');
-    const sub = [x.market === 'KOSPI' ? '코스피' : '코스닥', x.track === '기술특례' ? '기술특례' : '', String(x.listed || '').slice(2).replace(/-/g, '.')].filter(Boolean).join(' · ');
+    const sub = String(x.listed || '').slice(2).replace(/-/g, '.'), tip = [x.market === 'KOSPI' ? '코스피' : '코스닥', x.track === '기술특례' ? '기술특례' : ''].filter(Boolean).join(', ');
     const band = x.band_lo ? `${mkNum(x.band_lo, 0)}~${mkNum(x.band_hi, 0)}` : '-';
     return `<tr>
-      <td class="st"><a class="vl-co" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><b>${esc(x.name)}</b></a><small>${esc(sub)}</small></td>
+      <td class="st" title="${esc(tip)}"><a class="vl-co" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><b>${esc(x.name)}</b></a><small>${esc(sub)}</small></td>
       <td>${esc(x.method || '-')}</td>
       <td class="vl-peers" title="${esc(peers)}">${esc(peers || '-')}</td>
       <td class="${vlOk(x) ? '' : 'vl-flag'}"${x.flag ? ` title="${esc(x.flag)}"` : ''}>${vlX(x.peer_mult, 2)}</td>
@@ -482,7 +508,7 @@ function mkValHTML() {
   return `${mkSec('공모가 산정 멀티플', '', `<div class="mk-tiles mk-tiles4">${tiles}</div>${dist}
       <div class="mk-sub">연도별</div>${byYear}
       <div class="mk-sub">평가 방법별</div>${byMethod}
-      <div class="mk-sub">기술특례 · 일반</div>${byTrack}
+      <div class="mk-sub">상장 방식별</div>${byTrack}
       <div class="mk-sub">업종별</div>${bySector}`)}
     ${mkSec('종목별 공모가 산정', search, list)}`;
 }
@@ -494,7 +520,8 @@ const MK_PE_REF = [
   ['국내 M&A(발표 기준)', '2026 상반기', '20.06조 (전년 동기 9.33조)', 'https://v.daum.net/v/20260703053219409', '서울경제 시그널'],
   ['국내 M&A 중 PEF 비중', '2024 무렵', '50% 이상', 'https://www.bain.com/contentassets/9229ac35d4b04498b18b97057f878dd4/bain-251112--pef--20------final.pdf', 'Bain'],
   ['상장사 메자닌 발행액', '2024 / 2025 / 2026 상반기', '8.51조 / 10.73조 / 8조 초과', 'https://news.mtn.co.kr/news-detail/2026083115593299777', '예탁결제원(MTN)'],
-  ['신규 벤처투자 · 업력 7년 초과 비중', '2025', '13.6조, 8,542건 · 54.4%(7.4조)', 'https://www.etoday.co.kr/news/view/2556683', '중기부(이투데이)'],
+  ['신규 벤처투자', '2025', '13.6조, 8,542건', 'https://www.etoday.co.kr/news/view/2556683', '중기부(이투데이)'],
+  ['신규 벤처투자 중 업력 7년 초과', '2025', '54.4%(7.4조)', 'https://www.etoday.co.kr/news/view/2556683', '중기부(이투데이)'],
   ['VC 회수 중 IPO 비중', '2026.1~5', '40.6%', 'https://www.hankyung.com/article/2026071325041', '벤처캐피탈협회(한국경제)'],
   ['모태펀드 1차 정시 선정', '2026', '8,750억 출자, 60개 펀드 1.75조', 'https://www.newsis.com/view/NISX20260429_0003610980', '중기부(뉴시스)'],
   ['국민연금 국내 벤처 위탁', '2026', '4,000억, 최대 6곳 (예년 약 2,000억)', 'https://news.bizwatch.co.kr/article/finance/2026/04/03/0025', '비즈워치'],
@@ -503,7 +530,7 @@ const MK_PE_REF = [
 ];
 // 금감원 기관전용 사모펀드 현황(2025년 말, 2026-06-17 발표)
 const MK_PEF = [['신규 출자약정', '27.8', '조', '역대 최대, +44.8%'], ['미집행 약정', '43.2', '조', '2024년 말 36.1조'], ['신설 펀드', '211', '개', '2024년 173개'],
-  ['투자 집행', '28.1', '조', '경영참여형 23.7조'], ['회수', '20.6', '조', '최종 회수 13.9조'], ['GP', '455', '곳', '대형 45 · 중형 163 · 소형 247']];
+  ['투자 집행', '28.1', '조', '경영참여형 23.7조'], ['회수', '20.6', '조', '최종 회수 13.9조'], ['GP', '455', '곳', [['대형', '45'], ['중형', '163'], ['소형', '247']]]];
 const mkMed = (a) => { if (!a.length) return null; const s = [...a].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : Math.round((s[m - 1] + s[m]) / 2); };
 const mkBars = (rows) => { const mx = Math.max(1, ...rows.map((r) => r[1])); return `<div class="mk-bars">${rows.map(([l, v]) => `<div class="b"><span class="v">${v}</span><i style="height:${Math.round((v / mx) * 100)}%"></i><span class="l">${esc(l)}</span></div>`).join('')}</div>`; };
 const mkMd = (s) => esc(String(s || '').slice(5).replace('-', '/'));
@@ -518,8 +545,8 @@ function mkYesimHTML() {
   const brk = {}; it.filter((x) => x.filed >= y1).forEach((x) => String(x.broker || '').split(/,\s*/).filter(Boolean).forEach((b) => { brk[b] = (brk[b] || 0) + 1; }));
   const top = Object.entries(brk).sort((a, b) => b[1] - a[1]).slice(0, 6);
   const sig = (d.signals || []).slice().sort((a, b) => String(b.dt).localeCompare(String(a.dt))).slice(0, 6);
-  return mkSec('예비심사 파이프라인', '<span class="mk-dim mk-hd">KIND · 스팩 제외</span>', `
-    <div class="mk-tiles mk-tiles4">${mkTile('심사 중', cnt('심사중'), '곳', '')}${mkTile('최근 3개월 청구', it.filter((x) => x.filed >= q3).length, '곳', '')}${mkTile('청구→결과 중앙값', mkMed(dur) ?? '-', '일', `결과 나온 ${dur.length}곳`)}${mkTile('철회', cnt('철회'), '곳', `승인 ${cnt('승인')} · 상장 ${cnt('상장')}`)}</div>
+  return mkSec('예비심사 파이프라인', '', `
+    <div class="mk-tiles mk-tiles4">${mkTile('심사 중', cnt('심사중'), '곳', '')}${mkTile('최근 3개월 청구', it.filter((x) => x.filed >= q3).length, '곳', '')}${mkTile('청구→결과 중앙값', mkMed(dur) ?? '-', '일', mkKv([['표본', `${dur.length}곳`]]))}${mkTile('철회', cnt('철회'), '곳', mkKv([['승인', cnt('승인')], ['상장', cnt('상장')]]))}</div>
     <div class="mk-sub">월별 청구 건수</div>${mkBars(bars)}
     <div class="mk-two">${top.length ? `<div><div class="mk-sub">최근 1년 상장주선인</div><ul class="mk-rank">${top.map(([n, v]) => `<li><span>${esc(n)}</span><b>${v}</b></li>`).join('')}</ul></div>` : ''}
     ${sig.length ? `<div><div class="mk-sub">청구 전 신호</div><ul class="mk-rank">${sig.map((s) => `<li><a href="${esc(s.url || '#')}" target="_blank" rel="noopener noreferrer"><b class="nm">${esc(s.name)}</b> ${esc(s.kind)}</a><span class="mk-dim">${mkMd(s.dt)}</span></li>`).join('')}</ul></div>` : ''}</div>`);
@@ -530,28 +557,25 @@ function mkTimelineHTML() {
   const t = mkS.yesim?.timeline; if (!t || !Array.isArray(t.stages) || !t.stages.length) return '';
   const u = t.unit || '개월', mo = (v) => (v == null ? '-' : mkNum(v, 1));
   const st = (k) => t.stages.find((s) => s.key === k);
-  const tile = (k, label) => { const s = st(k); return s ? mkTile(label, mo(s.median), u, `중앙값 · ${s.n ?? 0}곳`) : ''; };
+  const tile = (k, label) => { const s = st(k); return s ? mkTile(`${label} 중앙값`, mo(s.median), u, mkKv([['표본', `${s.n ?? 0}곳`]])) : ''; };
   const p = t.pending || {};
   const tiles = [tile('filed_listed', '청구 → 상장'), tile('filed_approved', '청구 → 승인'), tile('approved_listed', '승인 → 상장'),
-    p.n != null ? mkTile('지금 심사 중', p.n, '곳', `4개월 넘은 곳 ${p.over4m ?? 0}곳${p.median != null ? ` · 중앙 ${mo(p.median)}${esc(u)}째` : ''}`) : ''].join('');
+    p.n != null ? mkTile('지금 심사 중', p.n, '곳', mkKv([['4개월 넘음', `${p.over4m ?? 0}곳`], ['중앙', p.median != null ? `${mo(p.median)}${esc(u)}째` : '']])) : ''].join('');
   const range = (s) => ((s.n ?? 0) < 4 || s.p25 == null || s.p75 == null ? '<span class="mk-dim">표본 부족</span>' : `${mo(s.p25)} ~ ${mo(s.p75)}${esc(u)}`);
   // 묶음(group: 단계별 → 상장 방식별 → 철회, stages 순서대로). sub = 이름 아래 회색 설명, total = 합계 줄(위 선 + 굵게). 사용자 11/9 '아래 줄이 무엇인지 모르겠다'
   const groups = [];
   t.stages.forEach((s) => { const g = s.group || ''; let x = groups.find((y) => y.g === g); if (!x) groups.push(x = { g, rows: [] }); x.rows.push(s); });
-  const wd = st('filed_withdrawn');
-  const hint = (g) => (g === '철회' && wd?.median != null ? `예심 청구 뒤 ${mo(wd.median)}${esc(u)} 안팎에 철회가 많습니다. 청구하고 4개월이 넘도록 결과가 없으면 철회 위험 신호로 봅니다.` : '');
   const med = (s) => (s.median == null ? '-' : `${mo(s.median)}${esc(u)}`);
   const table = `<div class="mk-scroll mk-tl-t"><table class="mk-tbl mk-tl"><thead><tr><th class="st">구간</th><th>중앙값</th><th>보통 범위(25~75%)</th><th>평균</th><th>표본</th></tr></thead><tbody>${groups.map(({ g, rows }) => `${g ? `<tr class="mk-tl-g"><td colspan="5">${esc(g)}</td></tr>` : ''}${rows.map((s) => `<tr${s.total ? ' class="mk-tl-tot"' : ''}>
     <td class="st" title="${esc(s.label)}"><b>${esc(s.label)}</b>${s.sub ? `<small>${esc(s.sub)}</small>` : ''}</td><td class="strong">${med(s)}</td><td>${range(s)}</td>
-    <td>${s.mean == null ? '-' : `${mo(s.mean)}${esc(u)}`}</td><td>${s.n ?? 0}곳</td></tr>`).join('')}${hint(g) ? `<tr class="mk-tl-h"><td colspan="5">${hint(g)}</td></tr>` : ''}`).join('')}</tbody></table></div>
+    <td>${s.mean == null ? '-' : `${mo(s.mean)}${esc(u)}`}</td><td>${s.n ?? 0}곳</td></tr>`).join('')}`).join('')}</tbody></table></div>
     <div class="mk-tl-m">${groups.map(({ g, rows }) => `${g ? `<div class="mk-tl-mg">${esc(g)}</div>` : ''}${rows.map((s) => `<div class="mk-tl-mr${s.total ? ' tot' : ''}">
-      <div class="l"><b>${esc(s.label)}</b>${s.sub ? `<small>${esc(s.sub)}</small>` : ''}</div><div class="v"><b>${med(s)}</b><small>${range(s).includes('표본 부족') ? '' : '보통 '}${range(s)} · ${s.n ?? 0}곳</small></div></div>`).join('')}${hint(g) ? `<p class="mk-tl-note">${hint(g)}</p>` : ''}`).join('')}</div>`;
+      <div class="l"><b>${esc(s.label)}</b>${s.sub ? `<small>${esc(s.sub)}</small>` : ''}</div><div class="v"><b>${med(s)}</b><small class="mk-kvs">${range(s).includes('표본 부족') ? range(s) : mkKv([['보통', range(s)]])}${mkKv([['표본', `${s.n ?? 0}곳`]])}</small></div></div>`).join('')}`).join('')}</div>`;
   const mc = Array.isArray(t.mandateCases) ? t.mandateCases.filter((c) => c && c.name) : [];
   const ym = (s) => esc(String(s || '').slice(2, 7).replace('-', '.')); // 해를 넘기는 사례가 많아 연·월로(24.11)
   const cases = mc.length ? `<div class="mk-sub">주관사 선정 → 청구 사례</div><ul class="mk-rank mk-inline">${mc.map((c) => `<li><span>${esc(c.name)} <span class="mk-dim">${ym(c.selected)} → ${ym(c.filed)}</span></span><b>${mo(c.months)}${esc(u)}</b></li>`).join('')}</ul>` : '';
-  const foot = [t.note, t.basis].filter(Boolean).map((s) => `<p class="mk-tl-note">${esc(s)}</p>`).join('');
-  return mkSec('상장까지 걸리는 기간', `<span class="mk-dim mk-hd">${t.asof ? `${esc(t.asof)} 기준 · ` : ''}KIND 예심 결과</span>`, `
-    <div class="mk-tiles mk-tiles4">${tiles}</div><div class="mk-sub">구간별 기간</div>${table}${cases}${foot}`);
+  return mkSec('상장까지 걸리는 기간', t.asof ? `<span class="mk-dim mk-hd">${esc(t.asof)} 기준</span>` : '', `
+    <div class="mk-tiles mk-tiles4">${tiles}</div><div class="mk-sub">구간별 기간</div>${table}${cases}`);
 }
 function mkBidsHTML() {
   const d = mkS.bids; if (!d?.items) return '';
@@ -559,8 +583,8 @@ function mkBidsHTML() {
   const n = (f) => it.filter(f).length;
   const pick = it.filter((x) => x.fit === '상' || (x.fit === '중' && live.includes(x.stage))).sort((a, b) => String(b.last).localeCompare(String(a.last))).slice(0, 8);
   const adv = (d.advisors || []).map((a) => [a.name, (a.ids || []).length]).sort((a, b) => b[1] - a[1]).slice(0, 5);
-  return mkSec('바이아웃 · 입찰 딜', '<span class="mk-dim mk-hd">뉴스 · DART · 법원 공고</span>', `
-    <div class="mk-tiles mk-tiles4">${mkTile('진행 중 매각', n((x) => live.includes(x.stage)), '건', '')}${mkTile('계약·우선협상', n((x) => ['계약', '우선협상'].includes(x.stage)), '건', '')}${mkTile('회생 M&A', n((x) => x.stage === '회생 M&A'), '건', '')}${mkTile('우리가 낄 여지 상', n((x) => x.fit === '상'), '건', `중 ${n((x) => x.fit === '중')}건`)}</div>
+  return mkSec('바이아웃·입찰 딜', '', `
+    <div class="mk-tiles mk-tiles4">${mkTile('진행 중 매각', n((x) => live.includes(x.stage)), '건', '')}${mkTile('계약·우선협상', n((x) => ['계약', '우선협상'].includes(x.stage)), '건', '')}${mkTile('회생 M&A', n((x) => x.stage === '회생 M&A'), '건', '')}${mkTile('우리가 낄 여지 상', n((x) => x.fit === '상'), '건', mkKv([['중', `${n((x) => x.fit === '중')}건`]]))}</div>
     ${pick.length ? `<div class="mk-sub">눈여겨볼 딜</div><div class="mk-scroll"><table class="mk-tbl"><thead><tr><th class="st">대상</th><th>단계</th><th>매각자</th><th>자문사</th><th>최근</th></tr></thead><tbody>${pick.map((x) => `<tr><td class="st"><b>${esc(x.name)}</b><small>${esc(x.sector || '')}</small></td><td>${esc(x.stage)}</td><td>${esc(x.seller || '-')}</td><td>${esc(x.advisor || '-')}</td><td class="mk-dim">${mkMd(x.last)}</td></tr>`).join('')}</tbody></table></div>` : ''}
     ${adv.length ? `<div class="mk-sub">자문사별 딜 수</div><ul class="mk-rank mk-inline">${adv.map(([a, v]) => `<li><span>${esc(a)}</span><b>${v}</b></li>`).join('')}</ul>` : ''}`);
 }
@@ -578,22 +602,20 @@ function mzInvShort(list) {
   const g = {};
   list.forEach((i) => { const k = i.house || i.name; g[k] = (g[k] || 0) + (i.amt || 0) + 1e-6; });
   const names = Object.entries(g).sort((a, b) => b[1] - a[1]).map(([n]) => n);
-  return `${names.slice(0, 2).join(' · ')}${names.length > 2 ? ` 외 ${names.length - 2}` : ''}`;
+  return `${names[0]}${names.length > 1 ? ` 외 ${names.length - 1}` : ''}`;
 }
+// 조건 칸: 큰 글씨 하나(채권은 만기이자율, 유증은 발행가) + 아래 작은 줄 하나. 나머지는 마우스를 올리면(mzCondFull). 유증 방식은 종류 칸에 이미 있다
 function mzCond(x) {
-  if (x.type === '유증') return [x.method, x.pref ? '우선주' : '', x.conv_price ? `${mkNum(x.conv_price, 0)}원` : ''].filter(Boolean).join(' · ');
-  const a = [`표면 ${mzRate(x.coupon)}`, `만기 ${mzRate(x.ytm)}`];
-  if (x.type === 'EB') a.push(x.ex?.self ? '자사주' : x.ex?.target || '');
-  else if (x.refix_pct) a.push(`하한 ${x.refix_pct}%`);
-  return a.filter(Boolean).join(' · ');
+  if (x.type === '유증') return x.conv_price ? `${mkNum(x.conv_price, 0)}원${x.pref ? '<small>우선주</small>' : ''}` : x.pref ? '우선주' : '<span class="mk-dim">-</span>';
+  return `만기 ${mzRate(x.ytm)}<small>표면 ${mzRate(x.coupon)}</small>`;
 }
 function mzCondFull(x) {
-  const a = [mzCond(x)];
+  const a = x.type === '유증' ? [x.method, x.pref ? '우선주' : ''] : [`표면 ${mzRate(x.coupon)}`, `만기 ${mzRate(x.ytm)}`, x.type === 'EB' ? (x.ex?.self ? '자사주' : x.ex?.target || '') : x.refix_pct ? `하한 ${x.refix_pct}%` : ''];
   if (x.type !== '유증' && x.conv_price) a.push(`${x.type === 'CB' ? '전환가' : x.type === 'BW' ? '행사가' : '교환가'} ${mkNum(x.conv_price, 0)}원`);
   if (x.maturity) a.push(`만기일 ${x.maturity}`);
   if (x.pay) a.push(`납입 ${x.pay}`);
   if (x.ex?.shares) a.push(`교환대상 ${mkNum(x.ex.shares, 0)}주${x.ex.pct_calc ?? x.ex.pct ? ` ${mkNum(x.ex.pct_calc ?? x.ex.pct, 2)}%` : ''}`);
-  return a.join(' · ');
+  return a.filter(Boolean).join(', ');
 }
 
 function mkMezzHTML() {
@@ -615,7 +637,7 @@ function mkMezzHTML() {
   const table = rows.length ? `<div class="mk-scroll"><table class="mk-tbl mz-tbl"><thead><tr><th class="st">회사</th><th>종류</th><th>금액</th><th>조건</th><th>투자자</th><th>날짜</th></tr></thead><tbody>${shown.map((x) => `<tr>
     <td class="st"><a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><b>${esc(x.corp)}</b></a><small>${esc(x.market || '')}</small></td>
     <td>${esc(x.type)}<small>${esc(x.method || '')}</small></td><td class="strong">${mzEok(x.amount)}</td>
-    <td title="${esc(mzCondFull(x))}">${esc(mzCond(x))}</td><td title="${esc((x.investors || []).map((i) => i.name).join(', '))}">${esc(mzInvShort(x.investors)) || '<span class="mk-dim">-</span>'}</td>
+    <td title="${esc(mzCondFull(x))}">${mzCond(x)}</td><td title="${esc((x.investors || []).map((i) => i.name).join(', '))}">${esc(mzInvShort(x.investors)) || '<span class="mk-dim">-</span>'}</td>
     <td class="mk-dim">${mkMd(x.filed || x.dt)}</td></tr>`).join('')}</tbody></table></div>
     ${rows.length > 20 ? `<button type="button" class="btn mk-more in" data-mk-seg="mzAll" data-v="${mkS.mzAll ? '' : '1'}">${mkS.mzAll ? '최근 20건만' : `전체 ${rows.length}건 보기`}</button>` : ''}` : '<div class="empty">공시가 없습니다.</div>';
 
@@ -624,43 +646,64 @@ function mkMezzHTML() {
   const mkt = (d.by_market || []).filter((m) => m.mezz_n || m.rights_3rd_n);
   const y = d.summary.last12m || {};
 
-  return mkSec('메자닌 · 유상증자', '<span class="mk-dim mk-hd">DART 주요사항보고서</span>', `
+  return mkSec('메자닌·유상증자', '<span class="mk-dim mk-hd">DART 주요사항보고서</span>', `
     <div class="mk-sub">최근 3개월</div>
     <div class="mk-tiles mk-tiles4">${tiles}</div>
-    <div class="mz-subrow"><div class="mk-sub">월별 발행액 · 조원</div>${mkSeg('mzBar', [['mezz', '메자닌'], ['r3', '제3자배정 유증']], bar)}</div>${mkBars(bars)}
+    <div class="mz-subrow"><div class="mk-sub">월별 발행액 <span class="mk-unit">조원</span></div>${mkSeg('mzBar', [['mezz', '메자닌'], ['r3', '제3자배정 유증']], bar)}</div>${mkBars(bars)}
     <div class="mz-subrow"><div class="mk-sub">최근 공시</div>${mkSeg('mzType', MZ_TYPES, ty)}</div>${table}
     <div class="mk-two">
       <div><div class="mz-subrow"><div class="mk-sub">최근 12개월 투자자</div>${mkSeg('mzInv', MZ_INV, inv)}</div>
-        ${top.length ? `<ul class="mk-rank mz-rank">${top.map((a) => `<li><span class="nm">${esc(a.name)}<small>${esc(a.kind)}</small></span><b>${a.n}건 · ${mzEok(a.amt)}</b></li>`).join('')}</ul>` : '<div class="empty">데이터가 없습니다.</div>'}</div>
+        ${top.length ? `<ul class="mk-rank mz-rank">${top.map((a) => `<li><span class="nm">${esc(a.name)}<small>${esc(a.kind)}</small></span><span class="mz-v"><span>${a.n}건</span><b>${mzEok(a.amt)}</b></span></li>`).join('')}</ul>` : '<div class="empty">데이터가 없습니다.</div>'}</div>
       <div><div class="mz-subrow"><div class="mk-sub">최근 12개월 시장별</div></div>
-        <ul class="mk-rank mz-rank">${mkt.map((m) => `<li><span class="nm">${esc(m.market)}<small>메자닌 ${m.mezz_n}건 · 제3자배정 ${m.rights_3rd_ex_n ?? m.rights_3rd_n}건</small></span><b>${mzEok(m.mezz)} · ${mzEok(m.rights_3rd_ex ?? m.rights_3rd)}</b></li>`).join('')}
-        <li><span class="nm">합계<small>메자닌 ${y.mezz_n ?? 0}건 · 제3자배정 ${y.rights_3rd_ex_n ?? y.rights_3rd_n ?? 0}건</small></span><b>${mzEok(y.mezz)} · ${mzEok(y.rights_3rd_ex ?? y.rights_3rd)}</b></li></ul></div>
+        <div class="mk-scroll"><table class="mk-tbl mz-mkt"><thead><tr><th class="st">시장</th><th>메자닌</th><th>제3자배정</th></tr></thead><tbody>${[...mkt, { market: '합계', tot: true, ...y }].map((m) => `<tr${m.tot ? ' class="mk-tl-tot"' : ''}><td class="st"><b>${esc(m.market)}</b></td>
+          <td class="strong">${mzEok(m.mezz)}<small>${m.mezz_n ?? 0}건</small></td><td class="strong">${mzEok(m.rights_3rd_ex ?? m.rights_3rd)}<small>${m.rights_3rd_ex_n ?? m.rights_3rd_n ?? 0}건</small></td></tr>`).join('')}</tbody></table></div></div>
     </div>`);
 }
 
 function mkPeHTML() {
-  const pef = `<div class="mk-tiles mk-tiles3">${MK_PEF.map(([l, v, u, s]) => mkTile(l, v, u, esc(s))).join('')}</div>`;
-  const ref = `<div class="mk-scroll"><table class="mk-tbl mk-ref"><thead><tr><th class="st">항목</th><th>기간</th><th>수치</th><th>출처</th></tr></thead><tbody>${MK_PE_REF.map((r) => `<tr><td class="st"><b>${esc(r[0])}</b></td><td class="mk-dim">${esc(r[1])}</td><td class="strong">${esc(r[2])}</td><td class="mk-dim"><a href="${esc(r[3])}" target="_blank" rel="noopener noreferrer">${esc(r[4])}</a></td></tr>`).join('')}</tbody></table></div>`;
+  const pef = `<div class="mk-tiles mk-tiles3">${MK_PEF.map(([l, v, u, s]) => mkTile(l, v, u, Array.isArray(s) ? mkKv(s.map(([a, b]) => [a, esc(b)])) : esc(s))).join('')}</div>`;
+  const ref = mkRefTbl(MK_PE_REF);
   return `${mkYesimHTML()}${mkTimelineHTML()}${mkBidsHTML()}${mkMezzHTML()}
-    ${mkSec('PEF 시장', '<a class="mk-dim mk-hd" href="https://core.asiae.co.kr/article/2026061710083948025" target="_blank" rel="noopener noreferrer">금감원 · 2025년 말</a>', pef)}
-    ${mkSec('M&A · 벤처 · 출자 동향', '', ref)}
-    <p class="mk-foot">예비심사·입찰 딜은 딜레이더 목록, 메자닌·유상증자는 DART 주요사항보고서를 집계한 것이고, 나머지는 발표 수치입니다.</p>`;
+    ${mkSec('PEF 시장', '<a class="mk-dim mk-hd" href="https://core.asiae.co.kr/article/2026061710083948025" target="_blank" rel="noopener noreferrer" title="금감원 기관전용 사모펀드 현황">2025년 말 기준</a>', pef)}
+    ${mkSec('M&A·벤처·출자 동향', '', ref)}`;
 }
+
+// ---------- 화면 설명(ⓘ) — 화면 아래 주석·제목 옆 출처 줄을 여기로 옮겼다(2026-11-15 사용자 '요소가 너무 많다') ----------
+TAB_INFO.market = { title: '시장 지표', rows: [
+  ['기준', ['지수와 낙폭은 배당 미반영 종가 기준, 종목과 ETF 수익률은 배당 재투자 기준입니다.', '2년 이상 기간의 수익률 아래 작은 글씨는 연환산 수익률입니다.', '낙폭 카드의 고점일에 마우스를 올리면 고점 뒤 지난 기간이 나옵니다.']],
+  ['갱신', '평일 아침 7시 20분에 모읍니다.'],
+] };
+TAB_INFO['market/ipo'] = { title: '공모주 통계', rows: [
+  ['대상', '스팩, 리츠, 이전상장은 뺍니다. 종목별 표의 회사 이름에 마우스를 올리면 시장이 나옵니다.'],
+  ['수익률', ['공모가 대비 수익률입니다. 시초가는 상장일 시가, 1개월·3개월·6개월·1년은 상장 후 약 20·60·120·250거래일 종가 기준입니다.', '점선 밑줄이 있는 숫자는 기간이 다 차지 않아 일부 종목(90% 미만)으로만 계산한 값입니다. 숫자에 마우스를 올리면 몇 건 기준인지 나옵니다.']],
+  ['보호예수 해제', '해제일 D−5 종가에서 D+5 종가까지의 수익률이고, 초과수익률은 같은 기간 지수 대비입니다.'],
+  ['참고 통계', '기관마다 집계 기준이 달라 직접 비교는 피합니다. 출처에 마우스를 올리면 집계 기준 메모가 나옵니다.'],
+] };
+function mkPeInfo() {
+  const t = mkS.yesim?.timeline, wd = t?.stages?.find?.((s) => s.key === 'filed_withdrawn');
+  return { title: 'PE 동향', rows: [
+    ['출처', ['예비심사 파이프라인은 KIND 예비심사 목록에서 스팩을 뺀 것입니다.', '상장까지 걸리는 기간은 KIND 예심 결과로 계산합니다.', '바이아웃·입찰 딜은 뉴스, DART, 법원 공고에서 모읍니다.', '예비심사·입찰 딜은 딜레이더 목록, 메자닌·유상증자는 DART 주요사항보고서를 집계한 것이고, 나머지는 발표 수치입니다.', 'PEF 시장은 금감원 기관전용 사모펀드 현황(2025년 말, 2026-06-17 발표)입니다.']],
+    ['상장까지 걸리는 기간', [wd?.median != null ? `예심 청구 뒤 ${mkNum(wd.median, 1)}${t.unit || '개월'} 안팎에 철회가 많습니다. 청구하고 4개월이 넘도록 결과가 없으면 철회 위험 신호로 봅니다.` : '', t?.note || '', t?.basis || ''].filter(Boolean)],
+    ['메자닌', '조건 칸은 채권이면 만기이자율과 표면이자율, 유상증자면 발행가입니다. 마우스를 올리면 리픽싱 하한, 전환가, 만기일, 납입일이 나옵니다.'],
+  ].filter(([, v]) => v.length) };
+}
+TAB_INFO['market/pe'] = mkPeInfo();
 
 // ---------- 화면 ----------
 function mkDraw() {
   const host = $('#mk-host'); if (!host || mkS.tab === 'ma') return; // M&A 거래 탭으로 옮긴 뒤 늦게 끝난 mkLoad가 덮어쓰지 않게
   viewSet('mk', Object.fromEntries(MK_VIEW.map((k) => [k, mkS[k]])));
+  TAB_INFO['market/pe'] = mkPeInfo();
   host.innerHTML = mkS.tab === 'ipo' ? mkIpoHTML() : mkS.tab === 'pe' ? mkPeHTML() : mkMarketHTML();
   const mob = isMobile(); // 폰: 첫 열 104 + 나머지 92(market.css 폰 블록과 짝), 참고 통계 표는 세로로 쌓으니 폭 지정 없음
-  host.querySelectorAll('.mk-tbl').forEach((t) => { const n = t.tHead.rows[0].cells.length - 1; t.style.minWidth = mob ? (t.classList.contains('mk-ref') ? '' : `${104 + n * 92}px`) : `${150 + n * 104}px`; }); // 첫 열 150px + 나머지 같은 폭, 좁으면 카드 안에서 가로 스크롤
+  host.querySelectorAll('.mk-tbl').forEach((t) => { const n = t.tHead.rows[0].cells.length - 1; t.style.minWidth = t.classList.contains('mz-mkt') ? '' : mob ? (t.classList.contains('mk-ref') ? '' : `${104 + n * 92}px`) : `${150 + n * 104}px`; }); // 첫 열 150px + 나머지 같은 폭, 좁으면 카드 안에서 가로 스크롤
   mkChartHover(host);
   [['#mk-q', 'ipoQ'], ['#mk-valq', 'valQ']].forEach(([sel, k]) => { const q = $(sel, host); if (q) q.addEventListener('input', (e) => { mkS[k] = e.target.value; const pos = e.target.selectionStart; mkDraw(); const n = $(sel); n.focus(); n.setSelectionRange(pos, pos); }); });
 }
 async function renderMarket() {
   const r = route(); mkS.tab = r === 'market/ipo' ? 'ipo' : r === 'market/pe' ? 'pe' : r === 'market/ma' && typeof renderMa === 'function' ? 'ma' : 'market';
   const tabs = [['market', '시장 지표', 'chart'], ['ipo', '공모주 통계', 'spark'], ['pe', 'PE 동향', 'flag'], ...(typeof renderMa === 'function' ? [['ma', 'M&A 거래', 'link']] : [])];
-  PAGE.innerHTML = `<div class="page-head"><h1>시장동향</h1><span class="mk-upd" id="mk-upd"></span></div>
+  PAGE.innerHTML = `<div class="page-head"><h1>시장동향</h1><span class="mk-hr"><span class="mk-upd" id="mk-upd"></span>${mkS.tab === 'ma' ? '' : infoBtn(mkS.tab === 'market' ? 'market' : `market/${mkS.tab}`)}</span></div>
     <div class="deal-seg mk-tabs" role="tablist">${tabs.map(([k, t, i]) => `<button type="button" role="tab" data-mt="${k}" aria-selected="${mkS.tab === k}" class="${mkS.tab === k ? 'on' : ''}">${ico(i)}${t}</button>`).join('')}</div>
     <div id="mk-host" class="mk"><div class="card"><div class="empty">불러오는 중…</div></div></div>`;
   PAGE.querySelectorAll('[data-mt]').forEach((b) => b.addEventListener('click', () => { if (mkS.tab !== b.dataset.mt) location.hash = b.dataset.mt === 'market' ? '#market' : `#market/${b.dataset.mt}`; }));

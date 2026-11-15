@@ -52,7 +52,9 @@
 .nw-ttl { font-size: 16px; line-height: 22px; font-weight: 600; color: var(--primary); text-decoration: none; }
 .nw-ttl:hover { color: var(--primary-hover); text-decoration: underline; text-underline-offset: 3px; }
 .nw-why { margin-top: 4px; font-size: 15px; line-height: 22px; color: var(--ink); }
-.nw-meta { margin-top: 4px; font-size: 13px; color: var(--text3); }
+.nw-meta { display: flex; flex-wrap: wrap; align-items: center; column-gap: 12px; row-gap: 4px; margin-top: 4px; font-size: 13px; line-height: 18px; color: var(--text3); }
+.nw-tm { font-variant-numeric: tabular-nums; }
+.nw-meta .chip { height: 18px; padding: 0 8px; font-size: 12px; }
 .nw-body > .empty { padding: 48px 24px; }
 
 /* 대시보드 카드 */
@@ -60,7 +62,8 @@
 .nw-hl { display: flex; flex-direction: column; min-width: 0; flex: 1; text-decoration: none; color: inherit; }
 .nw-hl .ttl { font-weight: 500; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nw-hl:hover .ttl { color: var(--primary); }
-.nw-hl .meta { font-size: 13px; color: var(--text3); }
+.nw-hl .meta { display: flex; gap: 12px; font-size: 13px; color: var(--text3); }
+.nw-hl .meta span:last-child { font-variant-numeric: tabular-nums; }
 .home-brief { margin: 16px 0 6px; background: var(--t-blue); border-color: var(--t-blue-i); }
 .home-brief li:not(.brief-h) { padding-left: 0; }
 .home-brief li:not(.brief-h)::before { display: none; }

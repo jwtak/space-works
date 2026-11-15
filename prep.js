@@ -83,7 +83,7 @@ const prBar = (done, n) => `<span class="pr-bar"><i style="width:${n ? Math.roun
 function prDue(due, done) {
   if (!due) return '';
   const d = diffDays(due, today()), cls = done ? '' : d < 0 ? 'red' : d <= 3 ? 'amber' : '';
-  return `<span class="pr-due ${cls}">${prMD(due)}${!done && d < 0 ? ` · ${-d}일 지남` : ''}</span>`;
+  return `<span class="pr-due ${cls}" title="${prMD(due)}">${!done && d < 0 ? `${-d}일 지남` : prMD(due)}</span>`;
 }
 
 function renderPrep(host, key) {
@@ -102,7 +102,7 @@ function prDraw() {
   const me = prMe(), { per, co } = prCount(L), dd = L.date ? diffDays(L.date, today()) : null;
   const sum = `<section class="pr-sum">
     ${L.people.map((p) => `<div class="pr-who ${p === me ? 'me' : ''}">
-      <div class="pr-who-h"><b>${esc(p)}</b><span>${esc(L.roles?.[p] || '')}</span>${L.personFolders?.[p] ? `<a class="pr-fd" href="${esc(prFolder(L.personFolders[p]))}" title="${esc(p)} 서류 폴더">${ico('folder', 'sm')}</a>` : ''}</div>
+      <div class="pr-who-h"><b title="${esc(L.roles?.[p] || '')}">${esc(p)}</b><span class="pr-role">${esc(L.roles?.[p] || '')}</span>${L.personFolders?.[p] ? `<a class="pr-fd" href="${esc(prFolder(L.personFolders[p]))}" title="${esc(p)} 서류 폴더">${ico('folder', 'sm')}</a>` : ''}</div>
       <div class="pr-who-n"><b>${per[p].done}</b> / ${per[p].n}${per[p].n && per[p].done === per[p].n ? '<span class="chip green">완료</span>' : ''}</div>${prBar(per[p].done, per[p].n)}</div>`).join('')}
     <div class="pr-who co"><div class="pr-who-h"><b>회사 서류</b>${co.mine ? `<span>내 담당 ${co.mine}건 남음</span>` : ''}</div>
       <div class="pr-who-n"><b>${co.done}</b> / ${co.n}</div>${prBar(co.done, co.n)}</div>

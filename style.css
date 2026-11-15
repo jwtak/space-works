@@ -168,7 +168,7 @@ svg.i.lg { width: 22px; height: 22px; }
 /* ---------- 홈 ---------- */
 .home { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; align-items: start; }
 .col { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
-.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; padding: 0 24px 24px; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; padding: 0 24px 24px; }
 .tile { border-radius: var(--r-lg); padding: 16px 20px 18px; background: var(--t-blue); min-width: 0; text-decoration: none; display: flex; flex-direction: column; gap: 14px; color: var(--ink); }
 .tile .top { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .tile .h { flex: 1; min-width: 0; font-size: 15px; font-weight: 600; line-height: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -292,11 +292,12 @@ textarea.area { min-height: 120px; padding: 10px 12px; border: 1px solid var(--l
 .notes-list .top .row { display: flex; gap: 6px; }
 .notes-list .top .row .btn { flex: 1; padding: 0 6px; font-size: 14px; }
 .notes-list ul { list-style: none; margin: 0; padding: 6px 0; overflow-y: auto; flex: 1; }
-.notes-list li { padding: 10px 16px; cursor: pointer; position: relative; }
+.notes-list li { display: flex; align-items: baseline; gap: 12px; padding: 10px 16px; cursor: pointer; position: relative; }
+.notes-list li .tm { flex: none; margin-left: auto; font-size: 13px; color: var(--text3); font-variant-numeric: tabular-nums; }
 .notes-list li:hover { background: var(--hover); }
 .notes-list li.on { background: var(--primary-soft); }
 .notes-list li.on::before { content: ''; position: absolute; left: 0; top: 8px; bottom: 8px; width: 3px; border-radius: 2px; background: var(--primary); }
-.notes-list li .nm { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notes-list li .nm { flex: 1; min-width: 0; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .notes-list li.on .nm { color: var(--primary); font-weight: 600; }
 .notes-list li .pv { font-size: 13px; line-height: 18px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .editor { display: flex; flex-direction: column; min-height: 0; }
@@ -857,6 +858,7 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 /* 일정 서버가 안 될 때 기기에 남은 일정을 보여 주며 한 줄 안내(app.js calStaleBar) */
 .cal-stale { display: flex; align-items: center; gap: 12px; margin: 0 24px 12px; padding: 8px 8px 8px 14px; border-radius: var(--r); background: var(--t-amber); color: var(--t-amber-c); font-size: 15px; font-weight: 500; }
 .cal-stale span { flex: 1; min-width: 0; }
+.cal-stale em { flex: none; font-style: normal; font-weight: 400; font-variant-numeric: tabular-nums; }
 .cal-stale .btn { flex: none; }
 #cal-body > .cal-stale { margin: 0 0 12px; }
 @media (max-width: 760px) { .cal-stale { margin: 0 12px 10px; } .mh-today .cal-stale { margin: 0 0 10px; } }
