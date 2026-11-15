@@ -49,5 +49,19 @@
   #page .ipo-filter.mf-pri > .btn:not(.mf-tgl) ~ .mf-tgl, #page .ipo-filter.mf-pri > .mf-tgl ~ .btn { padding: 0 12px; }
 }
 
+/* 상장 준비(2026-11-15 사용자): 수집 시각은 늦었을 때(빨강)만, 상태별 개수는 요약 대신 칩 옆에, 목록 한 건은 2줄(이름 / 업종 · 주관사 · 경과) */
+.rd-fc { display: none; }
+@media (max-width: 760px) {
+  #page .rd-page .ipo-sumrow .ipo-gen:not(.ipo-stale) { display: none; }
+  #page .rd-yesim .ipo-sumrow .rd-sc { display: none; }
+  #page .rd-yesim .ipo-filter .seg.mf-main .rd-fc { display: inline; margin-left: 6px; color: var(--text3); font-weight: 500; font-variant-numeric: tabular-nums; }
+  #page .rd-yesim .ipo-filter .seg.mf-main button.on .rd-fc { color: var(--primary); }
+  #page .rd-yesim .ipo-row .ipo-line > div:first-child { display: none; }
+  #page .rd-yesim .ipo-row .ipo-c-name > .ipo-sub { display: none; }
+  #page .rd-yesim .ipo-row .rd-mob { margin-top: 2px; -webkit-line-clamp: 2; }
+  #page .rd-yesim .ipo-row .ipo-line.ipo-cols { grid-template-columns: minmax(0, 1fr) auto; }
+  #page .rd-yesim .ipo-row .ipo-c-st { grid-column: 2; grid-row: 1; align-self: start; }
+}
+
 /* PC에는 필터 접기 버튼이 없다(필터가 한 줄에 다 보임) */
 @media (min-width: 761px) { .mf-tgl { display: none !important; } }

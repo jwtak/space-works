@@ -689,7 +689,7 @@ const RD_YS_HEAD = '<div class="ipo-head ipo-cols"><div>청구일</div><div>회�
 function rdYsRow(x) {
   const open = rdS.yesim.open.has(x.id), st = rdSt(rdKey('yesim', x.id)), p = rdYsProg(x), br = rdSplit(x.broker);
   const f = x.fy ? x.fin.years[x.fy] : [];
-  const mob = [esc(p.label), esc(p.sub), br.length ? rdNm(br[0]) : ''].filter(Boolean).join(' · ');
+  const mob = [esc(x.product || x.sector), br.length ? rdNm(br[0]) : '', esc(p.sub && !/일째$/.test(p.sub) ? `${p.label} ${p.sub}` : p.sub)].filter(Boolean).join(' · '); // 폰 보조 줄: 업종 · 주관사 · 경과(단계명은 묶음 제목과 겹쳐 뺌, 2026-11-15)
   // rd-alt = 카드가 좁아 주관사·최근 매출 칸을 접었을 때 남은 칸에 보이는 보조 줄
   return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
@@ -752,7 +752,7 @@ const RD_MN_HEAD = RD_YS_HEAD.replace('청구일', '선정일');
 function rdMnRow(x) {
   const open = rdS.yesim.open.has(x.id), st = rdSt(rdKey('yesim', x.id)), p = rdMnProg(x);
   const f = x.fy ? x.fin.years[x.fy] : [];
-  const mob = [esc(p.label), esc(p.sub), x.lead.length ? rdNm(x.lead[0]) : ''].filter(Boolean).join(' · ');
+  const mob = [esc(x.sector), x.lead.length ? rdNm(x.lead[0]) : '', esc(p.sub)].filter(Boolean).join(' · ');
   return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div>${rdMd(x.selected) || RD_NA}<div class="ipo-sub">${esc(x.market)}</div></div>
@@ -1004,14 +1004,29 @@ function rdSummary(tab) {
   // 실패한 출처만 이름으로. 분류(Claude 단계)는 출처가 아니라 뺀다(sheets.py와 같은 기준), '출처 · 운용사' 같은 세부 출처는 앞 이름으로 묶고, 실패 원문은 싣지 않는다
   const fails = d.sources && typeof d.sources === 'object'
     ? [...new Set(Object.entries(d.sources).filter(([k, v]) => k !== '분류' && /^실패/.test(rdStr(v))).map(([k]) => k.split(' · ')[0]))] : [];
-  return `${gl ? `<span class="${ok && Date.now() - g > 36 * 3600000 ? 'ipo-stale' : ''}">${gl}</span>` : ''}<span>${it.length}${RD_TAB[tab].unit}</span>`
-    + `${parts.map(([l, v]) => `<span>${l} <b>${v}</b></span>`).join('')}<span>컨택 <b>${done}</b></span>`
+  return `${gl ? `<span class="ipo-gen${ok && Date.now() - g > 36 * 3600000 ? ' ipo-stale' : ''}">${gl}</span>` : ''}<span class="rd-sc">${it.length}${RD_TAB[tab].unit}</span>`
+    + `${parts.map(([l, v]) => `<span class="rd-sc">${l} <b>${v}</b></span>`).join('')}<span>컨택 <b>${done}</b></span>`
     + fails.map((k) => `<span class="ipo-stale">${esc(k)} 실패</span>`).join('');
 }
 
 function rdSumDraw() {
   const el = rdS.host && rdS.tab && rdS.host.querySelector('#rd-sum');
   if (el) el.innerHTML = rdSummary(rdS.tab);
+  if (rdS.tab === 'yesim') rdFcDraw();
+}
+/* 상장 준비 칩 옆 개수(폰): 지금 검색어·재무 필터를 그대로 따르고, 칩을 눌렀을 때 나올 회사 수(rdYsList와 같은 기준) */
+function rdFcDraw() {
+  const s = rdS.yesim, d = s.data, root = rdS.host; if (!d || !root) return;
+  const q = s.q.trim().toLowerCase();
+  const keep = (x, hid) => (!q || x.q.includes(q)) && rdHid(x) === hid && rdFinOk(x, s);
+  const mns = d.mandates.filter((x) => x.pre && keep(x, false)), its = d.items.filter((x) => keep(x, false));
+  const c = {
+    all: mns.length + its.length, mandate: mns.length,
+    review: its.filter((x) => x.status === '심사중').length, ok: its.filter((x) => x.status === '승인').length,
+    drop: its.filter((x) => x.status === '철회' || x.status === '미승인').length, new: its.filter((x) => x.isNew).length,
+    hidden: d.mandates.filter((x) => x.pre && keep(x, true)).length + d.items.filter((x) => keep(x, true)).length,
+  };
+  root.querySelectorAll('.rd-fc[data-fc]').forEach((e) => { const v = c[e.dataset.fc]; e.textContent = v != null ? String(v) : ''; });
 }
 
 function rdBody(tab) {
@@ -1128,7 +1143,7 @@ function rdFilterHtml(tab) {
   const search = (ph) => `<div class="ipo-search"><span class="ipo-sic">${ico('search', 'sm')}</span><input class="input" id="rd-q" type="search" placeholder="${ph}" value="${esc(s.q)}" autocomplete="off" aria-label="검색"></div>`;
   const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button type="button" data-${attr}="${esc(k)}" class="${cur === k ? 'on' : ''}" aria-pressed="${cur === k}">${esc(l)}</button>`).join('')}</div>`;
   const sel = (id, label, opts, cur) => `<select class="select" id="${id}" aria-label="${label}">${opts.map(([k, l]) => `<option value="${esc(k)}"${cur === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
-  if (tab === 'yesim') return search('회사·업종·주관사·주주 검색') + seg('rd-f', RD_YS_F, s.f) + sel('rd-sort', '정렬', RD_YS_SORT, s.sort);
+  if (tab === 'yesim') return search('회사·업종·주관사·주주 검색') + seg('rd-f', RD_YS_F, s.f).replace(/(data-rd-f="([a-z]+)"[^>]*>)([^<]+)</g, '$1$3<span class="rd-fc" data-fc="$2"></span><') + sel('rd-sort', '정렬', RD_YS_SORT, s.sort); // 칩 옆 개수 자리(폰에서만 보임, rdFcDraw)
   if (tab === 'yesim-fin') return `<div class="rd-fing"><span class="rd-finl">최근 매출</span>${seg('rd-rev', RD_YS_REV, rdS.yesim.rev)}</div>`
     + `<div class="rd-fing"><span class="rd-finl">영업이익률</span>${seg('rd-opm', RD_YS_OPM, rdS.yesim.opm)}</div>`;
   if (tab === 'sell') return search('회사·매도 후보·조합 검색') + seg('rd-f', [['all', '전체'], ...RD_KINDS.map((k) => [k, k])], s.f) + sel('rd-sort', '정렬', RD_SELL_SORT, s.sort);
