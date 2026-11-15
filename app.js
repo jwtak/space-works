@@ -681,6 +681,41 @@ function renderDeals() {
   Promise.resolve(fn(host)).catch((e) => { host.innerHTML = `<div class="card"><div class="empty">${esc(e.message)}</div></div>`; });
 }
 // 탭 줄이 넘치면 고른 탭을 가운데로(탭을 바꿀 때마다 새로 그려 처음 위치로 돌아가므로), PC 마우스 휠로도 옆으로 밀기(끝에 닿으면 화면 스크롤)
+/* 폰 필터 정리(2026-11-15 사용자: 목록 위에 요소가 다닥다닥 쌓여 보기 불편).
+   딜소싱·시장 화면은 .ipo-filter(검색·상태·정렬) 다음에 .ipo-filter(매출·이익률 등)가 이어지는 같은 뼈대다.
+   첫 줄에 '필터' 버튼을 넣고, 첫 번째 상태 묶음(.seg)·버튼·검색만 늘 보이고 정렬 상자·나머지 묶음·추가 필터 줄은 펼쳤을 때만 보인다(mobile.css).
+   각 화면이 필터 줄을 다시 그려도 MutationObserver가 다시 붙인다. 펼침 상태는 화면 주소별로 기억 */
+const MF_OPEN = new Set();
+function mfApply() {
+  PAGE.querySelectorAll('.ipo-filter').forEach((pri) => {
+    if (pri.previousElementSibling?.classList.contains('ipo-filter')) return; // 이어지는 줄은 첫 줄이 맡는다
+    const secs = []; for (let n = pri.nextElementSibling; n?.classList.contains('ipo-filter'); n = n.nextElementSibling) secs.push(n);
+    const segs = [...pri.querySelectorAll(':scope > .seg')];
+    const hide = [...pri.querySelectorAll(':scope > select, :scope > label'), ...segs.slice(1)];
+    segs.forEach((g, i) => g.classList.toggle('mf-main', i === 0));
+    const key = `${route()}#${[...PAGE.querySelectorAll('.ipo-filter')].indexOf(pri)}`;
+    let t = pri.querySelector(':scope > .mf-tgl');
+    if (!hide.length && !secs.length) { t?.remove(); pri.classList.remove('mf-pri', 'mf-closed'); return; }
+    pri.classList.add('mf-pri'); hide.forEach((el) => el.classList.add('mf-x')); secs.forEach((x) => x.classList.add('mf-sec'));
+    if (!t) {
+      t = document.createElement('button'); t.type = 'button'; t.className = 'btn mf-tgl';
+      t.addEventListener('click', () => { if (MF_OPEN.has(key)) MF_OPEN.delete(key); else MF_OPEN.add(key); mfApply(); });
+      const s = pri.querySelector(':scope > .ipo-search'); if (s) s.after(t); else pri.prepend(t);
+    }
+    const open = MF_OPEN.has(key);
+    // 켜 둔 조건 수: 숨는 묶음에서 첫 칸이 아닌 것을 고른 수 + 정렬이 아닌 선택 상자에서 첫 항목이 아닌 것
+    const segOn = (g) => { const b = [...g.querySelectorAll('button')], i = b.findIndex((x) => x.classList.contains('on')); return i > 0 ? 1 : 0; };
+    const n = [...hide, ...secs].reduce((a, el) => a + (el.matches('.seg') ? segOn(el) : el.matches('select') ? (el.selectedIndex > 0 && !/순$/.test(el.options[el.selectedIndex]?.text || '') ? 1 : 0) : [...el.querySelectorAll('.seg')].reduce((b, g) => b + segOn(g), 0) + [...el.querySelectorAll('select')].filter((x) => x.selectedIndex > 0 && !/순$/.test(x.options[x.selectedIndex]?.text || '')).length), 0);
+    const html = `필터${n ? `<b class="mf-n">${n}</b>` : ''}`;
+    if (t.innerHTML !== html) t.innerHTML = html;
+    t.setAttribute('aria-expanded', open); t.classList.toggle('on', open);
+    pri.classList.toggle('mf-closed', !open); secs.forEach((x) => x.classList.toggle('mf-closed', !open));
+  });
+}
+let mfQ = 0;
+new MutationObserver(() => { if (!mfQ) mfQ = requestAnimationFrame(() => { mfQ = 0; mfApply(); }); }).observe(PAGE, { childList: true, subtree: true });
+PAGE.addEventListener('change', () => requestAnimationFrame(mfApply));
+
 function segFit(seg) {
   const on = seg?.querySelector('.on'); if (!on) return;
   const fit = () => { seg.classList.toggle('ovf', seg.scrollWidth > seg.clientWidth + 1); if (seg.scrollWidth > seg.clientWidth) seg.scrollLeft += on.getBoundingClientRect().left - seg.getBoundingClientRect().left - (seg.clientWidth - on.offsetWidth) / 2; };
