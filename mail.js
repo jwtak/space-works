@@ -76,7 +76,7 @@ function mailTrkSheet(x) {
       const list = (await worksApi('opens', { tokens: [tok] }))?.opens?.[tok];
       if (!ul.isConnected) return;
       const s = (Array.isArray(list) ? list : []).slice().sort((a, b) => String(b.at).localeCompare(String(a.at)));
-      ul.innerHTML = s.length ? s.map((o) => `<li><span>${mailFullTime(o.at)}</span>${o.kind === 'proxy' ? '<span class="mail-trkp">자동 열람 추정</span>' : ''}</li>`).join('')
+      ul.innerHTML = s.length ? s.map((o) => `<li><span>${mailFullTime(o.at)} 읽음</span>${o.kind === 'proxy' ? '<span class="mail-trkp">자동 열람 추정</span>' : ''}</li>`).join('')
         : '<li class="empty">아직 열람 기록이 없습니다</li>';
     } catch { if (ul.isConnected) ul.innerHTML = '<li class="empty">열람 기록을 불러오지 못했습니다</li>'; }
   }, 'mail-trks');
