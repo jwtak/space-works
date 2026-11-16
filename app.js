@@ -626,7 +626,7 @@ matchMedia('(max-width: 760px)').addEventListener('change', () => { if (S && rou
 /* ---------- 딜소싱·뉴스·파이프라인 (2026-11-11 사용자 승인으로 11개 탭을 정리)
    뉴스(사이드바): 딜 뉴스 — 회사 목록이 아니라 매일 훑는 소식
    딜소싱: 행사(행사·IR — 회사를 직접 만나는 자리, 11/11 사용자 '맨 앞으로') / 상장(상장 준비 | 신규상장) / 매물(입찰딜 | 매각희망 | 매물장터) / 타깃(오너기업 | 중복상장 | 상폐 위험·CB | 섹터)
-   파이프라인(사이드바): 파이프라인(모든 탭에서 올린 카드가 모이는 곳) | 팩트시트(관심 회사 모음, 11/16 사용자가 타깃에서 옮김)
+   파이프라인(사이드바): 팩트시트(관심 회사 모음, 11/16 사용자가 타깃에서 옮김, 왼쪽) | 파이프라인(모든 탭에서 올린 카드가 모이는 곳)
    주소는 예전 그대로 #deals/<화면>(다른 화면·홈 카드·파이프라인 '돌아가기'가 쓴다). #deals/<묶음>은 그 묶음에서 마지막으로 본 화면으로.
    PE 앵글은 오너기업(heir)·중복상장(dup) 두 화면으로 펼친다 — pe.js 안의 묶음 값(peS.grp)만 바꿔서 그리고 pe.js 자체 전환 줄은 숨긴다.
    각 화면은 events.js·news.js·ipo.js·radar.js·kmx.js·pe.js·delist.js·facts.js·pipeline.js가 host 안에 그린다 ---------- */
@@ -646,7 +646,7 @@ const DEAL_SCREENS = {
   pipeline: ['파이프라인', 'inbox', () => (typeof renderPipeline === 'function' ? renderPipeline : null)],
 };
 const DEAL_GROUPS = [['events', '행사', 'ticket', ['events']], ['listing', '상장', 'flag', ['yesim', 'ipo']], ['offer', '매물', 'upload', ['bids', 'sell', 'kmx']], ['target', '타깃', 'link', ['heir', 'dup', 'delist', 'sector']]];
-const DEAL_PIPE = ['pipeline', 'facts']; // 사이드바 '파이프라인' 화면의 탭
+const DEAL_PIPE = ['facts', 'pipeline']; // 사이드바 '파이프라인' 화면의 탭
 const DEAL_PAGE = { news: 'news', pipeline: 'pipeline', facts: 'pipeline' }; // 나머지는 딜소싱
 // 주소 끝 → 화면 키. 빈 값은 첫 묶음, 묶음 이름은 그 묶음에서 마지막으로 본 화면, pe는 PE 앵글에서 보던 묶음
 function dealSub(s) {
