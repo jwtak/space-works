@@ -1,93 +1,167 @@
-/* 가치평가 › DCF (valuation_dcf.js). 표, 카드, 상자는 market.css(.mk-*)와 valuation.css(.va-*)를 같이 쓰고 여기엔 DCF에만 있는 것만. 상승 빨강 / 하락 파랑 */
-.dcf-rest { display: contents; }
+/* 가치평가 › DCF (valuation_dcf.js, Valley 「DCF 실전형」 구성). 표, 카드, 상자, 탭은 market.css(.mk-*)와 valuation.css(.va-*)를 같이 쓰고 여기엔 DCF에만 있는 것만. 상승 빨강 / 하락 파랑 */
+/* 오른쪽 요청사항 칸 때문에 본문 폭이 화면 폭과 달라서, 나란히 놓을지는 본문(#va-host) 폭으로 정함 */
+#va-host[data-dcf] { container-type: inline-size; }
 
-/* 요약: 주당 가치 상자 + 시나리오 칸 */
+/* DCF 맵: 12단계. 묶음마다 한 줄, 단계는 옆으로 */
+.dcf-mapg { display: flex; flex-direction: column; gap: 8px; }
+.dcf-mg { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 4px 12px; align-items: start; padding-bottom: 8px; border-bottom: 1px solid var(--row); }
+.dcf-mg:last-child { border-bottom: 0; padding-bottom: 0; }
+.dcf-mg h3 { margin: 0; padding-top: 12px; font-size: var(--fs-md); font-weight: 600; color: var(--text3); }
+.dcf-mg ol { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 2px 8px; }
+.dcf-mg button { display: grid; grid-template-columns: 20px minmax(0, 1fr); grid-template-areas: 'i b' 'i s'; column-gap: 8px; align-items: center; width: 100%; min-height: 44px; padding: 4px 8px; border: 0; border-radius: var(--r); background: none; font: inherit; text-align: left; cursor: pointer; }
+.dcf-mg button:hover { background: var(--hover); }
+.dcf-mg button .i { grid-area: i; width: 18px; height: 18px; padding: 2px; border-radius: 50%; stroke: #fff; stroke-width: 3; fill: none; background: var(--line2); }
+.dcf-mg button.ok .i { background: var(--primary); }
+.dcf-mg button b { grid-area: b; font-size: var(--fs-md); font-weight: 600; color: var(--ink); }
+.dcf-mg button span { grid-area: s; font-size: var(--fs-md); line-height: 20px; color: var(--text2); font-variant-numeric: tabular-nums; word-break: keep-all; }
+
+/* 평가 결과: 내재 가치 상자 + 시나리오 칸 */
 .dcf-top { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: stretch; }
 .dcf-tp { display: flex; flex-direction: column; justify-content: center; }
 .dcf-tp .dcf-tp-ps b { font-size: var(--fs-4xl); line-height: 36px; }
 .dcf-tp p { font-size: var(--fs-md); }
 .dcf-scs { display: grid; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 8px; }
-.dcf-sc { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; min-width: 0; min-height: 56px; padding: 10px 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); font: inherit; text-align: left; cursor: pointer; }
+.dcf-sc { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; min-width: 0; min-height: 52px; padding: 8px 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); font: inherit; text-align: left; cursor: pointer; }
 .dcf-sc:hover { background: var(--hover); }
 .dcf-sc.on { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); background: var(--card); }
-.dcf-sc > span { min-width: 44px; font-size: var(--fs-md); font-weight: 600; color: var(--text2); }
+.dcf-sc > span, .dcf-wv > span { min-width: 64px; font-size: var(--fs-md); font-weight: 600; color: var(--text2); }
 .dcf-sc.on > span { color: var(--primary); }
-.dcf-sc b { font-size: var(--fs-2xl); line-height: 28px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; white-space: nowrap; }
-.dcf-sc > .up, .dcf-sc > .dn { font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
+.dcf-sc b, .dcf-wv b { font-size: var(--fs-2xl); line-height: 28px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; white-space: nowrap; }
+.dcf-sc > .up, .dcf-sc > .dn, .dcf-wv > .up, .dcf-wv > .dn { font-size: var(--fs-md); font-variant-numeric: tabular-nums; }
 .dcf-sc small { margin-left: auto; font-size: var(--fs-md); line-height: 20px; color: var(--text3); font-variant-numeric: tabular-nums; }
+.dcf-wv { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; min-height: 52px; padding: 8px 16px; border-radius: var(--r-lg); background: var(--hover); }
+.dcf-wv em { font-size: var(--fs-md); font-style: normal; color: #B45309; }
 
-/* 핵심 가정 입력 */
-.dcf-ins { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px 32px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
-.dcf-in { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px 16px; }
+/* 입력 칸 */
+.dcf-coms { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 32px; }
+.dcf-coms .dcf-ing:nth-child(2) { grid-column: span 2; }
+.dcf-ing + .dcf-ing { margin-top: 16px; }
+.dcf-coms { margin-top: 20px; }
+.dcf-in { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px 16px; }
 .dcf-f { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .dcf-f > span:first-child { font-size: var(--fs-md); color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dcf-iw { position: relative; display: flex; align-items: center; }
-.dcf-iw input { width: 100%; height: 44px; padding: 0 40px 0 12px; border: 1px solid var(--line2); border-radius: var(--r); background: var(--card); font: inherit; font-size: var(--fs-lg); color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+.dcf-fw { grid-column: span 2; }
+.dcf-fw .mk-seg { align-self: flex-start; }
+.dcf-fw .mk-seg button { height: 38px; }
+.dcf-iw { position: relative; display: flex; align-items: center; min-width: 0; }
+.dcf-iw input { width: 100%; min-width: 0; height: 44px; padding: 0 40px 0 12px; border: 1px solid var(--line2); border-radius: var(--r); background: var(--card); font: inherit; font-size: var(--fs-lg); color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
 .dcf-iw.nu input { padding-right: 12px; }
-.dcf-iw input::-webkit-inner-spin-button, .dcf-iw input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 .dcf-iw input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.dcf-iw input.chg { border-color: var(--primary); background: var(--primary-soft); }
+.dcf-iw input:disabled { background: var(--hover); color: var(--text2); }
+.dcf-iw input::placeholder { color: var(--text3); }
 .dcf-iw em { position: absolute; right: 12px; font-size: var(--fs-md); font-style: normal; color: var(--text3); pointer-events: none; }
-.dcf-f.chg input { border-color: var(--primary); background: var(--primary-soft); }
-.dcf-was { display: none; font-size: var(--fs-md); color: var(--text3); font-variant-numeric: tabular-nums; }
-.dcf-f.chg .dcf-was { display: block; }
+.dcf-pt .dcf-iw { max-width: 160px; margin-left: auto; }
+.dcf-pt td { padding-top: 6px; padding-bottom: 6px; }
+.dcf-pt td.ro { color: var(--text2); padding-right: 52px; }
+.va .dcf-pt { min-width: 480px; }
+.dcf-step { display: flex; align-items: center; gap: 8px; margin-left: auto; font-size: var(--fs-md); color: var(--text2); }
+.dcf-step .dcf-iw { width: 112px; }
 
-/* 표: 숫자는 오른쪽 정렬, 글은 왼쪽 */
-/* 숫자는 자르지 않음: 열 폭을 내용에 맞추고(auto), 본문보다 넓으면 표 감싸개(.mk-scroll)만 가로 스크롤. 숫자 열은 같은 폭 비율로 나눔 */
+/* 표: 숫자는 자르지 않음. 열 폭을 내용에 맞추고(auto), 본문보다 넓으면 표 감싸개(.mk-scroll)만 가로 스크롤. 숫자 오른쪽, 글 왼쪽 */
 .va .dcf-tbl { table-layout: auto; }
 .dcf-tbl th, .dcf-tbl td { overflow: visible; text-overflow: clip; }
-.dcf-fcff th:not(.st), .dcf-fcff td:not(.st) { width: 9%; }
-.va .dcf-fcff td.st { white-space: nowrap; }
-.dcf-sens th:not(.st), .dcf-sens td:not(.st) { width: 18%; }
+.dcf-tbl th { word-break: keep-all; }
 .dcf-tbl th:not(.st), .dcf-tbl td:not(.st) { text-align: right; }
 .dcf-tbl th.tx, .dcf-tbl td.tx { text-align: left; }
 .dcf-tbl td.st { color: var(--ink); }
+.va .dcf-tbl td.st { white-space: nowrap; }
 .dcf-tbl tr.key td { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
 .dcf-tbl tr.dcf-grp th { padding-top: 6px; padding-bottom: 6px; color: var(--text3); border-bottom: 1px solid var(--line); }
-.va .dcf-fcff { min-width: 720px; }
-.va .dcf-fcff .st { width: 112px; }
+.dcf-tbl th.bl, .dcf-tbl td.bl { border-left: 1px solid var(--line); }
 .dcf-fcff th:not(.st), .dcf-fcff td:not(.st) { padding-left: 6px; padding-right: 10px; }
+.dcf-fcff td.hi { background: var(--hover); }
 .dcf-fcff tr.sub td { color: var(--text3); }
 .dcf-fcff tr.strong td { color: var(--ink); font-weight: 600; }
 .dcf-fcff tr.key td.st { background: var(--primary-soft); }
-.dcf-fcff th.bl, .dcf-fcff td.bl { border-left: 1px solid var(--line); }
-.va .dcf-wacc .st, .va .dcf-peer .st, .va .dcf-alt .st { width: 132px; }
+.va .dcf-fcff .st { width: 150px; }
+.dcf-asmt th:not(.st), .dcf-asmt td:not(.st) { width: 30%; }
+.va .dcf-asmt .st { width: 190px; }
+.va .dcf-wacc .st, .va .dcf-peer .st, .va .dcf-alt .st { width: 140px; }
 .dcf-wacc td.tx { white-space: normal; line-height: 20px; color: var(--text3); }
 .dcf-wacc th:nth-child(2), .dcf-wacc td:nth-child(2) { width: 96px; }
-.dcf-wacc tr.key td.st, .dcf-peer tr.key td.st { background: var(--primary-soft); }
+.dcf-peer tr.tgt td { background: var(--hover); color: var(--ink); font-weight: 600; }
+.dcf-tbl tr.key td.st { background: var(--primary-soft); }
+.dcf-sens th:not(.st), .dcf-sens td:not(.st) { width: 18%; }
 .va .dcf-sens { min-width: 470px; }
 .va .dcf-sens .st { width: 84px; }
 .dcf-sens td.st.c, .dcf-sens th.c { color: var(--ink); font-weight: 700; }
 .dcf-sens td.mid { background: var(--primary-soft); font-weight: 700; box-shadow: inset 0 0 0 2px var(--primary); }
 .dcf-sens tr.dcf-grp th.st { vertical-align: bottom; border-bottom: 1px solid var(--line2); }
+.dcf-scen tr.on td { background: var(--hover); }
+.dcf-scen td.inp { width: 150px; padding-top: 6px; padding-bottom: 6px; }
+.dcf-scen td.bad { color: #B45309; }
+.va .dcf-scen { min-width: 680px; }
+.va .dcf-scen .st { width: 96px; }
 
-/* 주주가치 다리 */
+/* 내재 가치 산정 */
 .dcf-br tr.sum th, .dcf-br tr.sum td { color: var(--ink); font-weight: 700; }
 .dcf-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px 32px; align-items: start; }
-/* 오른쪽 요청사항 칸 때문에 본문 폭이 화면 폭과 달라서, 나란히 놓을지는 본문(#va-host) 폭으로 정함 */
-#va-host[data-dcf] { container-type: inline-size; }
 .dcf-two.wide { grid-template-columns: minmax(0, 1fr); }
 @container (min-width: 1080px) { .dcf-two.wide { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
-@container (max-width: 620px) { .dcf-two, .dcf-top, .dcf-ins { grid-template-columns: minmax(0, 1fr); } }
+
+/* 단일 변수 민감도 */
+.dcf-sv input[type=range] { width: 100%; height: 44px; margin: 0; accent-color: var(--primary); cursor: pointer; }
+.dcf-svax { display: flex; justify-content: space-between; margin: -6px 0 16px; font-size: var(--fs-md); color: var(--text3); font-variant-numeric: tabular-nums; }
+
+/* 리버스 DCF */
+.dcf-rkv { margin-bottom: 20px; }
+.dcf-rin { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.dcf-rin .dcf-fw { grid-column: span 2; }
+.dcf-rres { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 20px; }
+.dcf-rres div { padding: 16px 18px; border-radius: var(--r-lg); background: var(--hover); }
+.dcf-rres span { display: block; font-size: var(--fs-md); color: var(--text2); }
+.dcf-rres b { display: block; margin-top: 4px; font-size: var(--fs-3xl); line-height: 32px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+.dcf-rres div:first-child { background: var(--primary); }
+.dcf-rres div:first-child span, .dcf-rres div:first-child b { color: #fff; }
+.dcf-leg { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 4px 0 8px; font-size: var(--fs-md); color: var(--text2); }
+.dcf-leg span::before { content: ''; display: inline-block; margin-right: 6px; vertical-align: 1px; }
+.dcf-leg .b::before { width: 12px; height: 10px; border-radius: var(--r-xs); background: #C7D7FB; }
+.dcf-leg .p::before { width: 16px; height: 3px; border-radius: var(--r-full); background: var(--primary); vertical-align: 3px; }
+.dcf-leg .c::before { width: 16px; height: 0; border-top: 2px dashed #D97706; vertical-align: 3px; }
+.dcf-rc .hb { fill: #C7D7FB; }
+.dcf-rc path.p { fill: none; stroke: var(--primary); stroke-width: 2.2; }
+.dcf-rc circle.p { fill: var(--primary); stroke: #fff; stroke-width: 1.5; }
+.dcf-rc path.c { fill: none; stroke: #D97706; stroke-width: 2; stroke-dasharray: 5 4; }
+.dcf-rc circle.c { fill: #D97706; stroke: #fff; stroke-width: 1.5; }
 
 /* 점검 */
 .dcf-chk { margin: 0; padding: 0; list-style: none; }
 .dcf-chk li { display: flex; align-items: baseline; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--row); font-size: var(--fs-md); line-height: 22px; color: var(--text2); }
 .dcf-chk li:last-child { border-bottom: 0; }
-.dcf-lv { flex: none; min-width: 40px; padding: 0 6px; border-radius: var(--r-sm); font-size: var(--fs-md); line-height: 22px; font-weight: 600; text-align: center; }
+.dcf-lv { flex: none; min-width: 44px; padding: 0 6px; border-radius: var(--r-sm); font-size: var(--fs-md); line-height: 22px; font-weight: 600; text-align: center; }
 .dcf-lv.err { background: #FEE2E2; color: #B91C1C; }
 .dcf-lv.warn { background: #FEF3C7; color: #B45309; }
 .dcf-lv.info { background: #F1F5F9; color: var(--text2); }
 .dcf-pend summary { min-height: 44px; display: flex; align-items: center; }
 .dcf-pend summary .n { color: var(--text3); }
 
+@container (max-width: 900px) {
+  .dcf-coms { grid-template-columns: minmax(0, 1fr); }
+  .dcf-coms .dcf-ing:nth-child(2) { grid-column: auto; }
+}
+@container (max-width: 620px) {
+  .dcf-two, .dcf-top, .dcf-rres { grid-template-columns: minmax(0, 1fr); }
+  .dcf-mg { grid-template-columns: minmax(0, 1fr); }
+  .dcf-mg h3 { padding-top: 4px; }
+  .dcf-mg ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
 @media (max-width: 760px) {
-  .dcf-sc { padding: 10px 14px; }
-  .dcf-sc b { font-size: var(--fs-xl); line-height: 26px; }
+  .dcf-sc, .dcf-wv { padding: 8px 14px; }
+  .dcf-sc b, .dcf-wv b { font-size: var(--fs-xl); line-height: 26px; }
   .dcf-sc small { flex: 1 1 100%; margin-left: 0; }
-  .dcf-in { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .va .dcf-fcff { min-width: 820px; }
-  .va .dcf-fcff .st { width: 104px; }
-  .va .dcf-wacc .st, .va .dcf-peer .st, .va .dcf-alt .st { width: 104px; }
+  .dcf-in, .dcf-rin { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .dcf-mg button { min-height: 48px; }
+  .dcf-step .dcf-iw { width: 96px; }
+  .va .dcf-pt { min-width: 0; }
+  .va .dcf-pt td.st { white-space: normal; word-break: keep-all; }
+  .dcf-pt .dcf-iw { max-width: none; }
+  .dcf-pt .dcf-iw input { padding-left: 8px; padding-right: 30px; }
+  .dcf-pt .dcf-iw em { right: 8px; }
+  .dcf-pt td.ro { padding-right: 38px; }
+  .va .dcf-fcff .st { width: 120px; }
+  .va .dcf-asmt .st { width: 132px; }
+  .va .dcf-wacc .st, .va .dcf-peer .st, .va .dcf-alt .st { width: 112px; }
   .va .dcf-sens .st { width: 72px; }
   .dcf-wacc th:nth-child(2), .dcf-wacc td:nth-child(2) { width: 72px; }
 }

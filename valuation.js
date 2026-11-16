@@ -594,7 +594,7 @@ async function vaDownload(btn, c) {
 }
 
 async function renderValuation() {
-  const tabs = [['rel', '상대가치평가', 'chart'], ...(typeof renderDcf === 'function' && G.isOwner ? [['dcf', 'DCF', 'calc']] : [])]; // DCF 기본값을 확정하기 전까지 탁지원 계정에만(2026-11-16)
+  const tabs = [['rel', '상대가치평가', 'chart'], ...(typeof renderDcf === 'function' ? [['dcf', 'DCF', 'calc']] : [])];
   const vt = location.hash.startsWith('#valuation/dcf') && tabs.length > 1 ? 'dcf' : 'rel';
   PAGE.innerHTML = `<div class="page-head"><h1>가치평가</h1><span class="mk-upd" id="va-upd"></span></div>
     <div class="deal-seg" role="tablist">${tabs.map(([k, t, i]) => `<button type="button" role="tab" aria-selected="${k === vt}" class="${k === vt ? 'on' : ''}" data-vt="${k}">${ico(i)}${t}</button>`).join('')}</div>
