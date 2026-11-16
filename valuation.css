@@ -1,0 +1,100 @@
+/* 가치평가 — 표·탭은 market.css(.mk-*)를 같이 쓴다. 상승 빨강 / 하락 파랑(국내 관행) */
+.va h2 small { margin-left: 6px; font-size: 14px; font-weight: 500; color: var(--text3); }
+.va-head { padding: 20px 24px; display: flex; flex-direction: column; gap: 16px; }
+.va-ttl { display: flex; align-items: flex-start; gap: 12px; }
+.va-ttl h2 { margin: 0; font-size: 20px; line-height: 28px; font-weight: 700; }
+.va-ttl p { margin: 2px 0 0; font-size: 14px; color: var(--text3); }
+.va-tools { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.va-case { height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); font: inherit; font-size: 14px; color: var(--ink); }
+.va-kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px 16px; margin: 0; }
+.va-kv div { min-width: 0; }
+.va-kv dt { font-size: 13px; color: var(--text3); }
+.va-kv dd { margin: 2px 0 0; font-size: 16px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.va-ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding-top: 16px; border-top: 1px solid var(--line); }
+.va-ctrl > div { display: flex; align-items: center; gap: 10px; }
+.va-ctrl > div > span { font-size: 14px; color: var(--text2); font-weight: 600; white-space: nowrap; }
+.va-ctrl .btn { margin-left: auto; }
+
+.va-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.va-tile { border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px 18px; }
+.va-tile > span { display: block; font-size: 14px; color: var(--text2); }
+.va-tile strong { display: block; margin-top: 6px; font-size: 28px; line-height: 36px; font-weight: 700; color: var(--ink); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.va-tile p { margin: 4px 0 0; font-size: 14px; color: var(--text2); }
+.va-tile p.rng { color: var(--text3); font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* 결론 막대(풋볼필드) */
+.va-ff { display: flex; flex-direction: column; }
+.va-ff-r { display: grid; grid-template-columns: 170px 1fr 150px; align-items: center; gap: 12px; min-height: 40px; }
+.va-ff-r.sep { border-top: 1px dashed var(--line); margin-top: 4px; padding-top: 4px; }
+.va-ff-l b { font-size: 14px; font-weight: 600; color: var(--ink); }
+.va-ff-l small { margin-left: 6px; font-size: 13px; color: var(--text3); }
+.va-ff-r:not(.p) .va-ff-l b { font-weight: 500; color: var(--text2); }
+.va-ff-b { position: relative; height: 22px; }
+.va-ff-b .bar { position: absolute; top: 4px; bottom: 4px; min-width: 2px; border-radius: 4px; background: #C7D7FB; }
+.va-ff-r.p .va-ff-b .bar { background: #93B4F6; }
+.va-ff-b .med { position: absolute; top: 0; bottom: 0; width: 3px; margin-left: -1.5px; border-radius: 2px; background: var(--primary); }
+.va-ff-b .now { position: absolute; top: -6px; bottom: -6px; border-left: 1.5px dashed var(--danger); }
+.va-ff-r.leg { min-height: 22px; }
+.va-ff-b .now-l { position: absolute; top: 0; transform: translateX(-50%); font-size: 12px; font-weight: 600; color: var(--danger); white-space: nowrap; }
+.va-ff-v { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.va-ff-v b { font-size: 14px; font-weight: 600; color: var(--ink); }
+.va-ff-v span { margin-left: 6px; font-size: 13px; }
+
+.va-note { margin: 10px 0 0; font-size: 13px; line-height: 19px; color: var(--text3); }
+.va-note b { color: var(--text2); font-weight: 600; margin-right: 4px; }
+.va-memo { margin-top: 20px; padding: 14px 16px; border-radius: 10px; background: #F6F8FB; }
+.va-memo b { font-size: 14px; font-weight: 600; color: var(--ink); }
+.va-memo p { margin: 6px 0 0; font-size: 14px; line-height: 22px; color: var(--text2); }
+.va-h3 { margin: 20px 0 8px; font-size: 15px; font-weight: 600; color: var(--ink); }
+.va-h3:first-child { margin-top: 0; }
+.va-warn { margin: 0; padding-left: 18px; font-size: 14px; line-height: 22px; color: var(--text2); }
+.va-warn li + li { margin-top: 4px; }
+.va-prof { margin: 0 0 4px; font-size: 14px; line-height: 22px; color: var(--text2); }
+
+/* 표 */
+.va .mk-tbl td.wrap { white-space: normal; text-overflow: clip; line-height: 20px; }
+.va .mk-tbl .st { width: 190px; }
+.va .mk-tbl th { white-space: normal; line-height: 20px; }
+.va .mk-tbl td.st { white-space: normal; }
+.va-chk span b { word-break: keep-all; }
+.va-loo td small, .va-ap td small.inl { display: inline; margin-left: 6px; }
+.va-mt tr.off td { color: var(--text3); }
+.va-mt tr.off td.st b { color: var(--text3); font-weight: 500; }
+.va-mt tr.va-tgt td { background: var(--primary-soft); }
+.va-mt tr.va-tgt td.st { background: var(--primary-soft); }
+.va-mt tr.va-stat td { background: #FAFBFC; }
+.va-mt tr.va-stat td.st { background: #FAFBFC; font-weight: 600; color: var(--ink); }
+.va-mt tr.va-stat:first-of-type td, .va-mt tr.off + tr.va-stat td { border-top: 1px solid var(--line2); }
+.va .va-out { color: #C2410C; font-weight: 600; }
+.va .va-ex { color: var(--text3); text-decoration: underline dotted; cursor: help; }
+.va-chk { display: flex; align-items: center; gap: 10px; cursor: pointer; min-width: 0; }
+.va-chk input { flex: none; width: 18px; height: 18px; margin: 0; accent-color: var(--primary); cursor: pointer; }
+.va-chk input:disabled { cursor: not-allowed; }
+.va-chk span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.va-ap td.va-base, .va-ap th.va-base { background: #F6F8FB; }
+.va-ap tr.p td.st b { color: var(--primary); }
+.va-ap td small { display: block; }
+.va-adj { width: 64px; height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+.va-adj:focus { outline: none; border-color: var(--primary); }
+.va-peers td:last-child, .va-peers th:last-child { width: 90px; }
+.va-peers td.wrap small { display: block; margin-top: 4px; }
+.va-sim { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 6px 16px; margin: 10px 0 2px; padding: 10px 12px; border-radius: 8px; background: #F6F8FB; }
+.va-sim dt { font-size: 12px; color: var(--text3); }
+.va-sim dd { margin: 1px 0 0; font-size: 13px; color: var(--text2); line-height: 19px; }
+.va-fun td:nth-child(3), .va-fun th:nth-child(3) { width: 90px; }
+.va-exbtn { margin-top: 12px; }
+
+@media (max-width: 760px) {
+  .va-head { padding: 16px; }
+  .va-ttl { flex-direction: column; }
+  .va-tools { margin-left: 0; justify-content: flex-start; }
+  .va-kv { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .va-ctrl > div { flex-wrap: wrap; }
+  .va-ctrl .btn { margin-left: 0; }
+  .va-ff-r { grid-template-columns: 1fr auto; grid-template-areas: 'l v' 'b b'; row-gap: 2px; padding: 4px 0; }
+  .va-ff-l { grid-area: l; } .va-ff-v { grid-area: v; } .va-ff-b { grid-area: b; }
+  .va-ff-r.leg { grid-template-areas: 'b b'; }
+  .va-ff-r.leg .va-ff-l, .va-ff-r.leg .va-ff-v { display: none; }
+  .va .mk-tbl .st { width: 140px; }
+  .va-tile strong { font-size: 24px; line-height: 32px; }
+}

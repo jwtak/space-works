@@ -387,11 +387,12 @@ function infoOpen(k) {
 }
 const infoBtn = (k) => (TAB_INFO[k] ? `<button class="btn ghost info-btn" type="button" data-info="${esc(k)}" aria-label="화면 설명">${ico('info', 'sm')}<span class="info-txt">화면 설명</span></button>` : '');
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-info]'); if (b) infoOpen(b.dataset.info); });
-const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', news: '뉴스', deals: '딜소싱', pipeline: '파이프라인', market: '시장동향', weekly: '주간회의', files: '공용 폴더', corp: '법인설립', fss: '금감원 면담', notes: '업무일지·회의록', programs: '프로그램', homepage: '홈페이지' };
+const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', news: '뉴스', deals: '딜소싱', pipeline: '파이프라인', market: '시장동향', valuation: '가치평가', weekly: '주간회의', files: '공용 폴더', corp: '법인설립', fss: '금감원 면담', notes: '업무일지·회의록', programs: '프로그램', homepage: '홈페이지' };
 function render() {
   if (!S) return; // 로그인·데이터 읽기 전 hashchange
   let r = route();
   if (r === 'deals' || r.startsWith('deals/')) { ui.dealTab = dealSub(r.slice(6)); r = DEAL_PAGE[ui.dealTab] || 'deals'; } // #deals/ipo → 딜소싱 > 상장 > 신규상장, #deals/news → 뉴스
+  if (r.startsWith('valuation/')) r = 'valuation'; // 가치평가 > 상대가치평가(뒤에 DCF)
   if (r.startsWith('market/')) r = 'market'; // 시장동향 > 공모주 통계·PE 동향
   for (const k of ['files', 'weekly']) if (r === k || r.startsWith(`${k}/`)) { try { ui.filesPath = decodeURIComponent(r.slice(k.length + 1)); } catch { ui.filesPath = ''; } r = k; } // #files/00. 전체 공유/01. 명함 → 공용 폴더의 그 폴더
   r = CRUMB[r] ? r : 'home';
@@ -399,7 +400,7 @@ function render() {
   document.body.dataset.route = r;
   if (r !== 'notes') { document.body.classList.remove('note-open'); if (cur?.dirty) flushNote(); } // 업무일지를 쓰다 다른 메뉴로 가도 저장
   $('#crumb').textContent = CRUMB[r];
-  ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, news: renderDeals, deals: renderDeals, pipeline: renderDeals, market: () => (typeof renderMarket === 'function' ? renderMarket() : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), weekly: () => renderFiles(PAGE, 'weekly'), files: () => (typeof renderFiles === 'function' ? renderFiles(PAGE) : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), corp: () => renderPrep(PAGE, 'corp'), fss: () => renderPrep(PAGE, 'fss'), programs: renderPrograms, notes: renderNotes, homepage: renderHomepage }[r] || renderHome)();
+  ({ home: renderHome, todos: renderTodos, calendar: renderCalendar, mail: renderMail, news: renderDeals, deals: renderDeals, pipeline: renderDeals, market: () => (typeof renderMarket === 'function' ? renderMarket() : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), valuation: () => (typeof renderValuation === 'function' ? renderValuation() : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), weekly: () => renderFiles(PAGE, 'weekly'), files: () => (typeof renderFiles === 'function' ? renderFiles(PAGE) : (PAGE.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>')), corp: () => renderPrep(PAGE, 'corp'), fss: () => renderPrep(PAGE, 'fss'), programs: renderPrograms, notes: renderNotes, homepage: renderHomepage }[r] || renderHome)();
   segFit(PAGE.querySelector('.deal-seg')); // 딜소싱·시장동향 탭 줄
   segFit(PAGE.querySelector('.deal-sub')); // 하위 탭 줄(타깃 다섯 탭은 1100보다 좁으면 넘친다)
 }
@@ -577,6 +578,7 @@ function renderHomeMobile() {
     ...DEAL_GROUPS.map(([g, t, i]) => [`#deals/${g}`, i, t, '']),
     ['#deals/pipeline', 'inbox', '파이프라인', ''],
     ['#market', 'chart', '시장동향', ''],
+    ['#valuation', 'calc', '가치평가', ''],
     ['#weekly', 'week', '주간회의', ''],
     ['#files', 'folder', '공용 폴더', ''],
     ['#corp', 'home', '법인설립', ''],
