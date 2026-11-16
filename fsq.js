@@ -1,7 +1,8 @@
 /* UNIVERSE WORKS — 딜소싱 공용: 팩트시트 요청·보기 (2026-11-12)
    각 탭 펼친 칸 맨 위 '팩트시트' 칸: 없으면 [팩트시트 요청], 요청 중이면 처리 예정 시각과 [요청 취소], 만들어졌으면 내용과 [다시 요청].
    요청: data/fs_req.json [{key, name, src, hint, at, by}] — 화면이 쌓는다(대표님 편집 공유). 만든 뒤에도 지우지 않아 '요청한 회사' 목록이 된다.
-         key = 파이프라인 ref와 같은 꼴(yesim:<id> · yesim:mandate:<이름> · sell:<id> · bids:<id> · ipo:<code> · pe:heir:<cc> · pe:dup:<이름> · delist:<code>)
+         key = 파이프라인 ref와 같은 꼴(yesim:<id> · yesim:mandate:<이름> · sell:<id> · bids:<id> · ipo:<code> · pe:heir:<cc> · pe:dup:<이름> · delist:<code>),
+               직접 넣은 파이프라인 딜은 pp:<딜 id>(pipeline.js ppFsKey, fqEnsure로 자동 요청)
    결과: data/fs.json {generated, slots, items{key → 팩트시트}, fail{key → {at, n, err}}} — PC 딜레이더 fs_req.py가 하루 두 번(slots) 만든다(읽기 공유).
    형식: 딜레이더\CONTRACT_fs.md. 내용 그리기는 radar.js rdFsN·rdFsGroup, 원래 화면 이동은 pipeline.js PP_TABS·ppGoTab.
    진입: fqBox(ref, x, label) — 펼친 칸에 넣을 HTML(x = 그 행 자료, 요청 때 조사 단서로 보낸다). 팩트시트 탭 '요청한 회사': fqList()·fqCount().
@@ -151,6 +152,28 @@ function fqToggle(ref) {
     throw new Error('다른 분이 동시에 수정 중입니다. 잠시 후 다시 시도해 주세요.');
   }).then(() => { if (rec) toast(`${fqNext()}에 팩트시트를 만듭니다`); })
     .catch((e) => { toast(e.status === 403 ? '편집 권한이 없습니다.' : e.message || '저장하지 못했습니다.'); return fqLoad(true); });
+}
+
+/* 여러 회사를 한 번에 요청(파이프라인 딜은 무조건 팩트시트, 2026-11-16 사용자). 팩트시트도 요청도 없는 것만 얹고, 다른 분 요청은 건드리지 않는다
+   list = [{key, name, label, hint}] */
+async function fqEnsure(list) {
+  await fqLoad();
+  if (fqS.err) return;
+  const has = (k) => !!fqS.out?.items?.[k] || fqS.req.some((r) => r.key === k);
+  const recs = list.filter((c) => c.key && c.name && !has(c.key))
+    .map((c) => ({ key: c.key, name: c.name, src: c.label || '', hint: c.hint || '', at: fqNow(), by: '파이프라인 자동' }));
+  if (!recs.length) return;
+  const apply = (items) => [...items, ...recs.filter((r) => !items.some((x) => x.key === r.key))];
+  fqS.req = apply(fqS.req);
+  fqPaint();
+  fqS.saving = fqS.saving.catch(() => {}).then(async () => {
+    for (let i = 0; i < 3; i++) {
+      try { fqS.ver = await STORE.writeJSON('fs_req', fqS.req, fqS.ver); return; } catch (e) {
+        if (e.status !== 409) throw e;
+        const r = await fqReadReq(); fqS.req = apply(r.items); fqS.ver = r.version;
+      }
+    }
+  }).catch(() => fqLoad(true));
 }
 
 /* ---------- 팩트시트 탭 '요청한 회사' ---------- */

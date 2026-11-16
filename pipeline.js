@@ -21,7 +21,9 @@ TAB_INFO['deals/pipeline'] = { title: '파이프라인', rows: [
     '딜마다 유형(메자닌·구주·프리IPO·경영권), 소개자, 담당, 다음 할 일과 날짜를 적습니다.',
     '다음 할 일 날짜가 7일 안이거나 지난 딜은 대시보드 홈 카드에도 뜹니다.',
     '발굴, 검토 단계 딜은 하루 두 번 컨택 플랜이 자동으로 만들어집니다. 딜을 펼치면 키맨, 연락 루트, 메일 초안, 전화 순서가 보입니다.',
-    '딜을 펼치면 진행, 검토 노트, 자료 탭이 있습니다. 검토 노트와 자료는 공용 폴더 04. 딜소싱/딜/<회사명> 폴더 하나에 모입니다.',
+    '단계는 목록의 단계 칸을 눌러 바꿉니다.',
+    '딜을 펼치면 진행, 팩트시트, 검토 노트, 자료 탭이 있습니다. 검토 노트와 자료는 공용 폴더 04. 딜소싱/딜/<회사명> 폴더 하나에 모입니다.',
+    '파이프라인에 올린 딜은 팩트시트를 자동으로 요청합니다. 오전 11시와 오후 4시에 만들어집니다.',
   ]],
   ['그래서 할 일', [
     '소개받은 딜은 \'새 딜\'로 바로 넣습니다.',
@@ -221,6 +223,9 @@ const ppDay = (s) => yymd(s);
 const ppMd = (s) => `${yymd(s)} (${PP_WD[parse(s).getDay()]})`;
 const ppRel = (s) => { const n = diffDays(s, today()); return n < 0 ? [`${-n}일 지남`, 'over'] : n === 0 ? ['오늘', 'today'] : n === 1 ? ['내일', ''] : [`D-${n}`, '']; };
 const ppBy = (x) => (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(x.at || '') ? `${esc(x.by || '')} ${esc(ppDay(x.at.slice(0, 10)))} ${esc(x.at.slice(11, 16))}` : '');
+// 목록 줄 단계: 칩 모양 고르는 칸(2026-11-16 사용자: 단계는 목록에서 바꾸고 펼친 칸 위는 탭만)
+const ppStSel = (x) => { const st = ppStage(x);
+  return `<select class="pp-stsel ipo-st${PP_HOT.includes(st) ? ' s-1' : st === '완료' ? ' pp-done' : st === '드롭' ? ' pp-drop' : ''}" data-pp-stsel aria-label="${esc(x.name)} 단계">${PP_STAGES.map((s) => `<option${s === st ? ' selected' : ''}>${s}</option>`).join('')}</select>`; };
 const ppChip = (st) => `<span class="ipo-st${PP_HOT.includes(st) ? ' s-1' : st === '완료' ? ' pp-done' : st === '드롭' ? ' pp-drop' : ''}">${esc(st)}</span>`;
 const ppDash = '<span class="muted">–</span>';
 const ppPeople = () => [...new Set([...(typeof PEOPLE !== 'undefined' && Array.isArray(PEOPLE) ? PEOPLE : []), ppMe()].filter(Boolean))];
@@ -256,7 +261,7 @@ function ppLine(x, open) {
   return `<div class="pp-line pp-cols">
     <div class="pp-c-next${cls}">${next}</div>
     <div class="pp-c-name"><button type="button" class="ipo-ttl" aria-expanded="${!!open}">${esc(x.name)}</button>${x.type ? `<div class="ipo-sub">${esc(x.type)}</div>` : ''}</div>
-    <div class="pp-c-st">${ppChip(ppStage(x))}</div>
+    <div class="pp-c-st">${ppStSel(x)}</div>
     <div class="pp-c-src">${x.src ? esc(x.src) : ppDash}${x.introducer ? `<div class="ipo-sub">${esc(x.introducer)}</div>` : ''}</div>
     <div class="pp-c-own">${x.owner ? esc(x.owner) : ppDash}</div>
     <div class="pp-c-act${x.action ? '' : ' none'}">${x.action ? esc(x.action) : ppDash}</div>
@@ -271,18 +276,13 @@ function ppRow(x) {
 
 // 펼친 행: 글자마다 저장하지 않고 바꾼 칸을 벗어날 때(선택 상자·단계는 바로) 저장한다
 function ppDetail(x) {
-  const st = ppStage(x);
   const tab = PP_TABS[String(x.ref || '').split(':')[0]];
   const dt = ppDtTab(x.id);
   if (dt !== 'run') setTimeout(() => ppDtEnsure(x.id), 0);
   else if (x.folder && !ppT.files.has(x.id)) setTimeout(() => ppFilesLoad(x.id), 0); // 탭의 자료 수
   return `<div class="ipo-detail pp-detail">
-    <div class="pp-dhead">
-      <div class="seg pp-stseg" role="group" aria-label="단계">${PP_STAGES.map((s) => `<button type="button" class="${s === st ? 'on' : ''}" aria-pressed="${s === st}" data-pp-set="${s}">${s}</button>`).join('')}</div>
-      <span class="ipo-by pp-by">${ppBy(x)}</span>
-    </div>
-    <div class="tabs pp-dtabs" data-pp-dtabs="${esc(x.id)}">${ppDtTabs(x)}</div>
-    <div class="pp-dbody" data-pp-dbody="${esc(x.id)}">${dt === 'run' ? ppRunInner(x) : dt === 'note' ? ppNoteInner(x) : ppFilesInner(x)}</div>
+    <div class="pp-dtop"><div class="tabs pp-dtabs" data-pp-dtabs="${esc(x.id)}">${ppDtTabs(x)}</div><span class="ipo-by pp-by">${ppBy(x)}</span></div>
+    <div class="pp-dbody" data-pp-dbody="${esc(x.id)}">${ppDtInner(x, dt)}</div>
     <div class="pp-dfoot">${tab ? `<a class="ipo-a" href="${tab[0]}" data-pp-tab="${esc(x.ref)}">${tab[1]}에서 보기${ico('right', 'sm')}</a>` : ''}
       <button type="button" class="btn ghost sm pp-del" data-pp-del>${ico('trash', 'sm')}삭제</button></div>
   </div>`;
@@ -314,13 +314,36 @@ const PP_DEAL_DIR = '04. 딜소싱/딜';
 const PP_NOTE_RE = /검토 노트\.md$/;
 const ppT = { tab: {}, files: new Map(), note: new Map(), edit: null };
 { const v = viewGet('pp.dt', {}); if (v && typeof v === 'object') ppT.tab = v; }
-const ppDtTab = (id) => (['run', 'note', 'files'].includes(ppT.tab[id]) ? ppT.tab[id] : 'run');
+const ppDtTab = (id) => (['run', 'fs', 'note', 'files'].includes(ppT.tab[id]) ? ppT.tab[id] : 'run');
+const ppDtInner = (x, t) => (t === 'run' ? ppRunInner(x) : t === 'fs' ? ppFsInner(x) : t === 'note' ? ppNoteInner(x) : ppFilesInner(x));
+
+/* 팩트시트 탭(2026-11-16 사용자: 파이프라인에 올린 딜은 무조건 팩트시트, 검토 노트 앞에).
+   키 = 다른 탭에서 올린 딜은 그 탭 키(ref, 팩트시트를 같이 씀), 직접 넣은 딜은 'pp:<딜 id>'. 내용·요청은 fsq.js(fqBox),
+   팩트시트도 요청도 없는 딜은 ppFsAuto가 요청 목록(fs_req.json)에 얹어 PC가 다음 처리(11:00·16:00)에 만든다 */
+const PP_FS_REFS = ['yesim:', 'ipo:', 'sell:', 'bids:', 'pe:heir:', 'pe:dup:', 'delist:']; // fs_req.py ANGLES와 같게
+const ppFsKey = (x) => (PP_FS_REFS.some((p) => String(x.ref || '').startsWith(p)) ? x.ref : `pp:${x.id}`);
+const ppFsLabel = (x) => (ppFsKey(x) === x.ref ? PP_TABS[String(x.ref).split(':')[0]]?.[1] || '파이프라인' : '파이프라인');
+const ppFsHint = (x) => { try { return JSON.stringify({ 회사: x.name, 유형: x.type, 출처: x.src, 소개자: x.introducer, 다음할일: x.action, 메모: x.note }).slice(0, 3000); } catch { return ''; } };
+function ppFsInner(x) {
+  if (typeof fqBox !== 'function') return '<div class="empty">팩트시트를 불러오지 못했습니다.</div>';
+  const k = ppFsKey(x), html = fqBox(k, { name: x.name }, ppFsLabel(x));
+  const c = fqS.ctx.get(k); if (c) c.hint = () => ppFsHint(x);
+  return `<div class="pp-fs">${html}</div>`;
+}
+let ppFsKeys = '';
+function ppFsAuto() {
+  if (typeof fqEnsure !== 'function') return;
+  const list = ppS.items.filter((x) => ppOk(x) && ppStage(x) !== '드롭');
+  const sig = list.map((x) => `${x.id}:${x.name}`).join('|'); if (sig === ppFsKeys) return;
+  ppFsKeys = sig;
+  fqEnsure(list.map((x) => ({ key: ppFsKey(x), name: x.name, label: ppFsLabel(x), hint: ppFsHint(x) })));
+}
 const ppDealDir = (x) => `${PP_DEAL_DIR}/${String(x.name || '').replace(/[\\/:*?"<>|#%]/g, ' ').replace(/\s+/g, ' ').trim()}`;
 const ppFolderUrl = (p) => `/drives/${flDrive()}/root:/${flEnc(p)}:`;
 function ppDtTabs(x) {
   const t = ppDtTab(x.id), f = ppT.files.get(x.id), n = f?.items ? f.items.filter((i) => !i.folder).length : 0;
   const b = (k, l) => `<button type="button" data-pp-dt="${k}" class="${t === k ? 'on' : ''}" aria-pressed="${t === k}">${l}</button>`;
-  return b('run', '진행') + b('note', '검토 노트') + b('files', `자료${n ? `<span class="n">${n}</span>` : ''}`);
+  return b('run', '진행') + b('fs', '팩트시트') + b('note', '검토 노트') + b('files', `자료${n ? `<span class="n">${n}</span>` : ''}`);
 }
 function ppDtPaint(id) {
   const h = ppS.host, x = ppFind(id); if (!h || !x) return;
@@ -329,7 +352,7 @@ function ppDtPaint(id) {
   const t = ppDtTab(id);
   if (t === 'run' && bd.querySelector('.pp-form')) return; // 진행 탭 칸은 ppPaint·ppCpPaint가 맡는다(쓰던 입력 지키기)
   if (t === 'note' && ppT.edit?.id === id && bd.querySelector('[data-pp-note]')) return; // 고치는 중인 칸은 그대로
-  bd.innerHTML = t === 'run' ? ppRunInner(x) : t === 'note' ? ppNoteInner(x) : ppFilesInner(x);
+  bd.innerHTML = ppDtInner(x, t);
 }
 function ppDtSet(id, t) {
   if (ppDtTab(id) === t) return;
@@ -840,6 +863,7 @@ function ppDraw() {
   if (cb) { cb.classList.toggle('on', call); cb.setAttribute('aria-pressed', call); }
   ppCallN();
   ppViewSave();
+  ppFsAuto();
   if (ppS.focus) {
     const r = b.querySelector(`.pp-row[data-id="${CSS.escape(ppS.focus)}"]`);
     ppS.focus = null;
@@ -852,7 +876,7 @@ function ppDraw() {
 let ppPressed = 0;
 const ppPending = new Set();
 // 목록 줄을 누를 때만 미룬다(선택 상자는 누르면 목록이 떠서 mouseup이 페이지로 오지 않는다)
-document.addEventListener('mousedown', (e) => { ppPressed = e.target.closest?.('.pp-line') ? Date.now() : 0; }, true);
+document.addEventListener('mousedown', (e) => { ppPressed = e.target.closest?.('.pp-line') && !e.target.closest('select') ? Date.now() : 0; }, true);
 document.addEventListener('mouseup', () => setTimeout(() => { ppPressed = 0; const ids = [...ppPending]; ppPending.clear(); ids.forEach(ppPaint); }, 0), true);
 /* 행을 갈아 끼울 때 보던 자리를 지킨다 — .ipo-page는 브라우저 스크롤 고정을 꺼 두었으므로(ipo.css) 직접 맞춘다.
    기준 행은 key 행이 화면에 조금이라도 보이면 그 행, 아니면 머리가 화면 안에 있는 맨 위 행(없으면 화면 맨 위에 걸친 행).
@@ -886,7 +910,6 @@ function ppPaint(id) {
       ln.outerHTML = ppLine(x, row.classList.contains('open'));
     }
     const by = row.querySelector('.pp-by'); if (by) by.innerHTML = ppBy(x);
-    row.querySelectorAll('[data-pp-set]').forEach((b) => { const on = b.dataset.ppSet === ppStage(x); b.classList.toggle('on', on); b.setAttribute('aria-pressed', on); });
   }
   const s = h.querySelector('#pp-sum'); if (s) s.innerHTML = ppSummary();
   const nl = above && row.querySelector('.pp-line'), dy = nl ? nl.getBoundingClientRect().bottom - b0 : 0;
@@ -1048,8 +1071,6 @@ function ppBind(root) {
     const ct = t.closest('[data-cp-tab]');
     if (ct && cpId) { ppS.cpCo[cpId] = Number(ct.dataset.cpTab); ppCpPaint(cpId); return; }
     if (t.closest('[data-cp-more]') && cpId) { if (ppS.cpMore.has(cpId)) ppS.cpMore.delete(cpId); else ppS.cpMore.add(cpId); ppCpPaint(cpId); return; }
-    const sb = t.closest('[data-pp-set]');
-    if (sb) { ppSet(sb.closest('.pp-row').dataset.id, { stage: sb.dataset.ppSet }); return; }
     if (t.closest('[data-pp-del]')) { ppAskDelete(t.closest('.pp-row').dataset.id); return; }
     const tl = t.closest('[data-pp-tab]');
     if (tl) { ppGoTab(tl.dataset.ppTab); return; }
@@ -1078,6 +1099,7 @@ function ppBind(root) {
   root.addEventListener('change', (ev) => {
     const el = ev.target;
     if (el.id === 'pp-sort') { ppS.sort = el.value; ppDraw(); return; }
+    if (el.matches('[data-pp-stsel]')) { const id = el.closest('.pp-row')?.dataset.id; if (id && PP_STAGES.includes(el.value)) ppSet(id, { stage: el.value }); return; }
     if (!el.matches('[data-pp-f]') || ppDrawing) return;
     if (el.type === 'date') ppDateLater(el); else ppCommit(el);
   });
