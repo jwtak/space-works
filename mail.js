@@ -1264,10 +1264,16 @@ async function mailOpenCompose({ mode, id, box }) {
       const fn = { reply: 'createReply', replyAll: 'createReplyAll', forward: 'createForward' }[mode];
       // Outlook은 'Re: 제목'에 답장해도 'RE: 제목'으로 접는다. 답장은 원래 제목 앞에 RE:를 하나 더 붙여 몇 번째 답장인지 보이게(사용자 11/12)
       const [d, orig] = await Promise.all([G.post(`${mailMsgP(id, c.box)}/${fn}`, {}),
-        mode === 'forward' ? null : G.get(`${mailMsgP(id, c.box)}?$select=subject`).catch(() => null)]);
+        mode === 'forward' ? null : G.get(`${mailMsgP(id, c.box)}?$select=subject,ccRecipients`).catch(() => null)]);
       if (m.compose !== c) { G.del(mailMsgP(d.id, c.box)).catch(() => {}); return; } // 만드는 사이 쓰기를 닫았으면 남은 초안을 지운다
       const subj = orig?.subject?.trim() ? `RE: ${orig.subject.trim()}` : d.subject || '';
-      Object.assign(c, { draftId: d.id, auto: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(d.ccRecipients), subject: subj, quote: mailQuoteWrap(mailTrkStrip(d.body?.content || '')) });
+      // 답장도 원래 메일의 참조를 그대로 건다(사용자 11/16). 나·공용 사서함·받는 사람에 이미 있는 주소는 뺀다
+      let cc = d.ccRecipients || [];
+      if (mode === 'reply' && !cc.length && orig?.ccRecipients?.length) {
+        const me = new Set([S.me?.mail, G.account?.username, MAIL_SHARED, ...(d.toRecipients || []).map((r) => r.emailAddress?.address)].filter(Boolean).map((a) => a.toLowerCase()));
+        cc = orig.ccRecipients.filter((r) => r.emailAddress?.address && !me.has(r.emailAddress.address.toLowerCase()));
+      }
+      Object.assign(c, { draftId: d.id, auto: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(cc), subject: subj, quote: mailQuoteWrap(mailTrkStrip(d.body?.content || '')) });
       viewSet('mail.autoDraft', { id: d.id, box: c.box }); // 저장·보내기·닫기 전 F5면 지울 초안(pagehide)
       MS.acquireTokenSilent({ scopes: CFG.scopes, account: G.account }).then((r) => { c.tok = r.accessToken; }).catch(() => {});
     } else if (mode === 'draft') {
