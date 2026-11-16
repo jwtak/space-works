@@ -265,3 +265,6 @@
   .va-mcg { grid-template-columns: 1fr; }
 }
 @media (max-width: 720px) { .va-fb-b { margin: 0 56px 0 60px; } }
+.va-fb-r.ref .va-fb-b i { background: #C7D7FB; }
+.va-fb-r.ref .va-fb-l b { font-weight: 500; color: var(--text2); }
+.va-asm dd small { margin-left: 4px; font-size: 12px; font-weight: 400; color: var(--text3); }
