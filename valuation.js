@@ -600,7 +600,7 @@ async function renderValuation() {
     <div class="deal-seg" role="tablist">${tabs.map(([k, t, i]) => `<button type="button" role="tab" aria-selected="${k === vt}" class="${k === vt ? 'on' : ''}" data-vt="${k}">${ico(i)}${t}</button>`).join('')}</div>
     <div id="va-host" class="mk va"><div class="card"><div class="empty">불러오는 중…</div></div></div>`;
   PAGE.querySelectorAll('[data-vt]').forEach((b) => b.addEventListener('click', () => { location.hash = b.dataset.vt === 'dcf' ? '#valuation/dcf' : '#valuation'; }));
-  if (vt === 'dcf') return renderDcf($('#va-host'));
+  if (vt === 'dcf') return typeof renderV3 === 'function' ? renderV3($('#va-host')) : renderDcf($('#va-host')); // 모델 v3 사례가 있으면 v3 화면(valuation_v3.js), 없으면 renderV3가 renderDcf로 넘김
   vaBind($('#va-host'));
   await Promise.all([vaLoad(), vaLoadMkt()]);
   const u = vaS.data?.updated_at ? new Date(vaS.data.updated_at) : null;

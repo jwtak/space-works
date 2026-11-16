@@ -28,6 +28,7 @@ const CFG = {
       'data/ma.json': '012DPUXZVVWOQ4QWXD7RDZ6RBUMUVLDIII', 'data/ma.xlsx': '012DPUXZW3QDQDHYF4KVGKALEWDJGHNRO6',
       'data/valuation.json': '012DPUXZTZUD3SWKGSUZG3GPIDXX2CH6JA', 'data/valuation_market.json': '012DPUXZVY6OSBOPWUEFDYQOCQWAEYZM6Y',
       'data/valuation_per_hist.json': '012DPUXZX74MCL552JGJH2TFDBTY25OOAZ', 'data/valuation_dcf.json': '012DPUXZTPVPA2IAKCA5FLG7EAHMSZUXBD',
+      'data/valuation_v3.json': '012DPUXZRW4QPHTTTK4JFYSMZPAVU5SQRC',
     },
     folders: { 'data/valuation/': '012DPUXZTFWV4ARG2NLRAIGXW24GJWPVDA' }, // 가치평가 엑셀(사례마다 파일이 늘어 폴더째 읽기 공유, 2026-11-16)
     writable: ['data/event_marks.json', 'data/ipo_marks.json', 'data/news_marks.json', 'data/radar_marks.json', 'data/pipeline.json', 'data/fs_req.json'], // 수집기는 같은 파일을 덮어쓰므로 id가 바뀌지 않는다
