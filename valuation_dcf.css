@@ -1,0 +1,93 @@
+/* 가치평가 › DCF (valuation_dcf.js). 표, 카드, 상자는 market.css(.mk-*)와 valuation.css(.va-*)를 같이 쓰고 여기엔 DCF에만 있는 것만. 상승 빨강 / 하락 파랑 */
+.dcf-rest { display: contents; }
+
+/* 요약: 주당 가치 상자 + 시나리오 칸 */
+.dcf-top { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 16px; align-items: stretch; }
+.dcf-tp { display: flex; flex-direction: column; justify-content: center; }
+.dcf-tp .dcf-tp-ps b { font-size: 28px; line-height: 36px; }
+.dcf-tp p { font-size: 14px; }
+.dcf-scs { display: grid; grid-template-rows: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.dcf-sc { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; min-width: 0; min-height: 56px; padding: 10px 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--card); font: inherit; text-align: left; cursor: pointer; }
+.dcf-sc:hover { background: var(--hover); }
+.dcf-sc.on { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); background: var(--card); }
+.dcf-sc > span { min-width: 44px; font-size: 14px; font-weight: 600; color: var(--text2); }
+.dcf-sc.on > span { color: var(--primary); }
+.dcf-sc b { font-size: 20px; line-height: 28px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; white-space: nowrap; }
+.dcf-sc > .up, .dcf-sc > .dn { font-size: 14px; font-variant-numeric: tabular-nums; }
+.dcf-sc small { margin-left: auto; font-size: 14px; line-height: 20px; color: var(--text3); font-variant-numeric: tabular-nums; }
+
+/* 핵심 가정 입력 */
+.dcf-ins { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px 32px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--line); }
+.dcf-in { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px 16px; }
+.dcf-f { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.dcf-f > span:first-child { font-size: 14px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dcf-iw { position: relative; display: flex; align-items: center; }
+.dcf-iw input { width: 100%; height: 44px; padding: 0 40px 0 12px; border: 1px solid var(--line2); border-radius: var(--r); background: var(--card); font: inherit; font-size: 16px; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; -moz-appearance: textfield; }
+.dcf-iw.nu input { padding-right: 12px; }
+.dcf-iw input::-webkit-inner-spin-button, .dcf-iw input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.dcf-iw input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.dcf-iw em { position: absolute; right: 12px; font-size: 14px; font-style: normal; color: var(--text3); pointer-events: none; }
+.dcf-f.chg input { border-color: var(--primary); background: var(--primary-soft); }
+.dcf-was { display: none; font-size: 14px; color: var(--text3); font-variant-numeric: tabular-nums; }
+.dcf-f.chg .dcf-was { display: block; }
+
+/* 표: 숫자는 오른쪽 정렬, 글은 왼쪽 */
+/* 숫자는 자르지 않음: 열 폭을 내용에 맞추고(auto), 본문보다 넓으면 표 감싸개(.mk-scroll)만 가로 스크롤. 숫자 열은 같은 폭 비율로 나눔 */
+.va .dcf-tbl { table-layout: auto; }
+.dcf-tbl th, .dcf-tbl td { overflow: visible; text-overflow: clip; }
+.dcf-fcff th:not(.st), .dcf-fcff td:not(.st) { width: 9%; }
+.va .dcf-fcff td.st { white-space: nowrap; }
+.dcf-sens th:not(.st), .dcf-sens td:not(.st) { width: 18%; }
+.dcf-tbl th:not(.st), .dcf-tbl td:not(.st) { text-align: right; }
+.dcf-tbl th.tx, .dcf-tbl td.tx { text-align: left; }
+.dcf-tbl td.st { color: var(--ink); }
+.dcf-tbl tr.key td { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
+.dcf-tbl tr.dcf-grp th { padding-top: 6px; padding-bottom: 6px; color: var(--text3); border-bottom: 1px solid var(--line); }
+.va .dcf-fcff { min-width: 720px; }
+.va .dcf-fcff .st { width: 112px; }
+.dcf-fcff th:not(.st), .dcf-fcff td:not(.st) { padding-left: 6px; padding-right: 10px; }
+.dcf-fcff tr.sub td { color: var(--text3); }
+.dcf-fcff tr.strong td { color: var(--ink); font-weight: 600; }
+.dcf-fcff tr.key td.st { background: var(--primary-soft); }
+.dcf-fcff th.bl, .dcf-fcff td.bl { border-left: 1px solid var(--line); }
+.va .dcf-wacc .st, .va .dcf-peer .st, .va .dcf-alt .st { width: 132px; }
+.dcf-wacc td.tx { white-space: normal; line-height: 20px; color: var(--text3); }
+.dcf-wacc th:nth-child(2), .dcf-wacc td:nth-child(2) { width: 96px; }
+.dcf-wacc tr.key td.st, .dcf-peer tr.key td.st { background: var(--primary-soft); }
+.va .dcf-sens { min-width: 470px; }
+.va .dcf-sens .st { width: 84px; }
+.dcf-sens td.st.c, .dcf-sens th.c { color: var(--ink); font-weight: 700; }
+.dcf-sens td.mid { background: var(--primary-soft); font-weight: 700; box-shadow: inset 0 0 0 2px var(--primary); }
+.dcf-sens tr.dcf-grp th.st { vertical-align: bottom; border-bottom: 1px solid var(--line2); }
+
+/* 주주가치 다리 */
+.dcf-br tr.sum th, .dcf-br tr.sum td { color: var(--ink); font-weight: 700; }
+.dcf-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px 32px; align-items: start; }
+/* 오른쪽 요청사항 칸 때문에 본문 폭이 화면 폭과 달라서, 나란히 놓을지는 본문(#va-host) 폭으로 정함 */
+#va-host[data-dcf] { container-type: inline-size; }
+.dcf-two.wide { grid-template-columns: minmax(0, 1fr); }
+@container (min-width: 1080px) { .dcf-two.wide { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+@container (max-width: 620px) { .dcf-two, .dcf-top, .dcf-ins { grid-template-columns: minmax(0, 1fr); } }
+
+/* 점검 */
+.dcf-chk { margin: 0; padding: 0; list-style: none; }
+.dcf-chk li { display: flex; align-items: baseline; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--row); font-size: 14px; line-height: 22px; color: var(--text2); }
+.dcf-chk li:last-child { border-bottom: 0; }
+.dcf-lv { flex: none; min-width: 40px; padding: 0 6px; border-radius: 6px; font-size: 14px; line-height: 22px; font-weight: 600; text-align: center; }
+.dcf-lv.err { background: #FEE2E2; color: #B91C1C; }
+.dcf-lv.warn { background: #FEF3C7; color: #B45309; }
+.dcf-lv.info { background: #F1F5F9; color: var(--text2); }
+.dcf-pend summary { min-height: 44px; display: flex; align-items: center; }
+.dcf-pend summary .n { color: var(--text3); }
+
+@media (max-width: 760px) {
+  .dcf-sc { padding: 10px 14px; }
+  .dcf-sc b { font-size: 18px; line-height: 26px; }
+  .dcf-sc small { flex: 1 1 100%; margin-left: 0; }
+  .dcf-in { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .va .dcf-fcff { min-width: 820px; }
+  .va .dcf-fcff .st { width: 104px; }
+  .va .dcf-wacc .st, .va .dcf-peer .st, .va .dcf-alt .st { width: 104px; }
+  .va .dcf-sens .st { width: 72px; }
+  .dcf-wacc th:nth-child(2), .dcf-wacc td:nth-child(2) { width: 72px; }
+}
