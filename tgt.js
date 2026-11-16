@@ -24,7 +24,7 @@ const TG_LATE = 3; // '시리즈C 이상' = 단계 순위 3 이상(tgStageN)
 function tgView(k, s) {
   const v = viewGet(`tg.${k}`, null) || {};
   ['q', 'cat', 'op', 'lst', 'sort'].forEach((f) => { if (f in s && typeof v[f] === 'string') s[f] = v[f]; });
-  ['young', 'late'].forEach((f) => { if (f in s && typeof v[f] === 'boolean') s[f] = v[f]; });
+  ['young', 'late', 'fi'].forEach((f) => { if (f in s && typeof v[f] === 'boolean') s[f] = v[f]; });
   if ('op' in s && !TG_OP.some(([x]) => x === s.op)) s.op = '';
   if ('lst' in s && !TG_LST.some(([x]) => x === s.lst)) s.lst = '';
   if (!(k === 'cons' ? TG_CSORT : TG_DSORT).some(([x]) => x === s.sort)) s.sort = k === 'cons' ? 'op' : 'inv';
@@ -34,7 +34,7 @@ function tgView(k, s) {
 const tgS = {
   k: 'cons', host: null, focus: null, field: null,
   marks: { items: [], version: null }, dirty: new Map(), saving: Promise.resolve(),
-  cons: { data: null, err: '', at: 0, loading: null, v: tgView('cons', { q: '', cat: '', op: '', lst: '', sort: 'op', open: new Set() }) },
+  cons: { data: null, err: '', at: 0, loading: null, v: tgView('cons', { q: '', cat: '', op: '', lst: '', fi: false, sort: 'op', open: new Set() }) },
   deep: { data: null, err: '', at: 0, loading: null, v: tgView('deep', { q: '', cat: '', young: false, late: false, sort: 'inv', open: new Set() }) },
 };
 function tgViewSave(k = tgS.k) {
@@ -77,6 +77,9 @@ function tgNorm(k, raw) {
     const fd = tgObj(x.founder), lr = tgObj(x.last_round), born = tgNum(fd.born);
     const o = {
       id, name, idx: i, brand: tgStr(x.brand), code: tgStr(x.corp_code), listed: tgStr(x.listed), cat: tgStr(x.cat),
+      tags: [...new Set([tgStr(x.cat), ...tgList(x.tags)].filter(Boolean))], invSum: tgStr(x.inv_summary),
+      rounds: tgArr(x.rounds).map((r) => ({ date: tgYm(r.date) || tgStr(r.date), round: tgStr(r.round), amount: tgStr(r.amount), investors: tgStr(r.investors), src: tgStr(r.source) }))
+        .filter((r) => r.date || r.round || r.amount || r.investors),
       ceo: tgStr(x.ceo), est: tgDay(x.est), years: tgNum(x.years), region: tgStr(x.region), induty: tgStr(x.induty), home: tgHttp(x.home),
       fin, last, fs: tgStr(x.fs), finSrc: tgStr(x.fin_src),
       rev: tgNum(x.rev) ?? last?.rev ?? null, op: tgNum(x.op) ?? last?.op ?? null, opm: tgNum(x.opm), cagr: tgNum(x.cagr),
@@ -91,13 +94,13 @@ function tgNorm(k, raw) {
     };
     if (o.opm == null && o.op != null && o.rev) o.opm = Math.round((o.op / o.rev) * 1000) / 10;
     o.stageN = tgStageN(o.stage);
-    o.q = [name, o.brand, o.cat, o.ceo, o.region, o.induty, o.tech, o.stage, o.top?.name, o.founder?.name, o.founder?.bg, o.round?.investors, o.why,
+    o.q = [name, o.brand, ...o.tags, o.invSum, ...o.rounds.map((r) => r.investors), o.ceo, o.region, o.induty, o.tech, o.stage, o.top?.name, o.founder?.name, o.founder?.bg, o.round?.investors, o.why,
       ...o.holders.map((h) => h.name), ...o.investors].join(' ').toLowerCase();
     return o;
   }).filter(Boolean);
   // 분류 순서는 파일의 cats, 거기 없는 분류는 뒤에
   const cats = tgList(raw.cats);
-  items.forEach((x) => { if (x.cat && !cats.includes(x.cat)) cats.push(x.cat); });
+  items.forEach((x) => x.tags.forEach((c) => { if (!cats.includes(c)) cats.push(c); }));
   return {
     generated: tgStr(raw.generated), asof: tgDay(raw.asof), basis: tgStr(raw.basis), note: tgStr(tgObj(raw.rules).note), cats,
     progress: pg && tgNum(pg.universe) != null ? { universe: tgNum(pg.universe), done: tgNum(pg.done), pending: tgNum(pg.pending) } : null,
@@ -286,9 +289,19 @@ function tgRows(k) {
     age: (a, b) => (a.founder?.age ?? Infinity) - (b.founder?.age ?? Infinity),
   }[s.sort];
   const ok = k === 'cons'
-    ? (x) => (!s.op || (x.op != null && x.op >= +s.op)) && (!s.lst || (s.lst === 'private' ? x.listed === '비상장' : !!x.listed && x.listed !== '비상장'))
+    ? (x) => (!s.op || (x.op != null && x.op >= +s.op)) && (!s.fi || tgHasInv(x)) && (!s.lst || (s.lst === 'private' ? x.listed === '비상장' : !!x.listed && x.listed !== '비상장'))
     : (x) => (!s.young || x.young === true) && (!s.late || (x.stageN != null && x.stageN >= TG_LATE));
-  return d.items.filter((x) => (!s.cat || x.cat === s.cat) && ok(x) && (!q || x.q.includes(q))).sort((a, b) => (by ? by(a, b) : 0) || a.idx - b.idx);
+  return d.items.filter((x) => (!s.cat || x.tags.includes(s.cat)) && ok(x) && (!q || x.q.includes(q))).sort((a, b) => (by ? by(a, b) : 0) || a.idx - b.idx);
+}
+
+// 투자 이력 있음 = 라운드가 하나라도 있거나 누적 외부 투자가 0보다 큼
+const tgHasInv = (x) => x.rounds.length > 0 || (x.inv != null && x.inv > 0);
+// 투자 라운드 히스토리 표(시기 | 라운드 | 금액 | 투자자 | 출처), 위에 요약 한 줄
+function tgRoundsBox(x) {
+  const sum = x.invSum ? `<p class="ipo-p">${esc(x.invSum)}</p>` : '';
+  const tbl = x.rounds.length ? `<div class="fs-scroll"><table class="ipo-tbl tgt-rounds"><thead><tr><th>시기</th><th>라운드</th><th>금액</th><th>투자자</th><th>출처</th></tr></thead><tbody>${x.rounds.map((r) => `<tr>
+    <td>${esc(tgYmd(r.date) || r.date) || '–'}</td><td>${esc(r.round) || '–'}</td><td>${esc(r.amount) || '–'}</td><td>${r.investors ? esc(r.investors) : '–'}</td><td class="muted">${esc(r.src) || '–'}</td></tr>`).join('')}</tbody></table></div>` : '';
+  return tgBox('투자 라운드', `${sum}${tbl}` || '<p class="ipo-p muted">확인 불가</p>', x.rounds.length ? `${x.rounds.length}건` : '');
 }
 
 // 컨택했거나 다 본 곳(미접촉이 아닌 상태)은 맨 아래 '컨택·검토한 곳'으로 내리고 흐리게(pe.js peSink와 같다)
@@ -306,14 +319,15 @@ const tgConsHead = (y) => `<div class="ipo-head ipo-cols"><div>영업이익</div
 function tgConsRow(x, y) {
   const s = tgS.cons.v, open = s.open.has(x.id), t = x.top;
   const ty = x.last && x.last.y !== y ? `${esc(x.last.y)}년` : '';
-  const sub = [s.cat ? '' : x.cat, x.brand].filter(Boolean).join(', ');
+  const sub = [...(s.cat ? x.tags.filter((c) => c !== s.cat) : x.tags), x.brand].filter(Boolean).join(', ');
+  const invl = x.invSum && x.invSum !== '확인 불가' ? `<div class="ipo-sub tgt-s">투자 ${esc(x.invSum)}</div>` : '';
   const holder = t ? `${tgNm(t.name)}${t.pct != null ? ` ${tgPct(t.pct)}` : ''}` : '';
   const mg = tgMg([['매출', tgEok(x.rev)], ['영업이익', x.op != null ? `${tgDn(x.op, tgEok(x.op))}${x.opm != null ? ` <span class="tgt-mgs">OPM ${tgDn(x.opm, tgPct(x.opm))}</span>` : ''}` : TG_NA],
     ['매출 성장', tgChg(x.cagr)], ['최대주주', holder || TG_NA]]);
   return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div class="rd-mh">${x.op != null ? tgDn(x.op, tgEok(x.op)) : TG_NA}<div class="ipo-sub">${x.opm != null ? `OPM ${tgDn(x.opm, tgPct(x.opm))}` : ''}</div></div>
-      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${tgNm(x.name)}</button>${tgListed(x)}${sub ? `<div class="ipo-sub tgt-s">${esc(sub)}</div>` : ''}${holder ? `<div class="ipo-sub rd-alt">최대주주 ${holder}</div>` : ''}${mg}</div>
+      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${tgNm(x.name)}</button>${tgListed(x)}${sub ? `<div class="ipo-sub tgt-s">${esc(sub)}</div>` : ''}${invl}${holder ? `<div class="ipo-sub rd-alt">최대주주 ${holder}</div>` : ''}${mg}</div>
       <div class="rd-mh">${tgEok(x.rev)}<div class="ipo-sub">${ty}</div></div>
       <div class="rd-mh">${tgChg(x.cagr)}<div class="ipo-sub">${x.cagr != null ? '연평균' : ''}</div></div>
       <div class="rd-mh rd-c2">${holder || TG_NA}<div class="ipo-sub">${t ? esc(t.kind) : ''}</div></div>
@@ -382,7 +396,7 @@ function tgDetail(k, x) {
   const deep = k === 'deep', f = x.founder, r = x.round;
   const est = x.est ? `${esc(x.est)}${x.years != null ? `, 업력 ${x.years}년` : ''}` : x.years != null ? `업력 ${x.years}년` : '';
   const links = [x.home ? tgA(x.home, '홈페이지') : '', tgA(`https://dart.fss.or.kr/dsab007/main.do?option=corp&textCrpNm=${encodeURIComponent(x.name)}`, 'DART 검색')].join('');
-  const co = `${tgKv('대표', x.ceo ? tgNm(x.ceo) : '')}${tgKv('설립', est)}${tgKv('지역', esc(x.region))}${tgKv('업종', esc(x.induty))}${tgKv('분류', esc(x.cat))}
+  const co = `${tgKv('대표', x.ceo ? tgNm(x.ceo) : '')}${tgKv('설립', est)}${tgKv('지역', esc(x.region))}${tgKv('업종', esc(x.induty))}${tgKv('분류', esc(x.tags.join(', ')))}
     ${tgKv('상장', esc(x.listed))}${tgKv(deep ? '기술' : '브랜드', esc(deep ? x.tech : x.brand))}<div class="ipo-links">${links}</div>`;
   const holders = x.holders.length ? `<table class="ipo-tbl rd-tbl-h"><thead><tr><th>주주</th><th>지분율</th><th>구분</th></tr></thead><tbody>${x.holders.map((h) => `<tr><td>${tgNm(h.name)}</td><td>${h.pct != null ? tgPct(h.pct) : '–'}</td><td>${esc(h.kind) || '–'}</td></tr>`).join('')}</tbody></table>`
     : x.top ? tgKv('최대주주', `${tgNm(x.top.name)}${x.top.pct != null ? ` ${tgPct(x.top.pct)}` : ''}${x.top.kind ? ` (${esc(x.top.kind)})` : ''}`) : TG_NONE;
@@ -396,7 +410,7 @@ function tgDetail(k, x) {
   return `<div class="ipo-detail">${tgDhead(x)}
     <div class="ipo-pane"><div class="ipo-stack">${typeof fqBox === 'function' ? fqBox(x.id, x, TG_CFG[k].title) : ''}
       <div class="ipo-two-col">
-        <div class="ipo-stack">${inv}${tgFinBox(x)}</div>
+        <div class="ipo-stack">${inv}${tgRoundsBox(x)}${tgFinBox(x)}</div>
         <div class="ipo-stack">${tgBox('회사 정보', co)}${tgBox('주주', holders)}</div>
       </div>
       ${tgBox('최근 기사', news, x.news.length ? `${x.news.length}건` : '')}
@@ -431,7 +445,7 @@ function tgFilterHtml(k) {
   const sel = `<select class="select" id="tg-sort" aria-label="정렬">${(k === 'cons' ? TG_CSORT : TG_DSORT).map(([v, l]) => `<option value="${v}"${s.sort === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
   const tg = (f, l) => `<button type="button" data-tg-tg="${f}" class="${s[f] ? 'on' : ''}" aria-pressed="${!!s[f]}">${l}</button>`;
   const second = k === 'cons'
-    ? `<div class="rd-fing"><span class="rd-finl">영업이익</span>${tgSeg('tg-op', TG_OP, s.op)}</div><div class="rd-fing"><span class="rd-finl">상장</span>${tgSeg('tg-lst', TG_LST, s.lst)}</div>`
+    ? `<div class="rd-fing"><span class="rd-finl">영업이익</span>${tgSeg('tg-op', TG_OP, s.op)}</div><div class="rd-fing"><span class="rd-finl">상장</span>${tgSeg('tg-lst', TG_LST, s.lst)}</div><div class="rd-fing"><span class="rd-finl">투자</span><div class="seg">${tg('fi', '투자 이력 있음')}</div></div>`
     : `<div class="rd-fing"><span class="rd-finl">조건</span><div class="seg">${tg('young', '젊은 창업자만')}${tg('late', '시리즈C 이상')}</div></div>`;
   return `<div class="ipo-filter">${search}${tgSeg('tg-cat', cats, s.cat)}${sel}</div><div class="ipo-filter rd-finf">${second}</div>`;
 }
@@ -442,10 +456,10 @@ function tgCsv(k) {
   const cell = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
   const mk = (x) => [tgSt(x.id), tgMark(x.id)?.note || ''];
   const head = k === 'cons'
-    ? ['번호', '회사', '브랜드', '분류', '상장', '대표', '설립', '지역', '업종', '최근 연도', '매출(억)', '영업이익(억)', 'OPM(%)', '매출 CAGR(%)', '최대주주', '최대주주 지분(%)', '홈페이지', '선정 이유', '컨택 상태', '메모']
+    ? ['번호', '회사', '브랜드', '분류', '상장', '대표', '설립', '지역', '업종', '최근 연도', '매출(억)', '영업이익(억)', 'OPM(%)', '매출 CAGR(%)', '최대주주', '최대주주 지분(%)', '투자 이력', '누적 투자(억)', '홈페이지', '선정 이유', '컨택 상태', '메모']
     : ['번호', '회사', '분야', '기술', '단계', '누적 투자(억)', '최근 라운드 시기', '최근 라운드', '최근 라운드 금액', '최근 라운드 투자자', '투자사', '기업가치', '창업자', '창업자 나이', '젊은 창업자', '창업자 경력', '대표', '설립', '지역', '홈페이지', '선정 이유', '컨택 상태', '메모'];
   const rows = tgRows(k).map((x, i) => (k === 'cons'
-    ? [i + 1, x.name, x.brand, x.cat, x.listed, x.ceo, x.est, x.region, x.induty, x.last?.y, x.rev, x.op, x.opm, x.cagr, x.top?.name, x.top?.pct, x.home, x.why, ...mk(x)]
+    ? [i + 1, x.name, x.brand, x.tags.join(', '), x.listed, x.ceo, x.est, x.region, x.induty, x.last?.y, x.rev, x.op, x.opm, x.cagr, x.top?.name, x.top?.pct, x.invSum, x.inv, x.home, x.why, ...mk(x)]
     : [i + 1, x.name, x.cat, x.tech, x.stage, x.inv, x.round?.date, x.round?.round, x.round?.amount, x.round?.investors, x.investors.join(', '), x.valuation,
       x.founder?.name, x.founder?.age, x.young === true ? 'O' : x.young === false ? 'X' : '', x.founder?.bg, x.ceo, x.est, x.region, x.home, x.why, ...mk(x)]));
   const csv = '\uFEFF' + [head, ...rows].map((r) => r.map(cell).join(',')).join('\r\n');
@@ -676,7 +690,7 @@ function tgtFocus(ref) {
   const m = /^(cons|deep):(.+)$/.exec(String(ref || ''));
   if (!m) return '';
   const k = m[1], s = tgS[k].v, id = `${k}:${m[2]}`;
-  Object.assign(s, { q: '', cat: '' }, k === 'cons' ? { op: '', lst: '' } : { young: false, late: false });
+  Object.assign(s, { q: '', cat: '' }, k === 'cons' ? { op: '', lst: '', fi: false } : { young: false, late: false });
   s.open.add(id); tgS.focus = id;
   tgViewSave(k);
   return `#deals/${k}`;
