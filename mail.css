@@ -643,6 +643,8 @@
 .mail-trks-l { max-height: 50vh; margin: 10px 0 0; padding: 0; overflow-y: auto; list-style: none; }
 .mail-trks-l li { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 4px; border-bottom: 1px solid var(--row); font-size: var(--fs-base); color: var(--ink); font-variant-numeric: tabular-nums; }
 .mail-trks-l li:last-child { border-bottom: 0; }
+.mail-trks-l li b { font-weight: 600; margin: 0 2px; }
+.mail-trks-n { margin: 8px 0 0; font-size: var(--fs-sm); color: var(--text3); }
 .mail-trks-l li.empty { justify-content: center; min-height: 88px; border: 0; color: var(--text3); }
 
 .mail-off { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; flex: none; margin: 0 16px 8px; padding: 8px 8px 8px 14px; border-radius: var(--r); background: var(--t-amber); color: var(--t-amber-c); font-size: var(--fs-base); }

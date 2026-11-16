@@ -67,9 +67,13 @@ function mailTrkStrip(html) {
 /* 수신 확인 창: 버튼을 누를 때만 그 메일 토큰 하나로 열람 기록을 받는다. 받는 사람 한 줄 + 열람 시각 최근 순 전부 */
 function mailTrkSheet(x) {
   const tok = x?._trk; if (!tok || !mailTrkOn()) return;
-  const rcpt = [...(x.toRecipients || []), ...(x.ccRecipients || []), ...(x.bccRecipients || [])].map(mailAddr).filter(Boolean).join(', ');
+  const all = [...(x.toRecipients || []), ...(x.ccRecipients || []), ...(x.bccRecipients || [])];
+  const rcpt = all.map(mailAddr).filter(Boolean).join(', ');
+  // 열람 이미지는 메일 한 통에 하나: 받는 사람이 한 명이면 그 사람, 여럿이면 누가 읽었는지 알 수 없다(개인별 보내기는 사람마다 따로 보낸 메일이라 한 명)
+  const one = all.length === 1 ? all[0].emailAddress?.name || all[0].emailAddress?.address || '' : '';
   openSheet(`<div class="mail-trks-h"><h3>수신 확인</h3><button class="iconbtn" type="button" data-trks-x aria-label="닫기">${mi('close')}</button></div>
     <div class="mail-trks-to" title="${esc(rcpt)}"><span>받는 사람</span><b>${esc(rcpt || '(받는 사람 없음)')}</b></div>
+    ${all.length > 1 ? '<p class="mail-trks-n">여러 명에게 보낸 메일이라 누가 읽었는지는 구분되지 않습니다</p>' : ''}
     <ul class="mail-trks-l"><li class="empty">불러오는 중…</li></ul>`, async (el, close) => {
     el.querySelector('[data-trks-x]').addEventListener('click', () => close());
     const ul = el.querySelector('.mail-trks-l');
@@ -77,7 +81,7 @@ function mailTrkSheet(x) {
       const list = (await worksApi('opens', { tokens: [tok] }))?.opens?.[tok];
       if (!ul.isConnected) return;
       const s = (Array.isArray(list) ? list : []).slice().sort((a, b) => String(b.at).localeCompare(String(a.at)));
-      ul.innerHTML = s.length ? s.map((o) => `<li><span>${mailFullTime(o.at)} 읽음</span>${o.kind === 'proxy' ? '<span class="mail-trkp">자동 열람 추정</span>' : ''}</li>`).join('')
+      ul.innerHTML = s.length ? s.map((o) => `<li><span>${mailFullTime(o.at)}${one ? ` <b>${esc(one)}</b>` : ''} 읽음</span>${o.kind === 'proxy' ? '<span class="mail-trkp">자동 열람 추정</span>' : ''}</li>`).join('')
         : '<li class="empty">아직 열람 기록이 없습니다</li>';
     } catch { if (ul.isConnected) ul.innerHTML = '<li class="empty">열람 기록을 불러오지 못했습니다</li>'; }
   }, 'mail-trks');
@@ -2064,7 +2068,15 @@ async function mailSend(c) {
         for (const r of to.slice(1)) {
           const cp = await G.post(`${mp(id)}/copy`, { destinationId: 'drafts' });
           try {
-            await G.patch(mp(cp.id), { toRecipients: [r], ccRecipients: [], bccRecipients: [] });
+            // 사람마다 수신 확인 토큰을 따로(누가 읽었는지 보이게, 사용자 11/16). 못 받으면 그 사람 사본은 수신 확인 없이
+            const patch = { toRecipients: [r], ccRecipients: [], bccRecipients: [] };
+            if (c.trk) {
+              let t2 = null;
+              try { const k = await worksApi('track-new'); if (/^[\w-]{8,}$/.test(String(k?.token || ''))) t2 = String(k.token); } catch { /* 아래에서 끔 */ }
+              patch.body = mailTrkBody(mailComposeBody(c), t2);
+              patch.singleValueExtendedProperties = [{ id: MAIL_TRK_PROP, value: t2 || 'off' }];
+            }
+            await G.patch(mp(cp.id), patch);
             await G.post(`${mp(cp.id)}/send`, {}, { type: 'none' });
           } catch (err) { G.del(mp(cp.id)).catch(() => {}); throw err; } // 못 보낸 복사본은 임시보관함에 남기지 않는다
           sent.push(r);
