@@ -44,6 +44,7 @@ const mailState = () => {
   m.filter = m.filter || viewGet('mail.filter', 'all');
   if (m.qAll == null) m.qAll = viewGet('mail.qAll', true); // 검색 범위: 전체 메일함(기본) / 이 폴더
   m.fids = m.fids || {}; // 폴더 키 → 실제 Graph id (전체 검색 결과의 폴더 이름 찾기)
+  if (m.page == null) m.page = Number(viewGet('mail.page', 1)) || 1; // 보던 페이지(F5 뒤 그대로)
   return m;
 };
 
@@ -500,14 +501,14 @@ async function mailHome() {
   mailFolderSet(m, 'inbox'); m.sel = null; m.msg = null; m.q = ''; m.view = 'list'; m.scroll = 0; m.filter = 'all';
   const q = $('#mail-q'); if (q) q.value = '';
   const flt = $('#mail-filter'); if (flt) flt.value = 'all';
-  mailDrawShell(); mailDrawFolders(); mailDrawPane(); mailLoadCounts(); mailLoadList();
+  mailDrawShell(); mailDrawFolders(); mailDrawPane(); mailLoadCounts(); mailLoadList(1);
 }
 // 다른 메뉴에서 '메일'을 눌러 들어오면 받은편지함 처음부터(사용자 11/14: 할 일 갔다 오니 보던 보낸편지함이 떠 있음). F5는 보던 그대로. 쓰던 메일은 그대로 둔다
 function mailInboxReset() {
   try { sessionStorage.setItem('mailFolder', 'inbox'); } catch { /* 기억 못 해도 된다 */ }
-  viewSet('mail.q', ''); viewSet('mail.filter', 'all'); viewSet('mail.sel', null);
+  viewSet('mail.q', ''); viewSet('mail.filter', 'all'); viewSet('mail.sel', null); viewSet('mail.page', 1);
   const m = ui.mail; if (!m) return;
-  mailFolderSet(m, 'inbox'); m.sel = null; m.msg = null; m.q = ''; m.scroll = 0; m.filter = 'all'; m.list = []; m.next = null;
+  mailFolderSet(m, 'inbox'); m.sel = null; m.msg = null; m.q = ''; m.scroll = 0; m.filter = 'all'; m.list = []; m.next = null; m.page = 1;
   if (!m.compose) m.view = 'list';
 }
 function mailBackToList() {
@@ -653,23 +654,32 @@ function mailFolderCheck() {
   mailDrawShell(); mailDrawFolders(); mailDrawPane(); mailLoadList();
 }
 
-async function mailLoadList(more) {
+/* 목록은 페이지 번호로(2026-11-16 사용자: '더 보기' 말고 1, 2, 3, 4 페이지). 한 페이지 MAIL_PAGE통.
+   보통 목록은 $skip으로 아무 페이지나 바로 가고 전체 수는 @odata.count(없으면 폴더 숫자),
+   검색($search는 $skip을 못 씀)은 받은 다음 페이지 주소(m.qPages)로만 이어 간다 */
+const MAIL_PAGE = 50;
+async function mailLoadList(page) {
   const m = ui.mail;
   const box = $('#mail-items'); if (!box) return;
   mailDrawTitle();
   mailDrawCount();
-  // 늦게 온 이전 요청(다른 폴더·검색·보기, 지난 "더 보기")이 새 목록을 덮지 않게 마지막 요청만 반영
+  // 늦게 온 이전 요청(다른 폴더·검색·보기, 다른 페이지)이 새 목록을 덮지 않게 마지막 요청만 반영
   const my = (m.listSeq = (m.listSeq || 0) + 1), key = [m.folder, m.q, m.filter, !!m.qAll].join('\n');
   const mb = mailBoxOf(m.folder);
-  if (!more) { m.list = []; m.next = null; m.checked.clear(); m.listKey = key; m.offline = null; mailDrawOff(); box.classList.remove('off'); box.innerHTML = '<li class="empty">불러오는 중…</li>'; }
+  const same = m.listKey === undefined || m.listKey === key; // 같은 목록을 다시 읽을 땐(삭제·새로고침) 보던 페이지 그대로
+  if (!same || !m.qPages) { m.qPages = []; m.total = null; }
+  let pg = Number.isInteger(page) ? page : same ? m.page || 1 : 1;
+  if (m.q && pg > 1 && !m.qPages?.[pg - 1]) pg = 1; // 검색은 이어 받은 페이지만 갈 수 있다
+  m.page = pg; viewSet('mail.page', pg);
+  m.list = []; m.next = null; m.checked.clear(); m.listKey = key; m.offline = null; mailDrawOff(); box.classList.remove('off'); box.innerHTML = '<li class="empty">불러오는 중…</li>'; box.scrollTop = 0;
   m.loading = true;
   const trk = mailTrkOn() && !m.q && mailFid(m.folder) === 'sentitems'; // 보낸편지함은 수신 확인 토큰(확장 속성)도 같이 받는다
   const flt = $('#mail-filter'); if (flt) flt.disabled = !!m.q; // $search 는 $filter 와 같이 못 쓴다
   try {
     let url;
-    if (more && m.next) url = m.next;
+    if (m.q && pg > 1) url = m.qPages[pg - 1];
     else {
-      const q = new URLSearchParams({ $top: '50', $select: MAIL_LIST_SEL });
+      const q = new URLSearchParams({ $top: String(MAIL_PAGE), $select: MAIL_LIST_SEL });
       if (m.q) q.set('$search', `"${m.q.replace(/"/g, '')}"`); // $search 는 $orderby·$filter 와 함께 못 쓴다 (관련도 순)
       else {
         const dateKey = { sentitems: 'sentDateTime', drafts: 'lastModifiedDateTime' }[mailFid(m.folder)] || 'receivedDateTime';
@@ -678,27 +688,52 @@ async function mailLoadList(more) {
         const extra = { unread: 'isRead eq false', att: 'hasAttachments eq true' }[m.filter];
         if (extra) q.set('$filter', `${dateKey} ge 1900-01-01T00:00:00Z and ${extra}`);
         if (trk) q.set('$expand', MAIL_TRK_EXP);
+        q.set('$count', 'true');
+        if (pg > 1) q.set('$skip', String((pg - 1) * MAIL_PAGE));
       }
       // 전체 메일함 검색은 폴더와 무관하게 그 사서함 전체(/messages)에서 찾는다
       url = m.q && m.qAll ? `${mailRoot(mb)}/messages?${q}` : `${mailRoot(mb)}/mailFolders/${encodeURIComponent(mailFid(m.folder))}/messages?${q}`;
     }
-    const j = await G.get(url);
+    let j;
+    try { j = await G.get(url); } catch (e) { // 전체 수($count)를 못 받는 경우에도 목록은 보이게
+      if (e.status !== 400 || !url.includes('%24count=true')) throw e;
+      j = await G.get(url.replace('&%24count=true', ''));
+    }
     if (my !== m.listSeq || m.listKey !== key || route() !== 'mail') return;
+    // 지운 뒤 마지막 페이지가 비었으면 앞 페이지로
+    if (!j.value.length && pg > 1 && !m.q) { m.loading = false; mailLoadList(pg - 1); return; }
     j.value.forEach((x) => { x._box = mb; x._trk = mailTrkTok(x); });
-    m.list = more ? m.list.concat(j.value) : j.value;
+    m.list = j.value;
     m.next = j['@odata.nextLink'] || null;
+    if (m.q) { m.qPages[pg] = m.next; m.total = null; }
+    else {
+      const c = m.counts[m.folder];
+      m.total = Number.isFinite(j['@odata.count']) ? j['@odata.count'] : m.filter === 'all' && c ? c.total : m.filter === 'unread' && c ? c.unread : null;
+    }
     mailDrawList();
-    if (!more && !m.q && m.filter === 'all') mailCacheSave(m.folder, j.value);
+    if (pg === 1 && !m.q && m.filter === 'all') mailCacheSave(m.folder, j.value);
   } catch (e) {
     if (my !== m.listSeq || !box.isConnected) return;
     // 서버 장애·네트워크 오류: 이 기기에 저장해 둔 마지막 목록을 읽기 전용으로. 로그인 만료(401)는 그대로 알린다
-    const c = !more && !m.q && mailIsDown(e) ? mailCacheGet(m.folder) : null;
+    const c = pg === 1 && !m.q && mailIsDown(e) ? mailCacheGet(m.folder) : null;
     const items = (c?.items || []).filter((x) => (m.filter === 'unread' ? !x.isRead : m.filter === 'att' ? x.hasAttachments : true));
     if (c && items.length) {
       m.list = items.map((x) => ({ ...x, _box: mb, _off: true })); m.next = null; m.offline = { at: c.at };
       mailDrawOff(); mailDrawList();
     } else box.innerHTML = `<li class="empty">${esc(e.message)}</li>`;
   } finally { if (my === m.listSeq) m.loading = false; }
+}
+
+// 페이지 번호 줄: ‹ 1 … 10 ›(10개씩 묶어 보이고, ‹ ›는 앞뒤 페이지). 전체 수를 모르면(검색·첨부 보기) 다음 페이지가 있을 때까지만
+function mailPager() {
+  const m = ui.mail, pg = m.page || 1;
+  if (m.offline) return '';
+  const last = m.total != null ? Math.max(1, Math.ceil(m.total / MAIL_PAGE)) : m.next ? pg + 1 : pg;
+  if (last <= 1) return '';
+  const start = Math.floor((pg - 1) / 10) * 10 + 1, end = Math.min(last, start + 9);
+  const b = (n, label, aria, on) => `<button type="button" class="mail-pg${on ? ' on' : ''}" data-pg="${n}"${on ? ' aria-current="page"' : ''}${aria ? ` aria-label="${aria}"` : ''}>${label}</button>`;
+  const nums = []; for (let n = start; n <= end; n++) nums.push(b(n, n, '', n === pg));
+  return `<li class="mail-pager"><nav aria-label="페이지">${pg > 1 ? b(pg - 1, '‹', '이전 페이지') : '<span class="mail-pg off">‹</span>'}${nums.join('')}${pg < last ? b(pg + 1, '›', '다음 페이지') : '<span class="mail-pg off">›</span>'}</nav></li>`;
 }
 
 function mailDrawList() {
@@ -723,7 +758,7 @@ function mailDrawList() {
       <span class="mail-lclip">${x.hasAttachments ? `<span title="첨부">${ico('clip', 'sm')}</span>` : ''}</span>
       <div class="mail-subj">${x.hasAttachments ? `<span class="mail-clip" title="첨부">${ico('clip', 'sm')}</span>` : ''}${fl ? `<span class="mail-fl">${esc(fl)}</span>` : ''}<span class="mail-subj-t">${esc(x.subject || '(제목 없음)')}</span></div>
       <div class="mail-pv">${esc((x.bodyPreview || '').replace(/\s+/g, ' ').slice(0, 120))}</div>${trkB ? `<button class="btn sm mail-trkb" type="button" data-trkb="${esc(x.id)}">수신 확인</button>` : ''}</li>`;
-  }).join('') + (m.next ? '<li class="mail-more"><button class="btn sm" type="button" id="mail-more">더 보기</button></li>' : '');
+  }).join('') + mailPager();
   box.querySelectorAll('[data-id]').forEach((li) => li.addEventListener('click', (e) => {
     if (e.target.closest('.mail-ck, .mail-lstar, .mail-trkb')) return;
     mailOpen(li.dataset.id);
@@ -752,7 +787,7 @@ function mailDrawList() {
     try { await G.patch(mailMsgP(x.id, mailBoxX(x)), { flag: { flagStatus: on ? 'flagged' : 'notFlagged' } }); x.flag = { flagStatus: on ? 'flagged' : 'notFlagged' }; }
     catch (err) { b.classList.toggle('on', !on); b.setAttribute('aria-pressed', String(!on)); toast(err.message); }
   }));
-  const more = $('#mail-more'); if (more) more.addEventListener('click', () => { more.disabled = true; mailLoadList(true); });
+  box.querySelectorAll('[data-pg]').forEach((b) => b.addEventListener('click', () => { if (!m.loading) mailLoadList(Number(b.dataset.pg)); }));
 }
 
 /* 도구 줄: 체크한 게 있으면 일괄 작업 버튼을 보인다 */

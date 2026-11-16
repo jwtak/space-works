@@ -34,7 +34,6 @@
 .mail-subj-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mail-pv { margin-top: 2px; font-size: var(--fs-sm); line-height: 18px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mail-draft { display: inline-block; margin-right: 6px; padding: 0 6px; border-radius: var(--r-xs); background: var(--danger-soft); color: var(--danger); font-size: var(--fs-sm); font-weight: 600; line-height: 18px; }
-.mail-more { padding: 12px; text-align: center; list-style: none; }
 
 /* 읽기 */
 .mail-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -232,8 +231,6 @@
   .mail-subj-t { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; }
   .mail-subj .mail-fl { margin-top: 2px; }
   .mail-pv { margin-top: 2px; font-size: var(--fs-md); line-height: 20px; }
-  .mail-more { padding: 16px; }
-  .mail-more .btn { height: 44px; padding: 0 20px; font-size: var(--fs-base); }
 
   /* 메일 쓰기: 오른쪽 아래 플로팅 버튼 */
   .mail-fab {
@@ -413,7 +410,6 @@
   .mail-pv { display: none; }
   .mail-item.unread .mail-who, .mail-item.unread .mail-subj { color: var(--ink); font-weight: 600; }
   .mail-items > .empty { padding: 48px 0; }
-  .mail-more { padding: 16px; }
 
   /* 읽기: 목록 자리에 — 위 버튼 줄(← 목록 · 답장 · 전체 답장 · 전달 · 삭제) */
   .mail-pane { min-width: 0; }
@@ -683,3 +679,12 @@
   .mail-offmeta { display: grid; margin-top: 8px; }
   .mail-trks-l { max-height: 55vh; }
 }
+
+/* 목록 페이지 번호(2026-11-16, '더 보기' 대신) */
+.mail-pager { list-style: none; padding: 16px 12px 20px; }
+.mail-pager nav { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px; }
+.mail-pg { min-width: 36px; height: 36px; padding: 0 8px; border: 0; border-radius: var(--r); background: none; color: var(--text2); font: inherit; font-size: var(--fs-md); font-variant-numeric: tabular-nums; cursor: pointer; display: inline-grid; place-items: center; }
+.mail-pg:hover { background: var(--hover); color: var(--ink); }
+.mail-pg.on { background: var(--primary); color: #fff; font-weight: 600; cursor: default; }
+.mail-pg.off { color: var(--line2); cursor: default; }
+@media (max-width: 760px) { .mail-pg { min-width: 40px; height: 40px; font-size: var(--fs-base); } }
