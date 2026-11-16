@@ -315,7 +315,7 @@ async function renderFacts(host) {
   if (fsS.set === 'req') fsDraw();
   try { await fsLoad(); } catch (e) { const b = host.querySelector('#fs-body'); if (b && fsS.set !== 'req') b.innerHTML = `<div class="empty">${esc(e.message)}</div>`; const s = host.querySelector('#fs-sum'); if (s) s.innerHTML = fsSummary(); return; }
   if (fsS.host === host && host.isConnected) fsDraw();
-  if (typeof pipeLoad === 'function') pipeLoad().then(() => { if (fsS.host === host) fsS.open.forEach((k) => { const x = fsFind(k), p = host.querySelector(`.ipo-row[data-fs="${CSS.escape(k)}"] .ipo-dhead > .rd-pipe`); if (x && p) p.outerHTML = fsPipe(x); }); }).catch(() => {});
+  if (typeof pipeLoad === 'function') pipeLoad().then(() => { if (fsS.host === host) fsS.open.forEach((k) => { const x = fsFind(k), p = host.querySelector(`.ipo-row[data-fs="${CSS.escape(k)}"] .ipo-dhead > .rd-pipe`); if (x && p) p.outerHTML = fsPipe(x); }); if (fsS.host === host && typeof fqPaint === 'function' && host.querySelector('.fq-list')) fqPaint(); }).catch(() => {});
 }
 
 /* 다른 화면(파이프라인 '팩트시트에서 보기')에서 한 회사를 펼쳐 열 때. 주소 이동은 부르는 쪽이 한다 */

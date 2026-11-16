@@ -202,12 +202,29 @@ function fqRow(x) {
   const open = fqS.open.has(x.key), { st } = x, r = fqS.req.find((y) => y.key === x.key);
   const state = st.failed ? '<span class="fq-bad">만들지 못함</span>' : st.wait ? `<span class="fq-wait">${fqNext()} 처리</span>` : st.fs ? `작성 ${esc(yymd(st.fs.made || ''))}` : '–';
   const tab = typeof PP_TABS === 'object' ? PP_TABS[x.key.split(':')[0]] : null;
-  const go = tab ? `<a class="ipo-a" href="${tab[0]}" data-fq-go="${esc(x.key)}">${esc(x.src || tab[1])}에서 보기${ico('right', 'sm')}</a>` : '';
+  const go = (tab ? `<a class="ipo-a" href="${tab[0]}" data-fq-go="${esc(x.key)}">${esc(x.src || tab[1])}에서 보기${ico('right', 'sm')}</a>` : '') + fqPipe(x);
   if (open && !fqS.ctx.has(x.key)) fqS.ctx.set(x.key, { name: x.name, label: x.src, legacy: null, hint: () => r?.hint || '' });
   return `<div class="ipo-row fq-row${open ? ' open' : ''}" data-fq-row="${esc(x.key)}">
     <div class="ipo-line fq-cols"><div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${esc(x.name)}</button></div>
       <div>${esc(x.src)}</div><div>${state}</div><div class="muted">${esc(r ? [r.by, fqWhen(r.at)].filter(Boolean).join(' ') : '')}</div><div class="ipo-c-st"><span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span></div></div>
     ${open ? `<div class="ipo-detail"><div class="ipo-pane"><div class="fq-box" data-fq="${esc(x.key)}">${fqInner(x.key, go)}</div></div></div>` : ''}</div>`;
+}
+
+/* 펼친 칸 '파이프라인에 올리기'(11/16 사용자). ref = 팩트시트 키(다른 탭에서 올릴 때와 같은 키라 중복이 안 생긴다). 'pp:'는 이미 파이프라인 딜 */
+function fqPipe(x) {
+  if (typeof pipeAdd !== 'function') return '';
+  const pp = x.key.startsWith('pp:');
+  let has = pp;
+  try { has = has || (typeof pipeHas === 'function' && !!pipeHas(x.key)); } catch { /* 모르면 올리기 버튼 */ }
+  return has ? `<a class="ipo-a rd-pipe" href="#deals/pipeline"${pp ? '' : ` data-pp-ref="${esc(x.key)}"`}>${ico('done', 'sm')}파이프라인에 있음</a>`
+    : `<button type="button" class="btn sm rd-pipe" data-fq-pipe="${esc(x.key)}">${ico('plus', 'sm')}파이프라인에 올리기</button>`;
+}
+async function fqPipeAdd(btn) {
+  const x = fqItems().find((y) => y.key === btn.dataset.fqPipe);
+  if (!x || btn.disabled) return;
+  btn.disabled = true;
+  try { await pipeAdd({ src: x.src || '팩트시트', ref: x.key, name: x.name }); } catch (e) { toast(e?.message || '파이프라인에 올리지 못했습니다.'); }
+  fqPaint();
 }
 
 function fqList() {
@@ -219,6 +236,8 @@ document.addEventListener('click', (ev) => {
   const t = ev.target;
   const b = t.closest('[data-fq-req]');
   if (b) { const box = b.closest('[data-fq]'); if (box) fqToggle(box.dataset.fq); return; }
+  const pb = t.closest('[data-fq-pipe]');
+  if (pb) { fqPipeAdd(pb); return; }
   const go = t.closest('[data-fq-go]');
   if (go) { if (typeof ppGoTab === 'function') ppGoTab(go.dataset.fqGo); return; } // 이동은 링크 주소로
   if (t.closest('a, input, select, .ipo-detail')) return;
