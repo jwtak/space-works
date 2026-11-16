@@ -99,6 +99,58 @@
   .va-tile strong { font-size: 24px; line-height: 32px; }
 }
 .va-split { margin-bottom: 20px; table-layout: auto; }
-.va-split td { overflow: visible; text-overflow: clip; }
+.va-split td, .va-pos td { overflow: visible; text-overflow: clip; }
+.va-pos { table-layout: auto; }
 .va-split tr.on td { background: #F6F8FB; }
 .va-h3 small { margin-left: 6px; font-size: 14px; font-weight: 400; color: var(--text2); }
+.va-mt td.va-cut { color: var(--text3); text-decoration: line-through; }
+.va-mctl { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; margin-bottom: 16px; }
+.va-srch { position: relative; flex: 1 1 220px; max-width: 320px; }
+.va-srch input { width: 100%; height: 36px; padding: 0 12px; border: 1px solid var(--line2); border-radius: var(--r); font: inherit; font-size: 14px; }
+.va-sug { position: absolute; z-index: 5; top: 40px; left: 0; right: 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--r); box-shadow: 0 6px 20px rgba(17, 24, 39, .08); }
+.va-sug:empty { display: none; }
+.va-sug button { display: block; width: 100%; min-height: 44px; padding: 8px 12px; border: 0; background: none; text-align: left; font: inherit; cursor: pointer; }
+.va-sug button:hover { background: var(--hover); }
+.va-sug b { font-size: 14px; font-weight: 600; color: var(--ink); }
+.va-sug small { display: block; font-size: 13px; color: var(--text3); }
+.va-sug .empty { padding: 12px; font-size: 14px; color: var(--text3); }
+.va-mkv { margin-bottom: 16px; }
+.va-hist { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; height: 180px; align-items: end; }
+.va-hb { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; }
+.va-hb i { display: block; width: 100%; min-height: 2px; border-radius: 4px 4px 0 0; background: #C7D7FB; }
+.va-hb.tg i { background: var(--primary); }
+.va-hb.pk i { background: #D97706; }
+.va-hb span { margin-bottom: 4px; font-size: 13px; color: var(--text3); font-variant-numeric: tabular-nums; }
+.va-hb small { margin-top: 6px; font-size: 13px; color: var(--text3); white-space: nowrap; }
+.va-leg { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 12px 0 4px; font-size: 14px; color: var(--text2); }
+.va-leg span::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; vertical-align: -1px; }
+.va-leg .tg::before { background: var(--primary); }
+.va-leg .pk::before { background: #D97706; }
+.va-leg .pe::before { background: #111827; }
+.va-leg .cv::before { width: 16px; height: 2px; border-radius: 1px; background: #6B7280; vertical-align: 3px; }
+.va-pos tr.va-tgt td { background: var(--primary-soft); }
+.va-pos tr.va-pkr td { background: #FFF8EC; }
+.va-scw { width: 100%; overflow: hidden; }
+.va-sc { display: block; width: 100%; height: auto; }
+.va-sc .gl { stroke: var(--row); stroke-width: 1; }
+.va-sc .yl { font-size: 12px; fill: var(--text3); text-anchor: end; }
+.va-sc .xl { font-size: 12px; fill: var(--text3); text-anchor: middle; }
+.va-sc circle.bg { fill: #9CA3AF; fill-opacity: .35; }
+.va-sc circle.pe { fill: #111827; stroke: #fff; stroke-width: 2; }
+.va-sc circle.tg { fill: var(--primary); stroke: #fff; stroke-width: 2; }
+.va-sc circle.pk { fill: #D97706; stroke: #fff; stroke-width: 2; }
+.va-sc .cv { fill: none; stroke: #6B7280; stroke-width: 2; }
+.va-sc .dl { font-size: 13px; font-weight: 600; fill: var(--ink); paint-order: stroke; stroke: #fff; stroke-width: 3px; }
+@media (max-width: 720px) {
+  .va-hist { height: 160px; }
+  .va-hb small { font-size: 12px; transform: rotate(-35deg); transform-origin: top center; }
+}
+.va-cg { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; color: var(--text2); }
+.va-cg input { width: 88px; height: 32px; padding: 0 8px; border: 1px solid var(--line2); border-radius: var(--r); font: inherit; font-size: 14px; text-align: right; }
+.va-hist { grid-template-columns: repeat(10, minmax(0, 1fr)); }
+.va-pos { min-width: 600px; }
+.va-pos td.st { min-width: 120px; }
+@media (max-width: 720px) {
+  .va-hist { gap: 2px; }
+  .va-hb span { font-size: 12px; }
+}
