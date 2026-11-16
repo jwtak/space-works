@@ -254,14 +254,19 @@ function ppList() {
 const PP_HEAD = `<div class="ipo-head pp-cols"><div class="pp-c-next">다음 연락</div><div class="pp-c-name">회사</div><div class="pp-c-st">단계</div>
   <div class="pp-c-src">출처</div><div class="pp-c-own">담당</div><div class="pp-c-cl">컨택</div><div class="pp-c-act">다음 할 일</div><div class="pp-c-chev"></div></div>`;
 
-// 목록 '컨택' 칸: 마지막 컨택 기록(날짜 순, 같은 날이면 나중에 단 것) 날짜·종류, 아래 줄에 메모(없으면 회사가 여럿일 때 회사 이름)
+/* 목록 '컨택' 칸: 단계 칩처럼 고르는 칩(2026-11-16 사용자 "컨택을 여기서 선택"). 칩 글자는 마지막 기록(날짜 순, 같은 날이면 나중에 단 것),
+   고르면 오늘 날짜로 기록하고(ppCpLog와 같이 다음 연락일·할 일도) 메모 창을 띄운다. 아래 줄은 마지막 기록 메모(없으면 회사가 여럿일 때 회사 이름).
+   회사가 여럿인 딜(컨택 플랜 cos)은 회사별 묶음으로 고른다 */
 function ppClCell(x) {
   const all = Array.isArray(x.cl) ? x.cl.filter((l) => l && typeof l === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(l.d || '')) : [];
   const l = all.map((m, i) => [m, i]).sort((a, b) => a[0].d.localeCompare(b[0].d) || a[1] - b[1]).pop()?.[0];
-  if (!l) return `<div class="pp-c-cl none">${ppDash}</div>`;
-  const multi = new Set(all.map((m) => m.co).filter(Boolean)).size > 1;
-  const sub = String(l.memo || '').trim() || (multi ? String(l.co || '') : '');
-  return `<div class="pp-c-cl"><span>${esc(mdw(l.d))} ${esc(PP_CL_S[l.k] || l.k || '')}</span>${sub ? `<div class="ipo-sub">${esc(sub)}</div>` : ''}</div>`;
+  const cos = (ppS.cpAt ? ppCpState(x).cos.map((c) => c.co) : []).filter(Boolean);
+  const multi = cos.length > 1 || new Set(all.map((m) => m.co).filter(Boolean)).size > 1;
+  const sub = l ? String(l.memo || '').trim() || (multi ? String(l.co || '') : '') : '';
+  const opt = (co) => Object.entries(PP_CL).map(([k, t]) => `<option value="${esc(k)}|${esc(co)}">${esc(t)}</option>`).join('');
+  const opts = cos.length > 1 ? cos.map((co) => `<optgroup label="${esc(co)}">${opt(co)}</optgroup>`).join('') : opt(cos[0] || x.name);
+  const label = l ? `${mdw(l.d)} ${PP_CL_S[l.k] || l.k || ''}` : '기록';
+  return `<div class="pp-c-cl"><select class="pp-clsel ipo-st${l ? '' : ' pp-cl0'}" data-pp-clsel aria-label="${esc(x.name)} 컨택 기록"><option value="" selected hidden>${esc(label)}</option>${opts}</select>${sub ? `<div class="ipo-sub">${esc(sub)}</div>` : ''}</div>`;
 }
 
 function ppLine(x, open) {
@@ -686,6 +691,20 @@ function ppCpLog(id, co, k) {
   ppCpPaint(id);
   ppS.host?.querySelector(`.pp-cp-co[data-cp-id="${CSS.escape(id)}"] [data-cp-memo="${p.cl.length - 1}"]`)?.focus({ preventScroll: true });
   toast(`기록했습니다${p.next ? `. 다음 연락일 ${mdw(p.next)}` : ''}`);
+}
+// 목록 칩에서 고른 기록: 기록한 뒤 메모 창(건너뛰어도 기록은 남는다)
+function ppClQuick(id, co, k) {
+  ppCpLog(id, co, k);
+  const x = ppFind(id); if (!x || typeof openSheet !== 'function') return;
+  const n = ppCl(x).length - 1;
+  openSheet(`<h3>${esc(mdw(today()))} ${esc(PP_CL[k])}</h3><p class="pp-cf-name">${esc(co)}</p>
+    <textarea class="area pp-clmemo" maxlength="300" placeholder="메모(선택)" aria-label="기록 메모"></textarea>
+    <div class="pp-cf-act"><button type="button" class="btn grey" data-cancel>건너뛰기</button><button type="button" class="btn primary" data-ok>저장</button></div>`, (el, close) => {
+    const ta = el.querySelector('textarea');
+    setTimeout(() => ta.focus(), 50);
+    el.querySelector('[data-cancel]').onclick = close;
+    el.querySelector('[data-ok]').onclick = () => { ppCpMemo(id, n, ta.value.trim()); ppCpPaint(id); close(); };
+  }, 'pp-sheet');
 }
 // 기록 메모: 칸을 벗어나거나 Enter 때 저장(목록 '컨택' 칸도 같이 바뀐다)
 function ppCpMemo(id, n, v) {
@@ -1120,6 +1139,7 @@ function ppBind(root) {
     const el = ev.target;
     if (el.id === 'pp-sort') { ppS.sort = el.value; ppDraw(); return; }
     if (el.matches('[data-cp-memo]')) { const w = el.closest('[data-cp-c]'); if (w) ppCpMemo(w.dataset.cpId, Number(el.dataset.cpMemo), el.value.trim()); return; }
+    if (el.matches('[data-pp-clsel]')) { const id = el.closest('.pp-row')?.dataset.id, [k, ...co] = el.value.split('|'); el.value = ''; if (id && PP_CL[k]) ppClQuick(id, co.join('|'), k); return; }
     if (el.matches('[data-pp-stsel]')) { const id = el.closest('.pp-row')?.dataset.id; if (id && PP_STAGES.includes(el.value)) ppSet(id, { stage: el.value }); return; }
     if (!el.matches('[data-pp-f]') || ppDrawing) return;
     if (el.type === 'date') ppDateLater(el); else ppCommit(el);
