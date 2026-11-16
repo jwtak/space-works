@@ -252,7 +252,17 @@ function ppList() {
 
 // 머리글 칸도 같은 이름표를 달아 좁은 폭에서 값 칸과 함께 숨긴다. 단계 머리글은 칩 안 글자 시작선(10)에 맞춘다
 const PP_HEAD = `<div class="ipo-head pp-cols"><div class="pp-c-next">다음 연락</div><div class="pp-c-name">회사</div><div class="pp-c-st">단계</div>
-  <div class="pp-c-src">출처</div><div class="pp-c-own">담당</div><div class="pp-c-act">다음 할 일</div><div class="pp-c-chev"></div></div>`;
+  <div class="pp-c-src">출처</div><div class="pp-c-own">담당</div><div class="pp-c-cl">컨택</div><div class="pp-c-act">다음 할 일</div><div class="pp-c-chev"></div></div>`;
+
+// 목록 '컨택' 칸: 마지막 컨택 기록(날짜 순, 같은 날이면 나중에 단 것) 날짜·종류, 아래 줄에 메모(없으면 회사가 여럿일 때 회사 이름)
+function ppClCell(x) {
+  const all = Array.isArray(x.cl) ? x.cl.filter((l) => l && typeof l === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(l.d || '')) : [];
+  const l = all.map((m, i) => [m, i]).sort((a, b) => a[0].d.localeCompare(b[0].d) || a[1] - b[1]).pop()?.[0];
+  if (!l) return `<div class="pp-c-cl none">${ppDash}</div>`;
+  const multi = new Set(all.map((m) => m.co).filter(Boolean)).size > 1;
+  const sub = String(l.memo || '').trim() || (multi ? String(l.co || '') : '');
+  return `<div class="pp-c-cl"><span>${esc(mdw(l.d))} ${esc(PP_CL_S[l.k] || l.k || '')}</span>${sub ? `<div class="ipo-sub">${esc(sub)}</div>` : ''}</div>`;
+}
 
 function ppLine(x, open) {
   const nx = ppNext(x);
@@ -264,6 +274,7 @@ function ppLine(x, open) {
     <div class="pp-c-st">${ppStSel(x)}</div>
     <div class="pp-c-src">${x.src ? esc(x.src) : ppDash}${x.introducer ? `<div class="ipo-sub">${esc(x.introducer)}</div>` : ''}</div>
     <div class="pp-c-own">${x.owner ? esc(x.owner) : ppDash}</div>
+    ${ppClCell(x)}
     <div class="pp-c-act${x.action ? '' : ' none'}">${x.action ? esc(x.action) : ppDash}</div>
     <div class="pp-c-chev"><span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span></div>
   </div>`;
@@ -635,6 +646,7 @@ function ppCpCompany(x, c) {
   const logs = ppCl(x).map((l, n) => [l, n]).filter(([l]) => !l.co || l.co === c.co).reverse();
   const log = ppBox('컨택 기록', `<div class="pp-cp-logbtn">${Object.entries(PP_CL).map(([k, l]) => `<button type="button" class="btn sm" data-cp-log="${k}">${l}</button>`).join('')}</div>
       ${logs.length ? `<ul class="pp-cp-log">${logs.map(([l, n]) => `<li><span class="d">${/^\d{4}-\d{2}-\d{2}$/.test(l.d || '') ? esc(mdw(l.d)) : ''}</span><span>${esc(PP_CL[l.k] || l.k || '')}</span><span class="muted">${esc(l.by || '')}</span>
+        <input class="input pp-cp-memo" data-cp-memo="${n}" value="${esc(l.memo || '')}" placeholder="메모" maxlength="300" autocomplete="off" aria-label="기록 메모">
         <button type="button" class="btn ghost sm pp-cp-unlog" data-cp-unlog="${n}" aria-label="이 기록 지우기">${ico('trash', 'sm')}</button></li>`).join('')}</ul>` : ''}`);
   const routes = c.routes.length ? ppBox('루트 맵', `<table class="ipo-tbl pp-cp-routes"><thead><tr><th>순위</th><th>루트</th><th>대상</th><th>채널</th><th>활용 방법</th></tr></thead><tbody>${c.routes.map((r) => `<tr>
       <td class="rk">${r.rank ? `${esc(r.rank)}순위` : ''}</td><td data-k="루트">${esc(ppStr(r.kind))}</td><td data-k="대상">${esc(ppStr(r.target))}</td><td data-k="채널">${esc(ppStr(r.channel))}</td><td data-k="활용">${esc(ppStr(r.how))}</td></tr>`).join('')}</tbody></table>`, `${c.routes.length}곳`) : '';
@@ -664,7 +676,7 @@ function ppCpPaint(id) {
 function ppBizDay(n) { const d = addDays(parse(today()), n), w = d.getDay(); return ymd(w === 6 ? addDays(d, 2) : w === 0 ? addDays(d, 1) : d); }
 function ppCpLog(id, co, k) {
   const x = ppFind(id); if (!x || !PP_CL[k]) return;
-  const c = ppCpState(x).cos.find((m) => m.co === co), tel = c?.calls.find((m) => m.tel)?.tel || '';
+  const c = ppCpState(x).cos.find((m) => m.co === co), tel = c?.calls.map((m) => m.tel).find((t) => /^[\d\s()+-]{7,}$/.test(t || '')) || '';
   const p = { cl: [...ppCl(x), { d: today(), k, by: ppMe(), co }] };
   if (k === 'mail') { p.next = ppBizDay(3); p.action = `확인 전화 ${co}${tel ? ` ${tel}` : ''}`; }
   else if (k === 'call') { p.next = ppBizDay(7); p.action = `후속 연락 ${co}`; }
@@ -672,7 +684,14 @@ function ppCpLog(id, co, k) {
   ppSet(id, p);
   ppFormSync(id, p);
   ppCpPaint(id);
+  ppS.host?.querySelector(`.pp-cp-co[data-cp-id="${CSS.escape(id)}"] [data-cp-memo="${p.cl.length - 1}"]`)?.focus({ preventScroll: true });
   toast(`기록했습니다${p.next ? `. 다음 연락일 ${mdw(p.next)}` : ''}`);
+}
+// 기록 메모: 칸을 벗어나거나 Enter 때 저장(목록 '컨택' 칸도 같이 바뀐다)
+function ppCpMemo(id, n, v) {
+  const x = ppFind(id); if (!x) return;
+  const cl = ppCl(x); if (!cl[n] || String(cl[n].memo || '') === v) return;
+  ppSet(id, { cl: cl.map((l, k) => (k === n ? (v ? { ...l, memo: v } : (({ memo, ...r }) => r)(l)) : l)) });
 }
 function ppCpUnlog(id, n) {
   const x = ppFind(id); if (!x) return;
@@ -1100,6 +1119,7 @@ function ppBind(root) {
   root.addEventListener('change', (ev) => {
     const el = ev.target;
     if (el.id === 'pp-sort') { ppS.sort = el.value; ppDraw(); return; }
+    if (el.matches('[data-cp-memo]')) { const w = el.closest('[data-cp-c]'); if (w) ppCpMemo(w.dataset.cpId, Number(el.dataset.cpMemo), el.value.trim()); return; }
     if (el.matches('[data-pp-stsel]')) { const id = el.closest('.pp-row')?.dataset.id; if (id && PP_STAGES.includes(el.value)) ppSet(id, { stage: el.value }); return; }
     if (!el.matches('[data-pp-f]') || ppDrawing) return;
     if (el.type === 'date') ppDateLater(el); else ppCommit(el);
