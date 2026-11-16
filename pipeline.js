@@ -603,6 +603,7 @@ const ppCpKey = (id, co) => `${id}\n${co}`;
 function ppCpInner(x) {
   const bar = (msg, btn = '') => `<div class="fq-bar"><span class="fq-t">컨택 플랜</span>${msg ? `<span class="muted">${msg}</span>` : ''}${btn}</div>`;
   if (!ppS.cpAt) { if (!ppS.cpLoading) ppCpLoad(); return bar('불러오는 중…'); }
+  if (!ppS.cpLoading && Date.now() - ppS.cpAt > PP_TTL) ppCpLoad(); // 열어 둔 화면도 5분이 지나면 다시 읽는다
   if (ppS.cpErr) return bar(esc(ppS.cpErr));
   // 프롬프트 복사: 대표님이 직접 Claude·ChatGPT로 만들 때 쓰는 회사 공용 프롬프트(cp_req.py도 같은 파일을 읽는다)
   const pb = `<span class="pp-cp-pr"><button type="button" class="btn ghost sm" data-cp-prompt>프롬프트 복사</button><button type="button" class="pp-qi" data-info="pp-cp-prompt" aria-label="프롬프트 설명">${ico('info', 'sm')}</button></span>`;
@@ -967,7 +968,7 @@ function ppFlush() {
   if (el && el.tagName !== 'SELECT' && el.value !== el.defaultValue) ppCommit(el);
 }
 window.addEventListener('hashchange', ppFlush);
-document.addEventListener('visibilitychange', () => { if (document.hidden) ppFlush(); });
+document.addEventListener('visibilitychange', () => { if (document.hidden) ppFlush(); else if (ppS.cpAt) ppCpLoad(); }); // 돌아오면 5분 지난 컨택 플랜은 다시 읽는다
 // 새로 고침·창 닫기: 저장은 비동기라 페이지가 내려가면 끊긴다. 쓰던 칸을 저장에 태우고, 아직 저장 중이면 묻는다
 window.addEventListener('beforeunload', (e) => { ppFlush(); if (ppS.dirty.size) { e.preventDefault(); e.returnValue = ''; } });
 
@@ -1046,7 +1047,7 @@ function ppGoTab(ref) {
 
 async function ppRefresh(btn) {
   btn.disabled = true;
-  try { await Promise.all([pipeLoad(true), ppCpLoad(true)]); ppDraw(); } catch (e) { toast(e.message); } finally { btn.disabled = false; }
+  try { await Promise.all([pipeLoad(true), ppCpLoad(true), typeof fqLoad === 'function' ? fqLoad(true) : null]); ppDraw(); } catch (e) { toast(e.message); } finally { btn.disabled = false; }
 }
 
 function ppBind(root) {

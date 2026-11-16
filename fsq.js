@@ -42,6 +42,9 @@ function fqLoad(force) {
   return fqS.loading;
 }
 
+// 창으로 돌아오면 5분 지난 자료는 다시 읽는다(열어 둔 채 처리 시각이 지나도 결과가 보이게)
+document.addEventListener('visibilitychange', () => { if (!document.hidden && fqS.at) fqLoad(); });
+
 // 다음 처리 시각: PC 작업(fs.json slots, 기본 11:00·16:00) 중 지금 뒤의 첫 시각
 function fqNext() {
   const slots = Array.isArray(fqS.out?.slots) && fqS.out.slots.length ? fqS.out.slots : ['11:00', '16:00'];
@@ -79,7 +82,7 @@ const fqHint = (x) => { try { return JSON.stringify(fqCut(x, 0) || {}).slice(0, 
 function fqBox(ref, x, label) {
   if (!ref || !x) return '';
   fqS.ctx.set(ref, { name: x.name || '', label: label || '', legacy: x.fs && typeof x.fs === 'object' ? x.fs : null, hint: () => fqHint(x) });
-  if (!fqS.at && !fqS.loading) fqLoad();
+  if (!fqS.loading && (!fqS.at || Date.now() - fqS.at > FQ_TTL)) fqLoad(); // 열어 둔 화면도 5분이 지나면 다시 읽는다(11:00 처리 뒤에도 '요청됨'이 남던 문제, 2026-11-16)
   const head = fqS.head.delete(ref); // 바로 앞 머리에 요청 버튼을 넣었으면 칸에는 버튼을 빼고 그린다
   return `<div class="fq-box" data-fq="${esc(ref)}"${head ? ' data-fq-head="1"' : ''}>${fqInner(ref, '', head)}</div>`;
 }
@@ -208,7 +211,7 @@ function fqRow(x) {
 }
 
 function fqList() {
-  if (!fqS.at && !fqS.loading) fqLoad();
+  if (!fqS.loading && (!fqS.at || Date.now() - fqS.at > FQ_TTL)) fqLoad(); // 열어 둔 화면도 5분이 지나면 다시 읽는다(11:00 처리 뒤에도 '요청됨'이 남던 문제, 2026-11-16)
   return `<div class="fq-list">${fqListBody()}</div>`;
 }
 
