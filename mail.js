@@ -25,7 +25,10 @@ const MAIL_FILTERS = [{ k: 'all', label: '모든 메일' }, { k: 'unread', label
    보낸 초안은 그대로 보낸편지함으로 옮겨지므로(Graph send mail 과정 4단계) 보낸편지함 사본에서 $expand로 다시 읽힌다. worksApi가 없으면 기능을 숨긴다 */
 const MAIL_TRK_PROP = 'String {7d3e9a42-6b1f-4c85-9e27-3a5c0f8d14b6} Name WorksTrack';
 const MAIL_TRK_EXP = `singleValueExtendedProperties($filter=id eq '${MAIL_TRK_PROP}')`;
-const mailTrkOn = () => typeof worksApi === 'function' && typeof WORKS_API !== 'undefined' && !!WORKS_API;
+// 열람 추적(본문 1×1 이미지)은 끔(2026-11-16 사용자: 단체 메일은 누가 읽었는지 못 가리니 쓰지 않음). 다시 켜려면 true.
+// 꺼도 mailTrkStrip은 예전에 보낸 메일의 이미지를 계속 지운다(웍스에서 열거나 답장해도 열람으로 안 찍히게)
+const MAIL_TRK = false;
+const mailTrkOn = () => MAIL_TRK && typeof worksApi === 'function' && typeof WORKS_API !== 'undefined' && !!WORKS_API;
 const mailBoxOf = (f) => (String(f || '').startsWith('contact:') ? 'contact' : 'me');
 const mailFid = (f) => String(f || '').replace(/^contact:/, ''); // Graph 폴더 id(기본 폴더는 inbox 같은 이름)
 const mailRoot = (box) => (box === 'contact' ? `/users/${MAIL_SHARED}` : '/me');
