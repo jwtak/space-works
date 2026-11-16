@@ -357,7 +357,7 @@
   .mail-f.on { background: #DCE7F9; color: var(--primary); font-weight: 600; }
   .mail-f.on svg.i { color: var(--primary); }
   .mail-fc { margin-left: auto; min-width: 24px; height: 22px; padding: 0 8px; border-radius: var(--r-full); background: var(--primary); color: #fff; font-size: var(--fs-sm); line-height: 22px; font-weight: 600; text-align: center; }
-  .mail-f[data-f="drafts"] .mail-fc { background: var(--line); color: var(--text2); }
+  .mail-f[data-f="drafts"] .mail-fc, .mail-f[data-f="junkemail"] .mail-fc { background: var(--line); color: var(--text2); }
 
   /* 목록 머리: 큰 제목 + 개수 알약 + 검색 */
   .mail-list { border-right: 0; min-width: 0; }
@@ -583,7 +583,7 @@
 .mail-fgrp { flex: none; margin: 8px 4px 4px; padding: 12px 8px 0; border-top: 1px solid var(--line); font-size: var(--fs-sm); font-weight: 600; color: var(--text3); }
 .mail-f.sub { padding-left: 36px; }
 .mail-fpre { display: none; } /* 폰 칩에서만: 어느 사서함인지 */
-.mail-f[data-f="contact:drafts"] .mail-fc { background: var(--line); color: var(--text2); }
+.mail-f[data-f="contact:drafts"] .mail-fc, .mail-f[data-f="contact:junkemail"] .mail-fc { background: var(--line); color: var(--text2); }
 .mail-scope { flex: none; padding: 0 16px 8px; }
 .mail-scope[hidden] { display: none; }
 .mail-seg { display: inline-flex; gap: 2px; padding: 3px; border-radius: var(--r); background: var(--fill); }
