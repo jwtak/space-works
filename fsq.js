@@ -1,7 +1,7 @@
 /* UNIVERSE WORKS — 딜소싱 공용: 팩트시트 요청·보기 (2026-11-12)
    각 탭 펼친 칸 맨 위 '팩트시트' 칸: 없으면 [팩트시트 요청], 요청 중이면 처리 예정 시각과 [요청 취소], 만들어졌으면 내용과 [다시 요청].
    요청: data/fs_req.json [{key, name, src, hint, at, by}] — 화면이 쌓는다(대표님 편집 공유). 만든 뒤에도 지우지 않아 '요청한 회사' 목록이 된다.
-         key = 파이프라인 ref와 같은 꼴(yesim:<id> · yesim:mandate:<이름> · sell:<id> · bids:<id> · ipo:<code> · pe:heir:<cc> · pe:dup:<이름> · delist:<code>),
+         key = 파이프라인 ref와 같은 꼴(yesim:<id> · yesim:mandate:<이름> · sell:<id> · bids:<id> · ipo:<code> · pe:heir:<cc> · pe:dup:<이름> · delist:<code> · cons:<id> · deep:<id>),
                직접 넣은 파이프라인 딜은 pp:<딜 id>(pipeline.js ppFsKey, fqEnsure로 자동 요청)
    결과: data/fs.json {generated, slots, items{key → 팩트시트}, fail{key → {at, n, err}}} — PC 딜레이더 fs_req.py가 하루 두 번(slots) 만든다(읽기 공유).
    형식: 딜레이더\CONTRACT_fs.md. 내용 그리기는 radar.js rdFsN·rdFsGroup, 원래 화면 이동은 pipeline.js PP_TABS·ppGoTab.

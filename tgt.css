@@ -1,0 +1,49 @@
+/* 딜소싱 › 타깃 › 소비재·딥테크 (tgt.js) — 목록·펼친 행·상자는 ipo.css, 좁은 폭 배치·필터 줄·컨택·검토한 곳은 radar.css(.rd-page),
+   수치 칸·손익표·칩·증감 색은 pe.css(.pe-mg·.pe-fin·.pe-finm·.pe-ds·.pe-up·.pe-dn)를 그대로 쓰고 여기엔 새로 필요한 것만. pe.css 뒤에 읽어야 한다.
+   표는 왼쪽 정렬·머리글과 값 시작선 일치. 새로 정한 글자는 14 이상, 폰 터치 높이 44. */
+
+/* 단계 칩 머리글 = 칩 안 글자 시작선(칩 좌우 8) */
+.tgt-page .ipo-head > .pe-h-chip { padding-left: 8px; }
+/* 젊은 창업자 표시 */
+.tgt-yg { color: var(--primary); font-weight: 600; }
+/* 좁은 폭 수치 칸 안 보조 값(영업이익 옆 OPM) */
+.tgt-mgs { font-size: var(--fs-md); font-weight: 400; color: var(--text3); }
+/* 출처 상자 '확인할 것' 칩 */
+.tgt-flags { display: flex; flex-wrap: wrap; gap: 6px; }
+.tgt-flags .pe-ds { height: auto; min-height: 24px; padding: 2px 10px; font-size: var(--fs-md); line-height: 20px; white-space: normal; }
+
+@media (min-width: 761px) {
+  /* 소비재 여섯 칸(영업이익 | 회사 | 매출 | 매출 성장 | 최대주주 | 컨택 상태). 딥테크는 radar.css 일곱 칸 그대로 */
+  .tgt-cons .ipo-cols { grid-template-columns: 80px repeat(4, minmax(0, 1fr)) 100px; }
+  /* 1000보다 좁으면 최대주주(딥테크는 분야·최근 라운드) 칸(rd-c2)을 접고 회사 칸 보조 줄로 */
+  @container (max-width: 999px) {
+    .tgt-cons .ipo-cols { grid-template-columns: 80px repeat(3, minmax(0, 1fr)) 100px; }
+  }
+  /* 700보다 좁으면 한 회사를 여러 줄로(이름·컨택 상태 / 분류·기술 한 줄 / 수치 칸) — radar.css와 같은 배치 */
+  @container (max-width: 699px) {
+    .tgt-cons .ipo-cols { grid-template-columns: minmax(0, 1fr) auto; }
+    .tgt-page .ipo-line .pe-mg { display: grid; margin-top: 8px; }
+    .tgt-page.rd-page .ipo-row .ipo-c-name > .ipo-sub.tgt-s { display: block; }
+  }
+  /* 300보다 좁으면 한 회사를 한 줄 폭으로 쌓고(컨택 상태는 맨 아래), 손익은 연도별 한 줄 목록으로 */
+  @container (max-width: 299px) {
+    .tgt-cons .ipo-cols { grid-template-columns: minmax(0, 1fr); }
+    .tgt-page .ipo-tbl.pe-fin { display: none; }
+    .tgt-page .pe-finm { display: block; }
+    .tgt-page .ipo-seg button:nth-child(odd) { border-left: 0; }
+  }
+}
+
+@media (max-width: 760px) {
+  /* 한 건 = 이름(+ 컨택 상태·펼침) / 분류·기술 한 줄 / 수치 칸(이름표 위·값 아래) */
+  .tgt-page .ipo-line .pe-mg { display: grid; margin-top: 8px; }
+  .tgt-page .ipo-line > .ipo-c-st { grid-column: 2; grid-row: 1; align-self: start; }
+  .tgt-page .ipo-c-name > .ipo-sub.tgt-s { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; font-size: var(--fs-md); line-height: 20px; color: var(--text2); }
+  .tgt-page .ipo-c-name > .rd-alt { display: none; }
+  /* 터치 높이 44: 컨택 상태·메모·팩트시트 요청·파이프라인. 이유 문장이 없는 펼친 행은 빈 첫 줄을 접는다 */
+  .tgt-page .ipo-seg button { height: 44px; font-size: var(--fs-base); }
+  .tgt-page .ipo-note { height: 44px; font-size: var(--fs-base); }
+  .tgt-page .rd-fs { height: 44px; padding: 0 16px; font-size: var(--fs-base); }
+  .tgt-page .ipo-dhead > .rd-pipe { height: 44px; }
+  .tgt-page .ipo-dhead > p:empty { display: none; }
+}
