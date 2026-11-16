@@ -1115,6 +1115,12 @@ function ppGoTab(ref) {
   else if (k === 'delist' && key && typeof delistFocus === 'function') delistFocus(ref);
   else if (k === 'pe' && key && typeof peFocus === 'function') peFocus(ref);
   else if ((k === 'cons' || k === 'deep') && key && typeof tgtFocus === 'function') tgtFocus(ref);
+  else if (k === 'events' && key && typeof evState === 'object') evState.focus = key; // 행사: 그 행사를 펼치고 그 자리로(events.js)
+  else if (k === 'kmx' && key && typeof kmxS === 'object') { // 매물장터: 매도/매수 쪽을 맞추고 펼침
+    const it = kmxS.data?.items?.find((x) => x.id === key);
+    if (it && it.side !== kmxS.side) { kmxS.side = it.side; viewSet('kmx.side', it.side); }
+    kmxS.open.add(key);
+  }
 }
 
 async function ppRefresh(btn) {

@@ -36,3 +36,4 @@
   .kmx-page .ipo-line > .ipo-c-name > .kmx-meta { flex-wrap: wrap; column-gap: 8px; row-gap: 0; font-size: var(--fs-md); line-height: 20px; color: var(--text2); }
   .kmx-page .kmx-meta > span { white-space: normal; overflow: visible; }
 }
+.kmx-links { align-items: center; } /* ☆관심 + 원문 보기 */

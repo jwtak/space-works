@@ -246,7 +246,8 @@ function evDetail(e) {
   const irl = x.ir_links && typeof x.ir_links === 'object' ? x.ir_links : {}; // KIND 묶음 행사: 참가사별 상세 주소(ir.py _kind_links)
   const row = (k, v, c = '') => (v ? `<dt${c}>${k}</dt><dd${c}>${v}</dd>` : '');
   const link = (u, label) => (/^https?:\/\//i.test(u || '') ? `<a class="btn sm" href="${esc(u)}" target="_blank" rel="noopener">${label}${ico('ext', 'sm')}</a>` : '');
-  const links = (x.estimated ? '' : '<button type="button" class="btn sm ev-addcal" data-evcal>일정에 추가</button>') + link(e.url, '상세 페이지') + link(x.homepage, '홈페이지')
+  const fav = typeof fvHead === 'function' ? fvHead(`events:${e.id}`, { name: e.title }) : ''; // ☆관심(fav.js, 사람별)
+  const links = fav + (x.estimated ? '' : '<button type="button" class="btn sm ev-addcal" data-evcal>일정에 추가</button>') + link(e.url, '상세 페이지') + link(x.homepage, '홈페이지')
     + `<button type="button" class="btn sm ev-dhide" data-mark="pass">${st === 'pass' ? EV_SHOW : EV_HIDE}${st === 'pass' ? '다시 보이기' : '숨기기'}</button>`;
   // 점수: 총점 옆에 항목별 점수를 칸으로(라벨 값)
   const parts5 = e.scores ? EV_SCORE.filter(([k]) => e.scores[k] != null).map(([k, l]) => [l, e.scores[k]]).concat(Number(e.penalty) ? [['지역', e.penalty]] : []) : [];

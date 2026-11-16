@@ -94,7 +94,8 @@ function kmxPair(x) {
 const kmxKv = (k, v) => (v ? `<div class="ipo-kv"><div class="k">${k}</div><div class="v">${esc(v)}</div></div>` : '');
 
 function kmxDetail(x) {
-  const link = x.url ? `<div class="ipo-links"><a class="ipo-a" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">원문 보기${ico('ext', 'sm')}</a></div>` : '';
+  const fav = typeof fvHead === 'function' ? fvHead(`kmx:${x.id}`, { name: [x.name || '분류 전 글', x.no].filter(Boolean).join(' ') }) : ''; // ☆관심(fav.js, 사람별)
+  const link = x.url || fav ? `<div class="ipo-links kmx-links">${fav}${x.url ? `<a class="ipo-a" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">원문 보기${ico('ext', 'sm')}</a>` : ''}</div>` : '';
   const kv = `${kmxKv('회사 성격', x.corp)}${kmxKv('업종', x.industry)}${x.side === '매수' ? kmxKv('찾는 대상', x.want) : ''}${kmxKv('특징', x.point)}`;
   return `<div class="ipo-detail">${kv ? `<div class="kmx-dkv">${kv}</div>` : ''}${x.text ? `<p class="ipo-p kmx-text">${esc(x.text)}</p>` : ''}${link}</div>`;
 }
