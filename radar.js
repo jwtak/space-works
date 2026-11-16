@@ -293,6 +293,8 @@ function rdFsN(f) {
       .filter((r) => r.when || r.round || r.amount || r.investors),
     contact: rdArr(f.contact).map((c) => ({ who: rdStr(c.who), how: rdStr(c.how) })).filter((c) => c.who || c.how),
     points: ss(f.points), risks: ss(f.risks), sources: ss(f.sources),
+    // 주요 손익(2026-11-16): fin = [{co, basis, src, years{연도: [매출, 영업이익, 순이익]}}], DART 먼저·없으면 웹. rdPnl로 그린다
+    fin: rdArr(f.fin).map((p) => rdFinN({ fin: p })).filter((p) => p.fin && p.years.length),
   };
 }
 
@@ -800,10 +802,12 @@ function rdFsGroup(f, head = true) { // head=false: 머리는 부르는 쪽(fsq.
   const rounds = f.rounds.length ? rdBox('투자 라운드', `<table class="ipo-tbl rd-tbl-r"><thead><tr><th>시기</th><th>라운드</th><th>금액</th><th>투자자</th></tr></thead><tbody>${f.rounds.map((r) => `<tr>
     <td>${rdFsT(r.when) || '–'}</td><td>${rdFsT(r.round) || '–'}</td><td>${rdFsT(r.amount) || '–'}</td><td>${rdFsT(r.investors) || '–'}</td></tr>`).join('')}</tbody></table>`, `${f.rounds.length}건`) : '';
   const contact = f.contact.length ? `<ul class="ipo-ul">${f.contact.map((c) => `<li>${c.who ? `<span class="rd-strong">${rdFsT(c.who)}</span>${c.how ? '<br>' : ''}` : ''}${rdFsT(c.how)}</li>`).join('')}</ul>` : RD_NONE;
+  const pnls = (f.fin || []).map((p) => rdPnl(p.fin, p.years)).filter(Boolean);
+  const pnl = pnls.length > 1 ? `<div class="ipo-two-col">${pnls.join('')}</div>` : pnls.join('');
   const pr = [['포인트', f.points], ['리스크', f.risks]].filter(([, a]) => a.length).map(([k, a]) => `<div class="rd-fs-k">${k}</div>${rdFsUl(a)}`).join('');
   return `${head ? `<div class="rd-fsh">팩트시트${f.made ? `<span class="muted">작성 ${esc(f.made)}</span>` : ''}</div>` : ''}
       <div class="ipo-two-col">${rdBox('사업·제품', biz.trim() ? biz : RD_NONE)}${rdBox('투자 현황', inv.trim() ? inv : RD_NONE)}</div>
-      ${rounds}
+      ${pnl}${rounds}
       <div class="ipo-two-col">${rdBox('컨택 경로', contact)}${rdBox('포인트·리스크', pr || RD_NONE)}</div>
       ${f.sources.length ? rdBox('출처', rdFsUl(f.sources)) : ''}
       <div class="rd-fsh">회사 정보</div>`;
