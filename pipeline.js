@@ -268,12 +268,36 @@ function ppClCell(x) {
   return `<div class="pp-c-cl"><select class="pp-clsel ipo-st${l ? '' : ' pp-cl0'}" data-pp-clsel aria-label="${esc(x.name)} 컨택 기록"><option value="" selected hidden>${esc(label)}</option>${opts}</select></div>`;
 }
 // 목록 '메모' 칸(다음 할 일 자리, 2026-11-16 사용자): 마지막 컨택 기록의 메모. 없으면 회사가 여럿일 때 그 기록의 회사 이름
+// 누르면 메모 창(ppMemoSheet). 메모가 없으면 흐린 '+ 메모 추가'
 function ppMemoCell(x) {
-  const all = Array.isArray(x.cl) ? x.cl.filter((l) => l && typeof l === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(l.d || '')) : [];
-  const l = all.map((m, i) => [m, i]).sort((a, b) => a[0].d.localeCompare(b[0].d) || a[1] - b[1]).pop()?.[0];
-  const multi = new Set(all.map((m) => m.co).filter(Boolean)).size > 1;
-  const m = l ? String(l.memo || '').trim() || (multi ? String(l.co || '') : '') : '';
-  return `<div class="pp-c-memo${m ? '' : ' none'}">${m ? esc(m) : ppDash}</div>`;
+  const [l] = ppClLast(x), m = l ? String(l.memo || '').trim() : '';
+  return `<div class="pp-c-memo"><button type="button" class="pp-memo-btn" data-pp-memo title="${m ? '메모 고치기' : '메모 추가'}">${m ? esc(m) : '<span class="pp-memo-add">+ 메모 추가</span>'}</button></div>`;
+}
+// 마지막 컨택 기록과 그 위치(ppCl 배열 안). 날짜 순, 같은 날이면 나중에 단 것. 없으면 [null, -1]
+function ppClLast(x) {
+  const r = ppCl(x).map((l, i) => [l, i]).filter(([l]) => /^\d{4}-\d{2}-\d{2}$/.test(l.d || ''))
+    .sort((a, b) => a[0].d.localeCompare(b[0].d) || a[1] - b[1]).pop();
+  return r || [null, -1];
+}
+// 목록 메모 칸에서 쓰기: 마지막 기록의 메모를 쓰거나 고친다. 기록이 없는 딜이면 오늘 '기타' 기록으로 남긴다
+function ppMemoSheet(id) {
+  const x = ppFind(id); if (!x || typeof openSheet !== 'function') return;
+  const [l, n] = ppClLast(x);
+  const what = l ? `${mdw(l.d)} ${PP_CL[l.k] || l.k || ''}${l.co && l.co !== x.name ? ` (${l.co})` : ''} 기록에 붙는 메모` : `오늘 기타 기록으로 남는 메모`;
+  openSheet(`<h3>메모</h3><p class="pp-cf-name">${esc(x.name)}<br><span class="muted">${esc(what)}</span></p>
+    <textarea class="area pp-clmemo" maxlength="300" placeholder="메모" aria-label="메모">${esc(l?.memo || '')}</textarea>
+    <div class="pp-cf-act"><button type="button" class="btn grey" data-cancel>취소</button><button type="button" class="btn primary" data-ok>저장</button></div>`, (el, close) => {
+    const ta = el.querySelector('textarea');
+    setTimeout(() => { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 50);
+    el.querySelector('[data-cancel]').onclick = close;
+    el.querySelector('[data-ok]').onclick = () => {
+      const v = ta.value.trim();
+      if (l) ppCpMemo(id, n, v);
+      else if (v) ppSet(id, { cl: [...ppCl(x), { d: today(), k: 'etc', by: ppMe(), co: x.name, memo: v }] });
+      ppCpPaint(id);
+      close();
+    };
+  }, 'pp-sheet');
 }
 
 function ppLine(x, open) {
@@ -1100,6 +1124,8 @@ async function ppRefresh(btn) {
 function ppBind(root) {
   root.addEventListener('click', (ev) => {
     const t = ev.target;
+    const mb = t.closest('[data-pp-memo]');
+    if (mb) { const id = mb.closest('.pp-row')?.dataset.id; if (id) ppMemoSheet(id); return; }
     const fs = t.closest('[data-pp-stage]');
     if (fs) { ppS.stage = fs.dataset.ppStage; ppDraw(); return; }
     if (t.closest('#pp-ref')) { ppRefresh(t.closest('#pp-ref')); return; }

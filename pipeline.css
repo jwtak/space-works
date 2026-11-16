@@ -37,7 +37,12 @@
 .pp-c-next.over .pp-d, .pp-c-next.today .pp-d { font-weight: 600; }
 .pp-c-next.over .pp-d, .pp-c-next.over .ipo-sub { color: var(--danger); }
 .pp-c-next.today .pp-d, .pp-c-next.today .ipo-sub { color: var(--primary); }
-.pp-c-memo { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
+.pp-memo-btn { display: block; width: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.pp-memo-btn:hover { color: var(--primary); }
+.pp-memo-btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: 4px; }
+.pp-memo-add { color: var(--text3); }
+.pp-memo-btn:hover .pp-memo-add { color: var(--primary); }
+.pp-c-memo .pp-memo-btn { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }
 .pp-c-chev { display: flex; padding-top: 2px; }
 .pp-c-cl { white-space: nowrap; font-variant-numeric: tabular-nums; }
 .ipo-st.pp-done { color: var(--ink); font-weight: 600; }
@@ -249,6 +254,7 @@
   .pp-cp { margin-top: 20px; }
   .pp-cp .btn.sm, .pp-call .btn.sm, .pp-cp-tabs button { height: 44px; }
   .pp-cp-unlog { width: 44px; }
+  .pp-memo-btn { min-height: 44px; }
   .pp-cp-memo { flex-basis: 100%; order: 1; height: 44px; }
   .pp-cp-memo + .pp-cp-unlog { margin-left: auto; }
   .pp-tel { display: inline-flex; align-items: center; min-height: 44px; font-size: var(--fs-lg); }
