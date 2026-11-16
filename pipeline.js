@@ -21,6 +21,7 @@ TAB_INFO['deals/pipeline'] = { title: '파이프라인', rows: [
     '딜마다 유형(메자닌·구주·프리IPO·경영권), 소개자, 담당, 다음 할 일과 날짜를 적습니다.',
     '다음 할 일 날짜가 7일 안이거나 지난 딜은 대시보드 홈 카드에도 뜹니다.',
     '발굴, 검토 단계 딜은 하루 두 번 컨택 플랜이 자동으로 만들어집니다. 딜을 펼치면 키맨, 연락 루트, 메일 초안, 전화 순서가 보입니다.',
+    '딜을 펼치면 진행, 검토 노트, 자료 탭이 있습니다. 검토 노트와 자료는 공용 폴더 04. 딜소싱/딜/<회사명> 폴더 하나에 모입니다.',
   ]],
   ['그래서 할 일', [
     '소개받은 딜은 \'새 딜\'로 바로 넣습니다.',
@@ -28,6 +29,7 @@ TAB_INFO['deals/pipeline'] = { title: '파이프라인', rows: [
     '메일을 보내거나 전화한 뒤에는 컨택 플랜의 기록 버튼을 눌러 주세요. 다음 연락일과 다음 할 일이 채워집니다.',
     '\'전화할 곳\'을 누르면 전화할 회사와 번호, 찾을 부서가 한 목록으로 나옵니다.',
     '직접 만들고 싶으시면 \'프롬프트 복사\'를 눌러 Claude나 ChatGPT에 붙여 넣으세요. 회사 공용 프롬프트는 공용 폴더 04. 딜소싱의 \'컨택 플랜 프롬프트\'이고, 고치면 자동 작성에도 반영됩니다.',
+    '검토를 시작한 딜은 자료 탭에서 \'폴더 만들기\'를 누르고, IR이나 재무 자료는 그 폴더에 올려 주세요. 검토 내용은 검토 노트 탭에서 바로 고칠 수 있습니다.',
     '그만 볼 딜은 지우지 말고 드롭으로 둡니다. 나중에 같은 딜이 다시 와도 이력이 남습니다.',
   ]],
 ] };
@@ -269,17 +271,29 @@ function ppRow(x) {
 
 // 펼친 행: 글자마다 저장하지 않고 바꾼 칸을 벗어날 때(선택 상자·단계는 바로) 저장한다
 function ppDetail(x) {
-  const st = ppStage(x), fid = (f) => esc(`pp-${x.id}-${f}`);
-  const fld = (f, label, ctl, cls = '') => `<div class="field${cls}"><label for="${fid(f)}">${label}</label>${ctl}</div>`;
-  const inp = (f, max) => `<input class="input" id="${fid(f)}" data-pp-f="${f}" value="${esc(x[f] || '')}" maxlength="${max}" autocomplete="off">`;
-  const sel = (f, list, blank) => `<select class="select" id="${fid(f)}" data-pp-f="${f}">${ppOpts(list, x[f], blank)}</select>`;
+  const st = ppStage(x);
   const tab = PP_TABS[String(x.ref || '').split(':')[0]];
+  const dt = ppDtTab(x.id);
+  if (dt !== 'run') setTimeout(() => ppDtEnsure(x.id), 0);
+  else if (x.folder && !ppT.files.has(x.id)) setTimeout(() => ppFilesLoad(x.id), 0); // 탭의 자료 수
   return `<div class="ipo-detail pp-detail">
     <div class="pp-dhead">
       <div class="seg pp-stseg" role="group" aria-label="단계">${PP_STAGES.map((s) => `<button type="button" class="${s === st ? 'on' : ''}" aria-pressed="${s === st}" data-pp-set="${s}">${s}</button>`).join('')}</div>
       <span class="ipo-by pp-by">${ppBy(x)}</span>
     </div>
-    <div class="pp-form">
+    <div class="tabs pp-dtabs" data-pp-dtabs="${esc(x.id)}">${ppDtTabs(x)}</div>
+    <div class="pp-dbody" data-pp-dbody="${esc(x.id)}">${dt === 'run' ? ppRunInner(x) : dt === 'note' ? ppNoteInner(x) : ppFilesInner(x)}</div>
+    <div class="pp-dfoot">${tab ? `<a class="ipo-a" href="${tab[0]}" data-pp-tab="${esc(x.ref)}">${tab[1]}에서 보기${ico('right', 'sm')}</a>` : ''}
+      <button type="button" class="btn ghost sm pp-del" data-pp-del>${ico('trash', 'sm')}삭제</button></div>
+  </div>`;
+}
+// 진행 탭: 딜 정보 칸 + 컨택 플랜
+function ppRunInner(x) {
+  const fid = (f) => esc(`pp-${x.id}-${f}`);
+  const fld = (f, label, ctl, cls = '') => `<div class="field${cls}"><label for="${fid(f)}">${label}</label>${ctl}</div>`;
+  const inp = (f, max) => `<input class="input" id="${fid(f)}" data-pp-f="${f}" value="${esc(x[f] || '')}" maxlength="${max}" autocomplete="off">`;
+  const sel = (f, list, blank) => `<select class="select" id="${fid(f)}" data-pp-f="${f}">${ppOpts(list, x[f], blank)}</select>`;
+  return `<div class="pp-form">
       ${fld('next', '다음 연락일', `<input class="input" type="date" id="${fid('next')}" data-pp-f="next" value="${ppNext(x)}">`)}
       ${fld('action', '다음 할 일', inp('action', 200), ' w2')}
       ${fld('owner', '담당', sel('owner', ppPeople(), '선택'))}
@@ -289,10 +303,195 @@ function ppDetail(x) {
       ${fld('introducer', '소개자', inp('introducer', 100))}
       ${fld('note', '메모', `<textarea class="area" id="${fid('note')}" data-pp-f="note" rows="4" maxlength="4000">${esc(x.note || '')}</textarea>`, ' wall')}
     </div>
-    <section class="pp-cp" data-cp="${esc(x.id)}">${ppCpInner(x)}</section>
-    <div class="pp-dfoot">${tab ? `<a class="ipo-a" href="${tab[0]}" data-pp-tab="${esc(x.ref)}">${tab[1]}에서 보기${ico('right', 'sm')}</a>` : ''}
-      <button type="button" class="btn ghost sm pp-del" data-pp-del>${ico('trash', 'sm')}삭제</button></div>
-  </div>`;
+    <section class="pp-cp" data-cp="${esc(x.id)}">${ppCpInner(x)}</section>`;
+}
+
+/* ---------- 딜 상세 탭: 진행 · 검토 노트 · 자료 (2026-11-16 사용자: 딜 자료를 어디서 볼지 애매) ----------
+   딜 폴더 = 팀 파일함 경로 x.folder(예 '04. 딜소싱/딜/TCMS 티씨엠에스'). 없으면 '폴더 만들기'로 PP_DEAL_DIR/<회사명>과 빈 검토 노트를 만든다.
+   검토 노트 = 그 폴더에서 이름이 '검토 노트.md'로 끝나는 파일. 웍스에서 읽고 고친다(eTag로 덮어쓰기 충돌 확인).
+   Claude 세션은 PC 동기화 폴더의 같은 파일을 고친다. 노트 원본은 이 파일 하나 */
+const PP_DEAL_DIR = '04. 딜소싱/딜';
+const PP_NOTE_RE = /검토 노트\.md$/;
+const ppT = { tab: {}, files: new Map(), note: new Map(), edit: null };
+{ const v = viewGet('pp.dt', {}); if (v && typeof v === 'object') ppT.tab = v; }
+const ppDtTab = (id) => (['run', 'note', 'files'].includes(ppT.tab[id]) ? ppT.tab[id] : 'run');
+const ppDealDir = (x) => `${PP_DEAL_DIR}/${String(x.name || '').replace(/[\\/:*?"<>|#%]/g, ' ').replace(/\s+/g, ' ').trim()}`;
+const ppFolderUrl = (p) => `/drives/${flDrive()}/root:/${flEnc(p)}:`;
+function ppDtTabs(x) {
+  const t = ppDtTab(x.id), f = ppT.files.get(x.id), n = f?.items ? f.items.filter((i) => !i.folder).length : 0;
+  const b = (k, l) => `<button type="button" data-pp-dt="${k}" class="${t === k ? 'on' : ''}" aria-pressed="${t === k}">${l}</button>`;
+  return b('run', '진행') + b('note', '검토 노트') + b('files', `자료${n ? `<span class="n">${n}</span>` : ''}`);
+}
+function ppDtPaint(id) {
+  const h = ppS.host, x = ppFind(id); if (!h || !x) return;
+  const tb = h.querySelector(`[data-pp-dtabs="${CSS.escape(id)}"]`); if (tb) tb.innerHTML = ppDtTabs(x);
+  const bd = h.querySelector(`[data-pp-dbody="${CSS.escape(id)}"]`); if (!bd) return;
+  const t = ppDtTab(id);
+  if (t === 'run' && bd.querySelector('.pp-form')) return; // 진행 탭 칸은 ppPaint·ppCpPaint가 맡는다(쓰던 입력 지키기)
+  if (t === 'note' && ppT.edit?.id === id && bd.querySelector('[data-pp-note]')) return; // 고치는 중인 칸은 그대로
+  bd.innerHTML = t === 'run' ? ppRunInner(x) : t === 'note' ? ppNoteInner(x) : ppFilesInner(x);
+}
+function ppDtSet(id, t) {
+  if (ppDtTab(id) === t) return;
+  if (ppT.edit?.id === id && ppT.edit.dirty && !confirm('고친 검토 노트를 저장하지 않고 닫을까요?')) return;
+  if (ppT.edit?.id === id) ppT.edit = null;
+  ppT.tab[id] = t; viewSet('pp.dt', ppT.tab);
+  const bd = ppS.host?.querySelector(`[data-pp-dbody="${CSS.escape(id)}"]`); if (bd) bd.innerHTML = '';
+  ppDtPaint(id); ppDtEnsure(id);
+}
+function ppDtEnsure(id) {
+  const x = ppFind(id); if (!x?.folder) return;
+  const f = ppT.files.get(id);
+  if (!f) { ppFilesLoad(id); return; }
+  if (ppDtTab(id) === 'note' && f.items && !ppT.note.has(id)) ppNoteLoad(id);
+}
+async function ppFilesLoad(id, force) {
+  const x = ppFind(id); if (!x?.folder) return;
+  const cur = ppT.files.get(id);
+  if (cur?.loading || (cur && !force && Date.now() - cur.at < 60000)) return;
+  ppT.files.set(id, { ...(cur || {}), loading: true, at: Date.now() });
+  let next;
+  try {
+    const items = []; let url = `${ppFolderUrl(x.folder)}/children?$select=${FL_SEL}&$top=200`;
+    while (url) { const j = await G.get(url); items.push(...j.value); url = j['@odata.nextLink'] || null; }
+    next = { items: items.sort((a, b) => (!!b.folder - !!a.folder) || a.name.localeCompare(b.name, 'ko')), at: Date.now() };
+  } catch (e) { next = { err: e.status === 404 ? '폴더를 찾을 수 없습니다. 공용 폴더에서 옮기거나 이름을 바꿨는지 확인해 주세요.' : e.message, at: Date.now() }; }
+  ppT.files.set(id, next);
+  const nf = next.items?.find((i) => !i.folder && PP_NOTE_RE.test(i.name)), old = ppT.note.get(id);
+  if (old && ppT.edit?.id !== id && (old.none ? !!nf : old.itemId && (!nf || nf.eTag !== old.ver))) ppT.note.delete(id); // 다른 곳에서 고쳤으면 다시 읽는다
+  ppDtPaint(id); ppDtEnsure(id);
+}
+async function ppNoteLoad(id) {
+  const f = ppT.files.get(id), it = f?.items?.find((i) => !i.folder && PP_NOTE_RE.test(i.name));
+  if (!it) { ppT.note.set(id, { none: true }); ppDtPaint(id); return; }
+  ppT.note.set(id, { loading: true });
+  try {
+    const text = await G.get(`/drives/${flDrive()}/items/${it.id}/content`, { type: 'text' });
+    ppT.note.set(id, { text, ver: it.eTag, itemId: it.id, name: it.name, mtime: it.lastModifiedDateTime, by: it.lastModifiedBy?.user?.displayName || '' });
+  } catch (e) { ppT.note.set(id, { err: e.message }); }
+  ppDtPaint(id);
+}
+function ppNoFolder(x) {
+  return `<div class="pp-dempty"><p>이 딜의 폴더가 아직 없습니다.</p>
+    <div class="pp-dact"><button type="button" class="btn primary sm" data-pp-mkdir>폴더 만들기</button><span class="muted">${esc(ppDealDir(x))}</span></div></div>`;
+}
+const ppWhen = (s) => { if (!s) return ''; const d = new Date(s); return `${md(ymd(d))} ${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+function ppNoteInner(x) {
+  if (!x.folder) return ppNoFolder(x);
+  const n = ppT.note.get(x.id), f = ppT.files.get(x.id);
+  if (f?.err) return `<div class="pp-dempty"><p>${esc(f.err)}</p></div>`;
+  if (!n || n.loading) return '<div class="empty">불러오는 중…</div>';
+  if (n.err) return `<div class="pp-dempty"><p>${esc(n.err)}</p><div class="pp-dact"><button type="button" class="btn sm" data-pp-nref>다시 시도</button></div></div>`;
+  if (n.none) return `<div class="pp-dempty"><p>폴더에 검토 노트가 없습니다.</p><div class="pp-dact"><button type="button" class="btn primary sm" data-pp-mkdir>검토 노트 만들기</button></div></div>`;
+  const e = ppT.edit?.id === x.id ? ppT.edit : null, when = ppWhen(n.mtime);
+  const head = `<div class="pp-nhead"><span class="muted">${esc(n.name)}${when ? `, ${esc(n.by)} ${when} 수정` : ''}</span>
+    ${e ? '<button type="button" class="btn sm" data-pp-ncancel>취소</button><button type="button" class="btn primary sm" data-pp-nsave>저장</button>'
+      : '<button type="button" class="btn sm" data-pp-nedit>고치기</button>'}</div>`;
+  return head + (e ? `<textarea class="area pp-nedit" data-pp-note spellcheck="false" aria-label="검토 노트">${esc(e.text)}</textarea>` : `<div class="pp-md">${ppMdHtml(n.text)}</div>`);
+}
+function ppFilesInner(x) {
+  if (!x.folder) return ppNoFolder(x);
+  const f = ppT.files.get(x.id);
+  const head = `<div class="pp-nhead"><span class="muted">${esc(x.folder)}</span><a class="ipo-a" href="#files/${encodeURIComponent(x.folder)}">공용 폴더에서 열기${ico('right', 'sm')}</a></div>`;
+  if (!f || (f.loading && !f.items && !f.err)) return `${head}<div class="empty">불러오는 중…</div>`;
+  if (f.err) return `${head}<div class="pp-dempty"><p>${esc(f.err)}</p></div>`;
+  if (!f.items.length) return `${head}<div class="pp-dempty"><p>아직 올린 자료가 없습니다. 공용 폴더에서 이 폴더에 올리면 여기에 보입니다.</p></div>`;
+  return `${head}<ul class="pp-files">${f.items.map((it, i) => `<li><button type="button" class="pp-file" data-pp-file="${i}">${flIcon(it)}<span class="nm">${esc(it.name)}</span>
+    <span class="sz">${it.folder ? '' : flSize(it)}</span><span class="dt">${flDate(it.lastModifiedDateTime)}</span></button></li>`).join('')}</ul>`;
+}
+function ppFileOpen(id, i) {
+  const x = ppFind(id), it = ppT.files.get(id)?.items?.[i]; if (!x || !it) return;
+  if (it.folder) { location.hash = `#files/${encodeURIComponent(`${x.folder}/${it.name}`)}`; return; }
+  if (PP_NOTE_RE.test(it.name)) { ppDtSet(id, 'note'); return; }
+  flOpen(it);
+}
+async function ppMkdir(id) {
+  const x = ppFind(id); if (!x) return;
+  const dir = x.folder || ppDealDir(x), name = `${dir.split('/').pop()} 검토 노트.md`;
+  const text = `# ${x.name} 검토 노트\n\n- 시작 ${today()}\n\n## 1. 회사\n\n## 2. 실적\n\n## 3. 투자 조건\n\n## 4. 위험 요인\n\n## 5. 판단\n`;
+  try {
+    // 경로로 올리면 없는 폴더(딜·회사명)까지 같이 만든다. 같은 이름 노트가 이미 있으면 409
+    await G.put(`${ppFolderUrl(`${dir}/${name}`)}/content?@microsoft.graph.conflictBehavior=fail`, text, { headers: { 'Content-Type': 'text/markdown; charset=utf-8' } })
+      .catch((e) => { if (e.status !== 409) throw e; });
+    if (!x.folder) ppSet(id, { folder: dir });
+    ppT.files.delete(id); ppT.note.delete(id);
+    ppT.tab[id] = 'note'; viewSet('pp.dt', ppT.tab);
+    const bd = ppS.host?.querySelector(`[data-pp-dbody="${CSS.escape(id)}"]`); if (bd) bd.innerHTML = '';
+    ppDtPaint(id); ppFilesLoad(id, true);
+  } catch (e) { toast(e.message); }
+}
+function ppNoteEdit(id) {
+  const n = ppT.note.get(id); if (!n?.itemId) return;
+  ppT.edit = { id, text: n.text, dirty: false };
+  const bd = ppS.host?.querySelector(`[data-pp-dbody="${CSS.escape(id)}"]`); if (bd) bd.innerHTML = '';
+  ppDtPaint(id);
+  const ta = ppS.host?.querySelector(`[data-pp-dbody="${CSS.escape(id)}"] [data-pp-note]`);
+  if (ta) { ta.focus({ preventScroll: true }); ta.setSelectionRange(0, 0); }
+}
+function ppNoteCancel(id) {
+  if (ppT.edit?.dirty && !confirm('고친 내용을 버릴까요?')) return;
+  ppT.edit = null;
+  const bd = ppS.host?.querySelector(`[data-pp-dbody="${CSS.escape(id)}"]`); if (bd) bd.innerHTML = '';
+  ppDtPaint(id);
+}
+async function ppNoteSave(id) {
+  const e = ppT.edit, n = ppT.note.get(id); if (!e || e.id !== id || !n?.itemId) return;
+  const btn = ppS.host?.querySelector(`[data-pp-dbody="${CSS.escape(id)}"] [data-pp-nsave]`); if (btn) btn.disabled = true;
+  try {
+    const r = await G.put(`/drives/${flDrive()}/items/${n.itemId}/content`, e.text, { headers: { 'Content-Type': 'text/markdown; charset=utf-8', 'If-Match': n.ver } });
+    ppT.note.set(id, { ...n, text: e.text, ver: r.eTag, mtime: r.lastModifiedDateTime, by: r.lastModifiedBy?.user?.displayName || n.by });
+    ppT.edit = null; toast('검토 노트를 저장했습니다');
+    const bd = ppS.host?.querySelector(`[data-pp-dbody="${CSS.escape(id)}"]`); if (bd) bd.innerHTML = '';
+    ppDtPaint(id); ppFilesLoad(id, true);
+  } catch (err) {
+    toast(err.status === 412 || err.status === 409 ? '다른 곳에서 먼저 고쳤습니다. 쓴 내용을 복사해 두고 취소한 뒤 다시 고쳐 주세요.' : err.message);
+    if (btn) btn.disabled = false;
+  }
+}
+window.addEventListener('beforeunload', (e) => { if (ppT.edit?.dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+/* 검토 노트 마크다운: 제목(#~####), 목록(들여쓰기 2칸마다 한 단계, - * 1.), 표, 인용(>), 구분선(---), 굵게, 코드, 링크 */
+function ppMdHtml(src) {
+  const inl = (s) => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')
+    .replace(/\[([^\]]+)\]\((https?:[^)\s]+)\)/g, '<a class="ipo-a" href="$2" target="_blank" rel="noopener">$1</a>');
+  const lines = String(src || '').replace(/\r\n/g, '\n').split('\n');
+  let out = '', para = [];
+  const stack = []; // 열린 목록 [{ind, tag}]
+  const flushP = () => { if (para.length) { out += `<p>${para.map(inl).join('<br>')}</p>`; para = []; } };
+  const closeAbove = (ind) => { while (stack.length && stack[stack.length - 1].ind > ind) out += `</li></${stack.pop().tag}>`; };
+  const cells = (l) => l.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i], li = /^(\s*)([-*]|\d+\.)\s+(.*)$/.exec(l);
+    if (li && !/^\s*(-{3,}|\*{3,})\s*$/.test(l)) {
+      flushP();
+      const ind = li[1].replace(/\t/g, '  ').length, tag = /\d/.test(li[2]) ? 'ol' : 'ul';
+      closeAbove(ind);
+      const top = stack[stack.length - 1];
+      if (top && top.ind === ind) out += '</li><li>';
+      else { stack.push({ ind, tag }); out += `<${tag}><li>`; }
+      out += inl(li[3]); continue;
+    }
+    if (stack.length && /^\s+\S/.test(l)) { out += `<br>${inl(l.trim())}`; continue; } // 목록 항목을 이어 쓴 줄
+    closeAbove(-1);
+    const h = /^(#{1,4})\s+(.*)$/.exec(l);
+    if (h) { flushP(); out += `<h${h[1].length + 1}>${inl(h[2])}</h${h[1].length + 1}>`; continue; }
+    if (/^\s*\|.*\|\s*$/.test(l) && /^\s*\|?\s*:?-{2,}/.test(lines[i + 1] || '')) {
+      flushP();
+      const head = cells(l), rows = [];
+      i += 2;
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) rows.push(cells(lines[i++]));
+      i--;
+      out += `<div class="pp-mdt"><table><thead><tr>${head.map((c) => `<th>${inl(c)}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr>${head.map((_, k) => `<td>${inl(r[k] || '')}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+      continue;
+    }
+    if (/^\s*(-{3,}|\*{3,})\s*$/.test(l)) { flushP(); out += '<hr>'; continue; }
+    const q = /^>\s?(.*)$/.exec(l);
+    if (q) { flushP(); out += `<blockquote>${inl(q[1])}</blockquote>`; continue; }
+    if (!l.trim()) { flushP(); continue; }
+    para.push(l.trim());
+  }
+  flushP(); closeAbove(-1);
+  return out || '<div class="empty">내용이 없습니다.</div>';
 }
 
 /* ---------- 컨택 플랜 (2026-11-14) ----------
@@ -631,6 +830,7 @@ function ppDraw() {
   const h = ppS.host, b = h && h.querySelector('#pp-body'); if (!b || !ppS.at) return;
   // 한글 조합 중에 칸을 바꾸면 글자가 깨지므로 조합이 끝나거나 칸을 벗어날 때 그린다
   if (ppS.ime && b.contains(document.activeElement)) { ppS.redraw = true; return; }
+  if (document.activeElement?.matches?.('[data-pp-note]') && b.contains(document.activeElement)) { ppS.redraw = true; return; } // 검토 노트를 쓰는 중
   ppS.redraw = false;
   ppKeep(b, () => { b.innerHTML = ppBody(); });
   const s = h.querySelector('#pp-sum'); if (s) s.innerHTML = ppSummary();
@@ -853,11 +1053,28 @@ function ppBind(root) {
     if (t.closest('[data-pp-del]')) { ppAskDelete(t.closest('.pp-row').dataset.id); return; }
     const tl = t.closest('[data-pp-tab]');
     if (tl) { ppGoTab(tl.dataset.ppTab); return; }
+    // 딜 상세 탭(진행·검토 노트·자료)
+    const rid = t.closest('.pp-row')?.dataset.id, dtb = t.closest('[data-pp-dt]');
+    if (dtb && rid) { ppDtSet(rid, dtb.dataset.ppDt); return; }
+    if (t.closest('[data-pp-mkdir]') && rid) { ppMkdir(rid); return; }
+    if (t.closest('[data-pp-nedit]') && rid) { ppNoteEdit(rid); return; }
+    if (t.closest('[data-pp-ncancel]') && rid) { ppNoteCancel(rid); return; }
+    if (t.closest('[data-pp-nsave]') && rid) { ppNoteSave(rid); return; }
+    if (t.closest('[data-pp-nref]') && rid) { ppT.note.delete(rid); ppT.files.delete(rid); ppDtPaint(rid); ppDtEnsure(rid); return; }
+    const fb = t.closest('[data-pp-file]');
+    if (fb && rid) { ppFileOpen(rid, Number(fb.dataset.ppFile)); return; }
     if (t.closest('a, input, select, textarea, .ipo-detail')) return;
     const row = t.closest('.pp-row');
     if (row) ppToggle(row.dataset.id);
   });
-  root.addEventListener('input', (ev) => { if (ev.target.id === 'pp-q') { ppS.q = ev.target.value; ppDraw(); } });
+  root.addEventListener('input', (ev) => {
+    if (ev.target.id === 'pp-q') { ppS.q = ev.target.value; ppDraw(); return; }
+    if (ev.target.matches('[data-pp-note]') && ppT.edit) { ppT.edit.text = ev.target.value; ppT.edit.dirty = true; }
+  });
+  root.addEventListener('keydown', (ev) => { // 검토 노트 고치는 칸: Ctrl+S 저장
+    if (!ev.target.matches?.('[data-pp-note]') || !(ev.ctrlKey || ev.metaKey) || ev.key.toLowerCase() !== 's') return;
+    ev.preventDefault(); const id = ev.target.closest('.pp-row')?.dataset.id; if (id) ppNoteSave(id);
+  });
   root.addEventListener('change', (ev) => {
     const el = ev.target;
     if (el.id === 'pp-sort') { ppS.sort = el.value; ppDraw(); return; }
@@ -868,6 +1085,7 @@ function ppBind(root) {
   const later = () => setTimeout(() => { if (ppS.redraw && !ppS.ime) ppDraw(); }, 0);
   root.addEventListener('compositionstart', () => { ppS.ime = true; });
   root.addEventListener('compositionend', () => { ppS.ime = false; later(); });
+  root.addEventListener('focusout', (ev) => { if (ev.target.matches?.('[data-pp-note]')) later(); }); // 고치던 노트 칸을 벗어나면 미룬 다시 그리기
   // 칸을 벗어날 때: change가 안 난 경우(다시 그리며 되살린 입력)도 저장 안 된 값이면 저장
   root.addEventListener('focusout', (ev) => {
     const el = ev.target; if (!el.matches?.('[data-pp-f]')) return;

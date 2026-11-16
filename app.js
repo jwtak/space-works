@@ -1731,7 +1731,7 @@ if ('serviceWorker' in navigator && location.protocol === 'https:') {
 }
 var updPending = false, updDone = false;
 function updReload() {
-  if (!updPending || updDone || (cur && cur.dirty) || ui.mail?.compose || formDirty() || window.flUploading > 0 || (typeof rdS !== 'undefined' && rdS.dirty.size) || (typeof ppS !== 'undefined' && ppS.dirty.size) || (typeof ipoState !== 'undefined' && ipoState.dirty.size) || (typeof peS !== 'undefined' && peS.dirty.size) || saving() || (document.activeElement?.matches('input,textarea') && document.activeElement.value)) return false;
+  if (!updPending || updDone || (cur && cur.dirty) || ui.mail?.compose || formDirty() || window.flUploading > 0 || (typeof rdS !== 'undefined' && rdS.dirty.size) || (typeof ppS !== 'undefined' && ppS.dirty.size) || (typeof ipoState !== 'undefined' && ipoState.dirty.size) || (typeof peS !== 'undefined' && peS.dirty.size) || (typeof ppT !== 'undefined' && ppT.edit?.dirty) || saving() || (document.activeElement?.matches('input,textarea') && document.activeElement.value)) return false;
   updDone = true; location.reload(); return true;
 }
 // mail.js·events.js 등 뒤에 붙는 스크립트까지 다 읽힌 다음 시작 (그 전에 그리면 renderMail 등이 아직 없다)

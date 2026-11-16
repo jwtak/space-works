@@ -255,3 +255,41 @@
   .pp-cp-unlog { width: 44px; }
   .pp-tel { display: inline-flex; align-items: center; min-height: 44px; font-size: 16px; }
 }
+
+/* 딜 상세 탭: 진행 · 검토 노트 · 자료 (2026-11-16) */
+.pp-dtabs { padding: 0; margin-top: 16px; }
+.pp-dempty { padding: 24px 0 8px; color: var(--text2); font-size: 15px; }
+.pp-dempty p { margin: 0 0 12px; }
+.pp-dact { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.pp-dact .muted { font-size: 13px; }
+.pp-nhead { display: flex; align-items: center; gap: 8px; min-height: 40px; margin: 12px 0 8px; }
+.pp-nhead .muted { flex: 1; min-width: 0; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-nhead .ipo-a { flex: none; }
+.pp-nedit { display: block; width: 100%; height: 60vh; min-height: 320px; font: 14px/1.65 var(--font); resize: vertical; }
+.pp-md { max-width: 980px; font-size: 15px; line-height: 1.7; color: var(--ink); word-break: keep-all; overflow-wrap: anywhere; }
+.pp-md h2 { font-size: 20px; font-weight: 700; margin: 8px 0 14px; }
+.pp-md h3 { font-size: 17px; font-weight: 700; margin: 28px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+.pp-md h4, .pp-md h5 { font-size: 15px; font-weight: 700; margin: 18px 0 6px; }
+.pp-md p { margin: 0 0 10px; }
+.pp-md ul, .pp-md ol { margin: 0 0 10px; padding-left: 22px; }
+.pp-md li { margin: 3px 0; }
+.pp-md li > ul, .pp-md li > ol { margin: 3px 0 0; }
+.pp-md code { font: inherit; font-size: 14px; padding: 1px 5px; border-radius: 4px; background: var(--row); }
+.pp-md blockquote { margin: 0 0 10px; padding: 4px 14px; border-left: 3px solid var(--line); color: var(--text2); }
+.pp-md hr { border: 0; border-top: 1px solid var(--line); margin: 18px 0; }
+.pp-mdt { overflow-x: auto; margin: 6px 0 14px; }
+.pp-md table { border-collapse: collapse; font-size: 14px; line-height: 1.55; }
+.pp-md th, .pp-md td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+.pp-md th { background: var(--row); font-weight: 600; white-space: nowrap; }
+.pp-files { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.pp-file { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 8px 4px; border: 0; border-bottom: 1px solid var(--line); background: none; font: inherit; text-align: left; color: var(--ink); cursor: pointer; }
+.pp-file:hover { background: var(--hover); }
+.pp-file .nm { flex: 1; min-width: 0; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pp-file .sz, .pp-file .dt { flex: none; font-size: 13px; color: var(--text3); }
+.pp-file .sz { width: 72px; text-align: right; }
+.pp-file .dt { width: 96px; }
+@media (max-width: 760px) {
+  .pp-file .sz { display: none; }
+  .pp-md { font-size: 16px; }
+  .pp-nedit { font-size: 16px; }
+}
