@@ -28,7 +28,7 @@ TAB_INFO['deals/pipeline'] = { title: '파이프라인', rows: [
   ['그래서 할 일', [
     '소개받은 딜은 \'새 딜\'로 바로 넣습니다.',
     '미팅·실사가 끝날 때마다 단계와 다음 할 일 날짜를 고칩니다.',
-    '메일을 보내거나 전화한 뒤에는 컨택 플랜의 기록 버튼을 눌러 주세요. 다음 연락일과 다음 할 일이 채워집니다.',
+    '메일을 보내거나 전화한 뒤에는 목록의 컨택 칸에서 골라 주세요. 메일과 전화는 다음 연락일과 다음 할 일이 채워지고, 남긴 메모는 메모 칸에 보입니다. 다음 할 일은 딜을 펼치면 있습니다.',
     '\'전화할 곳\'을 누르면 전화할 회사와 번호, 찾을 부서가 한 목록으로 나옵니다.',
     '직접 만들고 싶으시면 \'프롬프트 복사\'를 눌러 Claude나 ChatGPT에 붙여 넣으세요. 회사 공용 프롬프트는 공용 폴더 04. 딜소싱의 \'컨택 플랜 프롬프트\'이고, 고치면 자동 작성에도 반영됩니다.',
     '검토를 시작한 딜은 자료 탭에서 \'폴더 만들기\'를 누르고, IR이나 재무 자료는 그 폴더에 올려 주세요. 검토 내용은 검토 노트 탭에서 바로 고칠 수 있습니다.',
@@ -252,21 +252,28 @@ function ppList() {
 
 // 머리글 칸도 같은 이름표를 달아 좁은 폭에서 값 칸과 함께 숨긴다. 단계 머리글은 칩 안 글자 시작선(10)에 맞춘다
 const PP_HEAD = `<div class="ipo-head pp-cols"><div class="pp-c-next">다음 연락</div><div class="pp-c-name">회사</div><div class="pp-c-st">단계</div>
-  <div class="pp-c-src">출처</div><div class="pp-c-own">담당</div><div class="pp-c-cl">컨택</div><div class="pp-c-act">다음 할 일</div><div class="pp-c-chev"></div></div>`;
+  <div class="pp-c-src">출처</div><div class="pp-c-own">담당</div><div class="pp-c-cl">컨택</div><div class="pp-c-memo">메모</div><div class="pp-c-chev"></div></div>`;
 
 /* 목록 '컨택' 칸: 단계 칩처럼 고르는 칩(2026-11-16 사용자 "컨택을 여기서 선택"). 칩 글자는 마지막 기록(날짜 순, 같은 날이면 나중에 단 것),
-   고르면 오늘 날짜로 기록하고(ppCpLog와 같이 다음 연락일·할 일도) 메모 창을 띄운다. 아래 줄은 마지막 기록 메모(없으면 회사가 여럿일 때 회사 이름).
+   고르면 오늘 날짜로 기록하고(ppCpLog와 같이 다음 연락일·할 일도) 메모 창을 띄운다. 메모는 옆 '메모' 칸(ppMemoCell).
    회사가 여럿인 딜(컨택 플랜 cos)은 회사별 묶음으로 고른다 */
 function ppClCell(x) {
   const all = Array.isArray(x.cl) ? x.cl.filter((l) => l && typeof l === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(l.d || '')) : [];
   const l = all.map((m, i) => [m, i]).sort((a, b) => a[0].d.localeCompare(b[0].d) || a[1] - b[1]).pop()?.[0];
   const cos = (ppS.cpAt ? ppCpState(x).cos.map((c) => c.co) : []).filter(Boolean);
   const multi = cos.length > 1 || new Set(all.map((m) => m.co).filter(Boolean)).size > 1;
-  const sub = l ? String(l.memo || '').trim() || (multi ? String(l.co || '') : '') : '';
   const opt = (co) => Object.entries(PP_CL).map(([k, t]) => `<option value="${esc(k)}|${esc(co)}">${esc(t)}</option>`).join('');
   const opts = cos.length > 1 ? cos.map((co) => `<optgroup label="${esc(co)}">${opt(co)}</optgroup>`).join('') : opt(cos[0] || x.name);
   const label = l ? `${mdw(l.d)} ${PP_CL_S[l.k] || l.k || ''}` : '기록';
-  return `<div class="pp-c-cl"><select class="pp-clsel ipo-st${l ? '' : ' pp-cl0'}" data-pp-clsel aria-label="${esc(x.name)} 컨택 기록"><option value="" selected hidden>${esc(label)}</option>${opts}</select>${sub ? `<div class="ipo-sub">${esc(sub)}</div>` : ''}</div>`;
+  return `<div class="pp-c-cl"><select class="pp-clsel ipo-st${l ? '' : ' pp-cl0'}" data-pp-clsel aria-label="${esc(x.name)} 컨택 기록"><option value="" selected hidden>${esc(label)}</option>${opts}</select></div>`;
+}
+// 목록 '메모' 칸(다음 할 일 자리, 2026-11-16 사용자): 마지막 컨택 기록의 메모. 없으면 회사가 여럿일 때 그 기록의 회사 이름
+function ppMemoCell(x) {
+  const all = Array.isArray(x.cl) ? x.cl.filter((l) => l && typeof l === 'object' && /^\d{4}-\d{2}-\d{2}$/.test(l.d || '')) : [];
+  const l = all.map((m, i) => [m, i]).sort((a, b) => a[0].d.localeCompare(b[0].d) || a[1] - b[1]).pop()?.[0];
+  const multi = new Set(all.map((m) => m.co).filter(Boolean)).size > 1;
+  const m = l ? String(l.memo || '').trim() || (multi ? String(l.co || '') : '') : '';
+  return `<div class="pp-c-memo${m ? '' : ' none'}">${m ? esc(m) : ppDash}</div>`;
 }
 
 function ppLine(x, open) {
@@ -280,7 +287,7 @@ function ppLine(x, open) {
     <div class="pp-c-src">${x.src ? esc(x.src) : ppDash}${x.introducer ? `<div class="ipo-sub">${esc(x.introducer)}</div>` : ''}</div>
     <div class="pp-c-own">${x.owner ? esc(x.owner) : ppDash}</div>
     ${ppClCell(x)}
-    <div class="pp-c-act${x.action ? '' : ' none'}">${x.action ? esc(x.action) : ppDash}</div>
+    ${ppMemoCell(x)}
     <div class="pp-c-chev"><span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span></div>
   </div>`;
 }
@@ -539,8 +546,8 @@ function ppMdHtml(src) {
    메일 본문은 화면이 짠다(보내는 사람 = 담당). 초안은 담당 본인이 열었을 때만 Graph로 만든다(/me 임시 보관함) */
 const PP_CP_STAGES = ['발굴', '검토']; // cp_req.py STAGES: 요청 없이 자동으로 만드는 단계
 const PP_CP_TRIES = 3;                 // cp_req.py TRIES: 이만큼 실패하면 다시 만들기를 누를 때까지 멈춘다
-const PP_CL = { mail: '메일 보냄', call: '전화함', reply: '답 받음' };
-const PP_CL_S = { mail: '메일', call: '전화', reply: '답장' };
+const PP_CL = { mail: '메일 보냄', call: '전화함', reply: '답 받음', etc: '기타' }; // 기타 = 미팅·문자·자료 전달 등. 다음 연락일·할 일은 그대로
+const PP_CL_S = { mail: '메일', call: '전화', reply: '답장', etc: '기타' };
 const PP_TITLE = { 탁지원: '대리', 유선열: '대표', 배청준: '대표' };
 const PP_MAIL_RE = /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/;
 
@@ -687,7 +694,7 @@ function ppCpLog(id, co, k) {
   const p = { cl: [...ppCl(x), { d: today(), k, by: ppMe(), co }] };
   if (k === 'mail') { p.next = ppBizDay(3); p.action = `확인 전화 ${co}${tel ? ` ${tel}` : ''}`; }
   else if (k === 'call') { p.next = ppBizDay(7); p.action = `후속 연락 ${co}`; }
-  else p.action = `미팅 일정 잡기 ${co}`;
+  else if (k === 'reply') p.action = `미팅 일정 잡기 ${co}`;
   ppSet(id, p);
   ppFormSync(id, p);
   ppCpPaint(id);
