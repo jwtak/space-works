@@ -418,7 +418,7 @@ function ppFilesInner(x) {
   const head = `<div class="pp-nhead"><span class="muted">${esc(x.folder)}</span><a class="ipo-a" href="#files/${encodeURIComponent(x.folder)}">공용 폴더에서 열기${ico('right', 'sm')}</a></div>`;
   if (!f || (f.loading && !f.items && !f.err)) return `${head}<div class="empty">불러오는 중…</div>`;
   if (f.err) return `${head}<div class="pp-dempty"><p>${esc(f.err)}</p></div>`;
-  if (!f.items.length) return `${head}<div class="pp-dempty"><p>아직 올린 자료가 없습니다. 공용 폴더에서 이 폴더에 올리면 여기에 보입니다.</p></div>`;
+  if (!f.items.length) return `${head}<div class="pp-dempty"><p>아직 올린 자료가 없습니다.</p></div>`;
   return `${head}<ul class="pp-files">${f.items.map((it, i) => `<li><button type="button" class="pp-file" data-pp-file="${i}">${flIcon(it)}<span class="nm">${esc(it.name)}</span>
     <span class="sz">${it.folder ? '' : flSize(it)}</span><span class="dt">${flDate(it.lastModifiedDateTime)}</span></button></li>`).join('')}</ul>`;
 }

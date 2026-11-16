@@ -338,7 +338,7 @@ function counts() {
 }
 
 function accountMenu() {
-  openSheet(`<h3>메뉴</h3><div class="who" style="font-size:14px;color:var(--text3);margin:-6px 0 8px">${esc(S.auth.upn)}</div>
+  openSheet(`<h3>메뉴</h3><div class="who" style="font-size:var(--fs-md);color:var(--text3);margin:-6px 0 8px">${esc(S.auth.upn)}</div>
     <ul class="menu">
       <li><a href="#deals" data-close>${ico('ticket')}딜소싱</a></li>
       <li><a href="#programs" data-close>${ico('box')}프로그램</a></li>
@@ -879,8 +879,8 @@ function addTodoSheet(due) {
     <form id="sheet-todo">
       <div class="field"><input class="input full" name="title" placeholder="할 일" autocomplete="off" required></div>
       <div class="field"><div class="chips">${CATS.map((c) => `<label><input type="radio" name="cat" value="${c}" ${c === (ui.lastCat || '사무실 세팅') ? 'checked' : ''}>${c}</label>`).join('')}</div></div>
-      <div class="field"><label style="display:block;font-size:14px;color:var(--text2);margin-bottom:6px">담당</label><div class="chips">${[['나', ''], ...whoOpts()].map(([n, m]) => `<label><input type="radio" name="who" value="${m}" ${m ? '' : 'checked'}>${n}</label>`).join('')}</div></div>
-      <div class="field"><label style="display:block;font-size:14px;color:var(--text2);margin-bottom:6px">마감일</label><input class="input full" type="date" name="due" value="${due || ''}"></div>
+      <div class="field"><label style="display:block;font-size:var(--fs-md);color:var(--text2);margin-bottom:6px">담당</label><div class="chips">${[['나', ''], ...whoOpts()].map(([n, m]) => `<label><input type="radio" name="who" value="${m}" ${m ? '' : 'checked'}>${n}</label>`).join('')}</div></div>
+      <div class="field"><label style="display:block;font-size:var(--fs-md);color:var(--text2);margin-bottom:6px">마감일</label><input class="input full" type="date" name="due" value="${due || ''}"></div>
       <button class="btn primary full" type="submit">추가</button>
     </form>`, (el, close) => {
     const f = el.querySelector('#sheet-todo');
@@ -1214,7 +1214,7 @@ async function mountMonth(el) {
           return `<li class="${click ? 'click' : ''}" ${click ? `data-item="${it.type}|${esc(it.id)}" data-d="${k}"` : ''}><span class="k c-${calKey(it)}"><i class="cdot"></i>${it.time}</span><div class="t"><div class="ttl">${esc(it.title)}</div></div></li>`;
         }).join('')}</ul>`;
       }
-      upcoming = `<div class="mcal-day mcal-up"><div class="day-head"><span class="hd">향후 일정</span></div>${upcoming || '<div class="muted" style="font-size:14px;padding:6px 0">일정 없음</div>'}</div>`;
+      upcoming = `<div class="mcal-day mcal-up"><div class="day-head"><span class="hd">향후 일정</span></div>${upcoming || '<div class="muted" style="font-size:var(--fs-md);padding:6px 0">일정 없음</div>'}</div>`;
     }
     el.innerHTML = `<div class="card-head">
         <div class="mcal-nav"><button class="iconbtn" data-m="-1" aria-label="이전 달">${ico('left')}</button><span class="ym">${first.getFullYear()}년 ${first.getMonth() + 1}월</span><button class="iconbtn" data-m="1" aria-label="다음 달">${ico('right')}</button></div>
@@ -1231,7 +1231,7 @@ async function mountMonth(el) {
           ${S.auth.connected ? `<button class="btn sm" data-new="ev">${ico('plus', 'sm')}일정</button>` : ''}
           <button class="btn sm" data-new="td">${ico('plus', 'sm')}할 일</button></div></div>
         ${newForm}
-        ${rows ? `<ul class="list">${rows}</ul>` : newForm ? '' : '<div class="muted" style="font-size:14px;padding:6px 0">일정 없음</div>'}
+        ${rows ? `<ul class="list">${rows}</ul>` : newForm ? '' : '<div class="muted" style="font-size:var(--fs-md);padding:6px 0">일정 없음</div>'}
       </div>${upcoming}`;
 
     const nav = (v) => {
@@ -1425,10 +1425,10 @@ async function renderCalendar(force) {
           <span class="tm">${ev.allDay ? '종일' : `${ev.start.slice(11, 16)} – ${ev.end.slice(11, 16)}`}</span>
           <div><div class="s ${ev.cancelled ? 'cx' : ''}">${esc(ev.subject)}</div>${ev.location ? `<div class="m">${esc(ev.location)}</div>` : ''}</div>
           <span>${ev.join && !ev.cancelled ? `<a class="btn sm" href="${esc(ev.join)}" target="_blank" rel="noopener">Teams 참가</a>` : ev.link ? `<a class="btn sm ghost" href="${esc(ev.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}</span>
-        </div>`).join('') : '<div class="m muted" style="padding:6px 0;font-size:14px">일정 없음</div>'}</div></div>`;
+        </div>`).join('') : '<div class="m muted" style="padding:6px 0;font-size:var(--fs-md)">일정 없음</div>'}</div></div>`;
     }
     $('#cal-body').innerHTML = `${calStaleBar(r.stale)}<section class="card" style="overflow:hidden">${html}</section>
-      ${r.stale ? '' : `<div class="muted" style="font-size:12px;margin-top:8px">${r.fetched} 기준</div>`}`;
+      ${r.stale ? '' : `<div class="muted" style="font-size:var(--fs-xs);margin-top:8px">${r.fetched} 기준</div>`}`;
   } catch (err) { const cb = $('#cal-body'); if (cb) cb.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
 }
 

@@ -8,7 +8,7 @@
 .pe-grp .seg button.on .pe-gn { color: var(--primary); }
 
 /* 딜 상태 칩: 높이 20(팀 리스트 표시와 같은 크기), 칩 안 글자 시작선 = 머리글 시작선(좌우 8) */
-.pe-ds { display: inline-flex; align-items: center; height: 20px; max-width: 100%; padding: 0 8px; border-radius: 10px; font-size: 13px; font-weight: 500; line-height: 20px; background: #F3F4F6; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: 1px; }
+.pe-ds { display: inline-flex; align-items: center; height: 20px; max-width: 100%; padding: 0 8px; border-radius: var(--r-full); font-size: var(--fs-sm); font-weight: 500; line-height: 20px; background: var(--fill); color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; vertical-align: 1px; }
 .pe-ds.on { background: var(--primary-soft); color: var(--primary); }
 .pe-ds.off { color: var(--text3); }
 .ipo-row.open > .ipo-line .pe-ds { background: var(--card); } /* 펼친 행 머리(연파랑) 위에서도 칩이 보이게 */
@@ -19,8 +19,8 @@
 /* 목록 한 건의 수치 칸(매출·OPM, 모회사·지분율): 이름표 위·값 아래, 자리 고정. 넓은 표에서는 칸이 따로 있어 숨기고 좁은 폭·폰에서만 */
 .pe-mg { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin: 0; font-variant-numeric: tabular-nums; }
 .pe-mg > div { min-width: 0; }
-.pe-mg dt { font-size: 13px; line-height: 18px; color: var(--text3); white-space: nowrap; }
-.pe-mg dd { margin: 2px 0 0; font-size: 15px; line-height: 22px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pe-mg dt { font-size: var(--fs-sm); line-height: 18px; color: var(--text3); white-space: nowrap; }
+.pe-mg dd { margin: 2px 0 0; font-size: var(--fs-base); line-height: 22px; font-weight: 600; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ipo-line .pe-mg, .pe-msig { display: none; }
 /* 신호 칸: 한 줄에 하나씩 두 줄까지 */
 .pe-sigl span { display: block; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
@@ -33,13 +33,13 @@
 
 /* 펼친 칸 표: 재무(항목 | 연도 셋, 네 칸 같은 폭), 신호(날짜 | 종류 | 내용) */
 .ipo-tbl.pe-fin th:nth-child(n) { width: auto; }
-.pe-fin td:first-child { color: var(--text3); font-size: 14px; }
-.pe-fin tr.r td { font-size: 14px; color: var(--text3); }
-.pe-finm { display: none; margin: 0; padding: 0; list-style: none; font-size: 14px; line-height: 20px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.pe-fin td:first-child { color: var(--text3); font-size: var(--fs-md); }
+.pe-fin tr.r td { font-size: var(--fs-md); color: var(--text3); }
+.pe-finm { display: none; margin: 0; padding: 0; list-style: none; font-size: var(--fs-md); line-height: 20px; color: var(--text2); font-variant-numeric: tabular-nums; }
 .pe-finm li + li { margin-top: 8px; }
-.pe-finm b { display: block; margin-bottom: 4px; font-size: 14px; font-weight: 600; color: var(--ink); }
+.pe-finm b { display: block; margin-bottom: 4px; font-size: var(--fs-md); font-weight: 600; color: var(--ink); }
 /* 재무 출처 한 줄(재무표 아래), 신호 표 '나머지 n건 보기' */
-.pe-finsrc { margin: 8px 0 0; font-size: 13px; line-height: 18px; color: var(--text3); }
+.pe-finsrc { margin: 8px 0 0; font-size: var(--fs-sm); line-height: 18px; color: var(--text3); }
 .pe-page .pe-sigbox:not(.pe-all) tr.pe-more { display: none; }
 .pe-morebtn { margin-top: 12px; }
 .ipo-tbl.pe-tbl-s th:nth-child(1) { width: 104px; }
@@ -58,7 +58,7 @@
     .pe-heir .ipo-cols { grid-template-columns: minmax(0, 1fr) auto; }
     .pe-page .pe-nchip { display: inline-flex; }
     .pe-page .ipo-line .pe-mg { display: grid; margin-top: 8px; }
-    .pe-page .pe-msig { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin-top: 4px; overflow: hidden; overflow-wrap: anywhere; font-size: 14px; line-height: 20px; color: var(--text2); }
+    .pe-page .pe-msig { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin-top: 4px; overflow: hidden; overflow-wrap: anywhere; font-size: var(--fs-md); line-height: 20px; color: var(--text2); }
     .pe-page .pe-biz { display: none; }
     .pe-page .ipo-tbl.pe-tbl-s, .pe-page .ipo-tbl.pe-tbl-s tbody { display: block; }
     .pe-page .ipo-tbl.pe-tbl-s thead { display: none; }
@@ -67,7 +67,7 @@
     .pe-page .ipo-tbl.pe-tbl-s tr:last-child { border-bottom: 0; padding-bottom: 0; }
     .pe-page .ipo-tbl.pe-tbl-s td { padding: 0; border: 0; }
     .pe-page .ipo-tbl.pe-tbl-s td:nth-child(3) { flex: 1 1 100%; order: -1; }
-    .pe-page .ipo-tbl.pe-tbl-s td:nth-child(1), .pe-page .ipo-tbl.pe-tbl-s td:nth-child(2) { margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text3); }
+    .pe-page .ipo-tbl.pe-tbl-s td:nth-child(1), .pe-page .ipo-tbl.pe-tbl-s td:nth-child(2) { margin-top: 2px; font-size: var(--fs-sm); line-height: 18px; color: var(--text3); }
   }
   /* 400보다 좁으면 묶음 전환은 한 줄을 반씩, 필터 이름표는 버튼 위로 */
   @container (max-width: 399px) {
@@ -92,7 +92,7 @@
   .pe-grp .seg button { flex: 1 1 0; justify-content: center; }
   .pe-page .pe-nchip { display: inline-flex; }
   .pe-page .ipo-line .pe-mg { display: grid; margin-top: 8px; }
-  .pe-page .pe-msig { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin-top: 4px; overflow: hidden; overflow-wrap: anywhere; font-size: 14px; line-height: 20px; color: var(--text2); }
+  .pe-page .pe-msig { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; margin-top: 4px; overflow: hidden; overflow-wrap: anywhere; font-size: var(--fs-md); line-height: 20px; color: var(--text2); }
   .pe-page .ipo-c-name > .pe-biz { display: none; }
   /* 신호 표는 폰에서 내용 한 줄 + 날짜·종류 한 줄 목록으로 */
   .ipo-tbl.pe-tbl-s, .ipo-tbl.pe-tbl-s tbody { display: block; }
@@ -102,11 +102,11 @@
   .ipo-tbl.pe-tbl-s tr:last-child { border-bottom: 0; padding-bottom: 0; }
   .ipo-tbl.pe-tbl-s td { padding: 0; border: 0; }
   .ipo-tbl.pe-tbl-s td:nth-child(3) { flex: 1 1 100%; order: -1; }
-  .ipo-tbl.pe-tbl-s td:nth-child(1), .ipo-tbl.pe-tbl-s td:nth-child(2) { margin-top: 2px; font-size: 13px; line-height: 18px; color: var(--text3); }
+  .ipo-tbl.pe-tbl-s td:nth-child(1), .ipo-tbl.pe-tbl-s td:nth-child(2) { margin-top: 2px; font-size: var(--fs-sm); line-height: 18px; color: var(--text3); }
   /* 터치 높이 40: 필터·컨택 상태·메모·팩트시트 요청. 요약이 없는 펼친 행(중복상장)은 빈 첫 줄을 접는다 */
-  .pe-page .ipo-filter .seg button { height: 40px; font-size: 15px; }
-  .pe-page .ipo-seg button { height: 40px; font-size: 15px; }
-  .pe-page .ipo-note { height: 40px; font-size: 15px; }
-  .pe-page .rd-fs { height: 40px; padding: 0 16px; font-size: 15px; }
+  .pe-page .ipo-filter .seg button { height: 40px; font-size: var(--fs-base); }
+  .pe-page .ipo-seg button { height: 40px; font-size: var(--fs-base); }
+  .pe-page .ipo-note { height: 40px; font-size: var(--fs-base); }
+  .pe-page .rd-fs { height: 40px; padding: 0 16px; font-size: var(--fs-base); }
   .pe-page .ipo-dhead > p:empty { display: none; }
 }
