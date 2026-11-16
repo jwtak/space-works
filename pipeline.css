@@ -290,11 +290,18 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 8px center; background-size: 12px; }
 .pp-line .ipo-st.pp-stsel:hover { filter: brightness(0.97); }
-.ipo-row.open .pp-line .ipo-st.pp-stsel { background-color: var(--card); box-shadow: inset 0 0 0 1px var(--line); } /* 펼친 줄 배경과 칩 색이 같아 칸이 안 보임 */
+.ipo-row.open .pp-line .ipo-st.pp-stsel { background-color: var(--card); } /* 펼친 줄(파란 배경)에서는 칩을 흰 바탕으로 */
 .pp-stsel:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .pp-stsel option { color: var(--ink); background: var(--card); }
-.pp-dtop { display: flex; align-items: flex-end; gap: 16px; border-bottom: 1px solid var(--line); }
-.pp-dtop .pp-dtabs { flex: 1; min-width: 0; margin-top: 0; border-bottom: 0; }
-.pp-dtop .pp-by { flex: none; padding-bottom: 12px; }
+/* 탭 줄: 펼친 칸 맨 위 회색 띠(줄 머리와 내용 사이에서 바로 보이게, 2026-11-16 사용자 '탭이 안 보인다') */
+.pp-page .ipo-detail.pp-detail { padding-top: 0; }
+.pp-dtop { display: flex; align-items: center; gap: 16px; margin: 0 -23px 4px; padding: 0 23px; background: var(--row); border-bottom: 1px solid var(--line); }
+.pp-dtop .pp-dtabs { flex: 1; min-width: 0; margin-top: 0; border-bottom: 0; gap: 32px; }
+.pp-dtop .pp-dtabs button { height: 52px; font-size: 16px; font-weight: 600; color: var(--text2); }
+.pp-dtop .pp-dtabs button:hover { color: var(--ink); }
+.pp-dtop .pp-dtabs button.on { color: var(--primary); border-bottom-color: var(--primary); }
+.pp-dtop .pp-dtabs .n { font-weight: 600; color: inherit; opacity: .7; }
+.pp-dtop .pp-by { flex: none; }
 .pp-fs { padding-top: 12px; }
-@media (max-width: 760px) { .pp-dtop .pp-by { display: none; } }
+@media (max-width: 760px) { .pp-dtop .pp-by { display: none; } .pp-dtop { margin: 0 -15px 4px; padding: 0 15px; } .pp-dtop .pp-dtabs { gap: 24px; } }
+@media (min-width: 761px) { @container pp-page (max-width: 399.98px) { .pp-dtop { margin: 0 -15px 4px; padding: 0 15px; } } }
