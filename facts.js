@@ -115,12 +115,45 @@ function fsPipe(x) {
 }
 
 function fsDetail(x) {
-  const tabs = FS_TABS.map(([k, l]) => `<button type="button" role="tab" aria-selected="${fsS.tab === k}" class="${fsS.tab === k ? 'on' : ''}" data-fs-tab="${k}">${l}</button>`).join('');
   return `<div class="ipo-detail">
     <div class="ipo-dhead"><p class="ipo-sum1">${esc(x.business?.['사업 정의'] || '')}</p>${fsPipe(x)}</div>
-    <div class="ipo-tabs" role="tablist">${tabs}</div>
-    <div class="ipo-pane">${fsPane(x)}</div>
+    ${fsTabsPane(x)}
   </div>`;
+}
+// attr = 탭 버튼 속성(팩트시트 목록은 data-fs-tab, 요청한 회사·다른 화면 칸은 data-fq-tab). 탭 기억은 같이 쓴다
+function fsTabsPane(x, attr = 'data-fs-tab') {
+  const tabs = FS_TABS.map(([k, l]) => `<button type="button" role="tab" aria-selected="${fsS.tab === k}" class="${fsS.tab === k ? 'on' : ''}" ${attr}="${k}">${k === 'biz' && !fsHas(x.brand) ? '사업' : l}</button>`).join('');
+  return `<div class="ipo-tabs" role="tablist">${tabs}</div>
+    <div class="ipo-pane">${fsPane(x)}</div>`;
+}
+const fsHas = (o) => !!o && typeof o === 'object' && Object.values(o).some((v) => v != null && String(v).trim() && v !== '-');
+
+/* 요청한 회사 팩트시트(fs.json, fs_req.py)를 K-Beauty와 같은 화면으로(2026-11-16 사용자 "동일한 형식이어야").
+   새 형식(overview·invest 등 K-Beauty와 같은 키)은 그대로, 옛 형식(biz·product·deal 평면)은 칸을 옮겨 담는다.
+   손익은 회사가 여럿일 수 있는 목록 형식([{co, basis, src, years}])이라 finList로 따로 두고 rdPnl로 그린다 */
+function fsFromReq(ref, f, name) {
+  if (!f || typeof f !== 'object') return null;
+  const arr = (a) => (Array.isArray(a) ? a.filter((v) => v != null && v !== '') : []);
+  let o;
+  if (f.overview || f.invest) o = { ...f };
+  else {
+    const ct = arr(f.contact).filter((c) => c && typeof c === 'object' && (c.who || c.how));
+    o = {
+      business: { '사업 정의': f.biz, '주요 제품': f.product },
+      invest: { stage: f.stage, total: f.total, total_note: f.totalNote, deal: f.deal, valuation: f.valuation, plan: f.plan, current_fi: f.fi,
+        rounds: arr(f.rounds).filter((r) => r && typeof r === 'object').map((r) => ({ date: r.when, round: r.round, amount: typeof r.amount === 'number' ? fsEok(r.amount) : r.amount, investors: r.investors })) },
+      keyman: ct.length ? { '권장 콘택 순서': ct.map((c, i) => `${'①②③④⑤⑥'[i] || ''} ${[c.who, c.how].filter(Boolean).join(': ')}`).join(' ') } : {},
+      points: arr(f.points), risks: arr(f.risks), verification: arr(f.sources).length ? { sources: arr(f.sources).join(', ') } : {},
+    };
+  }
+  return fsNorm({ ...o, no: ref, name: name || f.name || '', fin: {}, finList: Array.isArray(f.fin) ? f.fin : [], made: f.made, contact: o.contact && typeof o.contact === 'object' && !Array.isArray(o.contact) ? o.contact : {}, keyman: o.keyman || {} });
+}
+// 팩트시트 칸(fsq.js fqInner)에 넣을 몸통: 사업 정의 한 줄 + 탭
+function fsReqBody(ref, f, name) {
+  let x; try { x = fsFromReq(ref, f, name); } catch { return ''; }
+  if (!x) return '';
+  const sum = x.business?.['사업 정의'];
+  return `<div class="fq-fs" data-fq-fs="${esc(ref)}">${sum ? `<p class="ipo-sum1">${esc(sum)}</p>` : ''}${fsTabsPane(x, 'data-fq-tab')}</div>`;
 }
 
 function fsPane(x) {
@@ -129,6 +162,10 @@ function fsPane(x) {
 }
 
 function fsPnl(x) {
+  if (Array.isArray(x.finList)) {
+    const ps = typeof rdFinN === 'function' ? x.finList.map((p) => rdFinN({ fin: p })).filter((p) => p.fin && p.years.length).map((p) => rdPnl(p.fin, p.years, 4)).filter(Boolean) : [];
+    return ps.length ? ps.join('') : fsBox('주요 손익', '<p class="ipo-p muted">확인 불가</p>');
+  }
   const ys = ['2023', '2024', '2025'], f = x.fin || {};
   const n = (v) => (v == null ? '–' : Number(v).toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
   const pct = (a, b) => (a == null || !b ? '–' : `${(a / b * 100).toFixed(1)}%`);
@@ -142,25 +179,27 @@ function fsPaneOv(x) {
   const links = [[x.overview?.['홈페이지'] || x.home, '홈페이지']].filter(([u]) => u && !/확인 필요/.test(u))
     .map(([u, l]) => `<a class="ipo-a" href="${esc(fsUrlOf(String(u).split(/\s/)[0]))}" target="_blank" rel="noopener">${l}${ico('ext', 'sm')}</a>`).join('');
   return `<div class="ipo-two-col">
-    ${fsBox('기업 개요', `${fsKvs(x.overview, ['기업명', '산업군 / 섹터', '대표자', '설립', '본사 소재지', '사업자등록번호', '상장 여부', '기업 형태'])}${fsKv('부스', x.booth)}${links ? `<div class="ipo-links">${links}</div>` : ''}`)}
+    ${fsBox('기업 개요', `${fsKvs(x.overview, ['기업명', '산업군 / 섹터', '대표자', '설립', '본사 소재지', '사업자등록번호', '상장 여부', '기업 형태'])}${fsKv('부스', x.booth)}${links ? `<div class="ipo-links">${links}</div>` : ''}` || '<p class="ipo-p muted">없음</p>')}
     <div class="ipo-stack">${fsPnl(x)}${x.growth ? fsBox('성장 요약', `<p class="ipo-p">${fsT(x.growth)}</p>`) : ''}</div>
   </div>`;
 }
 
 function fsPaneBiz(x) {
   const b = x.business || {}, br = x.brand || {};
+  const biz = fsBox('사업 개요 · 경쟁력', `${fsKv('주요 제품', b['주요 제품'])}${b['핵심 경쟁력 / 차별점'] ? `<div class="ipo-kv"><div class="k">핵심 경쟁력</div><div class="v">${fsNums(b['핵심 경쟁력 / 차별점'])}</div></div>` : ''}${fsKv('시장 전망', b['시장 전망'])}`);
+  if (!fsHas(x.brand)) return biz;
   return `<div class="ipo-two-col">
-    ${fsBox('사업 개요 · 경쟁력', `${fsKv('주요 제품', b['주요 제품'])}<div class="ipo-kv"><div class="k">핵심 경쟁력</div><div class="v">${fsNums(b['핵심 경쟁력 / 차별점'])}</div></div>${fsKv('시장 전망', b['시장 전망'])}`)}
+    ${biz}
     ${fsBox('브랜드 스토리', fsKvs(br, ['브랜드 철학', '창업 배경 · 창업자', '네이밍', '공간 · 경험', '글로벌 확장']))}
   </div>`;
 }
 
 function fsPaneProd(x) {
   const imgs = x.images || [];
-  const pics = imgs.length ? `<div class="fs-pics">${imgs.map((im) => `<figure class="fs-pic"><div class="fs-img" data-fs-img="${esc(im.file)}"></div><figcaption>${esc(im.caption || '')}</figcaption></figure>`).join('')}</div>` : '<p class="ipo-p muted">확보한 제품 이미지가 없습니다.</p>';
+  const pics = !Array.isArray(x.images) ? '' : imgs.length ? `<div class="fs-pics">${imgs.map((im) => `<figure class="fs-pic"><div class="fs-img" data-fs-img="${esc(im.file)}"></div><figcaption>${esc(im.caption || '')}</figcaption></figure>`).join('')}</div>` : '<p class="ipo-p muted">확보한 제품 이미지가 없습니다.</p>';
   const ps = x.products || [];
   const tbl = ps.length ? `<table class="ipo-tbl fs-prod"><thead><tr><th>제품명</th><th>카테고리</th><th>용량</th><th>가격</th><th>특징</th></tr></thead><tbody>${ps.map((p) => `<tr><td>${fsT(p.name)}</td><td data-k="카테고리">${fsT(p.category)}</td><td data-k="용량">${fsT(p.size)}</td><td data-k="가격">${fsT(p.price)}</td><td data-k="특징">${fsT(p.note)}</td></tr>`).join('')}</tbody></table>` : '<p class="ipo-p muted">없음</p>';
-  return `<div class="ipo-stack">${fsBox('제품 · 브랜드 이미지', pics, '공식 홈페이지·공식몰, 내부 검토용')}${fsBox('대표 제품 라인업', `<div class="fs-scroll">${tbl}</div>`)}</div>`;
+  return `<div class="ipo-stack">${pics ? fsBox('제품 · 브랜드 이미지', pics, '공식 홈페이지·공식몰, 내부 검토용') : ''}${fsBox('대표 제품 라인업', `<div class="fs-scroll">${tbl}</div>`)}</div>`;
 }
 
 function fsPaneFin(x) {
@@ -184,8 +223,8 @@ function fsPaneInv(x) {
   const rounds = x.rounds.length ? `<div class="fs-scroll"><table class="ipo-tbl fs-rounds"><thead><tr><th>시기</th><th>라운드</th><th>금액</th><th>투자자</th><th>출처</th></tr></thead><tbody>${x.rounds.map((r) => `<tr><td>${fsT(r.date)}</td><td>${fsT(r.round)}</td><td data-k="금액">${fsT(r.amount)}</td><td data-k="투자자">${fsT(r.investors)}</td><td class="muted" data-k="출처">${fsT(r.source)}</td></tr>`).join('')}</tbody></table></div>` : '';
   const kv = (label, val) => (val ? `<div class="ipo-kv"><div class="k">${esc(label)}</div><div class="v">${fsNums(val)}</div></div>` : '');
   return `<div class="ipo-stack fs-inv-pane">
-    ${fsBox('투자유치 히스토리', `${fsKv('현재 투자 단계', x.stage)}${x.total != null ? fsKvSub('누적 투자', fsTotal(x.total), v.total_note) : ''}<p class="ipo-p fs-inv-sum">${fsT(v.summary || x.shareholders?.fi_history)}</p>${rounds}
-      ${fsKv('현재 FI', v.current_fi)}${fsKv('RCPS · CB · BW', v.mezz || x.shareholders?.mezz)}${fsKv('기존 투자자 활용', k['기존 투자자 (레버리지)'])}${fsKv('확인한 곳', v.checked)}`)}
+    ${fsBox('투자유치 히스토리', `${fsKv('딜 상황', v.deal)}${fsKv('현재 투자 단계', x.stage)}${x.total != null ? fsKvSub('누적 투자', fsTotal(x.total), v.total_note) : ''}${v.summary || x.shareholders?.fi_history ? `<p class="ipo-p fs-inv-sum">${fsT(v.summary || x.shareholders?.fi_history)}</p>` : ''}${rounds}
+      ${fsKv('현재 FI', v.current_fi)}${fsKv('최근 밸류', v.valuation)}${fsKv('계획', v.plan)}${fsKv('RCPS · CB · BW', v.mezz || x.shareholders?.mezz)}${fsKv('기존 투자자 활용', k['기존 투자자 (레버리지)'])}${fsKv('확인한 곳', v.checked)}`)}
     ${fsIrBox(x)}
     ${fsBox('컨택 방법', `${fsKv('누구에게', k['1순위 키맨 (대표)'])}${fsKv('재무 키맨', k['재무 키맨 (CFO급)'])}${fsKv('대표 연락처', c['대표 연락처'])}${fsKv('문의 창구', c['대표 이메일'])}${fsKv('본사 주소', c['본사 주소'])}
       ${kv('직접 채널', k['직접 채널'])}${kv('웜 인트로', k['웜 인트로 경로'])}${kv('콘택 순서', k['권장 콘택 순서'])}${fsKv('피칭 포인트', k['피칭 포인트'])}${fsKv('타이밍', k['타이밍 · 트리거'])}${fsKv('주의사항', k['주의사항'])}`)}

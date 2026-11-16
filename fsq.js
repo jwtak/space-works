@@ -119,7 +119,11 @@ function fqInner(ref, nameLink = '', head = false) {
   msg = msg.filter(Boolean);
   if (head) { if (!msg.length && !fs) return ''; btn = ''; }
   const bar = `<div class="fq-bar"><span class="fq-t">팩트시트</span>${msg.map((m) => `<span class="muted">${m}</span>`).join('')}${nameLink}${btn}</div>`;
-  return fs && typeof rdFsGroup === 'function' ? `${bar}${rdFsGroup(rdFsN(fs), false)}` : bar;
+  if (!fs) return bar;
+  // K-Beauty 팩트시트와 같은 탭 화면(facts.js fsReqBody, 11/16 사용자). 다른 화면 칸이면 아래 회사 정보와 나누는 머리를 붙인다
+  const body = typeof fsReqBody === 'function' ? fsReqBody(ref, fs, c.name) : '';
+  if (body) return `${bar}${body}${nameLink ? '' : '<div class="rd-fsh">회사 정보</div>'}`;
+  return typeof rdFsGroup === 'function' ? `${bar}${rdFsGroup(rdFsN(fs), false)}` : bar;
 }
 
 // 화면에 있는 팩트시트 칸·머리 버튼을 다시 그린다(ref가 있으면 그것만)
@@ -236,6 +240,14 @@ document.addEventListener('click', (ev) => {
   const t = ev.target;
   const b = t.closest('[data-fq-req]');
   if (b) { const box = b.closest('[data-fq]'); if (box) fqToggle(box.dataset.fq); return; }
+  const tb = t.closest('[data-fq-tab]');
+  if (tb) {
+    const box = tb.closest('[data-fq-fs]'), ref = box?.dataset.fqFs, fs = ref && fqState(ref, fqS.ctx.get(ref)?.legacy).fs;
+    if (!fs || typeof fsReqBody !== 'function') return;
+    fsS.tab = tb.dataset.fqTab; viewSet('fs.tab', fsS.tab);
+    box.outerHTML = fsReqBody(ref, fs, fqS.ctx.get(ref)?.name);
+    return;
+  }
   const pb = t.closest('[data-fq-pipe]');
   if (pb) { fqPipeAdd(pb); return; }
   const go = t.closest('[data-fq-go]');
