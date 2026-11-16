@@ -98,3 +98,7 @@
   .va .mk-tbl .st { width: 140px; }
   .va-tile strong { font-size: 24px; line-height: 32px; }
 }
+.va-split { margin-bottom: 20px; table-layout: auto; }
+.va-split td { overflow: visible; text-overflow: clip; }
+.va-split tr.on td { background: #F6F8FB; }
+.va-h3 small { margin-left: 6px; font-size: 14px; font-weight: 400; color: var(--text2); }

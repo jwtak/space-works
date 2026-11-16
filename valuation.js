@@ -1,6 +1,6 @@
 /* 투자업무 › 가치평가 › 상대가치평가.
    데이터: OneDrive data/valuation.json — 05. 딜소싱\_자동화\가치평가 에서 relval.py run(사례 계산) 뒤 publish.py 로 올린다.
-   사례마다 회사별 배수와 대상 회사 지표가 들어 있고, 비교기업 켜고 끄기, 국내만과 해외 포함, 기준 기간, 할증·할인은 이 화면이 다시 계산한다.
+   사례마다 회사별 배수와 대상 회사 지표가 들어 있고, 비교기업 켜고 끄기, 국내만·해외만·합친 범위, 기준 기간, 할증·할인은 이 화면이 다시 계산한다.
    계산식은 relval.py 와 같다(사례의 py 값과 맞춰 봄). 원본 로직은 05. 딜소싱\가치평가 로직 노트.md 18장.
    엑셀: data/valuation/<사례 id>.xlsx. 손PB 상대가치 화면(PERValuationScreen.jsx)의 범위 막대(IQR)를 결론 막대그림에 가져왔다.
    app.js 전역($, esc, pad, ico, toast, viewGet, viewSet, TAB_INFO, infoBtn, PAGE, route), graph.js STORE·G, market.css 표·탭 클래스를 쓴다. */
@@ -52,9 +52,10 @@ function vaSel(c) { // 사례별 화면 선택값. 처음엔 파이썬 결과와
   return s;
 }
 const vaAdj = (c, s, nm) => (s.adj[nm] != null && s.adj[nm] !== '' ? +s.adj[nm] / 100 : +(c.adjustments?.[nm]?.pct || 0));
-const vaUse = (c, s, skip) => c.peers.filter((p) => p !== skip && s.inc[vaKey(p)] && (s.scope === '전체' || p.kind === '국내'));
-function vaCol(c, s, per, nm, skip) {
-  const use = vaUse(c, s, skip), st = vaStats(use.map((p) => p.mult[per]?.[nm]).filter((v) => v !== '제외'));
+const vaIn = (sc, p) => sc === '전체' || (sc === '국내') === (p.kind === '국내');
+const vaUse = (c, s, skip, sc = s.scope) => c.peers.filter((p) => p !== skip && s.inc[vaKey(p)] && vaIn(sc, p));
+function vaCol(c, s, per, nm, skip, sc) {
+  const use = vaUse(c, s, skip, sc), st = vaStats(use.map((p) => p.mult[per]?.[nm]).filter((v) => v !== '제외'));
   st.out = st.median ? use.filter((p) => { const v = p.mult[per]?.[nm]; return typeof v === 'number' && (v > st.median * 2 || v < st.median * 0.5); }).map((p) => p.name) : [];
   return st;
 }
@@ -110,7 +111,7 @@ function vaHead(c, r) {
       <p>기준일 ${esc(c.day)}${c.purpose ? `, ${esc(c.purpose)} 평가` : ''}${t.wics ? `, WICS ${esc(t.wics)}` : ''}</p></div>
       <div class="va-tools">${pick}${infoBtn('valuation')}<button class="btn ghost" type="button" id="va-xlsx">${ico('file', 'sm')}엑셀 받기</button></div></div>
     <dl class="va-kv">${kv.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>
-    <div class="va-ctrl">${hasGlobal ? `<div><span>비교기업 범위</span>${vaSeg('scope', [['국내', '국내만'], ['전체', '국내와 해외']], s.scope)}</div>` : ''}
+    <div class="va-ctrl">${hasGlobal ? `<div><span>비교기업 범위</span>${vaSeg('scope', [['국내', '국내만'], ['해외', '해외만'], ['전체', '국내와 해외']], s.scope)}</div>` : ''}
       <div><span>기준 기간</span>${vaSeg('base', c.periods.map((p) => [p, VA_PER[p] || p]), s.base)}</div>
       <button class="btn ghost sm" type="button" data-va-reset>처음 구성으로</button></div></section>`;
 }
@@ -142,7 +143,20 @@ function vaConclusion(c, r) {
       <strong>${vaWon(v.med.ps)}</strong><p>현재가 대비 ${vaUp(v.med.up)}</p><p class="rng">25~75% ${vaWon(v.lo?.ps)} ~ ${vaWon(v.hi?.ps)}</p></div>`;
   }).join('');
   const memo = c.conclusion ? `<div class="va-memo"><b>판단 메모</b><p>${esc(c.conclusion)}</p></div>` : '';
-  return vaSec('결론', '', `<div class="va-tiles">${tiles}</div>${vaField(c, r)}${memo}`);
+  return vaSec('결론', '', `<div class="va-tiles">${tiles}</div>${vaSplit(c, r)}${vaField(c, r)}${memo}`);
+}
+
+function vaSplit(c, r) { // 국내와 해외를 따로 계산한 값(기준 기간, 대표 배수). 위 범위 선택과 상관없이 늘 셋 다 보여 줌
+  if (!c.peers.some((p) => p.kind !== '국내')) return '';
+  const s = r.s, L = { 국내: '국내', 해외: '해외', 전체: '국내와 해외' };
+  const rows = ['국내', '해외', '전체'].map((sc) => {
+    const n = vaUse(c, s, null, sc).length;
+    return `<tr class="${sc === s.scope ? 'on' : ''}"><td class="st"><b>${L[sc]}</b><small>${n}곳 넣음</small></td>${c.primary.map((nm) => {
+      const st = vaCol(c, s, s.base, nm, null, sc), v = vaImplied(c, s.base, nm, st.median, vaAdj(c, s, nm));
+      return `<td>${vaX(st.median)} <small>${st.n}곳</small></td><td>${v ? `<b>${vaWon(v.ps)}</b><small>${vaUp(v.up)}</small>` : '-'}</td>`;
+    }).join('')}</tr>`;
+  }).join('');
+  return `<h3 class="va-h3">국내와 해외 따로 <small>${esc(VA_PER[s.base])}</small></h3><div class="mk-scroll"><table class="mk-tbl va-split"><thead><tr><th class="st">범위</th>${c.primary.map((nm) => `<th>${esc(nm)} 중앙값</th><th>주당 가치</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
 function vaWarnCard(c, r) {
@@ -157,14 +171,14 @@ function vaMultTable(c, r) {
   const cell = (p, nm) => {
     const v = p.mult[per]?.[nm];
     if (v === '제외') return `<td class="va-ex" title="${esc(p.exclude_reason || '사람이 뺀 배수')}">제외</td>`;
-    const out = typeof v === 'number' && st[nm].median && s.inc[vaKey(p)] && (s.scope === '전체' || p.kind === '국내') && (v > st[nm].median * 2 || v < st[nm].median * 0.5);
+    const out = typeof v === 'number' && st[nm].median && s.inc[vaKey(p)] && vaIn(s.scope, p) && (v > st[nm].median * 2 || v < st[nm].median * 0.5);
     return `<td class="${out ? 'va-out' : ''}" ${out ? 'title="중앙값의 2배를 넘거나 절반에 못 미침"' : ''}>${vaX(v)}</td>`;
   };
   const t = c.target;
   const head = `<tr><th class="st">회사</th><th>시가총액</th>${c.mults.map((nm) => `<th class="${c.primary.includes(nm) ? 'strong' : ''}">${esc(nm)}</th>`).join('')}</tr>`;
   const trow = `<tr class="va-tgt"><td class="st"><b>${esc(t.name)}</b><small>대상 회사</small></td><td>${vaNum(t.mcap)}억</td>${c.mults.map((nm) => `<td class="strong">${vaX(t.mult[per]?.[nm])}</td>`).join('')}</tr>`;
   const prow = (p) => {
-    const on = !!s.inc[vaKey(p)], inScope = s.scope === '전체' || p.kind === '국내';
+    const on = !!s.inc[vaKey(p)], inScope = vaIn(s.scope, p);
     return `<tr class="${on && inScope ? '' : 'off'}"><td class="st"><label class="va-chk"><input type="checkbox" data-va-inc="${esc(vaKey(p))}" ${on ? 'checked' : ''} ${inScope ? '' : 'disabled'}><span><b>${esc(p.name)}</b><small>${esc(p.kind === '국내' ? '국내' : p.country || '해외')}${!inScope ? ', 범위 밖' : !p.include ? ', 처음엔 뺀 회사' : ''}</small></span></label></td>
       <td>${p.mcap != null ? `${vaNum(p.mcap)}억` : '-'}</td>${c.mults.map((nm) => cell(p, nm)).join('')}</tr>`;
   };
@@ -288,7 +302,7 @@ async function renderValuation() {
 
 TAB_INFO.valuation = { title: '상대가치평가', rows: [
   ['이 화면', '비슷한 상장사들의 배수(PER, EV/EBITDA 등) 중앙값을 대상 회사 이익에 곱해 적정 주가를 봅니다. 비교기업 선정과 해외 배수, 시나리오 근거는 리서치로 채우고, 계산은 이 화면과 엑셀이 같은 식으로 합니다.'],
-  ['바꿔 볼 수 있는 것', ['배수 표의 체크를 풀거나 켜면 그 회사를 빼거나 넣고 다시 계산', '비교기업 범위: 국내만 또는 국내와 해외', '기준 기간: 최근 4분기, 올해 추정, 내년 추정', '적용 결과 표의 조정(%): 할증은 +, 할인은 −', '처음 구성으로: 리서치에서 정한 구성으로 되돌림']],
+  ['바꿔 볼 수 있는 것', ['배수 표의 체크를 풀거나 켜면 그 회사를 빼거나 넣고 다시 계산', '비교기업 범위: 국내만, 해외만, 국내와 해외. 결론의 「국내와 해외 따로」 표는 범위와 상관없이 셋 다 보여 줌', '기준 기간: 최근 4분기, 올해 추정, 내년 추정', '적용 결과 표의 조정(%): 할증은 +, 할인은 −', '처음 구성으로: 리서치에서 정한 구성으로 되돌림']],
   ['배수 정의', { table: [['배수', '분자', '분모'], ['PER', '시가총액', '지배주주 순이익'], ['PBR', '시가총액', '지배주주 자본'], ['EV/EBITDA', 'EV', 'EBITDA'], ['EV/EBIT', 'EV', '영업이익'], ['EV/Sales', 'EV', '매출']] }],
   ['금액 정의', ['시가총액: 자사주를 뺀 보통주 수 × 종가 + 우선주(상장이면 우선주 종가, 비상장이면 보통주 종가로 1:1 가정)', 'EV: 시가총액 + 순부채 + 비지배지분', '순부채: 이자발생부채(전환사채, 리스 포함) − 현금, 단기금융상품, 단기 당기손익공정가치 금융자산', '배수와 이익은 같은 기간끼리 곱함. 대표값은 중앙값, 범위는 25%~75%', 'EV 배수로 구한 주주가치 = 배수 × 지표 − 순부채 − 비지배지분 + 비영업자산']],
   ['읽는 법', ['NM: 분모가 0 이하(적자 등)라 계산하지 않음', '주황 칸: 중앙값의 2배를 넘거나 절반에 못 미치는 배수', '확인할 것: 지금 구성에서 비교기업 수 부족, 평균과 중앙값 차이, 한 회사에 기대는 결과, 데이터 지연 등']],
