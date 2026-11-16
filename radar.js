@@ -550,8 +550,8 @@ function rdNewsTbl(ns) {
 const rdNewsBox = (ns) => rdBox('관련 기사', rdNewsTbl(ns), ns.length ? `${ns.length}건` : '');
 
 /* 주요 손익: ipo.js 연락처 탭 표와 같은 모양(억 원, 숫자만 오른쪽 정렬). 연도는 자료에 있는 최근 3개 */
-function rdPnl(fin, years) {
-  const ys = years.slice(-3), cols = ys.map((y) => [y, ...fin.years[y].slice(0, 3).map(rdNum)]);
+function rdPnl(fin, years, keep = 3) { // n = 보일 칸 수(팩트시트는 연간 3개년 + 반기·분기 한 칸)
+  const ys = years.slice(-keep), cols = ys.map((y) => [y, ...fin.years[y].slice(0, 3).map(rdNum)]);
   if (!cols.some((c) => c.slice(1).some((v) => v != null))) return '';
   const n = (v) => (v == null ? '–' : v.toLocaleString('ko-KR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }));
   const pct = (a, b) => (a == null || !b ? '–' : `${(a / b * 100).toFixed(1)}%`);
@@ -802,7 +802,7 @@ function rdFsGroup(f, head = true) { // head=false: 머리는 부르는 쪽(fsq.
   const rounds = f.rounds.length ? rdBox('투자 라운드', `<table class="ipo-tbl rd-tbl-r"><thead><tr><th>시기</th><th>라운드</th><th>금액</th><th>투자자</th></tr></thead><tbody>${f.rounds.map((r) => `<tr>
     <td>${rdFsT(r.when) || '–'}</td><td>${rdFsT(r.round) || '–'}</td><td>${rdFsT(r.amount) || '–'}</td><td>${rdFsT(r.investors) || '–'}</td></tr>`).join('')}</tbody></table>`, `${f.rounds.length}건`) : '';
   const contact = f.contact.length ? `<ul class="ipo-ul">${f.contact.map((c) => `<li>${c.who ? `<span class="rd-strong">${rdFsT(c.who)}</span>${c.how ? '<br>' : ''}` : ''}${rdFsT(c.how)}</li>`).join('')}</ul>` : RD_NONE;
-  const pnls = (f.fin || []).map((p) => rdPnl(p.fin, p.years)).filter(Boolean);
+  const pnls = (f.fin || []).map((p) => rdPnl(p.fin, p.years, 4)).filter(Boolean);
   const pnl = pnls.length > 1 ? `<div class="ipo-two-col">${pnls.join('')}</div>` : pnls.join('');
   const pr = [['포인트', f.points], ['리스크', f.risks]].filter(([, a]) => a.length).map(([k, a]) => `<div class="rd-fs-k">${k}</div>${rdFsUl(a)}`).join('');
   return `${head ? `<div class="rd-fsh">팩트시트${f.made ? `<span class="muted">작성 ${esc(f.made)}</span>` : ''}</div>` : ''}
