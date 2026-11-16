@@ -183,7 +183,7 @@ function v3eRunAll(inp, ov) {
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
   const t0 = now(), inp2 = v3eApplyOverrides(inp, ov), py0 = inp.py || {};
   const all = { inp: inp2, I: inp2.input, sw: inp2.switches, ov: inp2.ov || {}, runs: {}, checks: [],
-    py: { rows: {}, scen: {}, wavg: null, blend: null, sens: null, rdcf: null, ff: null, alt: py0.alt, mc: py0.mc, typ: py0.typ, lbo: py0.lbo } };
+    py: { rows: {}, scen: {}, wavg: null, blend: null, sens: null, rdcf: null, ff: null, alt: py0.alt, mc: py0.mc, typ: py0.typ, lbo: py0.lbo, rel_plus: py0.rel_plus } };
   for (const s of V3E.steps) if (s.all) s.fn(all);
   const res = all.py;
   res.checks = all.checks;
@@ -306,7 +306,12 @@ function step_macro(c) {
     v3eChk(c, 'erp_fallback', 'warn', 'ERP 선택지 ' + sw.erp + '의 값이 입력에 없어 Damodaran 한국 합계를 씀');
   }
   c.erp = v3eGet(ov, 'm.erp', erp);
-  const g_raw = { cpi10: v3eGet(m, 'cpi10'), rf: rf, gdp_nominal: v3eGet(m, 'gdp10'), manual: v3eGet(m, 'g_manual') }[sw.g];
+  let g_raw = { cpi10: v3eGet(m, 'cpi10'), rf: rf, gdp_nominal: v3eGet(m, 'gdp10'), manual: v3eGet(m, 'g_manual') }[sw.g];
+  if (g_raw == null) { // 고른 출처 값이 없으면 물가 10년 평균, 그것도 없으면 무위험이자율
+    const has = v3eGet(m, 'cpi10') != null;
+    g_raw = has ? m.cpi10 : rf;
+    v3eChk(c, 'g_fallback', 'warn', '영구성장률 출처 ' + v3ePyStr(sw.g) + '의 값이 입력에 없어 ' + (has ? '소비자물가 10년 평균' : '무위험이자율') + '을 씀');
+  }
   let g = v3eT(sw.g_cap) ? Math.min(g_raw, rf) : g_raw;
   g = v3eGet(ov, 'o.g', g);
   c.g_raw = g_raw; c.g_s = g;
@@ -319,13 +324,25 @@ function step_macro(c) {
 }
 
 // ── E04 hist ─────────────────────────────────────────────────────────
-// _avg_idx: 평균에 넣을 과거 열 번호(최근 avg_years 개, 뺄 연도 제외)
-function v3eAvgIdx(c) {
-  const ex = v3eOr(v3eGet(c.I, 'avg_exclude'), []);
+// avg_exclude: 뺄 연도. input.avg_exclude 가 목록이면 모든 평균에, dict 면 "all" 은 모든 평균에, "<가정 키>"(예 tax_eff)는 그 가정에만
+function v3eAvgExclude(I, key) {
+  const ex = v3eOr(v3eGet(I, 'avg_exclude'), []);
+  if (v3eE01IsDict(ex)) return v3eOr(v3eGet(ex, 'all'), []).concat(key ? v3eOr(v3eGet(ex, key), []) : []);
+  return ex;
+}
+// _avg_idx: 평균에 넣을 과거 열 번호. 최근 avg_years 개 해에서 뺄 연도를 뺌(창을 과거로 늘리지 않음, 설계서 9-3)
+function v3eAvgIdx(c, key) {
+  const ex = v3eAvgExclude(c.I, key);
   const ys = c.inp.timeline.hist;
-  const idx = [];
-  for (let i = 0; i < ys.length; i++) if (!ex.includes(ys[i])) idx.push(i);
-  return idx.slice(-Math.trunc(Number(c.sw.avg_years)));
+  const all = [];
+  for (let i = 0; i < ys.length; i++) all.push(i);
+  const win = all.slice(-Math.trunc(Number(c.sw.avg_years)));
+  const idx = win.filter((i) => !ex.includes(ys[i]));
+  if (!idx.length && win.length) { // 창의 모든 해를 빼면 빼기를 무시(평균이 비어 계산이 멈추지 않게)
+    if (!c.checks.some((ck) => ck.id === 'avg_exclude_all')) v3eChk(c, 'avg_exclude_all', 'warn', '평균 창의 모든 해를 빼도록 되어 있어 빼기를 무시하고 평균을 냄');
+    return win;
+  }
+  return idx;
 }
 
 // _avg: 다년 평균. ratio_mean 은 연도별 비율의 단순평균, sum_ratio 는 합계 ÷ 합계
@@ -354,14 +371,24 @@ function step_hist(c) {
   c.R = R;
   // 보정(ADJ): 과거 연도의 일회성 항목을 되돌린 정상화 값. 평균을 낼 때 씀(sw.use_norm)
   const adj_rev = v3eFill(H, 0.0), adj_cogs = v3eFill(H, 0.0), adj_sga = v3eFill(H, 0.0);
+  const sga_g = {};                                   // 판관비 보정의 묶음별 몫(묶음을 안 적으면 기타관리비)
   const ys = c.inp.timeline.hist;
+  const fc_adj = new Map();                           // 진행 연도(명시 기간) 매출 보정: sw.adj_fc 가 켜져 있으면 그해 매출에 더함
   for (const a of v3eOr(v3eGet(I, 'adj'), [])) {
+    const acc = v3eGet(a, 'account');
     if (ys.includes(v3eGet(a, 'year'))) {
       const i = ys.indexOf(a.year);
-      const acc = v3eGet(a, 'account');
       if (acc === 'rev') adj_rev[i] += a.amount;
       else if (acc === 'cogs') adj_cogs[i] += a.amount;
-      else if (acc === 'sga' || acc === 'ebit') adj_sga[i] += acc === 'ebit' ? -a.amount : a.amount;
+      else if (acc === 'sga' || acc === 'ebit') {
+        const v = acc === 'ebit' ? -a.amount : a.amount;
+        adj_sga[i] += v;
+        const gk = v3eOr(v3eGet(a, 'group'), 'other');
+        if (!(gk in sga_g)) sga_g[gk] = v3eFill(H, 0.0);
+        sga_g[gk][i] += v;
+      }
+    } else if (acc === 'rev' && c.years_f.includes(v3eGet(a, 'year'))) {
+      fc_adj.set(a.year, (fc_adj.has(a.year) ? fc_adj.get(a.year) : 0.0) + a.amount);
     }
   }
   const norm = v3eT(sw.use_norm);
@@ -370,15 +397,31 @@ function step_hist(c) {
   for (let i = 0; i < H; i++) cogs_n.push(R.cogs[i] + (norm ? adj_cogs[i] : 0));
   c.rev_n = rev_n; c.cogs_n = cogs_n;
   const rev_norm = [], ebit_norm = [];
+  for (let i = 0; i < H; i++) ebit_norm.push(R.ebit[i] + adj_rev[i] - adj_cogs[i] - adj_sga[i]);
   for (let i = 0; i < H; i++) rev_norm.push(R.rev[i] + adj_rev[i]);
   v3ePut(c, 'ADJ.rev_norm', rev_norm, v3eFill(c.N));
-  for (let i = 0; i < H; i++) ebit_norm.push(R.ebit[i] + adj_rev[i] - adj_cogs[i] - adj_sga[i]);
   v3ePut(c, 'ADJ.ebit_norm', ebit_norm, v3eFill(c.N));
+  if (v3eT(v3eGet(I, 'adj'))) { // 보정 항목 세효과(법정 세율, 설계서 2-17 ADJ.item 세효과): 정상화 순이익
+    const T = I.market.tax;
+    const te = [], nn = [];
+    for (let i = 0; i < H; i++) te.push((ebit_norm[i] - R.ebit[i]) * v3eBracketRate(Math.max(v3eNz(R.ebt[i]), 0.0), T.brackets) * (1 + T.local));
+    v3ePut(c, 'ADJ.tax_eff', te, v3eFill(c.N));
+    for (let i = 0; i < H; i++) nn.push(R.ni[i] + ebit_norm[i] - R.ebit[i] - te[i]);
+    v3ePut(c, 'ADJ.ni_norm', nn, v3eFill(c.N));
+  }
   c.sga_adj = norm ? adj_sga : v3eFill(H, 0.0);
+  c.sga_adj_g = norm ? sga_g : {};
+  c.rev_adj_fc = c.years_f.map((y) => (v3eT(v3eGet(sw, 'adj_fc')) ? (fc_adj.has(y) ? fc_adj.get(y) : 0.0) : 0.0));
+  // 최근 12개월(LTM) = 직전 연간 − 전년 같은 기간 누적 + 당해 누적(03 노트 11.2절). 표시용
+  const yp = v3eOr(v3eGet(I, 'ytd_prev'), {}), yt = v3eOr(v3eGet(I, 'ytd'), {});
+  for (const k_ of ['rev', 'ebit', 'ni_parent']) {
+    const a0 = v3eLast(R[k_]), a1 = v3eGet(yp, 'IS.' + k_), a2 = v3eGet(yt, 'IS.' + k_);
+    if (a1 != null && a2 != null) v3eOne(c, 'ADJ.ltm.' + k_, a0 - a1 + a2);
+  }
   c.cpi = v3eNz(v3eGet(I.market, 'cpi5'), v3eNz(v3eGet(I.market, 'cpi10')));
   v3eSeta(c, 'cpi', c.cpi, '소비자물가 5년 평균');
-  const idx3 = v3eAvgIdx(c);
-  c.avg_idx = idx3;
+  c.avg_idx = v3eAvgIdx(c);
+  const idx3 = v3eAvgIdx(c, 'tax_eff');
   // 유효세율: 최근 평균에서 법정 세율 대비 0.5배 미만, 1.5배 초과 해 제외
   const T = I.market.tax;
   const effs = [], used = [], dropped = [];
@@ -451,19 +494,34 @@ function step_revenue(c) {
   const lines = rb.lines, groups = v3eOr(v3eGet(rb, 'groups'), []);
   const add = v3eNz(v3eGet(c.ov, 'o.growth_add'));
   const ytd_on = sw.fy1_mode === 'ytd_plus_rest';
+  const v2 = v3eGet(sw, 'scn_rule') === 'v2';        // v2: 리서치의 Bull, Bear 값을 쓰지 않고 늘 규칙으로
   for (const ln of lines) { // 줄 가정 행
-    const la = v3eOr(v3eGet(ln, 'a'), {});
+    const la = Object.assign({}, v3eOr(v3eGet(ln, 'a'), {}));
+    if (ln.type === 'price_volume') { // 리서치 값이 없으면 단가, 수량 성장률 = 과거 4년 평균 성장률(301, 설계서 2-17 scn_rule 보강)
+      for (const [v, hk] of [['g_price', 'price'], ['g_vol', 'vol']]) {
+        if (!(v in la) && !(('rev.' + ln.id + '.' + v) in c.A_given)) {
+          const hv = v3eHist(c, 'REV.l.' + ln.id + '.' + hk).filter((x) => x != null).slice(-5);
+          const gg = [];
+          for (let i = 1; i < hv.length; i++) if (v3eT(hv[i - 1])) gg.push(hv[i] / hv[i - 1] - 1);
+          if (gg.length) {
+            la[v] = v3eSum(gg) / gg.length;
+            const wk = 'rev.' + ln.id + '.' + v;
+            if (!(wk in c.notes.why)) c.notes.why[wk] = '리서치 값이 없어 과거 4년 평균 성장률';
+          }
+        }
+      }
+    }
     for (const v of Object.keys(la)) {
       const spec = la[v];
       if (v === 'mode') continue;
       const key = 'rev.' + ln.id + '.' + v;
       if (!(key in c.A_given)) {
-        let one = v3ePick(spec, S);
+        let one = v3ePick(spec, v2 && v === 'g' ? 'Base' : S);
         if (v3eE01IsDict(one) && 'start' in one && v3eGet(one, 'end') == null) {
           one = { start: one.start, end: c.g_s }; // 끝값이 비면 영구성장률
         }
         let arr = v3eExpand(one, N);
-        if (arr != null && v === 'g' && S !== 'Base' && !(v3eE01IsDict(spec) && S in spec)) {
+        if (arr != null && v === 'g' && S !== 'Base' && (v2 || !(v3eE01IsDict(spec) && S in spec))) {
           // 리서치가 Bull, Bear 를 안 준 성장률 줄: Bull = Base + 5%p, Bear = 최근 3년 실적 최저(Base 보다 높으면 Base − 5%p).
           // 가산 폭은 첫해에서 마지막 해로 가며 0 으로 줄어듦
           let hv = v3eHist(c, 'REV.l.' + ln.id + '.val').filter((x) => x != null);
@@ -507,6 +565,8 @@ function step_revenue(c) {
         v = o;
       } else if (v3eT(add) && v3eT(prev_o)) {
         v = prev_n * (o / prev_o + add);
+      } else if (v3eT(add) && !v3eT(prev_n)) {
+        v = o * (1 + add); // 0 에서 시작하는 줄(직접 입력 0 → 20 → 55): 전년이 0 이면 그해 값에 같은 비율을 곱함
       } else {
         v = !v3eT(add) ? o : !v3eT(prev_o) ? prev_n * (1 + add) : o;
       }
@@ -577,6 +637,10 @@ function step_revenue(c) {
   } else {
     resid_fc = v3eFill(N, 0.0);
   }
+  if (c.rev_adj_fc.some((x) => v3eT(x))) { // sw.adj_fc: 진행 연도 매출 보정(일회성 차감 되돌림)을 체계 차이 조정 줄로 더함
+    resid_fc = resid_fc.map((x, k) => x + c.rev_adj_fc[k]);
+    total_fc = total_fc.map((x, k) => x + c.rev_adj_fc[k]);
+  }
   const total = v3ePut(c, 'REV.total', rev_h, total_fc);
   const growth_h = [v3eDiv(rev_h[0], v3eGet(v3eOr(v3eGet(I, 'hist_prev'), {}), 'IS.rev'))];
   for (let i = 1; i < H; i++) growth_h.push(v3eDiv(rev_h[i], rev_h[i - 1]));
@@ -641,6 +705,28 @@ function step_revenue(c) {
   const cons_gap = [];
   for (let k = 0; k < N; k++) cons_gap.push(cons_fc[k] == null ? null : total_fc[k] - cons_fc[k]);
   v3ePut(c, 'REV.cons_gap', null, cons_gap);
+  for (const key_ of ['n', 'hi', 'lo']) {
+    const arr_ = v3eFill(N);
+    const src_ = v3eOr(v3eGet(cons, key_), []);
+    for (let j = 0; j < cyears.length; j++) {
+      const y = cyears[j];
+      if (c.years_f.includes(y)) arr_[c.years_f.indexOf(y)] = j < src_.length ? src_[j] : null;
+    }
+    v3ePut(c, 'REV.cons_' + key_, null, arr_);
+  }
+  // 묶음 혼합 단가(설계서 2-17 REV.l.<줄>.mix_asp): 묶음의 모든 줄이 단가 × 수량이면 총수량과 묶음 매출 ÷ 총수량
+  for (const g of groups) {
+    const gl = lines.filter((ln) => v3eGet(ln, 'group') === g.id);
+    if (gl.length && gl.every((ln) => v3eT(c.rows['REV.l.' + ln.id + '.vol']))) {
+      const vr = (ln) => c.rows['REV.l.' + ln.id + '.vol'], pr = (ln) => c.rows['REV.l.' + ln.id + '.price'];
+      const vol = [], pv = [], mix = [];
+      for (let i = 0; i < H + N; i++) vol.push(gl.every((ln) => vr(ln)[i] != null) ? v3eSum(gl.map((ln) => v3eNz(vr(ln)[i]))) : null);
+      for (let i = 0; i < H + N; i++) pv.push(vol[i] == null || gl.some((ln) => pr(ln)[i] == null) ? null : v3eSum(gl.map((ln) => vr(ln)[i] * pr(ln)[i])));
+      for (let i = 0; i < H + N; i++) mix.push(pv[i] == null || !v3eT(vol[i]) ? null : pv[i] / vol[i]);
+      v3ePut(c, 'REV.g.' + g.id + '.vol', vol.slice(0, H), vol.slice(H));
+      v3ePut(c, 'REV.g.' + g.id + '.mix_asp', mix.slice(0, H), mix.slice(H));
+    }
+  }
   v3eOne(c, 'REV.ytd', v3eGet(I.ytd, 'IS.rev'));
   c.vals = vals; c.scale = scale;
 }
@@ -724,7 +810,12 @@ function step_cogs(c, late) {
   } else { // components: 재료, 인건비, 감가상각, 기타
     const mat = v3eSeta(c, 'cogs_mat_pct', v3eAvg(c, v3eHist(c, 'OPX.cogs.mat'), R.rev));
     const oth = v3eSeta(c, 'cogs_other_pct', v3eAvg(c, v3eHist(c, 'OPX.cogs.other'), R.rev));
-    const lab = v3eE06Seq(N, (k) => v3eFc(c, 'OPX.labor_total')[k] - v3eFc(c, 'OPX.sga.labor')[k]);
+    let lab;
+    if (sw.labor_mode === 'headcount') lab = v3eE06Seq(N, (k) => v3eFc(c, 'OPX.labor_total')[k] - v3eFc(c, 'OPX.sga.labor')[k]);
+    else { // 인원 방식이 아니면 전체 인건비가 없으므로 원가 인건비 ÷ 매출 과거 평균으로
+      const lp = v3eSeta(c, 'cogs_labor_pct', v3eNz(v3eAvg(c, v3eHist(c, 'OPX.cogs.labor'), R.rev)), '최근 평균');
+      lab = v3eE06Seq(N, (k) => rev[k] * v3eNz(lp[k]));
+    }
     const dep = v3eE06Seq(N, (k) => v3eFc(c, 'PPE.dep')[k] * (1 - v3eA(c, 'dep_sga_share')[k]) + v3eFc(c, 'INT.amort')[k] * (1 - v3eA(c, 'amort_sga_share')[k]));
     const m_ = v3eE06Seq(N, (k) => rev[k] * v3eNz(mat[k])), o_ = v3eE06Seq(N, (k) => rev[k] * v3eNz(oth[k]));
     v3ePut(c, 'OPX.cogs.mat', v3eHist(c, 'OPX.cogs.mat'), m_);
@@ -746,9 +837,19 @@ function step_rnd(c) {
   const rev = v3eFc(c, 'REV.total');
   const tot_h = v3eHist(c, 'RND.total'), cap_h = v3eHist(c, 'RND.cap'), exp_h = v3eHist(c, 'RND.exp');
   let pct_def = v3eNz(v3eAvg(c, tot_h, R.rev));
-  if (c.sw.rnd_mode === 'linear_to' && v3eGet(v3eOr(v3eGet(c.I, 'rnd'), {}), 'target') != null) {
+  const RD = v3eOr(v3eGet(c.I, 'rnd'), {});
+  let target = v3eGet(RD, 'target');
+  const bench = v3eOr(v3eGet(RD, 'bench'), []);       // 비교기업 R&D ÷ 매출(301 R&D 벤치마크). include 가 거짓인 회사는 평균에서 뺌
+  if (bench.length) {
+    for (const b of bench) v3eOne(c, 'RND.bench.' + v3ePyStr(v3eOr(v3eGet(b, 'id'), v3eGet(b, 'name'))), v3eGet(b, 'ratio'));
+    const xs = bench.filter((b) => v3eT(v3eGet(b, 'include', true)) && v3eGet(b, 'ratio') != null).map((b) => b.ratio);
+    const bavg = xs.length ? v3eSum(xs) / xs.length : null;
+    v3eOne(c, 'RND.bench_avg', bavg);
+    if (target == null) target = bavg;
+  }
+  if (c.sw.rnd_mode === 'linear_to' && target != null) {
     const s = v3eNz(v3eDiv(v3eLast(tot_h), v3eLast(R.rev)), pct_def);
-    pct_def = { start: s + ((c.I.rnd.target - s) / N), end: c.I.rnd.target };
+    pct_def = { start: s + ((target - s) / N), end: target };
   }
   const pct = v3eSeta(c, 'rnd_pct', pct_def, '최근 평균 유지');
   const cs = v3eSeta(c, 'rnd_cap_share', v3eNz(v3eAvg(c, cap_h, tot_h)), '최근 평균');
@@ -773,7 +874,17 @@ function step_assets(c) {
     mode = v3eT(v3eGet(I, 'ppe_roll')) ? 'waterfall' : 'maint_exp';
   }
   const base_ppe = sw.capex_maint_base === 'ppe';
-  const cm_def = v3eAvg(c, capex_h, base_ppe ? bop_h : R.rev);
+  const capex_a = capex_h.slice();                    // 튄 CAPEX 처리(ADJ.capex_spike): 일시적이면 평균에서 빼고, 주기적이면 주기 연수로 나눈 값으로
+  const ys = c.inp.timeline.hist;
+  const spikes = v3eOr(v3eGet(I, 'capex_spike'), []);
+  for (const sp of spikes) {
+    if (ys.includes(v3eGet(sp, 'year')) && capex_a[ys.indexOf(sp.year)] != null) {
+      const i = ys.indexOf(sp.year);
+      capex_a[i] = v3eGet(sp, 'mode', 'exclude') === 'exclude' ? null : capex_a[i] / Math.max(Number(v3eOr(v3eGet(sp, 'cycle'), 1)), 1.0);
+    }
+  }
+  if (spikes.length) v3ePut(c, 'ADJ.capex_spike', v3eE06Seq(H, (i) => (capex_h[i] == null ? null : v3eNz(capex_a[i]) - capex_h[i])), v3eFill(N));
+  const cm_def = v3eAvg(c, capex_a, base_ppe ? bop_h : R.rev);
   const cm = v3eSeta(c, 'capex_maint_pct', v3eNz(cm_def), '최근 평균 CAPEX ÷ ' + (base_ppe ? '기초 유형자산' : '매출'));
   const cx = v3eSeta(c, 'capex_exp', 0.0);
   const rp = v3eSeta(c, 'rou_add_pct', v3eNz(v3eAvg(c, rou_h, R.rev)));
@@ -823,17 +934,32 @@ function step_assets(c) {
   const ibop = [], icap = [], iam = [], iamo = [], ieop = [];
   prev = v3eLast(int_h);
   const start = { next: 1, same: 0, half: 0 }[sw.vintage_start];
+  const half = sw.vintage_start === 'half';
+  // vint: 빈티지 정액 상각. 상각은 내용연수가 끝나면 0. half 면 첫해 반년, 내용연수 다음 해에 남은 반년
+  const vint = (amts, k, lf) => {
+    let s = 0.0;
+    for (let j = 0; j < k + 1; j++) {
+      const age = k - j - start;
+      if (v3eT(amts[j]) && ((0 <= age && age < lf) || (half && age === lf))) s += amts[j] / lf * (half && (age === 0 || age === lf) ? 0.5 : 1.0);
+    }
+    return s;
+  };
+  const life_mode = v3eGet(sw, 'amort_mode') === 'life'; // life: 무형 CAPEX 도 빈티지 정액, 기존 잔액은 남은 연수로 정액(설계서 2-5 INT.amort)
+  const capI = v3eOr(v3eGet(I, 'capex'), {});
+  const ilife = v3eNz(v3eGet(capI, 'int_life'), 5);
+  const iremain = v3eOr(v3eGet(capI, 'int_remain'), v3eT(ar[0]) ? 1 / ar[0] : ilife);
+  if (life_mode) {
+    v3eOne(c, 'CTL.a.int_life', ilife);
+    v3eOne(c, 'CTL.a.int_remain', iremain);
+  }
+  const caps = [];
+  const int0 = v3eLast(int_h);
   for (let k = 0; k < N; k++) {
     const b = prev;
     const cp = rcap[k] + rev[k] * ip[k];
-    let ao = 0.0;
-    for (let j = 0; j < k + 1; j++) { // 빈티지 정액. 상각은 내용연수가 끝나면 0
-      const age = k - j - start;
-      if (v3eT(oa[j]) && 0 <= age && age < life) {
-        ao += oa[j] / life * (sw.vintage_start === 'half' && age === 0 ? 0.5 : 1.0);
-      }
-    }
-    const a_ = b * ar[k];
+    caps.push(cp);
+    const ao = vint(oa, k, life);
+    const a_ = !life_mode ? b * ar[k] : Math.min(int0 / iremain, Math.max(int0 - int0 / iremain * k, 0.0)) + vint(caps, k, ilife);
     const e = b + cp + oa[k] - a_ - ao;
     ibop.push(b); icap.push(cp); iam.push(a_ + ao); iamo.push(ao); ieop.push(e);
     prev = e;
@@ -866,6 +992,7 @@ function v3eWaterfall(c, rev, cx) {
     const cid = cl.id;
     const lf = v3eGet(cl, 'life');
     const life = !v3eT(lf) ? null : Array.isArray(lf) ? (pickl == null ? v3eSum(lf) / lf.length : lf[Math.min(pickl, lf.length - 1)]) : lf;
+    if (('capex_' + cid + '_pct') in c.A_given) v3eSeta(c, 'capex_' + cid + '_pct', null); // 묶음별 CAPEX 비율 가정을 줬으면 가정 행을 만들어 그것을 씀
     const pct = v3eOr(v3eA(c, 'capex_' + cid + '_pct'), v3eFill(N, v3eNz(v3eGet(cl, 'capex_pct'))));
     let bop = v3eNz(v3eGet(cl, 'eop_fy0'));
     const remain = v3eOr(v3eGet(cl, 'remain_life'), life);
@@ -896,9 +1023,10 @@ function v3eWaterfall(c, rev, cx) {
           de = k < v3eOr(remain, 0) ? exist0 : 0.0;
         }
         const st = { next: 1, same: 0, half: 0 }[sw.vintage_start];
+        const hf = sw.vintage_start === 'half';
         const dvs = [];
         for (let j = 0; j < adds.length; j++) {
-          if (0 <= k - j - st && k - j - st < life) dvs.push(adds[j] / life * (sw.vintage_start === 'half' && k - j === 0 ? 0.5 : 1.0));
+          if ((0 <= k - j - st && k - j - st < life) || (hf && k - j === life)) dvs.push(adds[j] / life * (hf && (k - j === 0 || k - j === life) ? 0.5 : 1.0));
         }
         let dvv = v3eSum(dvs);
         if (st === 0) {
@@ -1007,7 +1135,8 @@ function step_sga(c) {
         fc.push(prev);
       }
     } else {
-      const norm = v3eE06Seq(H, (i) => (gh[i] == null ? null : gh[i]));
+      const ga = v3eOr(v3eGet(c.sga_adj_g, g), v3eFill(H, 0.0)); // 판관비, 영업이익 보정(정상화)을 그 묶음 평균에 반영
+      const norm = v3eE06Seq(H, (i) => (gh[i] == null ? null : gh[i] + ga[i]));
       const rng = [];
       for (const i of c.avg_idx) if (norm[i] != null && v3eT(c.rev_n[i])) rng.push(norm[i] / c.rev_n[i]);
       const p = v3eSeta(c, 'sga_' + g + '_pct',v3eNz(v3eAvg(c, norm, c.rev_n)), '최근 평균', v3eT(rng) ? [v3eMinOf(rng), v3eMaxOf(rng)] : null);
@@ -1117,37 +1246,40 @@ function v3eMarginalRate(c, base) {
   return v3eBracketRate(Math.max(v3eNz(base), 0.0), T.brackets) * (1 + T.local);
 }
 
-function step_shares(c) {
+// _dilution: 희석 판정(자기주식법, 전환사채 EPS 판정). price 는 판정 주가(기본 기준일 종가, sw.dilution_iter 면 모델 주당 가치)
+function v3eDilution(c, price) {
   const I = c.I, sw = c.sw;
   const sh = I.shares;
-  const price = v3eGet(c.inp.target, 'close');
   const val_date = v3eOr(v3eGet(c.inp.target, 'val_date'), '');
+  const fx = Number(v3eNz(v3eGet(sh, 'split_adj'), 1.0)); // 분할, 무상증자 보정 배수(희석 요인의 수량은 곱하고 가격은 나눔)
   const basic = sh.issued - v3eNz(v3eGet(sh, 'treasury'));
-  const t_m = v3eMarginalRate(c, v3eLast(c.R.ebt));
-  c.t_m = t_m;
+  const t_m = c.t_m;
   let itm_q = 0.0, itm_x = 0.0;
   for (const o of v3eOr(v3eGet(sh, 'options'), [])) {
-    let ok = price != null && price > o.strike && (!v3eT(v3eGet(o, 'start')) || val_date >= o.start);
+    const q = o.qty * fx, k_ = o.strike / fx;
+    let ok = price != null && price > k_ && (!v3eT(v3eGet(o, 'start')) || val_date >= o.start);
     if (ok && v3eT(sw.exercise_window) && v3eT(v3eGet(o, 'end')) && val_date > o.end) ok = false;
     if (ok) {
-      itm_q += o.qty;
-      itm_x += o.qty * o.strike;
+      itm_q += q;
+      itm_x += q * k_;
     }
   }
   for (const w of v3eOr(v3eGet(sh, 'bw'), [])) { // 신주인수권: 행사가 기준 자기주식법
-    if (price != null && price > w.strike) {
-      itm_q += w.qty;
-      itm_x += w.qty * w.strike;
+    const q = w.qty * fx, k_ = w.strike / fx;
+    if (price != null && price > k_) {
+      itm_q += q;
+      itm_x += q * k_;
     }
   }
   const tsm = itm_q - (v3eT(price) ? itm_x / price : 0.0);
-  const rsu = v3eSum(v3eOr(v3eGet(sh, 'rsu'), []).map((r) => v3eNz(v3eGet(r, 'qty'))));
+  const rsu = v3eSum(v3eOr(v3eGet(sh, 'rsu'), []).map((r) => v3eNz(v3eGet(r, 'qty')))) * fx;
   const ni0 = v3eLast(c.R.ni_parent);
   let cb_add = 0.0, cb_debt = 0.0;
   for (const b of v3eOr(v3eGet(sh, 'cb'), [])) {
     if (!v3eT(v3eGet(b, 'face')) || !v3eT(v3eGet(b, 'conv_price'))) continue;
-    const nw = b.face * 1e8 / b.conv_price;
-    let itm = price != null && price > b.conv_price;
+    const cp_ = b.conv_price / fx;
+    const nw = b.face * 1e8 / cp_;
+    let itm = price != null && price > cp_;
     if (v3eT(sw.exercise_window) && v3eT(v3eGet(b, 'window')) && v3eT(b.window[0]) && !(b.window[0] <= val_date && val_date <= v3eOr(b.window[1], '9999'))) itm = false;
     const eps0 = ni0 * 1e8 / basic;
     const eps1 = (ni0 + b.face * v3eNz(v3eGet(b, 'coupon')) * (1 - t_m)) * 1e8 / (basic + nw);
@@ -1158,23 +1290,39 @@ function step_shares(c) {
   }
   for (const r of v3eOr(v3eGet(sh, 'rcps'), [])) {
     if (sw.rcps === 'convert') {
-      cb_add += v3eNz(v3eGet(r, 'shares'));
+      cb_add += v3eNz(v3eGet(r, 'shares')) * fx;
       cb_debt += v3eNz(v3eGet(r, 'book'));
     }
   }
   const pref = v3eNz(v3eGet(sh, 'pref'));
   const diluted = basic + (sw.pref === 'as_common' ? pref : 0.0) + tsm + rsu + cb_add;
-  c.cb_as_equity = cb_debt;
+  return { basic, pref, itm_q, tsm, rsu, cb_add, cb_debt, diluted };
+}
+
+// _shares_of: share_basis 에 맞는 주식수
+function v3eSharesOf(c, d) {
+  const sw = c.sw;
+  return { diluted: d.diluted, basic: d.basic + (sw.pref === 'as_common' ? d.pref : 0.0), issued: c.I.shares.issued }[sw.share_basis];
+}
+
+function step_shares(c) {
+  const I = c.I;
+  const sh = I.shares;
+  const price = v3eGet(c.inp.target, 'close');
+  c.t_m = v3eMarginalRate(c, v3eLast(c.R.ebt));
+  const d = v3eDilution(c, price);
+  c.cb_as_equity = d.cb_debt;
+  if (v3eNz(v3eGet(sh, 'split_adj'), 1.0) !== 1.0) v3eOne(c, 'SHR.split_adj', Number(sh.split_adj));
   v3eOne(c, 'SHR.issued', sh.issued);
   v3eOne(c, 'SHR.treasury', v3eNz(v3eGet(sh, 'treasury')));
-  v3eOne(c, 'SHR.basic', basic);
-  v3eOne(c, 'SHR.pref', pref);
-  v3eOne(c, 'SHR.so_itm', itm_q);
-  v3eOne(c, 'SHR.so_tsm', tsm);
-  v3eOne(c, 'SHR.rsu', rsu);
-  v3eOne(c, 'SHR.cb_add', cb_add);
-  v3eOne(c, 'SHR.diluted', diluted);
-  c.shares = { diluted: diluted, basic: basic + (sw.pref === 'as_common' ? pref : 0.0), issued: sh.issued }[sw.share_basis];
+  v3eOne(c, 'SHR.basic', d.basic);
+  v3eOne(c, 'SHR.pref', d.pref);
+  v3eOne(c, 'SHR.so_itm', d.itm_q);
+  v3eOne(c, 'SHR.so_tsm', d.tsm);
+  v3eOne(c, 'SHR.rsu', d.rsu);
+  v3eOne(c, 'SHR.cb_add', d.cb_add);
+  v3eOne(c, 'SHR.diluted', d.diluted);
+  c.shares = v3eSharesOf(c, d);
 }
 
 // ── E13 finance (순환 블록) ───────────────────────────────────────────────
@@ -1217,12 +1365,15 @@ function step_finance(c) {
   const lrr = v3eSeta(c, 'lease_repay_rate', 1 / 3, '리스 기간 정보가 없어 3년으로 봄');
   const cbc = v3eSeta(c, 'cb_convert', 0.0);
   const cba = v3eSeta(c, 'cb_accr_share', 0.0);
-  const rel = v3eSeta(c, 'st_fin_release', 0.0);
+  // sw.st_fin_fwd: hold(기본, 금액을 준 해만 현금화), release(금액을 안 주면 직전 결산 잔액을 명시 기간에 똑같이 나눠 현금화)
+  const rls = v3eGet(sw, 'st_fin_fwd') === 'release';
+  const rel = v3eSeta(c, 'st_fin_release', rls ? v3eLast(bs.st_fin) / N : 0.0, rls ? '직전 결산 잔액을 명시 기간에 나눔' : null);
   const avg3rev = v3eAvg(c, R.rev);
   const min_cash = v3eNz(v3eGet(D, 'min_cash'), v3eNz(avg3rev) * Number(sw.min_cash));
   v3eOne(c, 'DEBT.min_cash', min_cash);
   const plan = sw.debt_plan;
   const man = v3eOr(v3eGet(D, 'manual'), {});
+  const no_int = v3eOr(v3eGet(D, 'no_int'), {});    // 이자를 내지 않는 차입분 {트랜치: 금액 또는 연도별}(SK오션플랜트 신야드 차입)
   const oth_mode = sw.other_pl, eqm_mode = sw.eqm_fwd;
   const oth_net = [];
   for (let i = 0; i < H; i++) oth_net.push(R.oth_inc[i] - R.oth_exp[i]);
@@ -1239,7 +1390,7 @@ function step_finance(c) {
     't_base', 't_nol_bop', 't_nol_use', 't_nol_add', 't_nol_eop', 't_corp', 't_local', 't_stat', 't_b1', 't_b2', 't_b3', 't_b4',
     't_marg', 't_stat_ebit', 'fin_assets', 'cfi_oth']) out[k] = [];
   const tr = {};
-  for (const r of v3eTR) { tr[r] = {}; for (const k of ['bop', 'draw', 'repay', 'new', 'conv', 'eop', 'avg', 'int']) tr[r][k] = []; }
+  for (const r of v3eTR) { tr[r] = {}; for (const k of ['bop', 'draw', 'repay', 'new', 'conv', 'eop', 'avg', 'int', 'ibase']) tr[r][k] = []; }
   const prev = {};
   for (const r of v3eTR) prev[r] = v3eLast(dh[r]);
   let cash_p = v3eLast(bs.cash), stf_p = v3eLast(bs.st_fin);
@@ -1255,17 +1406,19 @@ function step_finance(c) {
       const m = v3eOr(v3eGet(man, r), {});
       const draw = plan === 'manual' ? v3eNz(v3eOr(v3eExpand(v3eGet(m, 'draw'), N), v3eFill(N, 0.0))[k]) : 0.0;
       let repay = plan === 'manual' ? v3eNz(v3eOr(v3eExpand(v3eGet(m, 'repay'), N), v3eFill(N, 0.0))[k]) : 0.0;
-      if (plan === 'amort' && r !== 'lease') repay = b / (N - k);
       let nw = 0.0, conv = 0.0;
-      if (r === 'lease') { nw = rou[k]; repay = b * lrr[k]; }
       if (r === 'cb') {
         conv = Math.min(cbc[k], b);
         accr = b * rate[k] * cba[k];
       }
+      if (plan === 'amort' && r !== 'lease') repay = (b - conv) / (N - k); // 전환된 몫을 뺀 잔액을 나눠 갚음(전환과 상환이 겹쳐 잔액이 음수가 되지 않게)
+      if (r === 'lease') { nw = rou[k]; repay = b * lrr[k]; }
       const e = b + draw + nw - repay - conv + (r === 'cb' ? accr : 0.0);
       const av = circ ? (b + e) / 2 : b;
-      const it = (r !== 'cb' || !v3eT(cba[k])) ? av * rate[k] : b * rate[k];
-      for (const [nm, v] of [['bop', b], ['draw', draw], ['repay', repay], ['new', nw], ['conv', conv], ['eop', e], ['avg', av], ['int', it]]) tr[r][nm].push(v);
+      const nb = v3eGet(no_int, r) != null ? v3eNz(v3eOr(v3eExpand(no_int[r], N), v3eFill(N, 0.0))[k]) : 0.0;
+      const base_i = Math.max(av - nb, 0.0);         // 이자 대상 잔액(이자를 내지 않는 차입분 제외, DEBT.<r>.int_base)
+      const it = (r !== 'cb' || !v3eT(cba[k])) ? base_i * rate[k] : Math.max(b - nb, 0.0) * rate[k];
+      for (const [nm, v] of [['bop', b], ['draw', draw], ['repay', repay], ['new', nw], ['conv', conv], ['eop', e], ['avg', av], ['int', it], ['ibase', base_i]]) tr[r][nm].push(v);
       nonrcf_int += it;
       flow += draw - repay;
       prev[r] = e;
@@ -1279,6 +1432,7 @@ function step_finance(c) {
     const rb = prev.rcf;
     let ii = 0.0, ri = 0.0; // 첫 반복은 이자수익, 리볼버 이자 0
     let it_n, ie, ebt, pre, nol_use, nol_add, base, corp, parts, local, stat, marg, tm, tax, ni, nci_ni, nip, div, bbk, cfo, cfi, cff_x, pre_rcf, rd, net, cash, re_, cavg;
+    let conv_ok = false, diff;
     for (let n_ = 1; n_ < 101; n_++) {
       it_n = n_; // 파이썬 it_n: 다 돌면 100, 멈추면 멈춘 회차
       ie = nonrcf_int + ri;
@@ -1310,7 +1464,7 @@ function step_finance(c) {
       cavg = circ ? ((cash_p + stf_p) + (cash + stf)) / 2 : cash_p + stf_p;
       const ii2 = cavg * crate[k];
       const ri2 = (circ ? (rb + re_) / 2 : rb) * rate[k];
-      const diff = Math.abs(ii2 - ii) + Math.abs(ri2 - ri);
+      diff = Math.abs(ii2 - ii) + Math.abs(ri2 - ri);
       ii = ii2; ri = ri2;
       if (diff < 1e-9) {
         // 수렴한 이자로 한 번 더 계산해 표의 값이 서로 맞게 함
@@ -1337,10 +1491,13 @@ function step_finance(c) {
         cash = cash_p + net;
         re_ = rb + rd;
         cavg = circ ? ((cash_p + stf_p) + (cash + stf)) / 2 : cash_p + stf_p;
+        conv_ok = true;
         break;
       }
     }
-    for (const [nm, v] of [['bop', rb], ['draw', rd], ['repay', 0.0], ['new', 0.0], ['conv', 0.0], ['eop', re_], ['avg', circ ? (rb + re_) / 2 : rb], ['int', ri]]) tr.rcf[nm].push(v);
+    if (!conv_ok) v3eChk(c, 'circ_converge', 'warn', v3ePyStr(c.years_f[k]) + '년 이자 순환이 100회 안에 수렴하지 않음(마지막 차이 ' + v3eFmtE(diff, 2) + ')', diff);
+    for (const [nm, v] of [['bop', rb], ['draw', rd], ['repay', 0.0], ['new', 0.0], ['conv', 0.0], ['eop', re_], ['avg', circ ? (rb + re_) / 2 : rb], ['int', ri],
+      ['ibase', circ ? (rb + re_) / 2 : rb]]) tr.rcf[nm].push(v);
     prev.rcf = re_;
     const cancel = v3eT(sw.buyback_cancel);
     const re_e = re_p + nip - div - (cancel ? bbk : 0.0);
@@ -1372,6 +1529,7 @@ function step_finance(c) {
     P('DEBT.' + r + '.eop', dh[r], tr[r].eop);
     P('DEBT.' + r + '.avg', null, tr[r].avg);
     P('DEBT.' + r + '.int', null, tr[r].int);
+    if (v3eGet(no_int, r) != null) P('DEBT.' + r + '.int_base', null, tr[r].ibase);
   }
   P('DEBT.rate', rate_h, rate);
   const ibd_f = [];
@@ -1543,12 +1701,65 @@ function step_balance(c) {
   if (re_bad) v3eChk(c, 're_roll', 'err', '이익잉여금 이월 불일치');
   // 주당이익
   const sh0 = c.rows['SHR.basic'][0];
+  const shI = I.shares;
+  const pdiv = v3eNz(v3eGet(shI, 'pref_div'));      // 우선주 배당(억원, 해마다 같음). EPS 분자에서 뺌(설계서 2-17 SHR.eps 보강)
+  const yr = v3eFill(N, sh0);                         // 연도별 주식수: 자사주 매입액 ÷ 가정 주가만큼 줄임(SHR.yr_shares, EPS 에만)
+  const bb = v3eFc(c, 'EQ.buyback'), bpx = v3eNz(v3eGet(shI, 'buyback_price'), v3eNz(v3eGet(c.inp.target, 'close')));
+  if (v3eT(bpx) && bb.some((x) => x > 0)) {
+    let cum = sh0;
+    for (let k = 0; k < N; k++) {
+      cum -= bb[k] * 1e8 / bpx;
+      yr[k] = (cum + (k === 0 ? sh0 : yr[k - 1])) / 2; // 기초와 기말 평균
+    }
+    P('SHR.yr_shares', null, yr);
+  }
+  if (v3eT(pdiv)) v3eOne(c, 'SHR.pref_div', pdiv);
   const eps_h = [], eps_f = [], eps_d = [];
-  for (let i = 0; i < H; i++) eps_h.push(v3eDiv(c.R.ni_parent[i] * 1e8, sh0));
-  for (let k = 0; k < N; k++) eps_f.push(v3eDiv(f.ni_parent[k] * 1e8, sh0));
+  for (let i = 0; i < H; i++) eps_h.push(v3eDiv((c.R.ni_parent[i] - pdiv) * 1e8, sh0));
+  for (let k = 0; k < N; k++) eps_f.push(v3eDiv((f.ni_parent[k] - pdiv) * 1e8, yr[k]));
   P('SHR.eps', eps_h, eps_f);
-  for (let k = 0; k < N; k++) eps_d.push(v3eDiv(f.ni_parent[k] * 1e8, c.rows['SHR.diluted'][0]));
+  const dil0 = c.rows['SHR.diluted'][0];
+  for (let k = 0; k < N; k++) eps_d.push(v3eDiv((f.ni_parent[k] - pdiv) * 1e8, yr[k] === sh0 ? dil0 : dil0 - sh0 + yr[k]));
   P('SHR.eps_dil', null, eps_d);
+  v3eDisplayRows(c);
+}
+
+// cagr: 연평균 성장률(엑셀 RATE(n,0,−a,b)). 시작이나 끝이 0 이하면 null
+function v3eCagr(a, b, n) {
+  if (a == null || b == null || a <= 0 || b <= 0 || n <= 0) return null;
+  return (b / a) ** (1 / n) - 1;
+}
+const v3eCAGR_ROWS = ['REV.total', 'OPX.gp', 'OPX.sga', 'OPX.ebit', 'OPX.ebitda', 'IS.ni', 'IS.ni_parent'];
+
+// _display_rows: 표시용 행(주당 가치에 영향 없음): 과거 성장률 표(REV.hist_g), 과거와 명시 기간 CAGR(*.cagr_h, *.cagr_f)
+function v3eDisplayRows(c) {
+  const R = c.rows, H = c.H, N = c.N;
+  for (const [key, rid] of [['rev', 'IS.rev'], ['ebit', 'IS.ebit'], ['ni', 'IS.ni_parent'], ['eps', 'SHR.eps']]) {
+    const xs = R[rid].slice(Math.max(0, H - 5), H);
+    const yy = [];
+    for (let i = 1; i < xs.length; i++) if (xs[i] != null && xs[i - 1] != null && xs[i - 1] > 0) yy.push(v3eDiv(xs[i], xs[i - 1]));
+    const ar = yy.length ? v3eSum(yy.map((y) => y - 1)) / yy.length : null;
+    const geo = xs.length ? v3eCagr(xs[0], v3eLast(xs), xs.length - 1) : null;
+    let reg = null;
+    if (xs.length && xs.every((x) => x != null && x > 0) && xs.length >= 3) {
+      const n_ = xs.length;
+      const ly = xs.map((x) => Math.log(x));
+      const mx = (n_ - 1) / 2, my = v3eSum(ly) / n_;
+      const num = [], den = [];
+      for (let i = 0; i < n_; i++) { num.push((i - mx) * (ly[i] - my)); den.push((i - mx) ** 2); }
+      reg = Math.exp(v3eSum(num) / v3eSum(den)) - 1;
+    }
+    v3eOne(c, 'REV.hist_g.' + key + '.arith', ar);
+    v3eOne(c, 'REV.hist_g.' + key + '.geo', geo);
+    v3eOne(c, 'REV.hist_g.' + key + '.reg', reg);
+  }
+  const rids = v3eCAGR_ROWS.concat(Object.keys(R).filter((k) => k.startsWith('REV.l.') && k.endsWith('.val')));
+  for (const rid of rids) {
+    const v = R[rid];
+    if (!v3eT(v) || c.labels[rid].cols !== 'hist+fc') continue;
+    v3eOne(c, rid + '.cagr_h', v3eCagr(v[0], v[H - 1], H - 1));
+    v3eOne(c, rid + '.cagr_f', v3eCagr(v[H - 1], v[H + N - 1], N));
+  }
 }
 
 v3eReg('E12', 'shares', step_shares);
@@ -1568,23 +1779,50 @@ function v3eSynthetic(c, cov, mcap) {
   return [rows[rows.length - 1][1], rows[rows.length - 1][2], small];
 }
 
+// _lease_adj: 운용리스 보정(설계서 2-8 ADJ.lease, sw.lease_adj. 일반기업회계기준 비상장사만): 약정 지급액 현재가치를 부채로,
+// 영업이익에는 그해 리스료를 더하고 리스자산 감가상각(현재가치 ÷ 기간)을 뺌(03 노트, Damodaran)
+function v3eLeaseAdj(c) {
+  const L = v3eOr(v3eGet(c.I, 'lease_adj'), {});
+  if (!v3eT(v3eGet(c.sw, 'lease_adj')) || !v3eT(v3eGet(L, 'commit'))) return;
+  const r = v3eGet(L, 'rate') != null ? L.rate : c.rows['CTL.a.debt_rate'][0];
+  const com = L.commit.slice();
+  const by = Math.trunc(Number(v3eNz(v3eGet(L, 'beyond_years'), 0)));
+  const pay = com.concat(by ? v3eFill(by, v3eNz(v3eGet(L, 'beyond')) / by) : []);
+  const pv = v3eSum(pay.map((x, t) => x / (1 + r) ** (t + 1)));
+  c.lease_pv = pv;
+  c.lease_ebit_add = v3eNz(v3eGet(L, 'expense'), com[0]) - pv / pay.length;
+  v3eOne(c, 'ADJ.lease.rate', r);
+  v3eOne(c, 'ADJ.lease.ebit_add', c.lease_ebit_add);
+}
+
 function step_wacc(c) {
   const I = c.I, sw = c.sw, ov = c.ov;
+  v3eLeaseAdj(c);
   const B = I.beta, m = I.market;
   const t_m = c.t_m;
   const w = Number(sw.beta_adj_w);
   const win = sw.beta_window;
   const adjb = (x) => (x == null ? null : x * w + (1 - w));
   const adj_u = v3eGet(sw, 'beta_adj_on') === 'unlevered';   // 조정(2/3 + 1/3)을 관측 베타(기본)가 아니라 무차입 베타에 적용
-  const mcap = v3eOr(v3eGet(B, 'mcap_override'), v3eGet(c.inp.target, 'mcap'));
+  const tg = c.inp.target;
+  const mb = v3eOr(v3eGet(sw, 'mcap_basis'), 'spot');  // 시가총액 기준: spot(기준일), avg1y, avg2y(일평균. 값이 없으면 기준일 값)
+  let mcap_b = mb === 'spot' ? v3eGet(tg, 'mcap') : v3eGet(tg, 'mcap_' + mb);
+  if (mb !== 'spot' && mcap_b == null) {
+    mcap_b = v3eGet(tg, 'mcap');
+    v3eChk(c, 'mcap_basis', 'warn', '시가총액 기준 ' + v3ePyStr(mb) + '의 값이 입력에 없어 기준일 시가총액을 씀');
+  }
+  const mcap = v3eOr(v3eGet(B, 'mcap_override'), mcap_b);
   const br = I.bridge;
-  const ibd = v3eSum(Object.values(br.debt).map((v) => v3eNz(v)));
+  const ibd = v3eSum(Object.values(br.debt).map((v) => v3eNz(v))) + v3eNz(c.lease_pv);
   const de = v3eNz(v3eDiv(ibd, mcap));
-  const raw_t = v3eGet(v3eOr(v3eGet(v3eOr(v3eGet(B, 'target'), {}), win), {}), 'raw');
+  const kospi = v3eGet(sw, 'beta_index') === 'kospi'; // 베타 지수: listing(상장 시장 지수) 또는 kospi. KOSPI 회귀 값이 없으면 상장 시장 값
+  const tgt_b = kospi && v3eT(v3eGet(B, 'target_kospi')) ? B.target_kospi : v3eGet(B, 'target');
+  if (kospi && !v3eT(v3eGet(B, 'target_kospi'))) v3eChk(c, 'beta_index', 'warn', 'KOSPI 기준 회귀 베타가 입력에 없어 상장 시장 지수 베타를 씀');
+  const raw_t = v3eGet(v3eOr(v3eGet(v3eOr(tgt_b, {}), win), {}), 'raw');
   const peers = [];
   for (const p of v3eOr(v3eGet(B, 'peers'), [])) {
     if (!v3eT(v3eGet(p, 'include', true))) continue;
-    const praw = v3eGet(p, 'raw');
+    const praw = kospi && v3eGet(p, 'raw_kospi') != null ? p.raw_kospi : v3eGet(p, 'raw');
     const r = praw != null && typeof praw === 'object' && !Array.isArray(praw) ? v3eGet(v3eOr(praw, {}), win) : praw;
     if (r == null) continue;
     let bu = adjb(r) / (1 + (1 - v3eNz(v3eGet(p, 'tax'), t_m)) * v3eNz(v3eGet(p, 'de')));
@@ -1593,14 +1831,40 @@ function step_wacc(c) {
     peers.push([p, bu]);
   }
   const us = peers.map((x) => x[1]);
-  const bu_peer = !us.length ? null : { median: v3eMedian(us), mean: v3eSum(us) / us.length, high: v3eMaxOf(us), low: v3eMinOf(us) }[sw.beta_stat];
+  let bu_peer = !us.length ? null : { median: v3eMedian(us), mean: v3eSum(us) / us.length, high: v3eMaxOf(us), low: v3eMinOf(us) }[sw.beta_stat];
+  // 사업부별 상향식 베타(설계서 2-17 WACC.beta_seg, Valley): 사업부가 둘 이상이면 사업부 무차입 베타를 매출(또는 영업이익) 비중으로 가중
+  const segs = v3eOr(v3eGet(B, 'segments'), []);
+  let seg_rows = [];
+  if (segs.length > 1) {
+    const wk = v3eGet(sw, 'beta_bu_weight') === 'ebit' ? 'ebit' : 'rev';
+    const bys = [];
+    for (const s of segs) {
+      let bs_ = v3eGet(s, 'beta_u');
+      if (bs_ == null && v3eT(v3eGet(s, 'peers'))) {
+        const xs_ = peers.filter(([p]) => s.peers.includes(v3eOr(v3eGet(p, 'code'), v3eGet(p, 'name')))).map((x) => x[1]);
+        bs_ = xs_.length ? v3eMedian(xs_) : null;
+      }
+      bys.push([s, bs_, v3eNz(v3eGet(s, wk))]);
+    }
+    const tot = v3eSum(bys.filter((x) => x[1] != null).map((x) => x[2]));
+    if (tot > 0) {
+      bu_peer = v3eSum(bys.filter((x) => x[1] != null).map((x) => x[1] * x[2])) / tot;
+      seg_rows = bys;
+    }
+  }
   const de_t = { current: de, peer_median: v3eNz(v3eMedian(peers.map((x) => v3eNz(v3eGet(x[0], 'de')))), de), manual: v3eNz(v3eGet(B, 'de_manual'), de) }[sw.cap_struct];
+  if (sw.cap_struct === 'manual' && v3eGet(B, 'de_manual') == null) v3eChk(c, 'manual_missing', 'warn', '목표 D/E 직접 입력값이 없어 지금 D/E를 씀');
+  if (sw.stable_beta === 'manual' && v3eGet(B, 'stable_manual') == null) v3eChk(c, 'manual_missing', 'warn', '안정기 베타 직접 입력값이 없어 명시 기간 베타를 씀');
   let bu_t = raw_t == null ? null : adjb(raw_t) / (1 + (1 - t_m) * de);
   if (adj_u && raw_t != null) bu_t = adjb(raw_t / (1 + (1 - t_m) * de));
   const beta_reg = bu_t == null ? null : bu_t * (1 + (1 - t_m) * de_t);
   const beta_bu = bu_peer == null ? null : bu_peer * (1 + (1 - t_m) * de_t);
-  const mode = sw.beta_mode;
+  let mode = sw.beta_mode;
   let used = mode;
+  if ((mode === 'manual' || mode === 'accounting') && v3eGet(B, mode) == null) { // 직접 입력을 골랐는데 값이 없으면 자동 판정으로(하한도 그대로 걸림)
+    v3eChk(c, 'manual_missing', 'warn', '베타 방식 ' + mode + '의 값이 입력에 없어 자동 판정(회귀 또는 바텀업)으로 계산');
+    mode = 'auto';
+  }
   if (mode === 'auto') {
     used = (v3eNz(v3eGet(B, 'listed_years')) >= 2 && !v3eT(v3eGet(B, 'capital_change')) && beta_reg != null) ? 'regression' : 'bottom_up';
   }
@@ -1630,8 +1894,12 @@ function step_wacc(c) {
   }
   let kd_pre = { market_yield: v3eGet(m, 'kd_market_yield'), recent_issue: v3eGet(m, 'kd_recent_issue'), peer_avg: v3eGet(m, 'kd_peer_avg'),
     rating: v3eGet(v3eGet(m.spread, 'kr_rating', {}), v3eGet(B, 'credit_rating')) == null ? null : rf + m.spread.kr_rating[B.credit_rating],
-    effective: eff, synthetic: rf + spread, extra_spread: rf + spread + v3eNz(v3eGet(m, 'kd_extra_spread')), manual: v3eGet(m, 'kd_manual') }[path];
-  if (kd_pre == null) kd_pre = rf + spread;
+    effective: eff, synthetic: spread == null ? null : rf + spread, extra_spread: spread == null ? null : rf + spread + v3eNz(v3eGet(m, 'kd_extra_spread')), manual: v3eGet(m, 'kd_manual') }[path];
+  if (kd_pre == null) {
+    if (spread == null) v3eChk(c, 'kd_missing', 'err', '합성 등급 스프레드가 비어 타인자본비용을 계산할 수 없음(0%로 계산)');
+    else if (path !== 'synthetic') v3eChk(c, 'kd_missing', 'warn', '타인자본비용 경로 ' + v3ePyStr(path) + '의 값이 입력에 없어 합성 등급(무위험이자율 + 스프레드)으로 계산');
+    kd_pre = rf + v3eNz(spread);
+  }
   const kd = kd_pre * (1 - t_m);
   const wd = de_t / (1 + de_t);
   let wacc = (1 - wd) * ke + wd * kd;
@@ -1680,6 +1948,8 @@ function step_wacc(c) {
     const pid = v3eOr(v3eGet(p, 'code'), v3eGet(p, 'name'));
     v3eOne(c, 'WACC.beta_u.' + (pid == null ? 'None' : pid), bu);
   }
+  for (const [s, b_] of seg_rows) v3eOne(c, 'WACC.beta_seg.' + v3ePyStr(s.id), b_);
+  if (v3eT(c.lease_pv)) v3eOne(c, 'ADJ.lease.pv', c.lease_pv);
 }
 
 // ── E16 fcff ─────────────────────────────────────────────────────────────
@@ -1687,7 +1957,9 @@ function step_fcff(c) {
   const I = c.I, N = c.N, H = c.H, sw = c.sw;
   const R = c.rows;
   const f = c.fin;
-  const rev = v3eFc(c, 'IS.rev'), ebit = v3eFc(c, 'IS.ebit');
+  const rev = v3eFc(c, 'IS.rev');
+  let ebit = v3eFc(c, 'IS.ebit');
+  if (v3eT(c.lease_ebit_add)) ebit = ebit.map((x) => x + c.lease_ebit_add);
   const mode = sw.fcff_tax;
   const tax_r = [], tax = [];
   for (let k = 0; k < N; k++) {
@@ -1699,12 +1971,12 @@ function step_fcff(c) {
     tax_r.push(r);
     tax.push(mode === 'is_total' ? f.tax[k] : Math.max(0.0, ebit[k]) * r);
   }
-  const nopat = []; for (let k = 0; k < N; k++) nopat.push(ebit[k] - tax[k]);
+  let nopat = []; for (let k = 0; k < N; k++) nopat.push(ebit[k] - tax[k]);
   const da = v3eFc(c, 'OPX.da');
   const capex = []; for (let k = 0; k < N; k++) capex.push(v3eFc(c, 'PPE.capex')[k] + v3eFc(c, 'INT.capex')[k] + v3eFc(c, 'PPE.rou_add')[k] + v3eFc(c, 'INT.other_add')[k]);
   const dn = R['NWC.dnwc'].slice(H);
   const ic_h = []; for (let i = 0; i < H; i++) ic_h.push(R['NWC.nwc'][i] + R['BS.ppe'][i] + R['BS.intan'][i] + R['BS.gw'][i]);
-  const ic0 = ic_h[ic_h.length - 1];
+  let ic0 = ic_h[ic_h.length - 1];
   const rm = sw.reinv_mode;
   let reinv, ic;
   if (rm === 'sales_pct') {
@@ -1729,12 +2001,46 @@ function step_fcff(c) {
     const to = v3eSeta(c, 'ic_turnover', v3eNz(v3eDiv(v3eLast(c.R.rev), ic0)), '직전 결산');
     ic = []; for (let k = 0; k < N; k++) ic.push(rev[k] / to[k]);
     reinv = []; for (let k = 0; k < N; k++) reinv.push(ic[k] - (k ? ic[k - 1] : ic0));
+  } else if (rm === 's2c') { // 증분 재투자(매출 증가 ÷ 매출 대비 투하자본 비율, 적자 유형 sales-to-capital)
+    const to = v3eSeta(c, 'ic_turnover', v3eNz(v3eDiv(v3eLast(c.R.rev), ic0)), '직전 결산 매출 ÷ 투하자본');
+    reinv = []; ic = []; let p = ic0;
+    for (let k = 0; k < N; k++) {
+      const ri_ = v3eDiv(rev[k] - (k ? rev[k - 1] : v3eLast(c.R.rev)), to[k]);
+      reinv.push(v3eNz(ri_));
+      p += v3eNz(ri_);
+      ic.push(p);
+    }
   } else {
     reinv = []; for (let k = 0; k < N; k++) reinv.push(capex[k] - da[k] + dn[k]);
     ic = []; for (let k = 0; k < N; k++) ic.push(R['NWC.nwc'][H + k] + R['BS.ppe'][H + k] + R['BS.intan'][H + k] + R['BS.gw'][H + k]);
   }
   const nco = v3eSeta(c, 'noncash_oth', 0.0);
   const fcff = []; for (let k = 0; k < N; k++) fcff.push(nopat[k] - reinv[k] + nco[k]);
+  if (v3eT(v3eGet(sw, 'rnd_cap_adj'))) {
+    // R&D 자본화 보정(설계서 2-8 ADJ.rnd_asset): 연구자산 = Σ 과거 R&D × 남은 비율(정액, n년), 상각 = Σ 과거 n년 R&D ÷ n.
+    // 세후영업이익에 (R&D − 상각)을 더하고 같은 금액을 재투자에 더해 FCFF 는 그대로. ROIC 와 전환 기간 재투자만 바뀜
+    const nl = Math.trunc(Number(v3eNz(v3eGet(v3eOr(v3eGet(I, 'rnd'), {}), 'cap_life'), 5)));
+    const rd_all = v3eHist(c, 'RND.total').map((x) => v3eNz(x)).concat(v3eFc(c, 'RND.total'));
+    const asset = [], amort = [];
+    for (let t_ = H; t_ < H + N; t_++) {
+      const xa = [], xs = [];
+      for (let j = 1; j < nl + 1; j++) if (t_ - j >= 0) xa.push(rd_all[t_ - j]);
+      amort.push(v3eSum(xa) / nl);
+      for (let j = 0; j < nl; j++) if (t_ - j >= 0) xs.push(rd_all[t_ - j] * (nl - j) / nl);
+      asset.push(v3eSum(xs));
+    }
+    const x0 = [];
+    for (let j = 0; j < nl; j++) if (H - 1 - j >= 0) x0.push(rd_all[H - 1 - j] * (nl - j) / nl);
+    const a0 = v3eSum(x0);
+    const d_ = []; for (let k = 0; k < N; k++) d_.push(rd_all[H + k] - amort[k]);
+    nopat = nopat.map((x, k) => x + d_[k]);
+    reinv = reinv.map((x, k) => x + d_[k]);
+    ic = ic.map((x, k) => x + asset[k]);
+    ic0 = ic0 + a0;
+    v3ePut(c, 'ADJ.rnd_asset', null, asset);
+    v3ePut(c, 'ADJ.rnd_amort', null, amort);
+    v3ePut(c, 'ADJ.ebit_rnd', null, ebit.map((x, k) => x + d_[k]));
+  }
   const roic = []; for (let k = 0; k < N; k++) roic.push(v3eDiv(nopat[k], k ? ic[k - 1] : ic0));
   c.X = { rev: rev, ebit: ebit, tax_r: tax_r, tax: tax, nopat: nopat, da: da, capex: capex, dnwc: dn, reinv: reinv, ic: ic, ic0: ic0,
     fcff: fcff, nco: nco, roic: roic };
@@ -1756,7 +2062,10 @@ function step_fade(c) {
   let m_fade;
   if (sw.fade_margin === 'avg2' && N >= 2) m_fade = (margin[margin.length - 1] + margin[margin.length - 2]) / 2;
   else m_fade = m_last;
-  const m_target = v3eGet(sw, 'fade_margin_target');
+  let m_target = v3eGet(v3eOr(v3eGet(v3eOr(v3eGet(c.I, 'assump'), {}), c.S), {}), 'fade_margin_target'); // 시나리오별 목표 이익률(적자 유형)이 먼저
+  if (typeof m_target !== 'number') m_target = v3eGet(sw, 'fade_margin_target');
+  if (sw.fade_margin === 'to_target' && m_target == null) v3eChk(c, 'manual_missing', 'warn', '목표 이익률(fade_margin_target)이 없어 전환 기간 이익률을 마지막 해 그대로 둠');
+  if (sw.roc_s === 'manual' && v3eGet(sw, 'roc_s_manual') == null) v3eChk(c, 'manual_missing', 'warn', '안정기 ROC 직접 입력값이 없어 안정기 WACC 를 씀');
   const tax_r = X.tax_r.slice(), tax = X.tax.slice(), nopat = X.nopat.slice(), reinv = X.reinv.slice(), fcff = X.fcff.slice(), ic = X.ic.slice(), roic = X.roic.slice();
   let wacc_t = v3eFill(N, wacc);
   if (sw.fade_wacc === 'from_start') {
@@ -1774,7 +2083,7 @@ function step_fade(c) {
   }
   const rev_ty = rv * (1 + g_s);
   let m_end;
-  if (sw.fade_margin === 'to_target' && m_target != null) m_end = m_last + (m_target - m_last) * (M ? M / (M + 1) : 0);
+  if (sw.fade_margin === 'to_target' && m_target != null) m_end = m_target; // 종료연도가 목표에 닿음(전환 j번째 해는 j ÷ (m + 1) 만큼 다가감)
   else m_end = M ? m_fade : m_last;
   const m_ty = v3eGet(ov, 'o.ty_margin', v3eGet(sw, 'ty_margin') != null ? v3eGet(sw, 'ty_margin') : m_end);
   const ebit_ty = rev_ty * m_ty;
@@ -1784,6 +2093,13 @@ function step_fade(c) {
   else if (tt === 'marginal') t_ty = c.t_m;
   else t_ty = tax_r[tax_r.length - 1];
   const t_last = tax_r[tax_r.length - 1];
+  const cr_fade = v3eOr(v3eGet(v3eOr(v3eGet(c.I, 'tax'), {}), 'credit_fade'), []).slice();
+  if (cr_fade.length && v3eT(M)) {
+    const tcv = v3eFill(N, 0.0);
+    for (let j = 0; j < M; j++) tcv.push(v3eNz(j < cr_fade.length ? cr_fade[j] : 0.0));
+    tcv.push(0.0);
+    v3ePut(c, 'DCF.tax_credit', null, tcv, 'dcf');
+  }
   rv = rev[rev.length - 1];
   for (let j = 1; j <= M; j++) {
     const gj = gs[j - 1];
@@ -1791,7 +2107,8 @@ function step_fade(c) {
     const mj = sw.fade_margin === 'to_target' && m_target != null ? m_last + (m_target - m_last) * frac(j) : m_fade;
     const eb = rv * mj;
     const tr_ = t_last + (t_ty - t_last) * frac(j);
-    const tx = Math.max(0.0, eb) * tr_;
+    let tx = Math.max(0.0, eb) * tr_;
+    if (cr_fade.length) tx = Math.max(0.0, tx - v3eNz(j - 1 < cr_fade.length ? cr_fade[j - 1] : 0.0)); // 세액감면이 전환 기간까지 이어지면 세금에서 뺌(설계서 2-17, SK오션플랜트 2033년까지)
     const npt = eb - tx;
     const fr = sw.fade_reinv;
     let ri;
@@ -1818,6 +2135,12 @@ function step_fade(c) {
   c.F = { rev: rev.concat([rev_ty]), g: g.concat([g_s]), ebit: ebit.concat([ebit_ty]), margin: margin.concat([m_ty]), tax_r: tax_r.concat([t_ty]), tax: tax.concat([tax_ty]),
     nopat: nopat.concat([nopat_ty]), reinv: reinv.concat([reinv_ty]), fcff: fcff.concat([fcff_ty]), ic: ic.concat([null]), roic: roic.concat([roc_s]),
     wacc_t: wacc_t.concat([wacc_s]), roc_s: roc_s, da_last: da_l };
+}
+
+// nonop_value: 비영업자산 합. sw.assoc_value = market 이면 시가(market)가 있는 항목은 시가로(상장 관계기업)
+function v3eNonopValue(I, sw) {
+  const mk = v3eGet(sw, 'assoc_value') === 'market';
+  return v3eSum(v3eOr(v3eGet(I.bridge, 'nonop'), []).map((x) => (mk && v3eGet(x, 'market') != null ? v3eNz(x.market) : v3eNz(v3eGet(x, 'amount')))));
 }
 
 function step_value(c) {
@@ -1856,15 +2179,26 @@ function step_value(c) {
   const ev = ok ? v3eSum(pv) + pv_tv : null;
   const br = I.bridge;
   const cash = v3eNz(v3eGet(br, 'cash')) + v3eNz(v3eGet(br, 'st_fin'));
-  const nonop = v3eSum(v3eOr(v3eGet(br, 'nonop'), []).map((x) => v3eNz(v3eGet(x, 'amount'))));
-  const debt = v3eSum(Object.values(br.debt).map((v) => v3eNz(v))) - v3eNz(c.cb_as_equity);
+  const nonop = v3eNonopValue(I, sw);
+  const debt = v3eSum(Object.values(br.debt).map((v) => v3eNz(v))) - v3eNz(c.cb_as_equity) + v3eNz(c.lease_pv);
   const nci = v3eNz(v3eGet(br, 'nci')) * (sw.nci_value === 'book_x_pbr' ? v3eNz(v3eGet(sw, 'nci_pbr'), 1.0) : 1.0);
   const pref = sw.pref === 'market' ? v3eNz(v3eGet(br, 'pref_mkt')) : 0.0;
   const dbo = v3eT(sw.dbo_claim) ? v3eNz(v3eGet(br, 'dbo')) : 0.0;
   const claims = v3eSum(v3eOr(v3eGet(br, 'claims'), []).map((x) => v3eNz(v3eGet(x, 'amount'))));
   const eq = ok ? ev + cash + nonop - debt - nci - pref - dbo - claims : null;
-  const shares = c.shares;
-  const ps_raw = ok ? eq * 1e8 / shares : null;
+  let shares = c.shares;
+  let ps_raw = ok ? eq * 1e8 / shares : null;
+  if (ok && v3eT(v3eGet(sw, 'dilution_iter'))) { // 희석 판정 주가를 모델 주당 가치로 바꿔 다시 판정(20회, 주식수 차이 0.5주 안이면 멈춤)
+    for (let it_ = 0; it_ < 20; it_++) {
+      const d_ = v3eDilution(c, ps_raw);
+      const sh2 = v3eSharesOf(c, d_);
+      ps_raw = eq * 1e8 / sh2;
+      if (Math.abs(sh2 - shares) < 0.5) { shares = sh2; break; }
+      shares = sh2;
+    }
+    c.shares = shares;
+    v3eOne(c, 'SHR.diluted_iter', shares);
+  }
   const ps = ok ? v3eRound(ps_raw, sw.round) : null;
   const close = v3eGet(c.inp.target, 'close');
   const P = (rid, vals) => v3ePut(c, rid, null, vals, 'dcf');
@@ -1905,6 +2239,7 @@ function step_value(c) {
   v3eOne(c, 'DCF.dbo', dbo);
   v3eOne(c, 'DCF.other_claim', claims);
   v3eOne(c, 'DCF.eq', eq);
+  v3eOne(c, 'DCF.eq_sel', eq);
   v3eOne(c, 'DCF.shares', shares);
   v3eOne(c, 'DCF.ps_raw', ps_raw);
   v3eOne(c, 'DCF.ps', ps);
@@ -1925,11 +2260,15 @@ function step_alt_models(c) {
   const f = c.fin, W = c.W, F = c.F, X = c.X, o = c.out;
   const L = N + M;
   const t = c.t, stub = c.stub, el = c.elapsed;
-  const g_s = c.g_s, ke = W.ke, ke_s = W.ke_s;
+  const g_s = c.g_s;
+  let ke = W.ke, ke_s = W.ke_s;
+  if (v3eT(v3eGet(c.ov, 'o.ke_shift'))) { ke = ke + c.ov['o.ke_shift']; ke_s = ke_s + c.ov['o.ke_shift']; } // DDM, RIM 민감도용: 주주 모형의 Ke 만 같은 폭으로 움직임
   const shares = c.shares;
   const br = I.bridge;
   const cash = v3eNz(v3eGet(br, 'cash')) + v3eNz(v3eGet(br, 'st_fin'));
-  const nonop = v3eSum(v3eOr(v3eGet(br, 'nonop'), []).map((x) => v3eNz(v3eGet(x, 'amount'))));
+  const nonop = v3eNonopValue(I, sw);
+  const am = v3eOr(v3eGet(sw, 'alt_models'), 'all'); // 계산할 다른 모형(all 또는 목록). 목표주가 모형(dcf_model)은 늘 계산
+  const on = (nm) => am === 'all' || am.includes(nm) || sw.dcf_model === nm;
   const frac = (j) => j / (M + 1);
   const ke_t = v3eFill(N, ke); for (let j = 1; j <= M; j++) ke_t.push(ke + (ke_s - ke) * frac(j));
   const dfe = []; let p_df = 1.0, p_t = 0.0;
@@ -1946,8 +2285,14 @@ function step_alt_models(c) {
   // FCFE: 지배주주 순이익에서 세후 이자수익을 빼고(현금은 다리에서 더함) 재투자와 순차입을 반영
   const nip = f.ni_parent;
   const core = []; for (let k = 0; k < N; k++) core.push(nip[k] - f.int_inc[k] * (1 - X.tax_r[k]));
-  const netb = []; for (let k = 0; k < N; k++) netb.push(v3eSum(v3eTR.map((r) => tr[r].draw[k] - tr[r].repay[k])));
+  let netb = []; for (let k = 0; k < N; k++) netb.push(v3eSum(v3eTR.map((r) => tr[r].draw[k] - tr[r].repay[k])));
   const capx_cash = []; for (let k = 0; k < N; k++) capx_cash.push(v3eFc(c, 'PPE.capex')[k] + v3eFc(c, 'INT.capex')[k] - f.cfi_oth[k]);
+  const fd = v3eOr(v3eGet(sw, 'fcfe_debt'), 'schedule'); // 순차입: schedule(차입 스케줄), target_ratio(재투자 × 목표 부채 비중), current_ed(재투자 × 지금 부채 비중)
+  if (fd === 'target_ratio' || fd === 'current_ed') {
+    const delta = fd === 'target_ratio' ? W.wd : v3eNz(v3eDiv(W.de, 1 + W.de));
+    netb = []; for (let k = 0; k < N; k++) netb.push((capx_cash[k] - X.da[k] + X.dnwc[k]) * delta);
+    v3eOne(c, 'DCF.fcfe.delta', delta);
+  }
   const fcfe = []; for (let k = 0; k < N; k++) fcfe.push(core[k] + X.da[k] - capx_cash[k] - X.dnwc[k] + netb[k]);
   const ni_path = core.slice();
   const bv_h = c.rows['BS.te'][H - 1] - c.rows['BS.nci'][H - 1];
@@ -1992,6 +2337,32 @@ function step_alt_models(c) {
     const xs = []; for (let k = 0; k < L; k++) xs.push(da_[k] * dfe[k]);
     eq_ddm = v3eSum(xs) + div_ty / (ke_s - g_s) * dfe_ty;
   }
+  const stg = v3eOr(v3eGet(sw, 'ddm_stage'), 'two'); // two(명시 + 전환 + 종료), gordon(1단계), three(전환 기간이 0이면 5년 전환을 따로 둠), h(H 모형)
+  if (ok && stg === 'gordon') eq_ddm = div[0] / (ke_s - g_s);
+  else if (ok && stg === 'h') {
+    const d0 = -v3eNz(v3eLast(v3eHist(c, 'CF.div')));
+    const g_hi = v3eNz(v3eDiv(nip[0], v3eLast(c.R.ni_parent)), 1.0) - 1;
+    const hh = (N + M) / 2;
+    eq_ddm = d0 * (1 + g_s) / (ke_s - g_s) + d0 * hh * (g_hi - g_s) / (ke_s - g_s);
+    v3eOne(c, 'DCF.ddm.h_g', g_hi);
+  } else if (ok && stg === 'three' && M === 0) {
+    const T5 = 5;
+    const g_l = gF[N - 1];
+    let n_ = nip[nip.length - 1], pv3 = 0.0, p_df3 = dfe[N - 1];
+    for (let j = 1; j <= T5; j++) {
+      const gj = g_l + (g_s - g_l) * j / (T5 + 1);
+      n_ = n_ * (1 + gj);
+      const kj = ke + (ke_s - ke) * j / (T5 + 1);
+      p_df3 = p_df3 / (1 + kj);
+      pv3 += n_ * (po_last + (po_s - po_last) * j / (T5 + 1)) * p_df3;
+    }
+    const d_ty3 = n_ * (1 + g_s) * po_s;
+    const xs3 = []; for (let k = 0; k < N; k++) xs3.push(da_[k] * dfe[k]);
+    eq_ddm = v3eSum(xs3) + pv3 + d_ty3 / (ke_s - g_s) * p_df3;
+  }
+  if ((stg !== 'two' || sw.dcf_model === 'ddm') && po_last < 0.05) {
+    v3eChk(c, 'ddm_low_div', 'warn', '배당성향이 ' + v3eFmt2(po_last * 100, '.1f') + '%로 거의 없어 배당할인모형(' + v3ePyStr(stg) + ') 값이 매우 작음. 자사주 매입이 많으면 div_buyback, 아니면 FCFF 를 볼 것');
+  }
   P('DCF.ddm.div', div.concat([div_ty]));
   v3eOne(c, 'DCF.ddm.eq', eq_ddm);
   v3eOne(c, 'DCF.ddm.ps', ok ? v3eRound(v3eDiv(eq_ddm, shares / 1e8), sw.round) : null);
@@ -2005,10 +2376,12 @@ function step_alt_models(c) {
   const pv_ri = v3eSum(pri);
   const omega = v3eNz(v3eGet(sw, 'rim_omega'), 0.7);
   const rt = sw.rim_tv;
+  let ri_tv = ri[ri.length - 1];
+  if (v3eGet(c.ov, 'o.rim_roe') != null) ri_tv = (c.ov['o.rim_roe'] - ke) * bv[bv.length - 1]; // RIM 민감도용: 종료가치의 초과이익을 장기 ROE 로 (ROE − Ke) × 마지막 장부가
   let tv_ri;
-  if (rt === 'gordon') tv_ri = ke > g_s ? ri[ri.length - 1] * (1 + g_s) / (ke - g_s) : null;
+  if (rt === 'gordon') tv_ri = ke > g_s ? ri_tv * (1 + g_s) / (ke - g_s) : null;
   else if (rt === 'pbr') tv_ri = (v3eNz(v3eGet(sw, 'rim_pbr'), 1.0) - 1) * bv[bv.length - 1];
-  else tv_ri = ri[ri.length - 1] * omega / (1 + ke - omega);
+  else tv_ri = ri_tv * omega / (1 + ke - omega);
   const eq_rim = tv_ri == null ? null : (bv_h + pv_ri + tv_ri / Math.pow(1 + ke, N)) * Math.pow(1 + ke, el);
   v3ePut(c, 'DCF.rim.bv', null, bv, 'fc');
   v3ePut(c, 'DCF.rim.ri', null, ri, 'fc');
@@ -2038,6 +2411,10 @@ function step_alt_models(c) {
   v3eOne(c, 'DCF.apv.pv_ts', pv_ts + tv_ts);
   v3eOne(c, 'DCF.apv.eq', eq_apv);
   v3eOne(c, 'DCF.apv.ps', oku ? v3eRound(v3eDiv(eq_apv, shares / 1e8), sw.round) : null);
+  v3eOne(c, 'DCF.rim.roe_last', v3eDiv(nip[nip.length - 1], N > 1 ? bv[bv.length - 2] : bv_h));
+  for (const nm of ['fcfe', 'ddm', 'rim', 'apv']) { // sw.alt_models 에 없는 모형은 값을 비움(계산 순서는 같음)
+    if (!on(nm)) { c.rows['DCF.' + nm + '.eq'][0] = null; c.rows['DCF.' + nm + '.ps'][0] = null; }
+  }
   c.alt = { fcfe: c.rows['DCF.fcfe.ps'][0], ddm: c.rows['DCF.ddm.ps'][0], rim: c.rows['DCF.rim.ps'][0], apv: c.rows['DCF.apv.ps'][0] };
   const model = sw.dcf_model;
   if (model !== 'fcff') {                              // 목표주가에 쓸 모형을 바꾼 경우
@@ -2046,6 +2423,7 @@ function step_alt_models(c) {
     const close = v3eGet(c.inp.target, 'close');
     Object.assign(o, { ps: ps, ps_raw: v3eDiv(raw, shares / 1e8), eq: raw, up: ps == null || !v3eT(close) ? null : ps / close - 1 });
     c.rows['DCF.ps'][0] = o.ps; c.rows['DCF.ps_raw'][0] = o.ps_raw; c.rows['DCF.up'][0] = o.up;
+    c.rows['DCF.eq_sel'][0] = raw;
   }
 }
 
@@ -2059,6 +2437,12 @@ v3eReg('E19', 'alt_models', step_alt_models);
 // 파이썬 run_all 몸통을 계산 순서대로 다섯 단계(step_scenarios, step_sensitivity, step_reverse, step_blend, step_checks)로 나눔.
 // 「다른 가정」 표(alt_one, alt_table)와 몬테카를로, 유형별, LBO는 파이썬만 계산하고 사례의 py 값을 그대로 넘김(00_core v3eRunAll)
 
+// 파이썬 서식 f"{x:.2e}"(지수는 부호와 두 자리 이상: 1.23e-05)
+function v3eFmtE(x, d) {
+  if (x == null || !Number.isFinite(x)) return v3ePyStr(x);
+  const p = x.toExponential(d).split('e'), e = Number(p[1]);
+  return p[0] + 'e' + (e < 0 ? '-' : '+') + String(Math.abs(e)).padStart(2, '0');
+}
 // 파이썬 서식 f"{x:.1f}", f"{x:,.0f}", f"{x:+,.0f}". 딱 가운데 값(2.5, 0.125)은 파이썬처럼 짝수 쪽으로(toFixed는 큰 쪽)
 function v3eFmt2(x, spec) {
   const m = /^(\+?)(,?)\.(\d+)f$/.exec(spec), d = Number(m[3]), a = Math.abs(x);
@@ -2116,9 +2500,10 @@ function v3eCopyCtx(c) {
   return c2;
 }
 // E15 이후에서만 읽는 덮기 키. 이 키만 바뀌면 E14 직후 문맥에서 E15～E19만 다시 돌려도 run(inp, "Base", ov)와 같은 값
-const v3eLATE_KEYS = { 'o.wacc_shift': true, 'o.wacc': true, 'o.fade_g_add': true, 'o.ty_margin': true };
-// value_only(inp, ov, "Base", "ps"). snap이 있고 덮기가 늦은 키뿐이면 E15～E19만 다시 계산
-function v3eSensPs(inp, snap, ov) {
+const v3eLATE_KEYS = { 'o.wacc_shift': true, 'o.wacc': true, 'o.fade_g_add': true, 'o.ty_margin': true, 'o.ke_shift': true, 'o.rim_roe': true };
+// value_only(inp, ov, "Base", "ps"). snap이 있고 덮기가 늦은 키뿐이면 E15～E19만 다시 계산. rid 를 주면 그 행의 첫 값(run(inp, "Base", ov)["rows"][rid][0])
+function v3eSensPs(inp, snap, ov, rid) {
+  const pick = (c) => (rid ? c.rows[rid][0] : v3eGet(c.out, 'ps'));
   let late = snap != null;
   if (late) {
     for (const k in ov) {
@@ -2127,7 +2512,7 @@ function v3eSensPs(inp, snap, ov) {
       break;
     }
   }
-  if (!late) return v3eGet(v3eRun(inp, 'Base', ov).out, 'ps');
+  if (!late) return pick(v3eRun(inp, 'Base', ov));
   const c = v3eCopyCtx(snap.c);
   c.ov = Object.assign({}, snap.c.ov, ov);
   if ('o.g' in ov) {                                  // E03이 하는 대로: g = ov.get("o.g", g), c["g_s"] = g, DCF.g_s 행
@@ -2135,7 +2520,7 @@ function v3eSensPs(inp, snap, ov) {
     c.rows['DCF.g_s'] = [ov['o.g']];
   }
   v3eRunSteps(c, 'E15', 'E19');
-  return v3eGet(c.out, 'ps');
+  return pick(c);
 }
 
 function v3eWeighted(inp, scen) {
@@ -2183,7 +2568,14 @@ function v3eSensitivities(inp, base, snap, steps) {
   const t2 = { x: d5(st.margin).map((d) => m0 + d), y: wy, z: ws.map((dw) => d5(st.margin).map((dm) => ps({ 'o.wacc_shift': sh0 + dw, 'o.ty_margin': m0 + dm }))) };
   const t3 = { x: d5(st.growth), y: wy, z: ws.map((dw) => d5(st.growth).map((dg) => ps({ 'o.wacc_shift': sh0 + dw, 'o.fade_g_add': fg0 + dg }))) };
   const tor = v3eSensVars(base).map(([n, d, f]) => ({ var: n, lo: -d, hi: d, ps_lo: ps(f(-d)), ps_hi: ps(f(d)) }));
-  return { wacc_g: t1, wacc_margin: t2, wacc_fade: t3, tornado: tor };
+  // DDM, RIM 민감도(설계서 2-17 SENS 보강): Ke × 영구성장률, Ke × 장기 ROE. 값은 각 모형 주당 가치
+  const alt_ps = (ov, rid) => v3eSensPs(inp, snap, ov, rid);
+  const kk0 = v3eNz(v3eGet(base.ov, 'o.ke_shift'));
+  const ke0 = base.W.ke + kk0, ks = d5(st.wacc);
+  const roe0 = v3eNz(base.rows['DCF.rim.roe_last'][0], ke0);
+  const t4 = { x: d5(st.g).map((d) => g0 + d), y: ks.map((d) => ke0 + d), z: ks.map((dk) => d5(st.g).map((dg) => alt_ps({ 'o.ke_shift': kk0 + dk, 'o.g': g0 + dg }, 'DCF.ddm.ps'))) };
+  const t5 = { x: d5(st.margin).map((d) => roe0 + d), y: ks.map((d) => ke0 + d), z: ks.map((dk) => d5(st.margin).map((dr) => alt_ps({ 'o.ke_shift': kk0 + dk, 'o.rim_roe': roe0 + dr }, 'DCF.rim.ps'))) };
+  return { wacc_g: t1, wacc_margin: t2, wacc_fade: t3, tornado: tor, ddm_ke_g: t4, rim_ke_roe: t5 };
 }
 
 function v3eBisect(fn, lo, hi, n = 200) {
@@ -2257,6 +2649,97 @@ function v3eReverse(inp, base, model = true) {
 }
 
 // E24. 2-16, 2-17 점검
+// _days: 'YYYY-MM-DD' 두 날짜 사이 일수(b − a)
+function v3eDays(a, b) {
+  const p = (s) => Date.UTC(Number(s.slice(0, 4)), Number(s.slice(5, 7)) - 1, Number(s.slice(8, 10)));
+  return Math.round((p(b) - p(a)) / 86400000);
+}
+
+// _checks_more: 2-16, 2-17 점검 가운데 21-7 에 남았던 10개
+function v3eChecksMore(inp, c, add, pct) {
+  const R = c.rows, H = c.H, N = c.N, I = inp.input, sw = inp.switches, W = c.W;
+  const tg = inp.target, yf = c.years_f, ys = inp.timeline.hist;
+  const cons = v3eOr(v3eGet(I, 'cons'), {});
+  // fy1_stale: 컨센서스 기준일이 최근 분기 실적 공시(분기 말 + 45일) 전이면 실적이 반영 안 된 값
+  if (v3eT(v3eGet(cons, 'as_of')) && v3eT(v3eGet(tg, 'bs_date')) && v3eT(v3eGet(tg, 'val_date'))) {
+    const pub = v3eDays(tg.bs_date, cons.as_of);
+    if (pub < 45 && v3eDays(tg.bs_date, tg.val_date) >= 45) add('fy1_stale', 'warn', '컨센서스 기준일 ' + v3ePyStr(cons.as_of) + '이 ' + v3ePyStr(tg.bs_date) + ' 분기 실적 공시 전이라 최근 실적이 반영되지 않았을 수 있음');
+  }
+  const rel = v3eOr(v3eGet(I, 'rel'), {});
+  // shares_align: DCF 와 상대가치의 주식수
+  if (v3eT(v3eGet(rel, 'shares')) && v3eT(c.shares) && Math.abs(rel.shares / c.shares - 1) > 0.005) {
+    add('shares_align', 'warn', '상대가치 주식수 ' + v3eFmt2(rel.shares, ',.0f') + '주와 DCF 주식수 ' + v3eFmt2(c.shares, ',.0f') + '주가 다름(' + pct(rel.shares / c.shares - 1) + '). 희석을 어느 쪽에 넣었는지 확인');
+  }
+  // ev_def_align: EV 다리 항목(금액이 있는 것만)
+  const ed = v3eOr(v3eGet(rel, 'ev_def'), {});
+  const br = I.bridge, sh = I.shares;
+  const nonopv = v3eNonopValue(I, sw);
+  const dcf_def = { lease: v3eNz(v3eGet(br.debt, 'lease')) > 0, nci: v3eNz(v3eGet(br, 'nci')) > 0,
+    pref: (v3eNz(v3eGet(sh, 'pref')) > 0 || v3eNz(v3eGet(br, 'pref_mkt')) > 0) && sw.pref === 'market', nonop: nonopv > 0 };
+  const amt = { lease: v3eNz(v3eGet(br.debt, 'lease')), nci: v3eNz(v3eGet(br, 'nci')), pref: v3eNz(v3eGet(br, 'pref_mkt')) + v3eNz(v3eGet(sh, 'pref')), nonop: nonopv };
+  const nm_ = { lease: '리스부채', nci: '비지배지분', pref: '우선주', nonop: '비영업자산' };
+  const diff = Object.keys(dcf_def).filter((k) => k in ed && v3eT(amt[k]) && v3eT(ed[k]) !== dcf_def[k]).map((k) => nm_[k]);
+  if (diff.length) add('ev_def_align', 'warn', '상대가치 EV 와 DCF 주주가치 다리의 정의가 다른 항목: ' + diff.join(', '));
+  // double_count: 희석에 넣은 옵션, 전환을 청구권에도 넣었는지
+  const dil = R['SHR.so_tsm'][0] + R['SHR.rsu'][0] + R['SHR.cb_add'][0];
+  const words = ['옵션', 'RSU', '전환', '신주인수권', '주식보상'];
+  const dup = v3eOr(v3eGet(br, 'claims'), []).filter((x) => words.some((w) => String(v3eOr(v3eGet(x, 'name'), '')).includes(w))).map((x) => v3ePyStr(v3eGet(x, 'name')));
+  if (dil > 0 && dup.length) add('double_count', 'warn', '희석 주식수에 넣은 항목이 청구권에도 있음: ' + dup.join(', '));
+  // fcff_cross: FCFF 와 (영업현금흐름 + 세후 순이자 − CAPEX) 교차 확인
+  const gap = [];
+  for (let k = 0; k < N; k++) {
+    const t_ = c.X.tax_r[k];
+    const alt_ = R['CF.cfo'][H + k] + (R['IS.int_exp'][H + k] - R['IS.int_inc'][H + k]) * (1 - t_) - R['PPE.capex'][H + k] - R['INT.capex'][H + k];
+    const f_ = R['DCF.fcff'][k];
+    if (v3eT(f_) && Math.abs(alt_ / f_ - 1) > 0.2) gap.push(v3ePyStr(yf[k]) + ' ' + pct(alt_ / f_ - 1));
+  }
+  if (gap.length) {
+    add('fcff_cross', 'info', 'FCFF 와 영업현금흐름 기준 값(세후 순이자 가산, CAPEX 차감) 차이가 20% 넘는 해: ' + gap.join(', ')
+      + '. 주식보상비용, 사용권자산 신규, 계약관계 취득처럼 두 정의가 다르게 다루는 항목을 확인');
+  }
+  // asp_vs_ucost: 단위원가가 단가보다 연 2%p 넘게 빨리 내려가면 마진이 저절로 커짐
+  for (const ln of I.revbuild.lines) {
+    const uc = R['CTL.a.ucost.' + ln.id], pr = R['REV.l.' + ln.id + '.price'];
+    if (v3eT(uc) && v3eT(pr) && N > 1) {
+      const gu = v3eCagr(uc[0], v3eLast(uc), N - 1), gp_ = v3eCagr(pr[H], v3eLast(pr), N - 1);
+      if (gu != null && gp_ != null && gu < gp_ - 0.02) add('asp_vs_ucost', 'warn', v3ePyStr(ln.name) + ': 단위원가 연 ' + pct(gu) + '가 단가 연 ' + pct(gp_) + '보다 빨리 내려가 마진이 저절로 커짐');
+    }
+  }
+  // stable_vs_peer: 안정기 D/E, 베타가 비교기업과 크게 다름
+  const pd_ = v3eOr(v3eGet(I.beta, 'peers'), []).filter((p) => v3eT(v3eGet(p, 'include', true)) && v3eGet(p, 'de') != null).map((p) => v3eNz(p.de));
+  if (pd_.length) {
+    const md = v3eMedian(pd_);
+    const de_s = R['WACC.de_s'][0];
+    if (Math.abs(de_s - md) > 0.3) add('stable_vs_peer', 'info', '안정기 D/E ' + pct(de_s) + '가 비교기업 중앙값 ' + pct(md) + '과 30%p 넘게 다름');
+  }
+  if (v3eGet(W, 'beta_bu') != null && Math.abs(W.beta_s - W.beta_bu) > 0.3) {
+    add('stable_vs_peer', 'info', '안정기 베타 ' + v3eFmt2(W.beta_s, '.2f') + '가 비교기업 바텀업 베타 ' + v3eFmt2(W.beta_bu, '.2f') + '와 0.3 넘게 다름');
+  }
+  // ppe_xfer_sum: 건설중인자산 대체 합은 0
+  if ('PPE.cip.xfer' in R) {
+    const bl = v3eOr(R['PPE.bldg.xfer'], v3eFill(N, 0.0)), mc = v3eOr(R['PPE.mach.xfer'], v3eFill(N, 0.0));
+    const bad = [];
+    for (let k = 0; k < N; k++) if (Math.abs(R['PPE.cip.xfer'][k] + v3eNz(bl[k]) + v3eNz(mc[k])) > 1e-6) bad.push(v3ePyStr(yf[k]));
+    if (bad.length) add('ppe_xfer_sum', 'err', '건설중인자산 대체 합이 0이 아님: ' + bad.join(', '));
+  }
+  // ppe_src_gap: 변동표 취득과 현금흐름표 유형자산 취득 차이(직전 결산)
+  const roll = v3eOr(v3eGet(I, 'ppe_roll'), {});
+  let acq = v3eGet(roll, 'acq_fy0');
+  if (acq == null && v3eT(v3eGet(roll, 'classes'))) {
+    const xs_ = roll.classes.filter((cl) => v3eGet(cl, 'acq_fy0') != null && v3eGet(cl, 'id') !== 'rou').map((cl) => cl.acq_fy0);
+    acq = xs_.length ? v3eSum(xs_) : null;
+  }
+  const cx0 = -v3eNz(v3eLast(v3eHist(c, 'CF.capex_ppe')));
+  if (acq != null && v3eT(cx0) && Math.abs(acq / cx0 - 1) > 0.1) {
+    add('ppe_src_gap', 'info', '직전 결산 유형자산 변동표 취득 ' + v3eFmt2(acq, ',.0f') + '억과 현금흐름표 취득 ' + v3eFmt2(cx0, ',.0f') + '억 차이 ' + pct(acq / cx0 - 1) + '(미지급 취득, 대체 등)');
+  }
+  // bs_cf_pair: 과거 유형자산 증감 중 CAPEX, 감가상각, 사용권자산으로 설명되지 않는 몫(처분, 대체 등)이 큰 해
+  const dsp = R['PPE.disp'].slice(0, H), cxh = R['PPE.capex'].slice(0, H);
+  const bad2 = [];
+  for (let i = 0; i < H; i++) if (dsp[i] != null && v3eT(cxh[i]) && Math.abs(dsp[i]) > 0.2 * Math.abs(cxh[i])) bad2.push(v3ePyStr(ys[i]) + ' ' + v3eFmt2(dsp[i], '+,.0f') + '억');
+  if (bad2.length) add('bs_cf_pair', 'info', '유형자산 기초 + 취득 + 사용권자산 − 감가상각과 기말 차이(처분, 대체, 환율 등)가 취득의 20%를 넘는 해: ' + bad2.join(', '));
+}
+
 function v3eChecks(inp, ctxs, scen, wavg, rd) {
   const c = ctxs.Base;
   const out = [];
@@ -2367,7 +2850,7 @@ function v3eChecks(inp, ctxs, scen, wavg, rd) {
   if (sw.cogs_mode !== 'components') add('cogs_link', 'info', '원가 방식이 원가율이라 원가 쪽 감가상각비와 인건비는 스케줄 변화가 반영되지 않음');
   if (v3eT(v3eGet(meta, 'sga_unmapped'))) add('sga_unmapped', 'info', '기타관리비로 묶은 판관비 계정: ' + meta.sga_unmapped.join(', '));
   keep('sga_unmapped');
-  for (const rid of Object.keys(R).filter((k) => k.startsWith('OPX.sga.') && k.split('.').length - 1 === 2 && !k.endsWith('resid'))) {
+  for (const rid of Object.keys(R).filter((k) => k.startsWith('OPX.sga.') && k.split('.').length - 1 === 2 && !k.endsWith('resid') && !k.endsWith('cagr_h') && !k.endsWith('cagr_f'))) {
     const hv = R[rid].slice(0, H);
     const sp = [];
     for (let i = 1; i < H; i++) if (hv[i] != null && v3eT(hv[i - 1]) && hv[i] / hv[i - 1] - 1 > 0.5 && hv[i] > 10) sp.push(ys[i]);
@@ -2403,7 +2886,13 @@ function v3eChecks(inp, ctxs, scen, wavg, rd) {
   if (!v3eT(v3eGet(sh, 'options')) && !v3eT(v3eGet(sh, 'rsu'))) add('dilution_missing', 'info', '스톡옵션, RSU 건별 표가 없어 희석을 반영하지 못함');
   const rel = v3eOr(v3eGet(I, 'rel'), {});
   // 결과
-  if (v3eT(wavg) && !v3eT(wavg.ok)) add('weights', 'err', '시나리오 가중치 합이 ' + v3eFmt2(wavg.sum * 100, '.1f') + '%라 가중평균을 계산하지 않음');
+  if (v3eT(wavg) && !v3eT(wavg.ok)) {
+    if (Math.abs(wavg.sum - 1) > 1e-6) add('weights', 'err', '시나리오 가중치 합이 ' + v3eFmt2(wavg.sum * 100, '.1f') + '%라 가중평균을 계산하지 않음');
+    else {
+      const miss = V3E.SCEN.filter((S) => scen[S].ps_raw == null && v3eT(v3eNz(v3eGet(sw.weights, S))));
+      add('weights', 'err', '주당 가치를 구하지 못한 시나리오가 있어 가중평균을 계산하지 않음: ' + miss.join(', '));
+    }
+  }
   const close = v3eGet(tg, 'close');
   const up = c.out.up;
   if (up != null && up > 1) add('upside_big', 'warn', 'Base 상승여력 ' + pct(up) + ': 가정을 다시 확인');
@@ -2442,6 +2931,7 @@ function v3eChecks(inp, ctxs, scen, wavg, rd) {
     add('labor_ratio', 'warn', '판관비 인건비 비율이 직전 실적 ' + pct(lab[H - 1]) + '에서 마지막 해 ' + pct(v3eLast(lab)) + '로 크게 내려감');
   }
   if (hist['IS.ebit'].slice(-3).filter((x) => x != null && x < 0).length >= 2) add('dcf_fit', 'warn', '최근 3년 가운데 2년 넘게 영업적자라 FCFF 할인이 잘 맞지 않음(적자 기업 유형 검토)');
+  v3eChecksMore(inp, c, add, pct);
   if (v3eT(rd) && v3eT(v3eGet(v3eGet(rd, 'pfcf', {}), 'ok')) && rd.pfcf.tv_share > 0.7) add('rdcf_tv_share', 'info', '리버스 DCF 종료가치 비중 ' + pct(rd.pfcf.tv_share));
   if (v3eT(rd) && !v3eT(v3eGet(v3eGet(rd, 'pfcf', {}), 'ok'))) add('rdcf_input', 'info', '리버스 DCF(P/FCF)를 풀 수 없음(출발 FCF 가 0 이하이거나 입력이 범위 밖)');
   for (const a of v3eOr(v3eGet(I, 'adj'), [])) {
@@ -2458,7 +2948,31 @@ function v3eChecks(inp, ctxs, scen, wavg, rd) {
 }
 
 // DCF 맵 15단계의 지금 값 한 줄(화면 오른쪽 패널)
-function v3eMap(inp, c, wavg, blend) {
+// MAP_CHECKS: 맵 단계별로 거는 점검 id
+const v3eMAP_CHECKS = { '매출액': ['rev_check', 'rseg_checks', 'basis_mix', 'cons_gap', 'assump_range', 'rev_sanity', 'cons_n', 'fy1_stale'],
+  '매출원가': ['gpm_range', 'ratio_jump', 'asp_vs_ucost'], '판관비': ['ratio_jump', 'sga_spike', 'labor_ratio', 'share_le_1'],
+  '법인세': ['tax_outlier'], '재투자': ['capex_da', 'reinv_neg', 'nwc_jump', 'dep_rate_trend', 'ppe_xfer_sum', 'fcff_cross'],
+  '재무 구조': ['neg_cash', 'rate_jump', 'circ_converge'], '자기자본비용': ['stable_beta', 'premium_evidence', 'beta_index', 'manual_missing'],
+  '타인자본비용': ['kd_missing', 'kd_consistency'], '할인율 확정': ['override', 'model_rate_pair', 'stable_vs_peer', 'mcap_basis'],
+  '성장 단계와 종료가치': ['g_vs_rate', 'tv_share', 'stable_rr', 'g_fallback'], '주식 수': ['shares_align', 'double_count'],
+  '비주주청구권': ['ev_def_align'], '시나리오 근거': ['weights', 'upside_big'], '상대가치 결합': ['dcf_rel_gap', 'type_block'] };
+
+// _map_status: 맵 단계별 상태. 그 단계 점검 가운데 err 나 warn 이 있으면 warn, 근거 없는 매출 줄이 있으면 매출액 warn
+function v3eMapStatus(inp, checks) {
+  const lv = new Map();
+  for (const ck of checks) {
+    if (!lv.has(ck.id)) lv.set(ck.id, new Set());
+    lv.get(ck.id).add(ck.level);
+  }
+  const out = {};
+  for (const step of Object.keys(v3eMAP_CHECKS)) {
+    if (v3eMAP_CHECKS[step].some((i) => lv.has(i) && (lv.get(i).has('err') || lv.get(i).has('warn')))) out[step] = 'warn';
+  }
+  if (inp.input.revbuild.lines.some((ln) => !v3eT(v3eGet(ln, 'why')))) out['매출액'] = 'warn';
+  return out;
+}
+
+function v3eMap(inp, c, wavg, blend, checks) {
   const R = c.rows, H = c.H, N = c.N, W = c.W, I = inp.input;
   const pct = v3ePct;
   const won = (x) => (x == null ? '계산 안 됨' : v3eFmt2(x, ',.0f') + '원');
@@ -2481,8 +2995,10 @@ function v3eMap(inp, c, wavg, blend) {
     ['내재 가치', '비주주청구권', '이자부부채 ' + amt(R['DCF.debt'][0]) + '억, 비지배지분 ' + amt(R['DCF.nci'][0]) + '억', ''],
     ['내재 가치', '주식 수', amt(R['DCF.shares'][0]) + '주', ''],
     ['마무리', '시나리오 근거', '가중평균 ' + won(v3eGet(wavg, 'ps')), ''],
-    ['마무리', '상대가치 결합', '목표주가 ' + won(v3eGet(v3eOr(blend, {}), 'target')) + '(DCF ' + pct(inp.switches.blend_w, 0) + ')', '']];
-  return m.map(([g, s, v, w]) => ({ group: g, step: s, status: 'done', value_text: v, why: w }));
+    ['마무리', '상대가치 결합', '목표주가 ' + won(v3eGet(v3eOr(blend, {}), 'target')) + '(DCF ' + pct(v3eNz(v3eGet(v3eOr(blend, {}), 'w_dcf'), inp.switches.blend_w), 0) + ')', '']];
+  // 단계 상태: 그 단계에 걸린 경고나 오류 점검이 있으면 「확인 필요」(warn). 맵이 늘 완료로만 나오던 것을 고침
+  const st = v3eMapStatus(inp, checks != null ? checks : c.checks);
+  return m.map(([g, s, v, w]) => ({ group: g, step: s, status: v3eGet(st, s, 'done'), value_text: v, why: w }));
 }
 
 function v3eScenSummary(c) {
@@ -2540,28 +3056,77 @@ function step_reverse(all) {
   all.py.rdcf = rd;
 }
 
-// E23: 상대가치 결합, SUM 행, 풋볼필드
-function step_blend(all) {
-  const inp = all.inp, base = all.runs.Base, scen = all.py.scen, wavg = all.py.wavg;
-  const H = base.H, N = base.N;
+// engine.py REL_TOKEN, typ_block(sw)
+const V3E_REL_TOKEN = { 'PER': 'per', 'PBR': 'pbr', 'PSR': 'psr', 'EV/EBITDA': 'ev_ebitda', 'EV/EBIT': 'ev_ebit', 'EV/Sales': 'ev_sales' };
+function v3eTypBlock(sw) {
+  return new Set(v3ePyStr(v3eOr(v3eGet(sw, 'typ_block'), '')).split(',').map((x) => x.trim()).filter((x) => x));
+}
+
+// engine.py blend_calc: E23 결합. 회사 유형이 general 이 아니고 유형별 주당 가치(py.typ.ps)가 있으면 DCF 자리에 그 값을 씀.
+// 유형에서 막은 상대가치 배수(sw.typ_block)는 결합에서 뺌. general 이면 예전과 같음. { blend, summ }를 돌려줌
+function v3eBlendCalc(inp, wavg, base, typ) {
   const sw = inp.switches, I = inp.input;
+  const H = base.H, N = base.N;
   const close = v3eGet(inp.target, 'close');
-  // 결합(E23)
   const rel = v3eOr(v3eGet(I, 'rel'), {});
-  const rel_ps = v3eGet(v3eOr(v3eGet(rel, 'ps'), {}), 'median');
+  let rel_ps = v3eGet(v3eOr(v3eGet(rel, 'ps'), {}), 'median');
   const w = Number(sw.blend_w);
+  let dcf_raw = null, dcf_ps = null, src = 'dcf';
+  if (v3eT(wavg.ok)) { dcf_raw = wavg.ps_raw; dcf_ps = wavg.ps; }
+  const blk = v3eTypBlock(sw);
+  const ctype = v3eOr(v3eGet(sw, 'company_type'), 'general');
+  let rel_blocked = false;
+  if (ctype !== 'general') {
+    const ty = v3eOr(typ, {});
+    const tps = v3eGet(ty, 'ps');
+    if (tps != null) {
+      const sub = v3eOr(v3eGet(ty, ctype), {});
+      const traw = v3eGet(v3eOr(v3eGet(sub, 'summary'), {}), 'ps_raw');
+      dcf_raw = traw != null ? traw : tps; dcf_ps = tps; src = v3eOr(v3eGet(ty, 'method'), ctype);
+    } else if (blk.has('fcff') || blk.has('dcf_consolidated')) {
+      dcf_raw = null; dcf_ps = null; src = 'blocked';
+    }
+    if (v3eT(rel_ps) && blk.has(v3eGet(V3E_REL_TOKEN, v3eGet(rel, 'method')))) { rel_ps = null; rel_blocked = true; }
+  }
   let tgt;
-  if (v3eT(wavg.ok) && v3eT(rel_ps)) tgt = v3eRound(wavg.ps_raw * w + rel_ps * (1 - w), sw.round);
-  else tgt = v3eT(wavg.ok) ? wavg.ps : null;
-  const blend = { w_dcf: v3eT(rel_ps) ? w : 1.0, dcf: wavg.ps, rel: v3eT(rel_ps) ? v3eRound(rel_ps, sw.round) : null, target: tgt,
-    up: v3eT(tgt) && v3eT(close) ? tgt / close - 1 : null };
+  if (dcf_raw != null && v3eT(rel_ps)) tgt = v3eRound(dcf_raw * w + rel_ps * (1 - w), sw.round);
+  else if (dcf_raw != null) tgt = src !== 'dcf' ? v3eRound(dcf_raw, sw.round) : dcf_ps;
+  else if (v3eT(rel_ps) && src === 'blocked') tgt = v3eRound(rel_ps, sw.round);
+  else tgt = null;
+  const w_dcf = src === 'blocked' ? 0.0 : (v3eT(rel_ps) ? w : 1.0);
+  const blend = { w_dcf, dcf: dcf_ps, rel: v3eT(rel_ps) ? v3eRound(rel_ps, sw.round) : null, target: tgt,
+    up: v3eT(tgt) && v3eT(close) ? tgt / close - 1 : null, dcf_src: src, rel_blocked };
   const eps = [];
   for (let k = 0; k < Math.min(2, N); k++) eps.push(v3eDiv(base.rows['IS.ni_parent'][H + k] * 1e8, base.shares));
   const ebitda = base.rows['OPX.ebitda'];
   const net_claims = base.rows['DCF.debt'][0] + base.rows['DCF.nci'][0] - base.rows['DCF.cash'][0] - base.rows['DCF.nonop'][0];
-  const summ = { 'SUM.target': [tgt], 'SUM.up': [blend.up], 'SUM.dcf': [wavg.ps], 'SUM.rel': [blend.rel],
+  const summ = { 'SUM.target': [tgt], 'SUM.up': [blend.up], 'SUM.dcf': [dcf_ps], 'SUM.rel': [blend.rel],
     'SUM.implied_pe': [v3eT(tgt) ? v3eDiv(tgt, eps[0]) : null], 'SUM.implied_pe_fy2': [v3eT(tgt) && eps.length > 1 ? v3eDiv(tgt, eps[1]) : null],
     'SUM.implied_ev_ebitda': [v3eT(tgt) ? v3eDiv(tgt * base.shares / 1e8 + net_claims, ebitda[H]) : null] };
+  return { blend, summ };
+}
+
+// engine.py blend_checks: 결합 점검(유형별). general 이면 없음
+function v3eBlendChecks(inp, blend) {
+  const sw = inp.switches;
+  if (v3eOr(v3eGet(sw, 'company_type'), 'general') === 'general') return [];
+  const out = [];
+  const rel = v3eOr(v3eGet(inp.input, 'rel'), {});
+  const src = v3eGet(blend, 'dcf_src');
+  if (src === 'blocked') out.push({ id: 'type_block', level: 'warn', text: '유형별 주당 가치가 없어 연결 DCF를 목표주가에서 뺌', value: null });
+  else if (src !== 'dcf') out.push({ id: 'type_block', level: 'info', text: '목표주가의 DCF 자리에 유형별 주당 가치 ' + v3eFmt2(blend.dcf, ',.0f') + '원을 씀. 방법: ' + v3ePyStr(blend.dcf_src) + ', Base 기준', value: blend.dcf });
+  if (v3eT(v3eGet(blend, 'rel_blocked'))) out.push({ id: 'type_block', level: 'info', text: '상대가치 평가 배수 ' + v3ePyStr(v3eGet(rel, 'method')) + '는 이 유형에서 쓰지 않아 결합에서 뺌', value: null });
+  return out;
+}
+
+// E23: 상대가치 결합, SUM 행, 풋볼필드. 파이썬은 run_all 에서 general 규칙으로 결합한 뒤 run.py 가 apply_typ 로 다시 쓰지만,
+// JS는 처음부터 사례의 py.typ가 있으니 blend_calc(inp, wavg, base, typ) 한 번으로 같은 결과를 냄(풋볼필드는 유형과 무관)
+function step_blend(all) {
+  const inp = all.inp, base = all.runs.Base, scen = all.py.scen, wavg = all.py.wavg;
+  const sw = inp.switches, I = inp.input;
+  const rel = v3eOr(v3eGet(I, 'rel'), {});
+  const rel_ps = v3eGet(v3eOr(v3eGet(rel, 'ps'), {}), 'median');
+  const { blend, summ } = v3eBlendCalc(inp, wavg, base, all.py.typ);
   for (const S of V3E.SCEN) {
     Object.assign(all.py.rows[S], summ);
     for (const rid in summ) all.runs[S].labels[rid] = { cols: 'one' };
@@ -2576,6 +3141,13 @@ function step_blend(all) {
     if (v3eT(v3eGet(rs, 'Bear')) && v3eT(v3eGet(rs, 'Bull'))) { lo = rs.Bear; hi = rs.Bull; }
     else { lo = v3eGet(v3eOr(v3eGet(rel, 'ps'), {}), 'q25'); hi = v3eGet(v3eOr(v3eGet(rel, 'ps'), {}), 'q75'); }
     ff.push({ label: '상대가치 ' + v3ePyStr(v3eGet(rel, 'method')) + '(' + v3ePyStr(v3eGet(rel, 'period')) + ')', lo: v3eRound(lo, sw.round), hi: v3eRound(hi, sw.round), kind: 'rel' });
+  }
+  // engine.apply_typ 의 ff_typ: 유형별 주당 가치 줄을 DCF 줄 뒤에 넣고, 결합에서 뺀 상대가치 줄은 지움(general 이면 바뀌는 것 없음)
+  if (v3eT(blend.rel_blocked)) for (let i = ff.length - 1; i >= 0; i--) if (ff[i].kind === 'rel') ff.splice(i, 1);
+  if (blend.dcf_src !== 'dcf' && blend.dcf_src !== 'blocked' && blend.dcf != null) {
+    let i = ff.findIndex((r) => r.kind === 'dcf');
+    if (i < 0) i = ff.length - 1;
+    ff.splice(i + 1, 0, { label: '유형별 주당 가치(Base)', lo: blend.dcf, hi: blend.dcf, kind: 'typ' });
   }
   // run.py compute(): 몬테카를로 25～75% 줄을 DCF 줄 바로 아래에(몬테카를로 값은 사례의 py.mc)
   const m = all.py.mc;
@@ -2592,20 +3164,24 @@ function step_blend(all) {
   all.py.ff = ff;
 }
 
-// E24: 점검과 DCF 맵. run.py compute()가 뒤에 붙이는 C 모듈(유형별, LBO, 몬테카를로) 점검은 사례의 py.typ, py.lbo, py.mc에 실린 것을 같은 규칙으로 붙임
-// (C 모듈이 실패했을 때의 typ_error, lbo_error, mc_error는 파이썬만 알 수 있어 붙이지 않음)
+// E24: 점검과 DCF 맵. run.py compute_inp()가 뒤에 붙이는 C 모듈 점검은 사례의 py 값으로 같은 순서로 붙임:
+// py.typ 점검, 결합 점검(blend_checks), py.rel_plus 점검(dcf_rel_gap 뺌), py.lbo 점검, py.mc 점검
+// (C 모듈이 실패했을 때의 typ_error, rel_plus_error, lbo_error, mc_error는 파이썬만 알 수 있어 붙이지 않음)
 function step_checks(all) {
   const inp = all.inp, sw = inp.switches;
   const checks = v3eChecks(inp, all.runs, all.py.scen, all.py.wavg, all.py.rdcf);
   let extra = [];
   const typ = all.py.typ;
   if (v3eT(typ)) extra = extra.concat(v3eOr(v3eGet(typ, 'checks'), []));
+  extra = extra.concat(v3eBlendChecks(inp, all.py.blend)); // 유형 계산이 없어도 결합 규칙(막은 방법)과 점검은 남김(run.py apply_typ(inp, res, None))
+  const rp = all.py.rel_plus;
+  if (v3eT(rp)) extra = extra.concat(v3eOr(v3eGet(rp, 'checks'), []).filter((x) => v3eGet(x, 'id') !== 'dcf_rel_gap'));
   const lb = all.py.lbo;
   if (v3eT(lb)) extra = extra.concat(v3eOr(v3eGet(lb, 'checks'), []));
   const m = all.py.mc;
   if (v3eT(v3eGet(sw, 'mc')) && v3eT(m)) extra = extra.concat(v3eOr(v3eGet(m, 'checks'), []));
   all.checks = checks.concat(extra.map((x) => ({ id: v3eGet(x, 'id'), level: v3eGet(x, 'level', 'info'), text: v3eGet(x, 'text', ''), value: v3eGet(x, 'value') })));
-  all.map = v3eMap(inp, all.runs.Base, all.py.wavg, all.py.blend);
+  all.map = v3eMap(inp, all.runs.Base, all.py.wavg, all.py.blend, checks); // 맵 상태는 엔진 점검(E24)만 봄
 }
 
 v3eReg('E20', 'scenarios', step_scenarios);
@@ -2627,7 +3203,7 @@ V3E.reverseModel = function (inp, ov) {
   return v3eGet(v3eReverse(inp2, v3eRun(inp2, 'Base'), true), 'model');
 };
 
-// 끝: E01～E24가 모두 구현되고 대조(_v3_parity.mjs: 전체 대조 0건, 덮기 20건, 속도)를 통과한 판이라 ready를 true로 둠.
+// 끝: E01～E24가 모두 구현되고 대조(_v3_parity.mjs: 전체 대조 0건, 덮기 43건, 속도)를 통과한 판이라 ready를 true로 둠.
 // engine.py가 바뀌면 조각을 다시 맞추고 대조를 통과시킨 뒤에만 true로 둔다(그 전에는 false로 두면 화면이 c.py를 그대로 보여 줌)
 V3E.ready = true;
 if (typeof module !== 'undefined' && module.exports) module.exports = V3E;
