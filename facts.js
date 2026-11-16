@@ -178,7 +178,8 @@ function fsPnl(x) {
 function fsPaneOv(x) {
   const links = [[x.overview?.['홈페이지'] || x.home, '홈페이지']].filter(([u]) => u && !/확인 필요/.test(u))
     .map(([u, l]) => `<a class="ipo-a" href="${esc(fsUrlOf(String(u).split(/\s/)[0]))}" target="_blank" rel="noopener">${l}${ico('ext', 'sm')}</a>`).join('');
-  return `<div class="ipo-two-col">
+  // 요청한 회사(finList)는 글이 길고 손익 칸이 4개까지라 반쪽 칸이면 숫자가 겹친다: 위아래로
+  return `<div class="${x.finList ? 'ipo-stack' : 'ipo-two-col'}">
     ${fsBox('기업 개요', `${fsKvs(x.overview, ['기업명', '산업군 / 섹터', '대표자', '설립', '본사 소재지', '사업자등록번호', '상장 여부', '기업 형태'])}${fsKv('부스', x.booth)}${links ? `<div class="ipo-links">${links}</div>` : ''}` || '<p class="ipo-p muted">없음</p>')}
     <div class="ipo-stack">${fsPnl(x)}${x.growth ? fsBox('성장 요약', `<p class="ipo-p">${fsT(x.growth)}</p>`) : ''}</div>
   </div>`;
@@ -206,7 +207,7 @@ function fsPaneFin(x) {
   const s = x.shareholders || {}, rows = (s.rows || []).filter((r) => r && r.name && r.name !== '-');
   const tbl = rows.length ? `<table class="ipo-tbl fs-hold"><thead><tr><th>주주명</th><th>관계 · 구분</th><th>주식수</th><th>지분율</th><th>취득 · 발행</th><th>비고</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${fsT(r.name)}</td><td data-k="관계 · 구분">${fsT(r.relation)}</td><td data-k="주식수">${fsT(r.shares)}</td><td data-k="지분율">${fsT(r.pct)}</td><td data-k="취득 · 발행">${fsT(r.acquired)}</td><td data-k="비고">${fsT(r.note)}</td></tr>`).join('')}</tbody></table>` : '<p class="ipo-p muted">없음</p>';
   return `<div class="ipo-stack">
-    <div class="ipo-two-col">${fsPnl(x)}${fsBox('재무 비고', `<p class="ipo-p">${fsT(x.fin_note || x.fin_src)}</p>`)}</div>
+    <div class="${x.finList ? 'ipo-stack' : 'ipo-two-col'}">${fsPnl(x)}${fsBox('재무 비고', `<p class="ipo-p">${fsT(x.fin_note || x.fin_src)}</p>`)}</div>
     ${fsBox('주주 현황 · 지분구조', `${s.total_shares ? fsKvSub('발행주식 총수', s.total_shares, s.total_shares_note) : fsKv('발행주식 총수', s.total_shares_note)}<div class="fs-scroll">${tbl}</div>
       ${fsKv('RCPS · CB · BW', s.mezz)}${fsKv('FI 투자 이력', s.fi_history)}${fsKv('특이사항', s.special)}`)}
   </div>`;
