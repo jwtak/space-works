@@ -26,7 +26,10 @@ const CFG = {
       'data/fs.json': '012DPUXZTNLXQS6J6EJJD2I3XLZCAZ7UXY', 'data/fs_req.json': '012DPUXZWVBO5ZR2BFXBEIM3UO467SUFP3',
       'data/sector_pe.json': '012DPUXZSJSMCLO52GF5C32Q5X43PEM3WI', 'data/sector_map.json': '012DPUXZRZ4KSMVLV4PFHYW6ICCMVXGA65',
       'data/ma.json': '012DPUXZVVWOQ4QWXD7RDZ6RBUMUVLDIII', 'data/ma.xlsx': '012DPUXZW3QDQDHYF4KVGKALEWDJGHNRO6',
+      'data/valuation.json': '012DPUXZTZUD3SWKGSUZG3GPIDXX2CH6JA', 'data/valuation_market.json': '012DPUXZVY6OSBOPWUEFDYQOCQWAEYZM6Y',
+      'data/valuation_per_hist.json': '012DPUXZX74MCL552JGJH2TFDBTY25OOAZ', 'data/valuation_dcf.json': '012DPUXZTPVPA2IAKCA5FLG7EAHMSZUXBD',
     },
+    folders: { 'data/valuation/': '012DPUXZTFWV4ARG2NLRAIGXW24GJWPVDA' }, // 가치평가 엑셀(사례마다 파일이 늘어 폴더째 읽기 공유, 2026-11-16)
     writable: ['data/event_marks.json', 'data/ipo_marks.json', 'data/news_marks.json', 'data/radar_marks.json', 'data/pipeline.json', 'data/fs_req.json'], // 수집기는 같은 파일을 덮어쓰므로 id가 바뀌지 않는다
   },
   teamDrive: 'b!j-FPAIUPjU6AnBcIJNprMgAfPOR1jCVOvR6mVssjMWkyr34wYSj7Rp-_wJU9Subr', // 팀 '스페이스인베스트먼트' 파일함(공용 폴더) — 팀원이면 누구나 읽고 쓴다
@@ -154,7 +157,12 @@ const G = {
 /* ---------- 회사 OneDrive 저장소: /SPACE WORKS/data/*.json, /SPACE WORKS/업무일지/*.txt ---------- */
 const STORE = {
   // owner가 아니면 공유받은 딜소싱 파일은 owner OneDrive의 그 파일로(같이 쓰는 표시도 같은 파일에 저장)
-  sharedItem: (rel) => (!G.isOwner && CFG.shared.files[rel] ? `/drives/${CFG.shared.drive}/items/${CFG.shared.files[rel]}` : null),
+  sharedItem: (rel) => {
+    if (G.isOwner) return null;
+    if (CFG.shared.files[rel]) return `/drives/${CFG.shared.drive}/items/${CFG.shared.files[rel]}`;
+    const f = Object.keys(CFG.shared.folders || {}).find((k) => rel.startsWith(k));
+    return f ? `/drives/${CFG.shared.drive}/items/${CFG.shared.folders[f]}:/${rel.slice(f.length).split('/').map(encodeURIComponent).join('/')}:` : null;
+  },
   // '팀/'으로 시작하면 팀 파일함 맨 위부터(팀 회의록), 아니면 내 OneDrive의 SPACE WORKS 아래
   path: (rel) => (rel.startsWith('팀/') ? `/drives/${CFG.teamDrive}/root:/${rel.slice(2).split('/').map(encodeURIComponent).join('/')}`
     : `/me/drive/root:/${[CFG.root, ...rel.split('/')].map(encodeURIComponent).join('/')}`),
@@ -177,7 +185,7 @@ const STORE = {
   async meta(rel) {
     try { return await G.get(`${STORE.sharedItem(rel) || STORE.path(rel)}?select=id,name,eTag,lastModifiedDateTime,size,@microsoft.graph.downloadUrl` /* $select로는 다운로드 주소가 안 온다 */); }
     catch (e) {
-      if (STORE.sharedItem(rel) && [403, 404].includes(e.status)) { const err = new Error('공유받은 딜소싱 자료를 열 수 없습니다. 탁지원 대리에게 알려 주세요.'); err.status = e.status; throw err; }
+      if (STORE.sharedItem(rel) && (e.status === 403 || (e.status === 404 && CFG.shared.files[rel]))) { /* 공유 폴더 안에 아직 없는 파일(404)은 그냥 없음 */ const err = new Error('공유받은 딜소싱 자료를 열 수 없습니다. 탁지원 대리에게 알려 주세요.'); err.status = e.status; throw err; }
       if (e.status === 404) return null;
       throw e;
     }

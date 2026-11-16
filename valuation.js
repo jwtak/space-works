@@ -11,7 +11,7 @@ const VA_MULT = { PER: ['equity', 'ni'], PBR: ['equity', 'equity'], PSR: ['equit
 const VA_MET = { ni: '순이익', equity: '자본', revenue: '매출', ebitda: 'EBITDA', op: '영업이익' };
 const vaS = { data: null, at: 0, loading: null, err: '', cid: null, sel: {}, tblPer: null, showEx: false, open: {}, view: null, qp: {} };
 Object.assign(vaS, viewGet('va', {}));
-const vaSave = () => viewSet('va', { cid: vaS.cid, sel: vaS.sel, tblPer: vaS.tblPer, view: vaS.view, qp: vaS.qp, tab: vaS.tab, qtab: vaS.qtab });
+const vaSave = () => viewSet('va', { cid: vaS.cid, sel: vaS.sel, tblPer: vaS.tblPer, view: vaS.view, qp: vaS.qp, tab: vaS.tab, qtab: vaS.qtab, trd: vaS.trd });
 const vaTabs = (key, opts, cur) => `<div class="va-tabs">${vaSeg(key, opts, cur)}</div>`;
 
 function vaLoad(force) {
@@ -149,7 +149,7 @@ function vaSplit(c, r) { // 국내와 해외를 따로 계산한 값(기준 기�
     const n = vaUse(c, s, null, sc).length;
     return `<tr class="${sc === s.scope ? 'on' : ''}"><td class="st"><b>${L[sc]}</b><small>${n}곳 넣음</small></td>${c.primary.map((nm) => {
       const st = vaCol(c, s, s.base, nm, null, sc), v = vaImplied(c, s.base, nm, st.median, vaAdj(c, s, nm));
-      return `<td>${vaX(st.median)} <small>${st.n}곳</small></td><td>${v ? `<b>${vaWon(v.ps)}</b><small>${vaUp(v.up)}</small>` : '-'}</td>`;
+      return `<td class="${st.n < 3 ? 'va-few' : ''}">${vaX(st.median)} <small>${st.n}곳</small></td><td>${v ? `<b>${vaWon(v.ps)}</b><small>${vaUp(v.up)}</small>` : '-'}</td>`;
     }).join('')}</tr>`;
   }).join('');
   return `<h3 class="va-h3">국내와 해외 따로</h3><div class="mk-scroll"><table class="mk-tbl va-split"><thead><tr><th class="st">범위</th>${c.primary.map((nm) => `<th>${esc(nm)} 중앙값</th><th>주당 가치</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
@@ -273,6 +273,25 @@ function vaSummary(c, r) {
     + [...lead, ...c.primary.filter((nm) => !lead.includes(nm))].map((nm) => vaMultCard(c, r, nm, !lead.includes(nm))).join('') + vaSelCard(c);
 }
 
+function vaThin(c, r, nm) { // 계산된 비교기업이 3곳 미만이면 다른 범위와 업종 중앙값을 참고로(로직 노트 18-5)
+  const s = r.s, st = r.st[s.base][nm];
+  if (st.n >= 3) return '';
+  const L = { 국내: '국내', 해외: '해외', 전체: '국내와 해외' }, a = vaAdj(c, s, nm), out = [];
+  if (c.peers.some((p) => p.kind !== '국내')) for (const sc of ['국내', '해외', '전체']) {
+    if (sc === s.scope) continue;
+    const x = vaCol(c, s, s.base, nm, null, sc);
+    if (x.median) out.push([`${L[sc]} 비교기업`, x.median, x.n]);
+  }
+  const me = vaS.mk?.by[c.target.code], on = s.pr === 'on' && c.per_range;
+  if (nm === 'PER' && me?.industry && ['LTM', 'FY1'].includes(s.base)) {
+    const key = s.base === 'LTM' ? 'per' : 'estPer';
+    const xs = vaS.mk.list.filter((y) => y.code !== me.code && y.industry === me.industry && y[key] > 0 && y[key] < 200 && (!on || (y[key] >= c.per_range.min && y[key] <= c.per_range.max))).map((y) => y[key]);
+    if (xs.length) out.push([`업종 ${me.industry}`, vaQuant(xs, 0.5), xs.length]);
+  }
+  if (!out.length) return '';
+  const rows = out.map(([lab, med, n]) => { const v = vaImplied(c, s.base, nm, med, a); return `<tr><td class="st">${esc(lab)}</td><td>${vaX(med)}</td><td>${n}곳</td><td>${v ? vaWon(Math.round(v.ps / 100) * 100) : '-'}</td><td>${v ? vaUp(v.up) : '-'}</td></tr>`; }).join('');
+  return `<div class="va-thin"><h3 class="va-h3">비교기업 ${st.n}곳, 참고 중앙값</h3><div class="mk-scroll"><table class="mk-tbl"><thead><tr><th class="st">범위</th><th>${esc(nm)} 중앙값</th><th>회사 수</th><th>주당 가치</th><th>상승여력</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
 function vaMultCard(c, r, nm, ref) { // IM 106쪽: 비교기업 배수 막대 + Target 선, 지표 × 배수 = 주당 가치
   const s = r.s, t = c.target, st = r.st[s.base][nm], v = r.val[s.base][nm].med, a = vaAdj(c, s, nm), [kind, item] = VA_MULT[nm];
   const peers = vaUse(c, s).map((p) => ({ p, v: p.mult[s.base]?.[nm] })).filter((x) => typeof x.v === 'number').sort((x, y) => y.v - x.v);
@@ -289,7 +308,7 @@ function vaMultCard(c, r, nm, ref) { // IM 106쪽: 비교기업 배수 막대 + 
     : L(`${per} ${VA_MET[item]}`, `${vaNum(den)}억${m.ebitda_est && item === 'ebitda' ? ' <small>추정</small>' : ''}`) + L('주주가치', v ? `${vaNum(v.eq)}억` : '-') + L('순현금', `${vaNum(-(t.net_debt || 0))}억`) + L('비지배지분, 비영업자산', `${vaNum(-(t.nci || 0))}억, ${vaNum(+(c.non_op?.amount) || 0)}억`) + L('주식수', `${vaNum(divSh)}주`);
   const res = L(`Target ${nm}`, `${vaX(v?.mult ?? st.median)}${a ? ` <small>${a > 0 ? '+' : ''}${vaNum(a * 100, 1)}% 조정</small>` : ''}`, 'k') + L('주당 가치', v ? vaWon(Math.round(v.ps / 100) * 100) : '-', 'k big') + L(`현재가 (${esc(c.day)})`, vaWon(t.close)) + L('상승여력', v ? vaUp(v.up) : '-', 'k');
   return vaSec(ref ? `${nm} 교차 확인` : `${nm} 평가`, `<span class="meta">${esc(per)}, 비교기업 ${st.n}곳 중앙값</span>`, `<div class="va-mcg"><div class="va-pbs">${bars}</div>
-    <table class="va-calc"><tbody>${tbl}</tbody><tbody class="res">${res}</tbody></table></div>`);
+    <table class="va-calc"><tbody>${tbl}</tbody><tbody class="res">${res}</tbody></table></div>${vaThin(c, r, nm)}`);
 }
 
 function vaSelCard(c) { // IM 39쪽 왼쪽: 4단계 선정과 최종 비교기업
@@ -363,8 +382,8 @@ function vaQuick(code) {
       <div class="va-tools">${infoBtn('valuation')}</div></div>
     <dl class="va-kv">${kv.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl></section>`;
   const tab = vaS.qtab || 'peer';
-  const body = { peer: () => vaPeerQ(F, x), sec: () => vaSector(F), mkt: () => vaMarket(F), reg: () => vaReg(F) }[tab] || (() => vaPeerQ(F, x));
-  return head + vaTabs('qtab', [['peer', 'Peer 비교'], ['sec', '업종'], ['mkt', '시장 분포'], ['reg', '회귀']], tab) + body();
+  const body = { peer: () => vaPeerQ(F, x), trend: () => vaTrend(F), sec: () => vaSector(F), mkt: () => vaMarket(F), reg: () => vaReg(F) }[tab] || (() => vaPeerQ(F, x));
+  return head + vaTabs('qtab', [['peer', 'Peer 비교'], ['trend', 'PER 추이'], ['sec', '업종'], ['mkt', '시장 분포'], ['reg', '회귀']], tab) + body();
 }
 
 // Peer 비교(빠른 보기): Peer를 검색해 넣고 중앙값 PER과 비교
@@ -458,6 +477,48 @@ function vaReg(F) {
 }
 
 // ---------- 그리기 ----------
+// ---------- PER 추이 (data/valuation_per_hist.json, market.py 가 평일 16:30에 쌓음. 손PB PER 추이 비교 차트와 같은 구성) ----------
+const VA_HIST_FILE = 'data/valuation_per_hist.json';
+function vaLoadHist() {
+  if (vaS.hist || vaS.histErr) return Promise.resolve();
+  vaS.histLoading ||= STORE.readText(VA_HIST_FILE)
+    .then((r) => { vaS.hist = r.text ? JSON.parse(r.text) : null; if (!vaS.hist) vaS.histErr = true; })
+    .catch(() => { vaS.histErr = true; })
+    .finally(() => { vaS.histLoading = null; vaDraw(); });
+  return vaS.histLoading;
+}
+function vaSmooth(pts) { // 손PB rollingAvg: 점이 200개 넘으면 10개, 아니면 4개 평균
+  const w = pts.length > 200 ? 10 : 4;
+  return pts.map((p, i) => { const xs = pts.slice(Math.max(0, i - w + 1), i + 1); return { d: p.d, v: xs.reduce((a, x) => a + x.v, 0) / xs.length }; });
+}
+function vaTrend(F) {
+  const h = vaS.hist;
+  if (!h) { if (!vaS.histErr) vaLoadHist(); return vaSec('PER 추이', '', `<div class="empty">${vaS.histErr ? 'PER 기록을 읽지 못했습니다.' : '불러오는 중…'}</div>`); }
+  const x = vaS.mk?.by[F.code], mkt = x?.market === 'KOSDAQ' ? 'KOSDAQ' : 'KOSPI', yrs = vaS.trd || '5';
+  const cut = yrs === 'all' ? '' : (() => { const d = new Date(); d.setFullYear(d.getFullYear() - +yrs); return d.toISOString().slice(0, 10); })();
+  const ds = h.dates, a = h.per[F.code];
+  const mPts = ds.map((d, i) => ({ d, v: h.mkt[mkt][i] })).filter((p) => p.v && p.d >= cut);
+  const sPts = a ? a.slice(1).map((v, i) => ({ d: ds[a[0] + i], v })).filter((p) => p.v && p.d >= cut) : [];
+  const seg = vaSeg('trd', [['1', '1년'], ['3', '3년'], ['5', '5년'], ['all', '전체']], yrs);
+  if (mPts.length < 2) return vaSec('PER 추이', seg, '<div class="empty">기록이 쌓이는 중입니다.</div>');
+  const M = vaSmooth(mPts), S = vaSmooth(sPts);
+  const W = 640, H = 260, P = { l: 40, r: 56, t: 12, b: 30 };
+  const t0 = Date.parse(M[0].d), t1 = Date.parse(M[M.length - 1].d), vs = [...M, ...S].map((p) => p.v);
+  const lo = Math.min(...vs), hi = Math.max(...vs), pad = (hi - lo) * 0.12 || 2, y0 = lo - pad, y1 = hi + pad;
+  const X = (d) => P.l + ((Date.parse(d) - t0) / Math.max(1, t1 - t0)) * (W - P.l - P.r), Y = (v) => P.t + (1 - (v - y0) / (y1 - y0)) * (H - P.t - P.b);
+  const path = (pts) => pts.map((p, i) => `${i ? 'L' : 'M'}${X(p.d).toFixed(1)},${Y(p.v).toFixed(1)}`).join('');
+  const yt = [lo, (lo + hi) / 2, hi].map((v) => `<line x1="${P.l}" x2="${W - P.r}" y1="${Y(v).toFixed(1)}" y2="${Y(v).toFixed(1)}" class="gl"/><text x="${P.l - 6}" y="${(Y(v) + 4).toFixed(1)}" class="yl">${vaNum(v)}</text>`).join('');
+  const xt = [t0, (t0 + t1) / 2, t1].map((t, i) => { const d = new Date(t).toISOString().slice(0, 10); return `<text x="${X(d).toFixed(1)}" y="${H - 8}" class="xl" style="text-anchor:${['start', 'middle', 'end'][i]}">${d.slice(2, 7).replace('-', '.')}</text>`; }).join('');
+  const lm = M[M.length - 1], ls = S.length > 1 ? S[S.length - 1] : null, gap = ls ? Y(ls.v) - Y(lm.v) : 99, nudge = Math.abs(gap) < 14 ? (14 - Math.abs(gap)) / 2 * (gap < 0 ? -1 : 1) : 0;
+  const end = (p, cls, dy) => `<text x="${(X(p.d) + 6).toFixed(1)}" y="${(Y(p.v) + 4 + dy).toFixed(1)}" class="${cls}">${vaNum(p.v, 1)}배</text>`;
+  const svg = `<svg viewBox="0 0 ${W} ${H}" class="va-sc va-tr" role="img" aria-label="PER 추이">${yt}${xt}<path d="${path(M)}" class="mk"/>${S.length > 1 ? `<path d="${path(S)}" class="me"/>` : ''}${end(lm, 'el mk', -nudge)}${ls ? end(ls, 'el me', nudge) : ''}</svg>`;
+  const raw = sPts.map((p) => p.v);
+  const kv = raw.length < 2 ? [['지금', vaX(raw[0] ?? x?.per)], [`${mkt} 중앙값`, vaX(mPts[mPts.length - 1].v)]] : [['지금', vaX(raw[raw.length - 1])], ['기간 중앙값', vaX(vaQuant(raw, 0.5))], ['25~75%', `${vaNum(vaQuant(raw, 0.25), 1)}~${vaNum(vaQuant(raw, 0.75), 1)}배`], ['최저~최고', `${vaNum(Math.min(...raw), 1)}~${vaNum(Math.max(...raw), 1)}배`], [`${mkt} 중앙값`, vaX(mPts[mPts.length - 1].v)]];
+  const leg = `<div class="va-leg"><span class="tg">${esc(F.name)}</span><span class="cv">${mkt} 중앙값</span></div>`;
+  const note = sPts.length < 2 ? `<p class="va-note">${esc(F.name)} 기록은 ${esc(sPts[0]?.d || ds[ds.length - 1])}부터 쌓는 중</p>` : '';
+  return vaSec('PER 추이', seg, `<dl class="va-kv va-mkv">${kv.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>${leg}<div class="va-scw">${svg}</div>${note}`);
+}
+
 function vaDraw() {
   const host = $('#va-host'); if (!host) return;
   if (vaS.err) { host.innerHTML = `<div class="card"><div class="empty">${esc(vaS.err)}</div></div>`; return; }
@@ -467,7 +528,7 @@ function vaDraw() {
   if (!c) { host.innerHTML = vaFinder() + '<div class="card"><div class="empty">아직 리서치한 평가가 없습니다. 위에서 회사를 찾으면 시장 데이터로 비교해 볼 수 있습니다.</div></div>'; return; }
   vaS.cid = c.id;
   const r = vaCalc(c), F = vaFocusCase(c), tab = vaS.tab || 'sum';
-  const body = { sum: () => vaSummary(c, r), mult: () => vaRange(c, r) + vaMultTable(c, r) + vaApply(c, r), chk: () => vaLoo(c, r) + vaScen(c, r), pick: () => vaPick(c), mkt: () => vaMarket(F) + vaReg(F) }[tab] || (() => vaSummary(c, r));
+  const body = { sum: () => vaSummary(c, r), mult: () => vaRange(c, r) + vaMultTable(c, r) + vaApply(c, r), chk: () => vaLoo(c, r) + vaScen(c, r), pick: () => vaPick(c), mkt: () => vaTrend(F) + vaMarket(F) + vaReg(F) }[tab] || (() => vaSummary(c, r));
   host.innerHTML = vaFinder() + vaHead(c, r) + vaTabs('tab', [['sum', '요약'], ['mult', '배수 상세'], ['chk', '검증'], ['pick', '선정 근거'], ...(vaS.mk ? [['mkt', '시장']] : [])], tab) + body();
   vaSave();
 }
@@ -488,7 +549,7 @@ function vaBind(host) {
       vaDraw(); return;
     }
     const sg = e.target.closest('[data-va-seg]');
-    if (sg && ['mkm', 'mkk', 'qpr', 'tab', 'qtab'].includes(sg.dataset.vaSeg)) { vaS[{ mkm: 'mkMarket', mkk: 'mkKind', qpr: 'qpr', tab: 'tab', qtab: 'qtab' }[sg.dataset.vaSeg]] = sg.dataset.v; vaDraw(); return; }
+    if (sg && ['mkm', 'mkk', 'qpr', 'tab', 'qtab', 'trd'].includes(sg.dataset.vaSeg)) { vaS[{ mkm: 'mkMarket', mkk: 'mkKind', qpr: 'qpr', tab: 'tab', qtab: 'qtab', trd: 'trd' }[sg.dataset.vaSeg]] = sg.dataset.v; vaDraw(); return; }
     if (e.target.closest('[data-va-warn]')) { vaS.warnOpen = !e.target.closest('details').open; return; }
     const c = vaCase(); if (!c || vaS.view) return;
     const s = vaSel(c);
@@ -533,10 +594,13 @@ async function vaDownload(btn, c) {
 }
 
 async function renderValuation() {
-  const tabs = [['rel', '상대가치평가', 'chart']];
+  const tabs = [['rel', '상대가치평가', 'chart'], ...(typeof renderDcf === 'function' ? [['dcf', 'DCF', 'calc']] : [])];
+  const vt = location.hash.startsWith('#valuation/dcf') && tabs.length > 1 ? 'dcf' : 'rel';
   PAGE.innerHTML = `<div class="page-head"><h1>가치평가</h1><span class="mk-upd" id="va-upd"></span></div>
-    <div class="deal-seg" role="tablist">${tabs.map(([k, t, i]) => `<button type="button" role="tab" aria-selected="true" class="on" data-vt="${k}">${ico(i)}${t}</button>`).join('')}</div>
+    <div class="deal-seg" role="tablist">${tabs.map(([k, t, i]) => `<button type="button" role="tab" aria-selected="${k === vt}" class="${k === vt ? 'on' : ''}" data-vt="${k}">${ico(i)}${t}</button>`).join('')}</div>
     <div id="va-host" class="mk va"><div class="card"><div class="empty">불러오는 중…</div></div></div>`;
+  PAGE.querySelectorAll('[data-vt]').forEach((b) => b.addEventListener('click', () => { location.hash = b.dataset.vt === 'dcf' ? '#valuation/dcf' : '#valuation'; }));
+  if (vt === 'dcf') return renderDcf($('#va-host'));
   vaBind($('#va-host'));
   await Promise.all([vaLoad(), vaLoadMkt()]);
   const u = vaS.data?.updated_at ? new Date(vaS.data.updated_at) : null;
@@ -549,7 +613,7 @@ TAB_INFO.valuation = { title: '상대가치평가', rows: [
   ['바꿔 볼 수 있는 것', ['배수 표의 체크를 풀거나 켜면 그 회사를 빼거나 넣고 다시 계산', '비교기업 범위: 국내만, 해외만, 국내와 해외. 결론의 「국내와 해외 따로」 표는 범위와 상관없이 셋 다 보여 줌', '기준 기간: 최근 4분기, 올해 추정, 내년 추정', 'PER 10~50배만: 증권신고서 관행대로 PER이 10배 미만이거나 50배 초과인 비교기업을 PER 통계에서 뺌', '적용 결과 표의 조정(%): 할증은 +, 할인은 −', '처음 구성으로: 리서치에서 정한 구성으로 되돌림']],
   ['배수 정의', { table: [['배수', '분자', '분모'], ['PER', '시가총액', '지배주주 순이익'], ['PBR', '시가총액', '지배주주 자본'], ['EV/EBITDA', 'EV', 'EBITDA'], ['EV/EBIT', 'EV', '영업이익'], ['EV/Sales', 'EV', '매출']] }],
   ['금액 정의', ['시가총액: 자사주를 뺀 보통주 수 × 종가 + 우선주(상장이면 우선주 종가, 비상장이면 보통주 종가로 1:1 가정)', 'EV: 시가총액 + 순부채 + 비지배지분', '순부채: 이자발생부채(전환사채, 리스 포함) − 현금, 단기금융상품, 단기 당기손익공정가치 금융자산', '배수와 이익은 같은 기간끼리 곱함. 대표값은 중앙값, 범위는 25%~75%', 'EV 배수로 구한 주주가치 = 배수 × 지표 − 순부채 − 비지배지분 + 비영업자산']],
-  ['읽는 법', ['탭: 요약(풋볼필드와 목표주가, 배수별 평가표, 비교기업 선정), 배수 상세(국내와 해외 따로, 배수별 범위, 회사별 배수, 적용 결과), 검증(한 회사씩 빼기, 시나리오), 선정 근거(단계별 기준과 회사별 이유), 시장(전 상장사 분포와 회귀)', '풋볼필드: 52주 고저, 증권사 목표가 최저~최고, 배수별 Bear~Bull(시나리오가 없으면 25~75%). 회색 점선은 현재가, 빨간 점선은 목표주가', '목표주가: 평가 배수 하나로 계산(100원 단위 반올림). 기본은 PER, 금융업은 PBR, 순이익 적자면 EV/EBITDA, EBITDA도 적자면 EV/Sales(국내 IPO 증권신고서와 셀사이드 관행). 리서치에서 바꿀 수 있고, 다른 배수는 풋볼필드 「참고」 줄과 교차 확인 표로만 봄', '배수별 평가표: 막대 세로선이 Target 배수(비교기업 중앙값), 표는 지표 × Target 배수 = 주당 가치', '범위 막대(배수 상세): 비교기업 배수 25~75% 구간을 대상 회사에 적용한 주당 가치, 가운데 선은 중앙값', '배수 표 체크: 풀면 그 회사가 통계에서 빠지고 결론이 바로 다시 계산됨. 취소선 PER은 10~50배 밖이라 통계에서 뺀 값', '조정(%): 성장률이나 이익률 차이처럼 근거가 있을 때만 넣고 판단 메모에 이유를 남김', '한 회사씩 빼기: 한 곳만 빼도 주당 가치가 15% 넘게 움직이면 주황 표시', '시나리오: 배수는 그대로 두고 대상 회사 이익만 바꿔 적용. 근거는 시나리오 이름에 마우스를 올리면 보임', 'NM: 분모가 0 이하(적자 등)라 계산하지 않음', '주황 칸: 중앙값의 2배를 넘거나 절반에 못 미치는 배수', '확인할 것: 지금 구성에서 비교기업 수 부족, 평균과 중앙값 차이, 한 회사에 기대는 결과, 데이터 지연 등']],
-  ['전 상장사 PER 분포와 회귀', ['분포: 코스피, 코스닥 전 종목(우선주, 스팩 제외)의 PER 구간별 종목 수. 대상 회사가 든 구간은 파란색, 검색한 회사 구간은 주황색', '회사 검색(맨 위): 리서치한 평가가 있는 회사는 그 평가를, 없는 회사는 네이버 PER로 손PB처럼 빠르게 비교(시장 내 위치, Peer 비교, 업종별 PER, 분포, 회귀). Peer는 검색해 넣거나 같은 업종 시가총액 상위 5곳을 한 번에 넣음', '회귀: 이익 성장률이 같을 때 시장이 주는 PER을 보는 보조 지표. 손PB 상대가치 화면과 같은 식. log(PER) = 상수 + 성장률 계수 × 이익 성장률 + 베타 계수 × 베타 + 업종 더미. 표본은 최근 4분기 PER 2~500배, 추정 PER 0~200배, 성장률 0~500%, 베타 −1~4인 회사, 업종 5곳 미만은 기준 업종. 가로축은 200%에서 자름', '이익 성장률: 최근 4분기 PER ÷ 추정 PER − 1. 괴리: 회귀 적정 PER ÷ 지금 PER − 1. 성장률이 0 이하인 회사는 직접 넣으면 단순 회귀 곡선으로 계산', '분포: PER 0~200배 종목만. 업종 막대는 FnGuide 대분류별 25~75% 구간과 중앙값, 파란 점은 고른 회사', 'Peer 비교: 세로선은 Peer 최근 4분기 PER 중앙값, 흐린 막대는 10~50배 밖이라 중앙값에서 뺀 회사']],
+  ['읽는 법', ['탭: 요약(풋볼필드와 목표주가, 배수별 평가표, 비교기업 선정), 배수 상세(국내와 해외 따로, 배수별 범위, 회사별 배수, 적용 결과), 검증(한 회사씩 빼기, 시나리오), 선정 근거(단계별 기준과 회사별 이유), 시장(전 상장사 분포와 회귀)', '풋볼필드: 52주 고저, 증권사 목표가 최저~최고, 배수별 Bear~Bull(시나리오가 없으면 25~75%). 회색 점선은 현재가, 빨간 점선은 목표주가', '목표주가: 평가 배수 하나로 계산(100원 단위 반올림). 기본은 PER, 금융업은 PBR, 순이익 적자면 EV/EBITDA, EBITDA도 적자면 EV/Sales(국내 IPO 증권신고서와 셀사이드 관행). 리서치에서 바꿀 수 있고, 다른 배수는 풋볼필드 「참고」 줄과 교차 확인 표로만 봄', '배수별 평가표: 막대 세로선이 Target 배수(비교기업 중앙값), 표는 지표 × Target 배수 = 주당 가치', '범위 막대(배수 상세): 비교기업 배수 25~75% 구간을 대상 회사에 적용한 주당 가치, 가운데 선은 중앙값', '배수 표 체크: 풀면 그 회사가 통계에서 빠지고 결론이 바로 다시 계산됨. 취소선 PER은 10~50배 밖이라 통계에서 뺀 값', '조정(%): 성장률이나 이익률 차이처럼 근거가 있을 때만 넣고 판단 메모에 이유를 남김', '비교기업이 3곳 미만이면 배수 평가 칸 아래에 다른 범위(국내, 해외, 국내와 해외)와 대상 회사 업종(FnGuide 소분류, 같은 PER 범위 조건) 중앙값을 참고로 보여 줌. 「국내와 해외 따로」 표에서는 주황', '한 회사씩 빼기: 한 곳만 빼도 주당 가치가 15% 넘게 움직이면 주황 표시', '시나리오: 배수는 그대로 두고 대상 회사 이익만 바꿔 적용. 근거는 시나리오 이름에 마우스를 올리면 보임', 'NM: 분모가 0 이하(적자 등)라 계산하지 않음', '주황 칸: 중앙값의 2배를 넘거나 절반에 못 미치는 배수', '확인할 것: 지금 구성에서 비교기업 수 부족, 평균과 중앙값 차이, 한 회사에 기대는 결과, 데이터 지연 등']],
+  ['전 상장사 PER 분포와 회귀', ['분포: 코스피, 코스닥 전 종목(우선주, 스팩 제외)의 PER 구간별 종목 수. 대상 회사가 든 구간은 파란색, 검색한 회사 구간은 주황색', '회사 검색(맨 위): 리서치한 평가가 있는 회사는 그 평가를, 없는 회사는 네이버 PER로 손PB처럼 빠르게 비교(시장 내 위치, Peer 비교, 업종별 PER, 분포, 회귀). Peer는 검색해 넣거나 같은 업종 시가총액 상위 5곳을 한 번에 넣음', '회귀: 이익 성장률이 같을 때 시장이 주는 PER을 보는 보조 지표. 손PB 상대가치 화면과 같은 식. log(PER) = 상수 + 성장률 계수 × 이익 성장률 + 베타 계수 × 베타 + 업종 더미. 표본은 최근 4분기 PER 2~500배, 추정 PER 0~200배, 성장률 0~500%, 베타 −1~4인 회사, 업종 5곳 미만은 기준 업종. 가로축은 200%에서 자름', '이익 성장률: 최근 4분기 PER ÷ 추정 PER − 1. 괴리: 회귀 적정 PER ÷ 지금 PER − 1. 성장률이 0 이하인 회사는 직접 넣으면 단순 회귀 곡선으로 계산', '분포: PER 0~200배 종목만. 업종 막대는 FnGuide 대분류별 25~75% 구간과 중앙값, 파란 점은 고른 회사', 'Peer 비교: 세로선은 Peer 최근 4분기 PER 중앙값, 흐린 막대는 10~50배 밖이라 중앙값에서 뺀 회사', 'PER 추이: 고른 회사의 최근 4분기 PER과 그 회사 시장(KOSPI, KOSDAQ) 중앙값. 손PB와 같이 점이 200개 넘으면 10개, 아니면 4개씩 이동평균. 시장 중앙값은 PER 2~500배, 금융 업종 제외. 평일 16:30에 쌓고, 그 전 기록은 손PB가 2016-05부터 모은 같은 네이버 PER(시장 중앙값과 리서치 사례 회사만, 2025년까지는 주 1회)', '추이 위 숫자: 지금, 기간 중 PER 중앙값, 25~75%, 최저~최고(이동평균 전 값)']],
   ['출처', ['국내 비교기업: 네이버 기업정보(와이즈리포트) 실적과 컨센서스, KIND 상장법인 목록. 실적 발표 직후 며칠은 반영이 늦어 대상 회사는 분기보고서와 증권사 리포트로 고쳐 넣음', '해외 비교기업: 리서치로 모은 배수(회사별 출처와 기준일은 비교기업 선정 칸)', '계산 원본과 사례 폴더: 05. 딜소싱 > _자동화 > 가치평가']],
 ] };

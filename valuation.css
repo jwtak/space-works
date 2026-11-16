@@ -268,3 +268,11 @@
 .va-fb-r.ref .va-fb-b i { background: #C7D7FB; }
 .va-fb-r.ref .va-fb-l b { font-weight: 500; color: var(--text2); }
 .va-asm dd small { margin-left: 4px; font-size: 12px; font-weight: 400; color: var(--text3); }
+.va-thin { margin-top: 20px; }
+.va-split tr td.va-few { background: var(--t-amber); }
+.va-tr path { fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.va-tr path.mk { stroke: #6B7280; stroke-width: 1.8; }
+.va-tr path.me { stroke: var(--primary); stroke-width: 2; }
+.va-tr .el { font-size: 12px; font-weight: 700; }
+.va-tr .el.mk { fill: #6B7280; }
+.va-tr .el.me { fill: var(--primary); }
