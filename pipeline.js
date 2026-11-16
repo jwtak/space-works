@@ -674,6 +674,8 @@ function ppCpPaint(id) {
   const h = ppS.host; if (!h || !h.isConnected) return;
   if (ppS.view === 'call') { ppDraw(); return; }
   h.querySelectorAll('.pp-cp[data-cp]').forEach((s) => { if (id && s.dataset.cp !== id) return; const x = ppFind(s.dataset.cp); if (x) s.innerHTML = ppCpInner(x); });
+  // 목록 '컨택' 칩도: 플랜을 불러오기 전에 그린 줄은 회사가 여럿인 딜도 회사별로 안 나뉘어 있다
+  h.querySelectorAll('.pp-row[data-id] > .pp-line > .pp-c-cl').forEach((c) => { const rid = c.closest('.pp-row').dataset.id; if (id && rid !== id) return; const x = ppFind(rid); if (x) c.outerHTML = ppClCell(x); });
   ppCallN();
 }
 
