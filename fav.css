@@ -1,0 +1,46 @@
+/* 파이프라인 › 관심 기업 (fav.js) + 딜소싱 펼친 칸 머리 '관심' 버튼. 목록 뼈대는 ipo.css(.ipo-page·.ipo-card·.ipo-filter·.ipo-row·.ipo-line) */
+
+/* 펼친 칸 머리 '관심' 버튼(fsq.js fqHead → fav.js fvHead). 크기는 '팩트시트 요청'(.rd-fs)과 같게, 눌리면 별만 노랗게 채운다 */
+.fv-slot { display: contents; }
+.fv-slot:empty { display: none; }
+.btn.fv-btn .i { color: var(--text3); }
+.btn.fv-btn.on .i { color: #FDC036; fill: currentColor; }
+
+/* 목록: 회사 | 화면(칩) | 관심 표시 날짜 | 해제 별. 칸 사이 16 같게, 전부 왼쪽 정렬 */
+.fv-cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) 32px; gap: 16px; align-items: center; padding-left: 24px; padding-right: 24px; }
+.ipo-head.fv-cols > .fv-h-src { padding-left: 11px; } /* 머리글 = 칩 안 글자 시작선(칩 테두리 1 + 좌우 10) */
+.fv-ttl { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink); text-decoration: none; }
+.fv-c-src { min-width: 0; }
+.fv-c-src .chip { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.fv-c-at { color: var(--text2); font-variant-numeric: tabular-nums; }
+.fv-c-st { display: flex; justify-content: flex-end; }
+.fv-star { width: 32px; height: 32px; margin: -6px -8px -6px 0; padding: 0; border: 0; border-radius: var(--r); background: none; color: #C4C9D1; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.fv-star:hover { background: rgba(15, 23, 42, .04); }
+.fv-star.on { color: #FDC036; }
+.fv-star.on svg { fill: currentColor; }
+.fv-n { margin-left: 6px; color: var(--text3); font-weight: 500; font-variant-numeric: tabular-nums; }
+.fv-seg button.on .fv-n { color: var(--primary); }
+.fv-seg[hidden] { display: none; }
+
+@media (max-width: 760px) {
+  .fv-page .ipo-head { display: none; }
+  /* 한 건: 이름 / 화면 칩 + 날짜, 오른쪽에 해제 별 */
+  .fv-page .fv-cols { grid-template-columns: auto minmax(0, 1fr) 40px; grid-template-areas: "name name star" "src at star"; gap: 6px 12px; padding-left: 16px; padding-right: 16px; }
+  /* ipo.css 폰 규칙(.ipo-line > div:nth-child(1) 한 줄 차지·(3)(4) 숨김)을 이 목록에서는 되돌린다 */
+  .fv-page .ipo-line > .fv-c-name { display: block; grid-area: name; font-size: inherit; color: inherit; }
+  .fv-page .ipo-line > .fv-c-src { display: block; grid-area: src; }
+  .fv-page .ipo-line > .fv-c-at { display: block; grid-area: at; align-self: center; font-size: var(--fs-md); line-height: 20px; color: var(--text3); }
+  .fv-page .ipo-line > .fv-c-st { display: flex; grid-area: star; align-self: center; }
+  .fv-page .fv-ttl { font-size: var(--fs-lg); line-height: 24px; white-space: normal; }
+  .fv-star { width: 40px; height: 40px; margin: -8px -10px -8px 0; }
+  .fv-star svg { width: 20px; height: 20px; }
+  /* 필터: 검색 한 줄 + 화면 칩 줄(옆으로 밀기). mobile.css .mf-pri·.mf-main과 같은 모양(묶음이 하나라 app.js mfApply가 붙이지 않는다) */
+  .fv-page .ipo-filter { gap: 12px 8px; padding: 12px 16px; }
+  .fv-page .ipo-filter > .ipo-search { flex: 1 1 100%; max-width: none; }
+  .fv-page .ipo-filter > .ipo-search .input { height: 44px; font-size: var(--fs-lg); }
+  .fv-page .fv-seg { flex: 0 0 calc(100% + 32px); display: flex; flex-wrap: nowrap; gap: 8px; margin: 0 -16px; padding: 0 16px; overflow-x: auto; border: 0; border-radius: 0; background: none; scrollbar-width: none; }
+  .fv-page .fv-seg::-webkit-scrollbar { display: none; }
+  .fv-page .fv-seg button { flex: none; height: 36px; margin: 0; padding: 0 14px; border: 1px solid var(--line2); border-radius: var(--r-full); background: var(--card); color: var(--text2); font-size: var(--fs-base); font-weight: 500; white-space: nowrap; }
+  .fv-page .fv-seg button + button { border-left: 1px solid var(--line2); }
+  .fv-page .fv-seg button.on { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+}

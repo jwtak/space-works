@@ -9,6 +9,10 @@
 
 const TG_TTL = 5 * 60000;
 const TG_STATUS = ['미접촉', '연락함', '미팅', '보류', '검토 완료']; // radar.js RD_STATUS와 같은 값·순서(같은 파일을 쓴다)
+// 검토 완료는 제자리에서 진한 회색 행(.ct-done, radar.css), 연락함·미팅·보류만 맨 아래 '컨택한 곳'으로(사용자 2026-11-16)
+const TG_DONE = TG_STATUS[4];
+const tgLowSt = (st) => st !== TG_STATUS[0] && st !== TG_DONE;
+const tgDoneCls = (st) => (st === TG_DONE ? ' ct-done' : '');
 // 화면별 설정: 자료 파일, 화면 이름(= 파이프라인 출처·PP_TABS 이름), 기준일이 며칠 넘게 지나면 빨간 글씨인지
 const TG_CFG = {
   cons: { file: 'data/consumer.json', title: '소비재', stale: 2 },
@@ -220,10 +224,12 @@ function tgTouch(id, patch) {
   return true;
 }
 
-// 상태를 바꾼 행은 펼친 채 그 자리에 두고(메모를 이어 쓸 수 있게), 접을 때 목록 아래 '컨택·검토한 곳'으로 내린다
+// 상태를 바꾼 행은 펼친 채 그 자리에 두고(메모를 이어 쓸 수 있게), 접을 때 연락함·미팅·보류면 목록 아래 '컨택한 곳'으로 내린다.
+// 검토 완료를 한 번 더 누르면 미접촉으로 되돌린다(다른 상태는 그대로)
 function tgSetStatus(id, status) {
   const x = tgFind(id);
-  if (!x || !TG_STATUS.includes(status) || tgSt(x.id) === status) return;
+  if (!x || !TG_STATUS.includes(status)) return;
+  if (tgSt(x.id) === status) { if (status !== TG_DONE) return; status = TG_STATUS[0]; }
   if (!tgTouch(id, { status })) return;
   tgRefreshRow(id);
   tgSumDraw();
@@ -304,13 +310,13 @@ function tgRoundsBox(x) {
   return tgBox('투자 라운드', `${sum}${tbl}` || '<p class="ipo-p muted">확인 불가</p>', x.rounds.length ? `${x.rounds.length}건` : '');
 }
 
-// 컨택했거나 다 본 곳(미접촉이 아닌 상태)은 맨 아래 '컨택·검토한 곳'으로 내리고 흐리게(pe.js peSink와 같다)
+// 컨택한 곳(연락함·미팅·보류)은 맨 아래 '컨택한 곳'으로 내리고 흐리게(pe.js peSink와 같다). 검토 완료는 제자리
 function tgSink(list) {
-  const low = list.filter((x) => tgSt(x.id) !== '미접촉');
+  const low = list.filter((x) => tgLowSt(tgSt(x.id)));
   if (!low.length) return list;
   return [...list.filter((x) => !low.includes(x)), { low: true, n: low.length }, ...low];
 }
-const tgLowRow = (x) => `<div class="rd-grp rd-low"><b>컨택·검토한 곳</b><span>${x.n}곳</span></div>`;
+const tgLowRow = (x) => `<div class="rd-grp rd-low"><b>컨택한 곳</b><span>${x.n}곳</span></div>`;
 
 /* 소비재: 영업이익 | 회사 | 매출 | 매출 성장 | 최대주주 | 컨택 상태 — 정렬 기준 값을 첫 칸에(pe.js 오너기업 점수 칸과 같은 자리)
    카드가 1000보다 좁으면 최대주주 칸(rd-c2)을 접어 회사 칸 보조 줄(rd-alt)로, 700보다 좁거나 폰이면 회사 칸 아래 수치 칸(pe-mg)으로 */
@@ -324,7 +330,7 @@ function tgConsRow(x, y) {
   const holder = t ? `${tgNm(t.name)}${t.pct != null ? ` ${tgPct(t.pct)}` : ''}` : '';
   const mg = tgMg([['매출', tgEok(x.rev)], ['영업이익', x.op != null ? `${tgDn(x.op, tgEok(x.op))}${x.opm != null ? ` <span class="tgt-mgs">OPM ${tgDn(x.opm, tgPct(x.opm))}</span>` : ''}` : TG_NA],
     ['매출 성장', tgChg(x.cagr)], ['최대주주', holder || TG_NA]]);
-  return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
+  return `<div class="ipo-row${open ? ' open' : ''}${tgDoneCls(tgSt(x.id))}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div class="rd-mh">${x.op != null ? tgDn(x.op, tgEok(x.op)) : TG_NA}<div class="ipo-sub">${x.opm != null ? `OPM ${tgDn(x.opm, tgPct(x.opm))}` : ''}</div></div>
       <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${tgNm(x.name)}</button>${tgListed(x)}${sub ? `<div class="ipo-sub tgt-s">${esc(sub)}</div>` : ''}${invl}${holder ? `<div class="ipo-sub rd-alt">최대주주 ${holder}</div>` : ''}${mg}</div>
@@ -343,7 +349,7 @@ function tgDeepRow(x) {
   const fsub = f ? (x.young === true ? '<span class="tgt-yg">젊은 창업자</span>' : esc(f.bg)) : '';
   const alt = [s.cat ? '' : x.cat, r ? `최근 ${tgRoundTxt(r)}` : ''].filter(Boolean).join(', ');
   const mg = tgMg([['누적 투자', tgEok(x.inv)], ['단계', x.stage ? esc(x.stage) : TG_NA], ['창업자', f && tgAge(f) ? (x.young === true ? `<span class="tgt-yg">${tgAge(f)}</span>` : tgAge(f)) : TG_NA], ['최근 라운드', r ? esc(tgRoundTxt(r)) : TG_NA]]);
-  return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
+  return `<div class="ipo-row${open ? ' open' : ''}${tgDoneCls(tgSt(x.id))}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div class="rd-mh">${x.inv != null ? tgEok(x.inv) : TG_NA}<div class="ipo-sub">${x.investors.length ? `투자사 ${x.investors.length}곳` : ''}</div></div>
       <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${tgNm(x.name)}</button>${tgListed(x)}${x.tech ? `<div class="ipo-sub tgt-s">${esc(x.tech)}</div>` : ''}${alt ? `<div class="ipo-sub rd-alt">${esc(alt)}</div>` : ''}${mg}</div>
@@ -410,9 +416,10 @@ function tgDetail(k, x) {
   return `<div class="ipo-detail">${tgDhead(x)}
     <div class="ipo-pane"><div class="ipo-stack">${typeof fqBox === 'function' ? fqBox(x.id, x, TG_CFG[k].title) : ''}
       <div class="ipo-two-col">
-        <div class="ipo-stack">${inv}${tgRoundsBox(x)}${tgFinBox(x)}</div>
+        <div class="ipo-stack">${inv}${tgFinBox(x)}</div>
         <div class="ipo-stack">${tgBox('회사 정보', co)}${tgBox('주주', holders)}</div>
       </div>
+      ${tgRoundsBox(x)}
       ${tgBox('최근 기사', news, x.news.length ? `${x.news.length}건` : '')}
       ${tgBox('출처', src)}
     </div></div>
@@ -567,11 +574,11 @@ function tgRefreshRow(id) {
   tgKeepBack(keep);
 }
 
-// 접은 행이 상태 때문에 다른 묶음(컨택·검토한 곳 ↔ 위 목록)으로 가야 하면 목록을 다시 그리고, 그 행 바로 다음 행이 그 자리에 오게 한다
+// 접은 행이 상태 때문에 다른 묶음(컨택한 곳 ↔ 위 목록)으로 가야 하면 목록을 다시 그리고, 그 행 바로 다음 행이 그 자리에 오게 한다
 function tgFold(r, x) {
   const b = r.parentElement, low = b.querySelector('.rd-low');
   const inLow = !!low && !!(low.compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING);
-  if ((tgSt(x.id) !== '미접촉') === inLow) { tgRefreshRow(x.id); return; }
+  if (tgLowSt(tgSt(x.id)) === inLow) { tgRefreshRow(x.id); return; }
   const sc = r.closest('.scroll');
   let nx = r.nextElementSibling; while (nx && !nx.matches('.ipo-row[data-id]')) nx = nx.nextElementSibling;
   const y0 = r.getBoundingClientRect().top - (parseFloat(getComputedStyle(r).marginTop) || 0), nid = nx?.dataset.id;
@@ -718,7 +725,7 @@ function tgInfo(k) {
         '행을 펼치면 선정 이유, 주요 손익, 주주, 회사 정보, 최근 기사, 출처가 나옵니다.',
         `기준일이 ${TG_CFG[k].stale}일 넘게 지나면 요약 줄에 빨간 글씨로 보입니다.`,
         '엑셀 다운로드는 지금 보이는 목록을 정렬 그대로 CSV로 받습니다.',
-        '연락함, 미팅, 보류, 검토 완료로 바꾼 회사는 행을 접으면 목록 맨 아래 컨택·검토한 곳으로 내려갑니다.',
+        '연락함, 미팅, 보류로 바꾼 회사는 행을 접으면 목록 맨 아래 컨택한 곳으로 내려갑니다. 검토 완료는 제자리에서 진한 회색으로 보이고, 한 번 더 누르면 풀립니다.',
       ]],
       ['그래서 할 일', [
         '펼쳐서 손익과 주주를 보고, 볼 곳은 팩트시트를 요청한 뒤 대표 앞으로 연락합니다.',
@@ -738,7 +745,7 @@ function tgInfo(k) {
         '행을 펼치면 선정 이유, 투자 이력, 창업자, 주요 손익, 주주, 회사 정보, 최근 기사가 나옵니다.',
         `기준일이 ${TG_CFG[k].stale}일 넘게 지나면 요약 줄에 빨간 글씨로 보입니다.`,
         '엑셀 다운로드는 지금 보이는 목록을 정렬 그대로 CSV로 받습니다.',
-        '연락함, 미팅, 보류, 검토 완료로 바꾼 회사는 행을 접으면 목록 맨 아래 컨택·검토한 곳으로 내려갑니다.',
+        '연락함, 미팅, 보류로 바꾼 회사는 행을 접으면 목록 맨 아래 컨택한 곳으로 내려갑니다. 검토 완료는 제자리에서 진한 회색으로 보이고, 한 번 더 누르면 풀립니다.',
       ]],
       ['그래서 할 일', [
         '펼쳐서 투자 이력과 창업자를 보고, 볼 곳은 팩트시트를 요청한 뒤 다음 라운드 참여나 구주 인수 가능성을 문의합니다.',

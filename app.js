@@ -633,6 +633,8 @@ matchMedia('(max-width: 760px)').addEventListener('change', () => { if (S && rou
 const DEAL_SCREENS = {
   news: ['딜 뉴스', 'news', () => (typeof renderNews === 'function' ? renderNews : null)],
   events: ['행사·IR', 'ticket', () => (typeof renderEvents === 'function' ? renderEvents : null)],
+  round: ['투자 라운드', 'chart', () => (typeof renderRound === 'function' ? renderRound : null)], // round.js: 시리즈 B·C~Pre-IPO(2026-11-16)
+  fav: ['관심 기업', 'check', () => (typeof renderFav === 'function' ? renderFav : null)], // fav.js: 내가 ☆한 회사(사람별)
   yesim: ['상장 준비', 'flag', () => (typeof renderYesim === 'function' ? renderYesim : null)],
   ipo: ['신규상장', 'chart', () => (typeof renderIpo === 'function' ? renderIpo : null)],
   bids: ['입찰딜', 'send', () => (typeof renderBids === 'function' ? renderBids : null)],
@@ -647,9 +649,9 @@ const DEAL_SCREENS = {
   deep: ['딥테크', 'spark', () => (typeof renderDeep === 'function' ? renderDeep : null)],
   pipeline: ['파이프라인', 'inbox', () => (typeof renderPipeline === 'function' ? renderPipeline : null)],
 };
-const DEAL_GROUPS = [['events', '행사', 'ticket', ['events']], ['listing', '상장', 'flag', ['yesim', 'ipo']], ['offer', '매물', 'upload', ['bids', 'sell', 'kmx']], ['target', '타깃', 'link', ['heir', 'dup', 'delist', 'sector', 'cons', 'deep']]];
-const DEAL_PIPE = ['facts', 'pipeline']; // 사이드바 '파이프라인' 화면의 탭
-const DEAL_PAGE = { news: 'news', pipeline: 'pipeline', facts: 'pipeline' }; // 나머지는 딜소싱
+const DEAL_GROUPS = [['events', '행사', 'ticket', ['events']], ['listing', '상장', 'flag', ['round', 'yesim', 'ipo']], ['offer', '매물', 'upload', ['bids', 'sell', 'kmx']], ['target', '타깃', 'link', ['heir', 'dup', 'delist', 'sector', 'cons', 'deep']]];
+const DEAL_PIPE = ['facts', 'pipeline', 'fav']; // 사이드바 '파이프라인' 화면의 탭
+const DEAL_PAGE = { news: 'news', pipeline: 'pipeline', facts: 'pipeline', fav: 'pipeline' }; // 나머지는 딜소싱
 // 주소 끝 → 화면 키. 빈 값은 첫 묶음, 묶음 이름은 그 묶음에서 마지막으로 본 화면, pe는 PE 앵글에서 보던 묶음
 function dealSub(s) {
   if (s === 'pe') return typeof peS !== 'undefined' && peS.grp === 'dup' ? 'dup' : 'heir';

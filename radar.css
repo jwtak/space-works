@@ -268,8 +268,15 @@
   .rd-page .ipo-tbl.rd-tbl-r td:nth-child(2) { font-weight: 600; }
   .rd-page .ipo-tbl.rd-tbl-r td:nth-child(4) { flex: 1 1 100%; margin-top: 2px; font-size: var(--fs-md); color: var(--text2); }
 }
-/* 컨택·검토한 곳: 목록 맨 아래 묶음, 펼치지 않은 행은 흐리게(올리면 또렷하게) */
+/* 컨택한 곳(연락함·미팅·보류): 목록 맨 아래 묶음, 펼치지 않은 행은 흐리게(올리면 또렷하게) */
 .rd-low b { color: var(--text2); }
 .rd-low ~ .ipo-row:not(.open) > .ipo-line { opacity: .55; }
 .rd-low ~ .ipo-row:not(.open) > .ipo-line:hover { opacity: 1; }
 .ipo-st.s-4 { background: var(--fill); color: var(--text2); } /* 검토 완료 */
+/* 검토 완료 행(.ct-done): 자리는 그대로, 진한 회색 바탕으로 본 것 표시 — 상장 준비·입찰딜·매각희망·신규상장·PE 앵글·타깃 공용(2026-11-16) */
+.ipo-row.ct-done > .ipo-line { background: #E5E7EB; }
+.ipo-row.ct-done > .ipo-line:hover { background: #DCDFE4; }
+.ipo-row.ct-done + .ipo-row.ct-done { border-top-color: #D5D9DF; }
+.ipo-row.ct-done.open { border-color: #C4C9D1; }
+.ipo-row.ct-done.open > .ipo-line { background: #E5E7EB; }
+.ipo-row.ct-done .ipo-st.s-4 { background: var(--card); color: var(--text); }

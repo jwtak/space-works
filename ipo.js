@@ -5,6 +5,7 @@
    app.js 전역($, esc, pad, ymd, parse, today, addDays, diffDays, md, ico, toast)과 graph.js 의 STORE 를 쓴다. */
 
 const IPO_STATUS = ['미접촉', '연락함', '미팅', '보류', '검토 완료'];
+const IPO_DONE = IPO_STATUS[4]; // 검토 완료: 제자리에서 진한 회색 행(.ct-done, radar.css), 아래 '컨택한 곳'으로 내리지 않는다(사용자 2026-11-16)
 const IPO_FILTERS = [['all', '전체'], ['lock', '락업 30일'], ['direct', '직통번호'], ['todo', '미접촉'], ['fund', '조달 공시']];
 const IPO_SORTS = [['listed', '상장일순'], ['lock', '락업 임박순'], ['mcap', '시총순']];
 const IPO_TTL = 5 * 60000;
@@ -136,7 +137,10 @@ function ipoTouch(code, patch) {
   ipoState.dirty.set(code, e);
 }
 
+// 검토 완료를 한 번 더 누르면 미접촉으로 되돌린다(다른 상태는 그대로)
 function ipoSetStatus(code, status) {
+  if (!IPO_STATUS.includes(status)) return;
+  if (ipoSt(code) === status) { if (status !== IPO_DONE) return; status = IPO_STATUS[0]; }
   ipoTouch(code, { status });
   ipoRefreshRow(code);
   const s = $('#ipo-sum'); if (s) s.innerHTML = ipoSummary();
@@ -243,7 +247,7 @@ function ipoRow(x) {
   const open = ipoState.open.has(x.code), st = ipoSt(x.code), f25 = x.fin?.years?.['2025'] || [];
   // 칸마다 값 한 줄(회사 칸 사업 내용, 작성책임자 번호, 락업 지분율만 보조 줄). 시장·공모가 기준 시총·영업이익은 펼친 칸에. 카드가 좁으면 시총·매출 칸을 접는다.
   // 컨택 상태 칩은 미접촉(기본값)이면 그리지 않는다(2026-11-15 요소 줄이기)
-  return `<div class="ipo-row${open ? ' open' : ''}" data-code="${esc(x.code)}">
+  return `<div class="ipo-row${open ? ' open' : ''}${st === IPO_DONE ? ' ct-done' : ''}" data-code="${esc(x.code)}">
     <div class="ipo-line ipo-cols">
       <div class="ipo-c-date">${md(x.listed)}</div>
       <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${ipoNm(x.name)}</button><div class="ipo-sub">${esc(x.product || x.sector)}</div>${ipoPair(x)}</div>
@@ -323,7 +327,7 @@ function ipoDetail(x) {
   return `<div class="ipo-detail">
     <div class="ipo-dhead">
       ${x.summary ? `<p class="ipo-sum1">${esc(x.summary)}</p>` : '<p></p>'}
-      <div class="ipo-acts"><div class="seg ipo-seg">${IPO_STATUS.map((s) => `<button type="button" class="${s === st ? 'on' : ''}" data-ipo-st="${s}">${s}</button>`).join('')}</div>
+      <div class="ipo-acts"><div class="seg ipo-seg">${IPO_STATUS.map((s) => `<button type="button" class="${s === st ? 'on' : ''}" aria-pressed="${s === st}" data-ipo-st="${s}">${s}</button>`).join('')}</div>
         <input class="input ipo-note" data-ipo-note placeholder="메모" maxlength="300" value="${esc(m?.note || '')}" aria-label="메모">
         ${m?.at ? `<span class="ipo-by">${esc(m.by || '')} ${esc(ipoMd(m.at.slice(0, 10)))} ${esc(m.at.slice(11, 16))}</span>` : ''}${fqHead(`ipo:${x.code}`, x)}</div>${ipoPipe(x)}
     </div>
@@ -446,12 +450,12 @@ function ipoBody() {
   if (!list.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
   return `<div class="ipo-head ipo-cols"><div>상장일</div><div>회사</div><div class="ipo-c-cap">현재 시총</div><div class="ipo-c-rev">2025 매출</div><div>작성책임자</div><div>다음 락업</div><div class="ipo-h-st">컨택 상태</div></div>${ipoSink(list)}`;
 }
-// 컨택했거나 다 본 곳은 맨 아래 '컨택·검토한 곳'으로 내리고 흐리게 — 예심청구 등(radar.js rdSink)과 같은 방식(사용자 2026-11-10)
+// 컨택한 곳(연락함·미팅·보류)은 맨 아래 '컨택한 곳'으로 내리고 흐리게 — 예심청구 등(radar.js rdSink)과 같은 방식(사용자 2026-11-10). 검토 완료는 제자리(11-16)
 function ipoSink(list) {
-  const low = list.filter((x) => ipoSt(x.code) !== '미접촉');
+  const low = list.filter((x) => { const st = ipoSt(x.code); return st !== IPO_STATUS[0] && st !== IPO_DONE; });
   if (!low.length) return list.map(ipoRow).join('');
   return list.filter((x) => !low.includes(x)).map(ipoRow).join('')
-    + `<div class="rd-grp rd-low"><b>컨택·검토한 곳</b><span>${low.length}곳 · 연락함·미팅·보류·검토 완료</span></div>${low.map(ipoRow).join('')}`;
+    + `<div class="rd-grp rd-low"><b>컨택한 곳</b><span>${low.length}곳</span></div>${low.map(ipoRow).join('')}`;
 }
 
 /* 다시 그릴 때(다른 분 저장 합치기·저장 실패 되돌리기 등) 쓰고 있던 메모 칸을 지킨다 — radar.js rdDraw와 같은 방식.

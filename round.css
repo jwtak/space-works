@@ -1,0 +1,35 @@
+/* 딜소싱 › 상장 › 투자 라운드 (round.js) — 목록·펼친 행·상자는 ipo.css, 좁은 폭 배치·묶음 제목(.rd-grp)은 radar.css(.rd-page),
+   펼친 칸 칩·표는 tgt.css·pe.css를 그대로 쓰고 여기엔 칸 구성과 폰 둘째 줄만. radar.css·tgt.css 뒤에 읽어야 한다.
+   표는 왼쪽 정렬·머리글과 값 시작선 일치. */
+
+/* 폰 둘째 줄(최근 라운드 | 누적 투자)과 상태 칩 옆 개수는 넓은 표에서 숨김 */
+.rn-pair, .rn-fc { display: none; }
+.rn-pair > span { flex: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rn-pair > .rn-p1 { width: 176px; }
+.rn-pair > span:last-child { flex: 1 1 auto; }
+.rn-go svg { width: 14px; height: 14px; }
+
+@media (min-width: 761px) {
+  /* 시기 | 회사 | 최근 라운드 | 누적 투자 | 컨택 상태 */
+  .rn-page .ipo-cols { grid-template-columns: 80px repeat(3, minmax(0, 1fr)) 100px; }
+  /* 투자 라운드 표(tgt.js tgRoundsBox): 다섯 칸 같은 폭 */
+  .rn-page .ipo-tbl.tgt-rounds { table-layout: fixed; width: 100%; }
+  .rn-page .ipo-tbl.tgt-rounds th, .rn-page .ipo-tbl.tgt-rounds td { width: 20%; overflow-wrap: anywhere; }
+  /* 700보다 좁으면 폰처럼 한 건 = 이름(+ 컨택 상태) / 둘째 줄 */
+  @container (max-width: 699px) {
+    .rn-page .ipo-cols { grid-template-columns: minmax(0, 1fr) auto; }
+    .rn-page .rn-pair { display: flex; gap: 12px; margin-top: 4px; font-size: var(--fs-md); line-height: 20px; color: var(--text2); font-variant-numeric: tabular-nums; }
+  }
+  @container (max-width: 299px) {
+    .rn-page .ipo-cols { grid-template-columns: minmax(0, 1fr); }
+    .rn-page .rn-pair { flex-wrap: wrap; }
+  }
+}
+
+@media (max-width: 760px) {
+  .rn-page .rn-pair { display: flex; gap: 12px; margin-top: 4px; font-size: var(--fs-md); line-height: 20px; color: var(--text2); font-variant-numeric: tabular-nums; }
+  .rn-page .ipo-line > .ipo-c-st { grid-column: 2; grid-row: 1; align-self: start; }
+  #page .rn-page .ipo-filter .seg button .rn-fc { display: inline; margin-left: 6px; color: var(--text3); font-weight: 500; font-variant-numeric: tabular-nums; }
+  #page .rn-page .ipo-filter .seg button.on .rn-fc { color: var(--primary); }
+  .rn-page .ipo-dhead > .rn-go { height: 44px; }
+}

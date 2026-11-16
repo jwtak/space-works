@@ -8,6 +8,10 @@
    엑셀은 ipo.js 의 ipoDownload(통합 엑셀), 파이프라인은 pipeline.js 의 pipeAdd·pipeHas·pipeLoad(있을 때만 버튼이 보인다). */
 
 const RD_STATUS = ['미접촉', '연락함', '미팅', '보류', '검토 완료'];
+const RD_DONE = RD_STATUS[4];
+// 검토 완료는 제자리에서 진한 회색 행(.ct-done), 연락함·미팅·보류만 맨 아래 '컨택한 곳'으로(사용자 2026-11-16)
+const rdLowSt = (st) => st !== RD_STATUS[0] && st !== RD_DONE;
+const rdDoneCls = (st) => (st === RD_DONE ? ' ct-done' : '');
 const RD_TTL = 5 * 60000;
 const RD_TAB = {
   yesim: { file: 'data/yesim.json', label: '예심청구', unit: '곳' },
@@ -485,8 +489,10 @@ function rdTouch(tab, id, patch) {
   return true;
 }
 
+// 검토 완료를 한 번 더 누르면 미접촉으로 되돌린다(다른 상태는 그대로)
 function rdSetStatus(tab, id, status) {
-  if (!RD_STATUS.includes(status) || rdSt(rdKey(tab, id)) === status) return;
+  if (!RD_STATUS.includes(status)) return;
+  if (rdSt(rdKey(tab, id)) === status) { if (status !== RD_DONE) return; status = RD_STATUS[0]; }
   if (!rdTouch(tab, id, { status })) return;
   rdRefreshRow(tab, id);
   rdSumDraw();
@@ -524,7 +530,7 @@ function rdDday(s) {
 // 조합 만기: 지난 만기는 기간 제한 없이 n일 지남, 다가오는 만기는 rdDday와 같게
 const rdExp = (s) => { const d = rdDay(s); if (!d) return ''; const n = diffDays(d, today()); return n < 0 ? `${-n}일 지남` : rdDday(d); };
 const rdByText = (m) => (m && typeof m.at === 'string' && m.at ? `${rdStr(m.by)} ${rdMd(m.at.slice(0, 10))} ${m.at.slice(11, 16)}`.trim() : '');
-// 목록 행의 컨택 상태 칩: 미접촉(기본값)은 그리지 않는다 — 컨택한 곳은 '컨택·검토한 곳' 묶음으로 내려가 칩만 보면 된다(2026-11-15 요소 줄이기)
+// 목록 행의 컨택 상태 칩: 미접촉(기본값)은 그리지 않는다 — 컨택한 곳은 '컨택한 곳' 묶음으로 내려가 칩만 보면 된다(2026-11-15 요소 줄이기)
 const rdChip = (st) => (st === RD_STATUS[0] ? '' : `<span class="ipo-st s-${RD_STATUS.indexOf(st)}">${esc(st)}</span>`);
 // 폰 목록 둘째 줄: 값을 '·'로 잇지 않고 자리를 고정한 칸으로(첫 칸들은 폭 고정 cls, 마지막 칸은 남은 폭). 빈 값은 '–'로 자리를 지킨다
 const rdPair = (cells) => `<div class="rd-pair">${cells.map(([v, cls = '']) => `<span class="${cls}">${v || RD_NA}</span>`).join('')}</div>`;
@@ -685,7 +691,7 @@ const rdGrpRow = (x) => `<div class="rd-grp"><b>${esc(x.grp === '주관사선정
 // 가리기·다시 보이기: 목록 행에서 빼고 펼친 칸 머리(컨택 상태 줄)에 둔다(2026-11-15 요소 줄이기)
 const rdHideBtn = (x) => { const h = rdHid(x); return `<button type="button" class="btn sm ghost rd-hide${h ? ' on' : ''}" data-rd-hide>${h ? RD_EYE : RD_EYE_OFF}${h ? '다시 보이기' : '가리기'}</button>`; };
 /* 행에 단계명을 쓸지: 묶음 제목(전체·가린 회사의 진행 순서 묶음)이나 필터(주관사 선정·심사 중·승인)가 이미 단계를 말하면 쓰지 않는다.
-   단계가 섞이는 곳(새 소식·철회·미승인, 주관사순 묶음, 맨 아래 '컨택·검토한 곳' 묶음)만 쓴다 */
+   단계가 섞이는 곳(새 소식·철회·미승인, 주관사순 묶음, 맨 아래 '컨택한 곳' 묶음)만 쓴다 */
 function rdYsStageOn(x) {
   const s = rdS.yesim;
   if (s.f === 'new' || s.f === 'drop' || s.sort === 'broker') return true;
@@ -716,7 +722,7 @@ const RD_YS_HEAD = '<div class="ipo-head ipo-cols"><div>청구일</div><div>회�
 
 function rdYsRow(x) {
   const open = rdS.yesim.open.has(x.id), st = rdSt(rdKey('yesim', x.id)), p = rdYsProg(x), br = rdSplit(x.broker);
-  return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
+  return `<div class="ipo-row${open ? ' open' : ''}${rdDoneCls(st)}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div>${rdMd(x.filed) || RD_NA}</div>
       <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${rdNm(x.name)}</button><div class="ipo-sub">${esc(x.product || x.sector)}</div>${rdYsPair(x, br[0], x.product || x.sector)}</div>
@@ -776,7 +782,7 @@ const RD_MN_HEAD = RD_YS_HEAD.replace('청구일', '선정일');
 
 function rdMnRow(x) {
   const open = rdS.yesim.open.has(x.id), st = rdSt(rdKey('yesim', x.id)), p = rdMnProg(x);
-  return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
+  return `<div class="ipo-row${open ? ' open' : ''}${rdDoneCls(st)}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div>${rdMd(x.selected) || RD_NA}</div>
       <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${rdNm(x.name)}</button>${x.fs ? '<span class="rd-fs-tag">팩트시트</span>' : ''}<div class="ipo-sub">${esc(x.sector)}</div>${rdYsPair(x, x.lead[0], x.sector)}</div>
@@ -884,7 +890,7 @@ function rdSellRow(x) {
   // 폰 둘째 줄: 신호·때(만기 D-13, 철회 17일 전) | 지분율. 신호는 필터로 하나를 골랐으면 뺀다. 매도 후보는 펼친 칸에
   const dd = rdSellDd(x), kind = rdS.sell.f === 'all' ? esc(x.kind) : '';
   const when = [kind && `<span class="rd-lb">${kind}</span>`, dd || esc(rdMd(x.date))].filter(Boolean).join(' ');
-  return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
+  return `<div class="ipo-row${open ? ' open' : ''}${rdDoneCls(st)}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div>${rdMd(x.date) || RD_NA}<div class="ipo-sub">${kind ? `<span class="rd-alt-i">${kind} </span>` : ''}${dd}</div></div>
       <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${rdNm(x.name)}</button>${rdPair([[when, 'rd-w2'], [esc(pct)]])}</div>
@@ -941,7 +947,7 @@ function rdBidsShut(x) {
   const td = today(), ds = [...x.schedule.matchAll(/(\d{4}-\d{2}-\d{2}) (?:인수의향서 마감|예비입찰|본입찰)/g)].map((m) => m[1]);
   return RD_BIDS_DONE.includes(x.stage) || (ds.length > 0 && ds.every((d) => d < td));
 }
-// 딜별 보기 묶음: 적합도 상 / 적합도 중 / 입찰 마감(목록 순서 그대로 — 마감은 맨 아래). 적합도는 묶음 제목에 있으니 행에서는 마감·컨택한 묶음에서만 표시
+// 딜별 보기 묶음: 적합도 상 / 적합도 중 / 입찰 마감(목록 순서 그대로 — 마감은 맨 아래). 적합도는 묶음 제목에 있으니 행에서는 마감·컨택한 곳 묶음에서만 표시
 const RD_BIDS_SHUT = '입찰 마감';
 const rdBidsGrp = (x) => (rdBidsShut(x) ? RD_BIDS_SHUT : `적합도 ${x.fit || '–'}`);
 const rdBidsGroups = (list) => rdGroups(list, rdBidsGrp, (a, b) => (a === RD_BIDS_SHUT) - (b === RD_BIDS_SHUT) || a.localeCompare(b, 'ko'));
@@ -960,8 +966,8 @@ const RD_BIDS_HEAD = '<div class="ipo-head ipo-cols"><div>최근일</div><div>�
 function rdBidsRow(x, go) {
   const open = !go && rdS.bids.open.has(x.id), st = rdSt(rdKey('bids', x.id)), adv = rdSplit(x.advisor);
   // 적합도는 '상'만 이름 옆 표시(중은 기본값이라 뺀다). 출처·공동 자문사는 펼친 칸에. 폰 둘째 줄: 단계 | 업종(없으면 매도자)
-  const fit = x.fit === '상' && (go || rdBidsShut(x) || rdSt(rdKey('bids', x.id)) !== RD_STATUS[0]) ? '<span class="rd-fs-tag">적합도 상</span>' : '';
-  return `<div class="ipo-row${open ? ' open' : ''}" ${go ? 'data-rd-go' : 'data-id'}="${esc(x.id)}">
+  const fit = x.fit === '상' && (go || rdBidsShut(x) || rdLowSt(st)) ? '<span class="rd-fs-tag">적합도 상</span>' : '';
+  return `<div class="ipo-row${open ? ' open' : ''}${rdDoneCls(st)}" ${go ? 'data-rd-go' : 'data-id'}="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div>${rdMd(x.last) || RD_NA}</div>
       <div class="ipo-c-name"><button type="button" class="ipo-ttl"${go ? '' : ` aria-expanded="${open}"`}>${rdNm(x.name)}</button>${fit}<div class="ipo-sub">${esc(x.sector)}</div>${rdPair([[esc(x.stage), 'rd-w2'], [x.sector ? esc(x.sector) : rdNm(x.seller)]])}</div>
@@ -1003,10 +1009,10 @@ function rdStageOpts() {
 const RD_LIST = { yesim: rdYsList, sell: rdSellList, bids: rdBidsList };
 const RD_ROW = { yesim: (x) => (x.grp != null ? rdGrpRow(x) : x.mn ? rdMnRow(x) : rdYsRow(x)), sell: rdSellRow, bids: (x) => (x.grp != null ? `<div class="rd-grp"><b>${esc(x.grp)}</b><span>${x.n}건</span></div>` : rdBidsRow(x, false)) };
 const RD_HEAD = { yesim: RD_YS_HEAD, sell: RD_SELL_HEAD, bids: RD_BIDS_HEAD };
-// 컨택했거나 다 본 곳(미접촉이 아닌 상태)은 맨 아래 '컨택·검토한 곳' 묶음으로 내리고 흐리게(사용자 2026-11-10).
+// 컨택한 곳(연락함·미팅·보류)은 맨 아래 '컨택한 곳' 묶음으로 내리고 흐리게(사용자 2026-11-10). 검토 완료는 제자리에 진한 회색으로 둔다(11-16).
 // 묶음 머리가 있는 목록(예심청구 전체·주관사순)은 남은 행 수로 머리를 다시 세고, 다 빠진 묶음은 지운다
 function rdSink(tab, list) {
-  const low = list.filter((x) => x.grp == null && rdSt(rdKey(tab, x.id)) !== '미접촉');
+  const low = list.filter((x) => x.grp == null && rdLowSt(rdSt(rdKey(tab, x.id))));
   if (!low.length) return list;
   const out = [];
   let head = null;
@@ -1018,7 +1024,7 @@ function rdSink(tab, list) {
   });
   return [...out, { grp: '__low', n: low.length }, ...low];
 }
-const rdLowRow = (x) => `<div class="rd-grp rd-low"><b>컨택·검토한 곳</b><span>${x.n}곳</span></div>`;
+const rdLowRow = (x) => `<div class="rd-grp rd-low"><b>컨택한 곳</b><span>${x.n}곳</span></div>`;
 const rdRowEl = (root, id) => [...root.querySelectorAll('.ipo-row[data-id]')].find((r) => r.dataset.id === id);
 
 function rdSummary(tab) {

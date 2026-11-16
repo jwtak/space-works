@@ -8,11 +8,12 @@
    진입: fqBox(ref, x, label) — 펼친 칸에 넣을 HTML(x = 그 행 자료, 요청 때 조사 단서로 보낸다). 팩트시트 탭 '요청한 회사': fqList()·fqCount().
    요청 버튼은 펼친 칸 머리(컨택 상태 줄)에 둔다(2026-11-12 사용자 "너무 안 보여"): 머리를 그릴 때 fqHead(ref)를 넣고, 같은 펼친 칸에서 그 뒤에 fqBox(ref)를 부른다.
    그러면 팩트시트 칸에는 버튼 없이 상태·내용만 나온다. fqHead 없이 부른 fqBox(팩트시트 탭 목록 등)는 예전처럼 칸 안에 버튼.
-   버튼 클릭은 document에서 받는다(각 탭 클릭 처리는 펼친 칸 안 클릭을 건너뛴다). */
+   버튼 클릭은 document에서 받는다(각 탭 클릭 처리는 펼친 칸 안 클릭을 건너뛴다).
+   fqHead는 '관심'(☆) 버튼도 같이 넣는다(fav.js fvHead, 사람별 관심 기업, 2026-11-16). '요청한 회사'는 [전체 | 내 요청]으로 거른다(fqS.who, 요청자 by·byEmail). */
 
 const FQ_TTL = 5 * 60000;
 const FQ_TRIES = 3; // fs_req.py TRIES와 같게: 이만큼 실패하면 다시 요청할 때까지 멈춘다
-const fqS = { req: [], ver: null, out: null, at: 0, loading: null, err: '', saving: Promise.resolve(), ctx: new Map(), open: new Set(viewGet('fq.open', [])), head: new Set() };
+const fqS = { req: [], ver: null, out: null, at: 0, loading: null, err: '', saving: Promise.resolve(), ctx: new Map(), open: new Set(viewGet('fq.open', [])), head: new Set(), who: viewGet('fq.who', 'all') === 'me' ? 'me' : 'all' };
 
 const fqNow = () => { const d = new Date(); return `${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const fqWhen = (s) => (s ? `${md(s.slice(0, 10))} ${s.slice(11, 16)}`.trim() : '');
@@ -91,7 +92,8 @@ function fqBox(ref, x, label) {
 function fqHead(ref, x) {
   if (!ref) return '';
   fqS.head.add(ref);
-  return `<span class="fq-slot" data-fq="${esc(ref)}">${fqSlotInner(ref, x?.fs && typeof x.fs === 'object' ? x.fs : undefined)}</span>`;
+  const fav = typeof fvHead === 'function' ? fvHead(ref, x) : ''; // 관심(☆): fav.js
+  return `${fav}<span class="fq-slot" data-fq="${esc(ref)}">${fqSlotInner(ref, x?.fs && typeof x.fs === 'object' ? x.fs : undefined)}</span>`;
 }
 function fqSlotInner(ref, legacy = fqS.ctx.get(ref)?.legacy) {
   if (!fqS.at || fqS.err) return '';
@@ -139,7 +141,7 @@ function fqToggle(ref) {
   const c = fqS.ctx.get(ref);
   if (!c || !fqS.at || fqS.err) return;
   const add = !fqState(ref, c.legacy).wait; // 요청 중이면 취소, 아니면 (다시) 요청
-  const rec = add ? { key: ref, name: c.name, src: c.label, hint: c.hint(), at: fqNow(), by: G.account?.name || '' } : null;
+  const rec = add ? { key: ref, name: c.name, src: c.label, hint: c.hint(), at: fqNow(), by: G.account?.name || '', byEmail: fqMe().email } : null;
   // 요청을 지우면 '요청한 회사' 목록에서도 빠지므로, 만든 팩트시트가 있으면 취소는 예전 요청 시각으로 되돌린다
   const prev = fqS.req.find((x) => x.key === ref), fs = fqState(ref, c.legacy).fs;
   const apply = (items) => {
@@ -184,6 +186,14 @@ async function fqEnsure(list) {
 }
 
 /* ---------- 팩트시트 탭 '요청한 회사' ---------- */
+// 나: 이메일(새 요청부터 byEmail)이 있으면 그것으로, 옛 기록은 이름으로 비교. 옛 주소(@spaceinve.com)도 같은 사람
+const fqMail = (s) => String(s || '').toLowerCase().replace(/@spaceinve\.com$/, '@universeinvest.co.kr');
+const fqMe = () => ({ email: fqMail(G.account?.username), name: G.account?.name || '' });
+function fqMine(r) {
+  if (!r) return false;
+  const me = fqMe();
+  return r.byEmail ? !!me.email && fqMail(r.byEmail) === me.email : !!me.name && r.by === me.name;
+}
 // 요청한 회사 + 요청 없이 만들어진 것(옛 주관사 선정). 대기·실패 먼저, 그다음 최근 작성순
 function fqItems() {
   const keys = new Set([...fqS.req.map((r) => r.key), ...Object.keys(fqS.out?.items || {})]);
@@ -197,9 +207,13 @@ const fqCount = () => (fqS.at && !fqS.err ? String(fqItems().length) : '');
 function fqListBody() {
   if (!fqS.at) return '<div class="empty">불러오는 중…</div>';
   if (fqS.err) return `<div class="empty">${esc(fqS.err)}</div>`;
-  const a = fqItems();
-  if (!a.length) return '<div class="empty">아직 요청한 회사가 없습니다. 딜소싱 각 화면에서 회사를 펼쳐 \'팩트시트 요청\'을 누르면 여기에 모입니다.</div>';
-  return `<div class="ipo-head fq-cols"><div>회사</div><div>화면</div><div>상태</div><div>요청</div><div></div></div>${a.map(fqRow).join('')}`;
+  const all = fqItems(), mine = all.filter((x) => fqMine(fqS.req.find((r) => r.key === x.key)));
+  if (!all.length) return '<div class="empty">아직 요청한 회사가 없습니다. 딜소싱 각 화면에서 회사를 펼쳐 \'팩트시트 요청\'을 누르면 여기에 모입니다.</div>';
+  const one = (k, l, n) => `<button type="button" data-fq-who="${k}" class="${fqS.who === k ? 'on' : ''}" aria-pressed="${fqS.who === k}">${l}<span class="fq-n">${n}</span></button>`;
+  const seg = `<div class="ipo-filter fq-who"><div class="seg" role="group" aria-label="요청자">${one('all', '전체', all.length)}${one('me', '내 요청', mine.length)}</div></div>`;
+  const a = fqS.who === 'me' ? mine : all;
+  if (!a.length) return `${seg}<div class="empty">내가 요청한 회사가 없습니다.</div>`;
+  return `${seg}<div class="ipo-head fq-cols"><div>회사</div><div>화면</div><div>상태</div><div>요청</div><div></div></div>${a.map(fqRow).join('')}`;
 }
 
 function fqRow(x) {
@@ -248,6 +262,8 @@ document.addEventListener('click', (ev) => {
     box.outerHTML = fsReqBody(ref, fs, fqS.ctx.get(ref)?.name);
     return;
   }
+  const wb = t.closest('[data-fq-who]');
+  if (wb) { fqS.who = wb.dataset.fqWho === 'me' ? 'me' : 'all'; viewSet('fq.who', fqS.who); document.querySelectorAll('.fq-list').forEach((l) => { l.innerHTML = fqListBody(); }); return; }
   const pb = t.closest('[data-fq-pipe]');
   if (pb) { fqPipeAdd(pb); return; }
   const go = t.closest('[data-fq-go]');

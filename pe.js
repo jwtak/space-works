@@ -9,6 +9,10 @@
 const PE_FILE = 'data/pe.json';
 const PE_TTL = 5 * 60000;
 const PE_STATUS = ['미접촉', '연락함', '미팅', '보류', '검토 완료']; // radar.js RD_STATUS와 같은 값·순서(같은 파일을 쓴다)
+// 검토 완료는 제자리에서 진한 회색 행(.ct-done, radar.css), 연락함·미팅·보류만 맨 아래 '컨택한 곳'으로(사용자 2026-11-16)
+const PE_DONE = PE_STATUS[4];
+const peLowSt = (st) => st !== PE_STATUS[0] && st !== PE_DONE;
+const peDoneCls = (st) => (st === PE_DONE ? ' ct-done' : '');
 const PE_PIPE_SRC = 'PE 앵글'; // pipeline.js 출처 목록(PP_SRCS)·PP_TABS.pe와 같은 이름
 const PE_GRPS = [['heir', '오너기업'], ['dup', '중복상장']];
 const PE_HF = [['pass', '통과'], ['near', '근접'], ['all', '전체']];
@@ -214,10 +218,12 @@ function peTouch(id, patch) {
   return true;
 }
 
-// 상태를 바꾼 행은 펼친 채 그 자리에 두고(메모를 이어 쓸 수 있게), 접을 때 목록 아래 '컨택·검토한 곳'으로 내린다
+// 상태를 바꾼 행은 펼친 채 그 자리에 두고(메모를 이어 쓸 수 있게), 접을 때 연락함·미팅·보류면 목록 아래 '컨택한 곳'으로 내린다.
+// 검토 완료를 한 번 더 누르면 미접촉으로 되돌린다(다른 상태는 그대로)
 function peSetStatus(id, status) {
   const x = peFind(id);
-  if (!x || !PE_STATUS.includes(status) || peSt(x.key) === status) return;
+  if (!x || !PE_STATUS.includes(status)) return;
+  if (peSt(x.key) === status) { if (status !== PE_DONE) return; status = PE_STATUS[0]; }
   if (!peTouch(id, { status })) return;
   peRefreshRow(id);
   peSumDraw();
@@ -295,13 +301,13 @@ function peDupList() {
     .sort((a, b) => by(a, b) || a.idx - b.idx);
 }
 
-// 컨택했거나 다 본 곳(미접촉이 아닌 상태)은 맨 아래 '컨택·검토한 곳'으로 내리고 흐리게 — radar.js rdSink와 같다
+// 컨택한 곳(연락함·미팅·보류)은 맨 아래 '컨택한 곳'으로 내리고 흐리게 — radar.js rdSink와 같다. 검토 완료는 제자리
 function peSink(list) {
-  const low = list.filter((x) => peSt(x.key) !== '미접촉');
+  const low = list.filter((x) => peLowSt(peSt(x.key)));
   if (!low.length) return list;
   return [...list.filter((x) => !low.includes(x)), { low: true, n: low.length }, ...low];
 }
-const peLowRow = (x) => `<div class="rd-grp rd-low"><b>컨택·검토한 곳</b><span>${x.n}곳</span></div>`;
+const peLowRow = (x) => `<div class="rd-grp rd-low"><b>컨택한 곳</b><span>${x.n}곳</span></div>`;
 
 /* 오너기업: 점수 | 회사 | 최근 매출 | 영업이익률 | 최대주주 | 업력 | 신호 | 컨택 상태
    카드가 좁으면 업력·신호 칸(rd-c2)을 접어 회사 칸 보조 줄(rd-alt)로, 더 좁으면 한 건을 여러 줄로(rd-mob) — radar.css 배치 */
@@ -324,7 +330,7 @@ function peHeirRow(x) {
   // 통과·근접 필터가 걸려 있으면 판정은 행마다 되풀이하지 않는다
   const pass = s.f === 'all' ? `<div class="ipo-sub"${!x.pass && rs ? ` title="${esc(rs)}"` : ''}>${x.pass ? '통과' : '근접'}</div>` : '';
   const mg = peMg([['매출', f ? peEok(f.rev) : PE_NA], ['OPM', x.opm != null ? peDn(x.opm, pePct(x.opm)) : PE_NA]]);
-  return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
+  return `<div class="ipo-row${open ? ' open' : ''}${peDoneCls(st)}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div>${x.score != null ? `${peFmt(x.score, 0)}점` : PE_NA}${pass}</div>
       <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${peNm(x.name)}</button>${s.team ? '' : peTeam(x)}${x.induty ? `<div class="ipo-sub">${esc(x.induty)}</div>` : ''}${mg}</div>
@@ -348,7 +354,7 @@ function peDupRow(x) {
   // 딜 상태 필터가 한 가지(실제 매물·진행 중 …)로 걸려 있으면 이름 옆 칩은 되풀이라 뺀다
   const nchip = x.status && (s.f === 'all' || s.f === 'live') ? `<span class="pe-ds pe-nchip${peDsCls(x.sg)}">${esc(x.status)}</span>` : '';
   const pn = p.name ? `${peNm(p.name)}${p.pct != null ? ` ${pePct(p.pct)}` : ''}` : '';
-  return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
+  return `<div class="ipo-row${open ? ' open' : ''}${peDoneCls(st)}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div>${peMd(x.lastDay) || PE_NA}<div class="ipo-sub">${esc(sg?.type || '')}</div></div>
       <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${peNm(x.name)}</button>${nchip}${s.team ? '' : peTeam(x)}<div class="ipo-sub pe-biz">${esc(x.biz)}</div>${pn ? `<div class="ipo-sub rd-alt">${pn}</div>` : ''}${sgt ? `<div class="pe-msig">${esc(sgt)}</div>` : ''}${pn ? peMg([['모회사', p.name ? peNm(p.name) : PE_NA], ['지분율', p.pct != null ? pePct(p.pct) : PE_NA]]) : ''}</div>
@@ -575,11 +581,11 @@ function peRefreshRow(id) {
   peKeepBack(keep);
 }
 
-// 접은 행이 상태 때문에 다른 묶음(컨택·검토한 곳 ↔ 위 목록)으로 가야 하면 목록을 다시 그리고, 그 행 바로 다음 행이 그 자리에 오게 한다
+// 접은 행이 상태 때문에 다른 묶음(컨택한 곳 ↔ 위 목록)으로 가야 하면 목록을 다시 그리고, 그 행 바로 다음 행이 그 자리에 오게 한다
 function peFold(r, x) {
   const b = r.parentElement, low = b.querySelector('.rd-low');
   const inLow = !!low && !!(low.compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING);
-  if ((peSt(x.key) !== '미접촉') === inLow) { peRefreshRow(x.id); return; }
+  if (peLowSt(peSt(x.key)) === inLow) { peRefreshRow(x.id); return; }
   const sc = r.closest('.scroll');
   let nx = r.nextElementSibling; while (nx && !nx.matches('.ipo-row[data-id]')) nx = nx.nextElementSibling;
   const y0 = r.getBoundingClientRect().top - (parseFloat(getComputedStyle(r).marginTop) || 0), nid = nx?.dataset.id; // 펼친 행 위 여백까지
@@ -743,7 +749,7 @@ function peInfo(d) {
         '오너기업 점수는 100점 만점입니다. 매출 성장 25, 영업이익률 25, 매출 규모 15, 무차입·순현금 15, 업력 10, 승계 신호 10입니다. 승계 신호는 최대주주와 성이 같은 개인 주주가 2명 이상이거나, 대표 중에 최대주주는 없고 성이 같은 사람이 있는 경우(2세 경영 추정)입니다. 정렬은 점수·매출·영업이익률·업력입니다.',
         '중복상장 필터는 딜 상태(기본은 해소·매각 완료를 뺀 살아 있는 딜), 팀 리스트만, 대기업집단 포함입니다. 공시대상기업집단 소속 자회사는 팀 기준상 제외 대상이라 대기업집단 포함을 켜야 보입니다. 정렬은 최근 신호·모회사 시총·매출입니다.',
         '중복상장 모회사가 상폐 위험·CB 목록에 있으면 펼친 행에 그 탭으로 가는 링크가 붙습니다.',
-        '연락함·미팅·보류·검토 완료로 바꾼 회사는 행을 접으면 목록 맨 아래 컨택·검토한 곳으로 내려갑니다.',
+        '연락함, 미팅, 보류로 바꾼 회사는 행을 접으면 목록 맨 아래 컨택한 곳으로 내려갑니다. 검토 완료는 제자리에서 진한 회색으로 보이고, 한 번 더 누르면 풀립니다.',
         '자료는 매일 10:00에 새로 받습니다.',
       ]],
       ['그래서 할 일', [
