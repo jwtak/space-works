@@ -538,7 +538,7 @@ function mailDrawFolders() {
   const nav = $('#mail-fnav'); if (!nav) return;
   const unreadView = m.folder === 'inbox' && m.filter === 'unread';
   const btn = (key, name, icon, depth) => {
-    const c = m.counts[key], n = ['drafts', 'junkemail'].includes(mailFid(key)) ? c?.total : c?.unread; // 스팸은 읽어도 남으니 들어 있는 수(사용자 11/16)
+    const c = m.counts[key], n = mailFid(key) === 'drafts' ? c?.total : c?.unread; // 스팸도 안 읽은 수(회색, 사용자 11/16)
     return `<button type="button" class="mail-f${depth ? ' sub' : ''} ${m.folder === key && !m.compose && !(key === 'inbox' && unreadView) ? 'on' : ''}" data-f="${esc(key)}">${icon}<span class="mail-fn">${mailBoxOf(key) === 'contact' ? '<span class="mail-fpre">contact@ </span>' : ''}${esc(name)}</span>${n ? `<span class="mail-fc">${n}</span>` : ''}</button>`;
   };
   // 받은편지함 바로 아래 '안 읽은 메일' = 받은편지함 + 보기 '안 읽은 메일'(사용자 11/12)
