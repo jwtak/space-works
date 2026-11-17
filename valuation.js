@@ -333,7 +333,7 @@ function vaSelCard(c) { // IM 39쪽 왼쪽: 4단계 선정과 최종 비교기�
 
 // ---------- 전 상장사 PER 분포와 회귀 (data/valuation_market.json, 가치평가 폴더 market.py 결과. 로직은 손PB PERValuationScreen 과 같음) ----------
 const VA_MKT_FILE = 'data/valuation_market.json';
-const VA_BUCKETS = [[0, 5], [5, 10], [10, 15], [15, 20], [20, 25], [25, 30], [30, 40], [40, 50], [50, 75], [75, 200]];
+const VA_BUCKETS = [[0, 3], [3, 5], [5, 8], [8, 10], [10, 13], [13, 15], [15, 20], [20, 25], [25, 30], [30, 40], [40, 50], [50, 75], [75, 200]]; // 낮은 쪽을 잘게(2026-11-17 사용자)
 function vaLoadMkt() {
   if (vaS.mkAt && Date.now() - vaS.mkAt < VA_TTL) return Promise.resolve();
   vaS.mkLoading ||= STORE.readText(VA_MKT_FILE)
@@ -476,19 +476,26 @@ function vaGrpRows(x, g, key) { // 묶음별 PER 중앙값과 25～75% 구간. �
   return cut(all, (r) => (key1(r) ? 0 : sib.has(r.k) ? 1 : 2), vaS.gAll);
 }
 
-function vaHisto(vals, tv, name) { // 구간별 종목 수 막대. 중앙값과 평균은 세로 점선, 보는 회사는 굵은 점선과 이름표
+function vaHisto(vals, tv, name) { // 구간별 종목 수 막대. 중앙값(실선), 평균(점선), 보는 회사(파란 점선)마다 선 위에 이름표(손PB 분포 그림처럼)
   if (!vals.length) return '<div class="empty">PER이 있는 회사가 없습니다.</div>';
   const N = VA_BUCKETS.length, at = (v) => VA_BUCKETS.findIndex(([a, b]) => v >= a && v < b);
   const pos = (v) => { const i = at(v), [a, b] = VA_BUCKETS[i]; return +(((i + (v - a) / (b - a)) / N) * 100).toFixed(2); }; // 구간 폭이 달라 구간 안에서만 비례로 놓음
   const cnt = VA_BUCKETS.map(([a, b]) => vals.filter((v) => v >= a && v < b).length), mx = Math.max(...cnt);
   const med = vaQuant(vals, 0.5), avg = vaMean(vals), ti = vaOkPer(tv) ? at(tv) : -1;
-  const mark = (cls, v, label) => { const p = pos(v); return `<div class="va-hm ${cls}" style="left:${p}%">${label ? `<b style="transform:translateX(-${p}%)">${label}</b>` : ''}</div>`; }; // 이름표는 선 위치만큼 왼쪽으로 당겨 칸 밖으로 안 나가게
+  // 이름표 자리: 선 가까운 줄부터 채우고 겹치면 한 줄 위로. 이름표는 선 위치만큼 왼쪽으로 당겨 칸 밖으로 안 나가게
+  const W = vaCw(), tw = (t) => [...t].reduce((a, ch) => a + (ch.codePointAt(0) >= 0x1100 ? 12 : 7), 12);
+  const marks = [['md', med, `중앙값 ${vaX(med)}`], ['av', avg, `평균 ${vaX(avg)}`], ...(ti < 0 ? [] : [['tg', tv, `${name} ${vaX(tv)}`]])].map(([cls, v, t]) => {
+    const p = pos(v), w = tw(t), x = (p / 100) * (W - w); return { cls, p, t, x0: x - 4, x1: x + w + 4 };
+  });
+  const rows = [];
+  for (const m of marks) { let k = 0; while ((rows[k] ||= []).some((o) => m.x0 < o.x1 && o.x0 < m.x1)) k++; rows[k].push(m); m.k = k; }
+  const R = rows.length, LH = 20;
+  const mk = marks.map((m) => `<div class="va-hm ${m.cls}" style="left:${m.p}%;top:${(R - 1 - m.k) * LH}px"><b style="transform:translateX(-${m.p}%)">${esc(m.t)}</b></div>`).join('');
   const bars = cnt.map((n, i) => `<div class="va-hb ${i === ti ? 'tg' : ''}" title="${VA_BUCKETS[i][0]}～${VA_BUCKETS[i][1]}배 ${vaNum(n)}곳 (${vaNum((n / vals.length) * 100, 1)}%)"><span>${vaNum(n)}</span><i style="height:calc((100% - 24px) * ${(n / mx).toFixed(3)})"></i></div>`).join('');
   const ticks = [...VA_BUCKETS.map(([a]) => a), VA_BUCKETS[N - 1][1]].map((v, i) => `<span style="left:${(i / N) * 100}%">${v}</span>`).join('');
   const out = ti >= 0 || !name ? '' : `<p class="va-note">${esc(name)} ${tv >= 200 ? `${vaX(tv)}, 200배 이상이라 그림에 없음` : tv < 0 ? '적자 추정이라 PER 없음' : 'PER 없음'}</p>`;
-  const leg = `<div class="va-leg"><span class="md">중앙값</span><span class="av">평균</span></div>`;
-  return `<div class="va-hg" role="img" aria-label="PER 구간별 종목 수. 중앙값 ${vaNum(med, 1)}배, 평균 ${vaNum(avg, 1)}배${ti < 0 ? '' : `, ${esc(name)} ${vaNum(tv, 1)}배`}"><div class="va-hg-w ${ti < 0 ? '' : 'has'}"><div class="va-hg-p">${bars}</div>
-    ${mark('md', med, '')}${mark('av', avg, '')}${ti < 0 ? '' : mark('tg', tv, `${esc(name)} ${vaX(tv)}`)}</div><div class="va-hx">${ticks}</div></div>${leg}${out}`;
+  return `<div class="va-hg" role="img" aria-label="PER 구간별 종목 수. 중앙값 ${vaNum(med, 1)}배, 평균 ${vaNum(avg, 1)}배${ti < 0 ? '' : `, ${esc(name)} ${vaNum(tv, 1)}배`}"><div class="va-hg-w" style="padding-top:${R * LH + 4}px"><div class="va-hg-p" style="grid-template-columns:repeat(${N}, minmax(0, 1fr))">${bars}</div>
+    ${mk}</div><div class="va-hx">${ticks}</div></div>${out}`;
 }
 
 function vaCmp(x, g, key) { // 업종별 PER 비교: 분류 단계를 골라 묶음마다 중앙값과 25～75% 구간. 줄을 누르면 업종 안 분포가 그 업종(테마)으로 바뀜
@@ -515,12 +522,11 @@ function vaPerList(ys, key, x) { // 회사가 적으면 막대 분포 대신 회
   const rows = [...ys].sort((a, b) => b[key] - a[key]).map((y) => `<div class="va-pb ${y.code === x?.code ? 'me' : ''}"><span>${esc(y.name)}</span><div><i style="width:${W(y[key])}"></i><b style="left:${W(med)}"></b></div><em>${vaX(y[key])}</em></div>`).join('');
   return `<div class="va-pbs va-gl">${rows}</div><div class="va-leg"><span class="md">중앙값</span></div>`;
 }
-const vaStatRow = (vals) => (vals.length ? `<dl class="va-mini"><div><dt>중앙값</dt><dd>${vaX(vaQuant(vals, 0.5))}</dd></div><div><dt>평균</dt><dd>${vaX(vaMean(vals))}</dd></div><div><dt>25～75%</dt><dd>${vaNum(vaQuant(vals, 0.25), 1)}～${vaNum(vaQuant(vals, 0.75), 1)}배</dd></div></dl>` : '');
 function vaInGrp(x, g, key) { // 업종 안 PER 분포: 업종별 비교에서 고른 업종(테마)
   const ttl = g.lv === 'theme' ? '테마 안 PER 분포' : '업종 안 PER 분포';
   if (!g.name) return vaSec(ttl, '', '<div class="empty">업종 분류가 없는 회사입니다.</div>');
   const ys = vaMkUse().filter((y) => g.has(y) && vaOkPer(y[key])), vals = ys.map((y) => y[key]), mine = x && g.has(x);
-  return vaSec(`${ttl} <span class="meta">${esc(g.name)}, ${vaNum(ys.length)}곳</span>`, '', `${vaStatRow(vals)}${ys.length && ys.length < 10 ? vaPerList(ys, key, x) : vaHisto(vals, mine ? x[key] : null, mine ? x.name : '')}`);
+  return vaSec(`${ttl} <span class="meta">${esc(g.name)}, ${vaNum(ys.length)}곳</span>`, '', `${ys.length && ys.length < 10 ? vaPerList(ys, key, x) : vaHisto(vals, mine ? x[key] : null, mine ? x.name : '')}`);
 }
 
 function vaPos(F, key) { // 보는 회사와 비교기업(또는 Peer)의 시장 내 위치와 회귀 적정 PER
@@ -552,7 +558,7 @@ function vaMktTab() {
   }
   const bar = `<div class="va-fbar">${vaSeg('mkm', [['ALL', '전체'], ['KOSPI', '코스피'], ['KOSDAQ', '코스닥']], mkm)}${vaSeg('mkk', [['per', '최근 4분기 PER'], ['estPer', '추정 PER']], key)}${d.date ? `<span class="meta">${esc(d.date)} 기준</span>` : ''}</div>`;
   const kpi = `<section class="card va-kpis"><dl style="grid-template-columns:repeat(${w >= 1000 ? 6 : w >= 520 ? 3 : 2}, minmax(0, 1fr))">${kv.map(([k, v, big]) => `<div class="${big ? 'k' : ''}"><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl></section>`;
-  const dist = vaSec(`${{ ALL: '전 상장사', KOSPI: '코스피', KOSDAQ: '코스닥' }[mkm]} PER 분포 <span class="meta">${vaNum(all.length)}곳</span>`, '', `${vaStatRow(all)}${vaHisto(all, x?.[key], x?.name || '')}`);
+  const dist = vaSec(`${{ ALL: '전 상장사', KOSPI: '코스피', KOSDAQ: '코스닥' }[mkm]} PER 분포 <span class="meta">${vaNum(all.length)}곳</span>`, '', `${vaHisto(all, x?.[key], x?.name || '')}`);
   const fold = F ? `${vaFold('pos', F.role === '대상' ? '대상과 비교기업 위치' : '선택한 회사와 Peer 위치', vaPos(F, key))}${vaFold('reg', 'PER 회귀', vaRegBody(F))}` : '';
   return `${bar}${kpi}<div class="va-g4 ${w >= VA_G2 ? 'two' : ''}">${dist}${vaTrend(F)}${vaCmp(x, g, key)}${vaInGrp(x, g, key)}</div>${fold}`;
 }
@@ -633,7 +639,7 @@ function vaTrend(F) {
   const raw = sPts.map((p) => p.v), mr = mPts.map((p) => p.v), last = (xs) => xs[xs.length - 1];
   let kv, leg, note = '';
   if (!F) { // 코스닥은 진한 선(me), 코스피는 회색 선(mk)
-    kv = [['코스피 중앙값', vaX(last(mr))], ['코스닥 중앙값', vaX(last(raw))], ['기간', `${mPts[0].d.slice(2, 7).replace('-', '.')}～${last(mPts).d.slice(2, 7).replace('-', '.')}`]];
+    kv = [['코스피 중앙값', vaX(last(mr))], ['코스닥 중앙값', vaX(last(raw))]];
     leg = '<div class="va-leg"><span class="tg">코스닥 중앙값</span><span class="cv">코스피 중앙값</span></div>';
   } else {
     kv = raw.length < 2 ? [['지금', vaX(raw[0] ?? x?.per)], [`${mkt} 중앙값`, vaX(last(mr))]] : [['지금', vaX(last(raw))], ['기간 중앙값', vaX(vaQuant(raw, 0.5))], [`${mkt === 'KOSDAQ' ? '코스닥' : '코스피'} 중앙값`, vaX(last(mr))]];
@@ -868,7 +874,7 @@ async function renderValuation() {
 TAB_INFO.valuation = { title: '가치평가', rows: [
   ['이 화면', '시장동향, 재무분석, 요약, 상대가치평가, 절대가치평가 다섯 탭입니다. 처음에는 고른 회사가 없고, 탭 아래 검색이나 평가한 회사 단추로 고르면 탭을 옮겨도 그대로입니다. 이름 옆 ×로 선택을 풉니다.'],
   ['탭', ['시장동향: 회사를 고르지 않으면 시장과 업종끼리 PER 비교(전 상장사 분포, 코스피와 코스닥 중앙값 추이, 업종별 비교, 업종 안 분포). 고르면 그 회사가 어디쯤인지와 접힌 구역 둘(비교기업 위치 표, PER 회귀)', '재무분석: 고른 회사의 재무제표 분석', '요약: 결합 목표주가, 풋볼필드, 상대가치평가와 절대가치평가 핵심 값. 「자세히」로 각 탭에 감', '상대가치평가: 리서치한 평가가 있으면 결과, 배수 상세, 검증, 선정 근거. 없으면 Peer 비교', '절대가치평가: 고른 회사의 DCF 모델', '회사를 고르지 않은 재무분석, 요약, 상대가치평가, 절대가치평가는 평가한 회사 목록. 줄을 누르면 그 회사로 감']],
-  ['시장동향 읽는 법', ['업종별 PER 비교의 줄을 누르면 업종 안 PER 분포가 그 업종으로 바뀜. 고른 줄은 파란 바탕, 고른 회사의 업종은 이름 옆 파란 점', '회사를 고르지 않았을 때 위 숫자: 시장 중앙값, 평균, 25～75%, 코스피와 코스닥 중앙값, PER 있는 종목 수', '고른 회사가 있을 때 위 숫자: 최근 4분기 PER, 추정 PER, 시장 안에서 PER이 낮은 쪽부터 몇 %에 있는지, 시장 중앙값, 업종별 비교에서 고른 분류의 중앙값, 시가총액. 추정 이익이 적자면 「적자」', '전체, 코스피, 코스닥과 최근 4분기 PER, 추정 PER 선택은 분포 두 칸, 업종별 비교, 위 숫자에 같이 적용. PER 추이는 늘 최근 4분기 PER', 'PER 분포: 코스피, 코스닥 전 종목(우선주, 스팩 제외) 가운데 PER 0～200배 종목을 구간별로 센 막대. 구간 폭은 30배까지 5배, 그 뒤는 10배, 25배, 125배. 실선은 중앙값, 점선은 평균(값은 그림 위 숫자 줄), 파란 점선과 이름표는 고른 회사. PER이 없거나 200배 이상이면 선 없이 그림 아래에 적음', '업종별 PER 비교: 분류 단계(FnGuide 대분류, 중분류, 소분류, 네이버 테마)를 고름. 줄마다 연한 막대는 25～75% 구간, 세로선은 중앙값, 오른쪽은 중앙값과 종목 수. 진한 줄은 고른 회사가 속한 업종, 파란 점은 고른 회사 PER', '대분류는 5곳 이상인 업종 모두. 중분류와 소분류는 고른 회사와 같은 상위 분류에 든 업종을 먼저 넣고 종목 수가 많은 업종으로 채워 10개까지', '테마: 고른 회사가 든 테마마다 한 줄(한 종목이 여러 테마에 듦). 10개가 넘으면 종목 수가 많은 테마부터 보이고 나머지는 펼쳐 봄. 줄을 누르면 업종 안 분포가 그 테마로 바뀜', '업종 안 PER 분포: 업종별 비교에서 고른 분류 단계에서 고른 회사가 속한 업종(테마면 누른 테마)의 종목만 모은 분포. 10곳 미만이면 회사별 PER 막대, 세로선은 중앙값', 'PER 추이: 고른 회사의 최근 4분기 PER과 그 회사 시장(코스피, 코스닥) 중앙값. 회사를 고르지 않으면 코스피와 코스닥 중앙값. 손PB와 같이 점이 200개 넘으면 10개, 아니면 4개씩 이동평균. 시장 중앙값은 PER 2～500배, 금융 업종 제외. 평일 16:30에 쌓고, 그 전 기록은 손PB가 2016-05부터 모은 같은 네이버 PER(시장 중앙값과 리서치 사례 회사만, 2025년까지는 주 1회)', '추이 위 숫자: 지금, 기간 중 PER 중앙값(이동평균 전 값), 시장 중앙값', '위치 표: 리서치한 평가가 있으면 대상과 국내 비교기업, 없으면 고른 회사와 상대가치평가 탭에서 넣은 Peer. 이익 성장률은 최근 4분기 PER ÷ 추정 PER − 1, 괴리는 회귀 적정 PER ÷ 지금 PER − 1', 'PER 회귀: 이익 성장률이 같을 때 시장이 주는 PER을 보는 보조 지표. 손PB 상대가치 화면과 같은 식. log(PER) = 상수 + 성장률 계수 × 이익 성장률 + 베타 계수 × 베타 + 업종 더미. 표본은 최근 4분기 PER 2～500배, 추정 PER 0～200배, 성장률 0～500%, 베타 −1～4인 회사, 업종 5곳 미만은 기준 업종. 가로축은 200%에서 자름. 성장률이 0 이하인 회사는 직접 넣으면 단순 회귀 곡선으로 계산']],
+  ['시장동향 읽는 법', ['업종별 PER 비교의 줄을 누르면 업종 안 PER 분포가 그 업종으로 바뀜. 고른 줄은 파란 바탕, 고른 회사의 업종은 이름 옆 파란 점', '회사를 고르지 않았을 때 위 숫자: 시장 중앙값, 평균, 25～75%, 코스피와 코스닥 중앙값, PER 있는 종목 수', '고른 회사가 있을 때 위 숫자: 최근 4분기 PER, 추정 PER, 시장 안에서 PER이 낮은 쪽부터 몇 %에 있는지, 시장 중앙값, 업종별 비교에서 고른 분류의 중앙값, 시가총액. 추정 이익이 적자면 「적자」', '전체, 코스피, 코스닥과 최근 4분기 PER, 추정 PER 선택은 분포 두 칸, 업종별 비교, 위 숫자에 같이 적용. PER 추이는 늘 최근 4분기 PER', 'PER 분포: 코스피, 코스닥 전 종목(우선주, 스팩 제외) 가운데 PER 0～200배 종목을 구간별로 센 막대. 구간은 0, 3, 5, 8, 10, 13, 15, 20, 25, 30, 40, 50, 75, 200배에서 끊음. 실선은 중앙값, 점선은 평균, 파란 점선은 고른 회사이고 선마다 위에 이름표. PER이 없거나 200배 이상이면 선 없이 그림 아래에 적음', '업종별 PER 비교: 분류 단계(FnGuide 대분류, 중분류, 소분류, 네이버 테마)를 고름. 줄마다 연한 막대는 25～75% 구간, 세로선은 중앙값, 오른쪽은 중앙값과 종목 수. 진한 줄은 고른 회사가 속한 업종, 파란 점은 고른 회사 PER', '대분류는 5곳 이상인 업종 모두. 중분류와 소분류는 고른 회사와 같은 상위 분류에 든 업종을 먼저 넣고 종목 수가 많은 업종으로 채워 10개까지', '테마: 고른 회사가 든 테마마다 한 줄(한 종목이 여러 테마에 듦). 10개가 넘으면 종목 수가 많은 테마부터 보이고 나머지는 펼쳐 봄. 줄을 누르면 업종 안 분포가 그 테마로 바뀜', '업종 안 PER 분포: 업종별 비교에서 고른 분류 단계에서 고른 회사가 속한 업종(테마면 누른 테마)의 종목만 모은 분포. 10곳 미만이면 회사별 PER 막대, 세로선은 중앙값', 'PER 추이: 고른 회사의 최근 4분기 PER과 그 회사 시장(코스피, 코스닥) 중앙값. 회사를 고르지 않으면 코스피와 코스닥 중앙값. 손PB와 같이 점이 200개 넘으면 10개, 아니면 4개씩 이동평균. 시장 중앙값은 PER 2～500배, 금융 업종 제외. 평일 16:30에 쌓고, 그 전 기록은 손PB가 2016-05부터 모은 같은 네이버 PER(시장 중앙값과 리서치 사례 회사만, 2025년까지는 주 1회)', '추이 위 숫자: 고른 회사가 있으면 지금, 기간 중 PER 중앙값(이동평균 전 값), 시장 중앙값. 없으면 코스피와 코스닥 지금 중앙값', '위치 표: 리서치한 평가가 있으면 대상과 국내 비교기업, 없으면 고른 회사와 상대가치평가 탭에서 넣은 Peer. 이익 성장률은 최근 4분기 PER ÷ 추정 PER − 1, 괴리는 회귀 적정 PER ÷ 지금 PER − 1', 'PER 회귀: 이익 성장률이 같을 때 시장이 주는 PER을 보는 보조 지표. 손PB 상대가치 화면과 같은 식. log(PER) = 상수 + 성장률 계수 × 이익 성장률 + 베타 계수 × 베타 + 업종 더미. 표본은 최근 4분기 PER 2～500배, 추정 PER 0～200배, 성장률 0～500%, 베타 −1～4인 회사, 업종 5곳 미만은 기준 업종. 가로축은 200%에서 자름. 성장률이 0 이하인 회사는 직접 넣으면 단순 회귀 곡선으로 계산']],
   ['상대가치평가', '비슷한 상장사들의 배수(PER, EV/EBITDA 등) 중앙값을 대상 회사 이익에 곱해 적정 주가를 봅니다. 비교기업 선정과 해외 배수, 시나리오 근거는 리서치로 채우고, 계산은 이 화면과 엑셀이 같은 식으로 합니다.'],
   ['바꿔 볼 수 있는 것', ['배수 표의 체크를 풀거나 켜면 그 회사를 빼거나 넣고 다시 계산', '비교기업 범위: 국내만, 해외만, 국내와 해외. 「국내와 해외 따로」 표는 범위와 상관없이 셋 다 보여 줌', '기준 기간: 최근 4분기, 올해 추정, 내년 추정', 'PER 10～50배만: 증권신고서 관행대로 PER이 10배 미만이거나 50배 초과인 비교기업을 PER 통계에서 뺌', '적용 결과 표의 조정(%): 할증은 +, 할인은 −', '처음 구성으로: 리서치에서 정한 구성으로 되돌림']],
   ['배수 정의', { table: [['배수', '분자', '분모'], ['PER', '시가총액', '지배주주 순이익'], ['PBR', '시가총액', '지배주주 자본'], ['EV/EBITDA', 'EV', 'EBITDA'], ['EV/EBIT', 'EV', '영업이익'], ['EV/Sales', 'EV', '매출']] }],
