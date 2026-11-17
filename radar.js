@@ -169,11 +169,11 @@ Object.assign(TAB_INFO, {
     ['무엇인가', '다른 PE·VC가 비상장 지분(구주)을 팔아야 하거나 팔려는 신호를 모은 목록입니다. 상장 주식 블록은 사지 않으므로 지분 축소 공시, 락업 해제, 타법인 EB는 넣지 않습니다.'],
     ['왜 보나', '파는 쪽이 급할수록 구주·세컨더리를 할인된 값에 살 수 있습니다. 신생 GP가 딜을 얻는 현실적인 경로입니다.'],
     ['어떻게 보나', [
-      '만기: 만기가 1년 안에 지났거나 2년 안에 오는 투자조합과 그 조합이 가진 회사입니다. 매도 후보는 그 조합입니다.',
+      '만기: 만기가 1년 안에 지났거나 6개월 안에 오는 투자조합과 그 조합이 가진 회사입니다. 매도 후보는 그 조합입니다.',
       '근거의 \'예심 주주\'는 예심을 청구한 회사의 주주, \'투자설명서 주주\'는 상장했거나 상장 직전인 회사의 주주입니다.',
       '철회: 예심을 철회해 FI 회수가 늦어진 회사입니다. 매도 후보는 그 회사의 FI입니다.',
       '뉴스: 매각 기사 중 우선협상 전이고 우리가 낄 여지(입찰딜 적합도 상·중)가 있는 것만 남깁니다.',
-      '기본 정렬은 우선순이고 세 묶음으로 나눠 보입니다. ① 만기 지난 조합: 연장 기간에 들어간 조합이 가진 비상장 회사 ② 만기 임박과 예심 철회: 만기가 다가오는 조합의 비상장 회사와 예심을 철회한 회사 ③ 매각 뉴스와 상장사. 묶음 안에서는 오늘에서 가까운 날짜 순입니다.',
+      '기본 정렬은 우선순이고 네 묶음으로 나눠 보입니다. ① 만기 지난 조합: 연장 기간에 들어간 조합이 가진 비상장 회사 ② 만기 임박 조합: 6개월 안에 만기가 오는 조합의 비상장 회사 ③ 매각 뉴스와 상장사(참고용) ④ 예심 철회. 묶음 안에서는 오늘에서 가까운 날짜 순입니다.',
       '펼치면 근거 한 줄, 매도 후보, 원문 링크가 나옵니다.',
     ]],
     ['그래서 할 일', [
@@ -363,7 +363,7 @@ function rdNormSell(raw) {
     o.dd = o.date ? diffDays(o.date, td) : null;
     o.q = rdQ(o.name, o.code, o.seller, o.kind, o.detail, fund ? [fund.name, fund.gp] : []);
     return o;
-  });
+  }).filter((x) => !(x.kind === '만기' && x.dd != null && x.dd > RD_SELL_EXP_MAX)); // 다가오는 만기는 6개월 안만(2026-11-17 사용자)
   // 조합 행에는 운용 단계(stage: 투자중·회수중·청산중 등)·출처 원문(url)·보유 회사(companies)가 함께 올 수 있다
   // 순서: 다가오는 만기를 가까운 순으로 먼저, 이미 지난 조합은 그 아래에 최근에 지난 순으로
   const funds = rdArr(raw.funds).filter((f) => rdStr(f.name)).map((f) => {
@@ -863,8 +863,8 @@ function rdSellList() {
   let list = d.items.filter((x) => !q || x.q.includes(q));
   if (s.f !== 'all') list = list.filter((x) => x.kind === s.f);
   const near = (a, b) => Math.abs(a.dd ?? 1e9) - Math.abs(b.dd ?? 1e9) || b.date.localeCompare(a.date) || a.name.localeCompare(b.name, 'ko');
-  // 우선순: 만기 지난 조합의 비상장 회사 → 그 밖의 비상장(만기·철회, 종목코드 없음) → 나머지
-  const grp = (x) => (x.kind === '뉴스' || x.code ? 2 : x.kind === '만기' && x.dd != null && x.dd < 0 ? 0 : 1);
+  // 우선순(2026-11-17 사용자): 만기 지난 조합의 비상장 → 만기 임박 조합의 비상장(6개월 안) → 매각 뉴스와 상장사 → 예심 철회
+  const grp = (x) => (x.kind === '뉴스' || x.code ? 2 : x.kind === '만기' ? (x.dd != null && x.dd < 0 ? 0 : 1) : 3);
   const prio = (a, b) => grp(a) - grp(b) || near(a, b);
   if (!RD_SELL_SORT.some(([v]) => v === s.sort) || s.sort === 'prio') { // 우선순은 묶음마다 머리줄(이름·건수·설명, 2026-11-17 사용자)
     const out = [];
@@ -1013,7 +1013,8 @@ function rdStageOpts() {
 /* ---------- 그리기 ---------- */
 const RD_LIST = { yesim: rdYsList, sell: rdSellList, bids: rdBidsList };
 // FI 회수 우선순 묶음 머리: [이름, 설명]
-const RD_SELL_GRP = [['만기 지난 조합', '연장 기간에 들어가 팔 압박이 가장 큰 곳'], ['만기 임박과 예심 철회', '1～2년 안에 팔아야 하거나 회수가 늦어진 곳'], ['매각 뉴스와 상장사', '참고용']];
+const RD_SELL_EXP_MAX = 183; // 다가오는 만기는 6개월(183일) 안만 보인다
+const RD_SELL_GRP = [['만기 지난 조합', '연장 기간에 들어가 팔 압박이 가장 큰 곳'], ['만기 임박 조합', '6개월 안에 만기가 오는 조합의 비상장 회사'], ['매각 뉴스와 상장사', '참고용'], ['예심 철회', '상장이 늦어져 FI 회수가 밀린 곳']];
 const rdSellGrpRow = (x) => `<div class="rd-grp"><b>${RD_SELL_GRP[x.grp]?.[0] || ''}</b><span>${x.n}건</span><span>${RD_SELL_GRP[x.grp]?.[1] || ''}</span></div>`;
 const RD_ROW = { yesim: (x) => (x.grp != null ? rdGrpRow(x) : x.mn ? rdMnRow(x) : rdYsRow(x)), sell: (x) => (x.grp != null ? rdSellGrpRow(x) : rdSellRow(x)), bids: (x) => (x.grp != null ? `<div class="rd-grp"><b>${esc(x.grp)}</b><span>${x.n}건</span></div>` : rdBidsRow(x, false)) };
 const RD_HEAD = { yesim: RD_YS_HEAD, sell: RD_SELL_HEAD, bids: RD_BIDS_HEAD };
