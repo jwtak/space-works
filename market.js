@@ -64,12 +64,12 @@ const mkDate = (t, day = true) => { const d = new Date(t); return `${d.getUTCFul
 
 /* series: [{name, color, freq, data:[{t,v}]}], mode 'line' | 'area'(낙폭: 0이 수면). 그린 뒤 마우스를 올리면 그 시점 값이 뜬다 */
 const MK_CHARTS = [];
-function mkChart(series, { mode = 'line', h = 160, fmt = (v) => mkNum(v, 2), marker } = {}) {
+function mkChart(series, { mode = 'line', h = 160, fmt = (v) => mkNum(v, 2), marker, zero = false } = {}) { // zero: 값이 모두 0 이상이면 아래 축을 0에서 자른다(벤처투자 누적 추이)
   const all = series.flatMap((s) => s.data); if (!all.length) return '';
   const t0 = Math.min(...all.map((p) => p.t)), t1 = Math.max(...all.map((p) => p.t));
   let lo, hi, step;
   if (mode === 'area') { const r = Math.abs(Math.min(...all.map((p) => p.v), -5)); step = r <= 25 ? 5 : r <= 50 ? 10 : 20; lo = -Math.ceil(r / step) * step; hi = 0; }
-  else { const a = Math.min(...all.map((p) => p.v)), b = Math.max(...all.map((p) => p.v)), padv = (b - a || Math.abs(b) || 1) * 0.08; step = mkNice((b - a + 2 * padv) / 4); lo = Math.floor((a - padv) / step) * step; hi = Math.ceil((b + padv) / step) * step; }
+  else { const a = Math.min(...all.map((p) => p.v)), b = Math.max(...all.map((p) => p.v)), padv = (b - a || Math.abs(b) || 1) * 0.08; step = mkNice((b - a + 2 * padv) / 4); lo = Math.floor((a - padv) / step) * step; hi = Math.ceil((b + padv) / step) * step; if (zero && a >= 0) lo = Math.max(lo, 0); }
   const W = 1000, H = 100, x = (t) => ((t - t0) / (t1 - t0 || 1)) * W, y = (v) => ((hi - v) / (hi - lo || 1)) * H;
   const grid = []; for (let g = hi; g >= lo - 1e-9; g -= step) grid.push(+g.toFixed(6));
   const id = MK_CHARTS.push({ series, t0, t1, fmt }) - 1;
