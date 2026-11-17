@@ -28,7 +28,7 @@ const CFG = {
       'data/ma.json': '012DPUXZVVWOQ4QWXD7RDZ6RBUMUVLDIII', 'data/ma.xlsx': '012DPUXZW3QDQDHYF4KVGKALEWDJGHNRO6',
       'data/valuation.json': '012DPUXZTZUD3SWKGSUZG3GPIDXX2CH6JA', 'data/valuation_market.json': '012DPUXZVY6OSBOPWUEFDYQOCQWAEYZM6Y',
       'data/valuation_per_hist.json': '012DPUXZX74MCL552JGJH2TFDBTY25OOAZ', 'data/valuation_dcf.json': '012DPUXZTPVPA2IAKCA5FLG7EAHMSZUXBD',
-      'data/valuation_v3.json': '012DPUXZRW4QPHTTTK4JFYSMZPAVU5SQRC',
+      'data/valuation_v3.json': '012DPUXZRW4QPHTTTK4JFYSMZPAVU5SQRC', 'data/valuation_fin.json': '012DPUXZTLSKH76PO5MNDLLJBNZ5P6OKBK',
       'data/consumer.json': '012DPUXZTOA7RBJFZL35FII6EUQITISIKX', // 딜소싱 › 타깃 › 소비재(2026-11-16)
       'data/deeptech.json': '012DPUXZWNZKHMU42RDNC2CULHR547V3PI', // 딜소싱 › 타깃 › 딥테크(2026-11-16)
     },

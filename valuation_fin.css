@@ -1,0 +1,184 @@
+/* 가치평가 › 재무분석 — 카드·표·탭은 market.css(.mk-*), 머리와 고르는 칸은 valuation.css(.va-*)를 같이 쓴다.
+   그림 색: 계열 셋(파랑, 주황, 청록)은 색각 검증을 통과한 순서라 바꾸지 않는다. 우위와 열위는 색과 글자를 같이 쓴다 */
+.fin { container: fin / inline-size; display: flex; flex-direction: column; gap: 16px; --fin-s1: #2563EB; --fin-s2: #EB6834; --fin-s3: #1BAF7A; --fin-good: #15803D; --fin-bad: #C2410C; }
+.fin i.s1 { background: var(--fin-s1); }
+.fin i.s2 { background: var(--fin-s2); }
+.fin i.s3 { background: var(--fin-s3); }
+.fin path.s1 { stroke: var(--fin-s1); }
+.fin path.s2 { stroke: var(--fin-s2); }
+.fin path.s3 { stroke: var(--fin-s3); }
+.fin-nm[title] { cursor: help; }
+/* 머리: 회사 이름은 탭 아래 회사 줄에 있어 기준 정보와 최근 결산 수치만. 폰에서도 화면 설명은 오른쪽에 아이콘으로 */
+.fin-head .va-ttl { flex-direction: row; flex-wrap: wrap; align-items: center; }
+.fin-head .va-ttl p { flex: 1 1 200px; margin: 0; }
+.fin-head .va-tools { margin-left: auto; }
+
+/* 표: 숫자는 오른쪽, 묶음 이름 줄은 연한 띠 */
+.fin-t th:not(.st), .fin-t td:not(.st) { text-align: right; }
+.fin-t th small { display: block; margin-top: 1px; font-size: var(--fs-xs); font-weight: 400; color: var(--text3); }
+.fin-t td.st { color: var(--ink); }
+.fin-t tr.core td.st { font-weight: 600; }
+.fin-t tr.grp td { padding-top: 6px; padding-bottom: 6px; text-align: left; font-size: var(--fs-sm); font-weight: 600; color: var(--text3); background: var(--hover); }
+.fin-t sup { margin-left: 1px; font-size: var(--fs-xs); line-height: 0; color: var(--text3); }
+.va .fin-yt { min-width: 640px; }
+.va .fin-yt .st { width: 200px; }
+.va .fin-yt th { white-space: nowrap; }
+.fin-yt th.bl { width: 100px; }
+
+/* 범례(방사형, 추세 그림, 회사별 막대 공통) */
+.fin-leg { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 12px; font-size: var(--fs-sm); line-height: 20px; color: var(--text2); }
+.fin-leg span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.fin-leg b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.fin-leg i { flex: none; width: 10px; height: 10px; border-radius: 3px; }
+.fin-leg i.ln { width: 14px; height: 2px; border-radius: var(--r-full); }
+.fin-leg i.me { border-radius: 50%; background: var(--fin-s1); }
+.fin-leg i.pe { width: 8px; height: 8px; border-radius: 0; background: var(--text3); transform: rotate(45deg); }
+.fin-leg i.avg, .fin-leg i.med { width: 0; height: 14px; border-radius: 0; border-left: 2px solid var(--text2); }
+.fin-leg i.med { border-left-style: dashed; }
+.fin-leg .yr { color: var(--text3); }
+
+/* 1. 비교기업 대비: 방사형 그림 + 핵심 지표 표 */
+.fin-gl { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 16px 40px; align-items: start; }
+.fin-gl.solo { grid-template-columns: minmax(0, 1fr); }
+.fin-gt { min-width: 0; }
+.fin-rd { margin: 0; }
+.fin-rd svg { display: block; width: 100%; max-width: 360px; height: auto; margin: 0 auto; }
+.fin-rd .gl { fill: none; stroke: var(--line); stroke-width: 1; }
+.fin-rd .pp { fill: none; stroke: var(--text3); stroke-width: 1.5; stroke-dasharray: 4 3; stroke-linejoin: round; }
+.fin-rd .mp { fill: var(--fin-s1); fill-opacity: .1; stroke: var(--fin-s1); stroke-width: 2; stroke-linejoin: round; }
+.fin-rd .md { fill: var(--fin-s1); stroke: var(--card); stroke-width: 2; }
+.fin-rd .pd { fill: var(--text3); stroke: var(--card); stroke-width: 2; }
+.fin-rd .md.k, .fin-rd .pd.k { stroke: none; }
+.fin-rd .an { font-size: var(--fs-sm); font-weight: 600; fill: var(--ink); }
+.fin-rd .sv { font-size: var(--fs-sm); font-weight: 600; fill: var(--ink); font-variant-numeric: tabular-nums; }
+.fin-rd .sv.p { font-weight: 400; fill: var(--text2); }
+.fin-rd .fin-leg { justify-content: center; margin-top: 4px; }
+.fin-rd .fin-leg .yr[title] { cursor: help; }
+.fin-df { display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 4px; color: var(--ink); white-space: nowrap; }
+.fin-df i { font-style: normal; font-size: var(--fs-xs); color: var(--text3); }
+.fin-df em { width: 28px; font-style: normal; font-size: var(--fs-xs); font-weight: 600; text-align: left; }
+.fin-df.good i, .fin-df.good em { color: var(--fin-good); }
+.fin-df.bad i, .fin-df.bad em { color: var(--fin-bad); }
+.fin-fn span { margin-left: 12px; }
+.fin-fn span b { color: var(--text2); }
+
+/* 2. 눈여겨볼 점 */
+.fin-pg { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 4px 16px; padding: 14px 0; border-top: 1px solid var(--row); }
+.fin-pg:first-child { padding-top: 0; border-top: 0; }
+.fin-pg:last-child { padding-bottom: 0; }
+.fin-pg h3 { margin: 0; font-size: var(--fs-md); line-height: 24px; font-weight: 600; color: var(--ink); }
+.fin-pg ul { display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.fin-pg li { display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 12px; align-items: start; }
+.fin-pg p { margin: 0; font-size: var(--fs-md); line-height: 24px; color: var(--text2); }
+.fin-lv { display: inline-flex; align-items: center; justify-content: center; gap: 4px; height: 24px; border-radius: var(--r-full); font-size: var(--fs-xs); font-weight: 600; white-space: nowrap; }
+.fin-lv svg.i.sm { width: 14px; height: 14px; stroke-width: 2; }
+.fin-lv.good { background: var(--t-green); color: var(--t-green-c); }
+.fin-lv.warn { background: var(--t-amber); color: var(--t-amber-c); }
+.fin-lv.info { background: var(--fill); color: var(--text2); }
+
+/* 3. 5년 추세: 작은 그림 셋 + 묶음별 표(접고 폄) */
+.fin-chs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 32px; margin-bottom: 24px; }
+.fin-ch { margin: 0; min-width: 0; }
+.fin-ch figcaption { display: flex; align-items: baseline; gap: 6px; margin-bottom: 14px; }
+.fin-ch figcaption b { font-size: var(--fs-base); font-weight: 600; color: var(--ink); }
+.fin-ch figcaption small { font-size: var(--fs-xs); color: var(--text3); }
+.fin-ch .plot { position: relative; height: 168px; margin-left: 48px; }
+.fin-ch .gl { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--row); }
+.fin-ch .gl.z { border-top-color: var(--line2); }
+.fin-ch .gl span { position: absolute; right: 100%; top: -9px; width: 48px; padding-right: 8px; font-size: var(--fs-xs); line-height: 18px; font-style: normal; color: var(--text3); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fin-ch .bds { position: absolute; inset: 0; display: flex; }
+.fin-ch .bd { flex: 1 1 0; min-width: 0; display: flex; justify-content: center; gap: 2px; padding: 0 5px; }
+.fin-ch .bd:hover { background: rgba(17, 24, 39, .04); }
+.fin-ch .b { position: relative; flex: 0 1 16px; height: 100%; }
+.fin-ch .b i { position: absolute; left: 0; right: 0; min-height: 1px; border-radius: var(--r-xs) var(--r-xs) 0 0; }
+.fin-ch .b i.neg { border-radius: 0 0 var(--r-xs) var(--r-xs); }
+.fin-ch svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.fin-ch path { fill: none; stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.fin-ch .pt { position: absolute; width: 8px; height: 8px; margin: 0 0 -4px -4px; border-radius: 50%; box-shadow: 0 0 0 2px var(--card); }
+.fin-ch .xl { display: flex; margin: 6px 0 0 48px; }
+.fin-ch .xl span { flex: 1 1 0; font-size: var(--fs-xs); line-height: 18px; color: var(--text3); text-align: center; font-variant-numeric: tabular-nums; }
+.fin-grp { border-top: 1px solid var(--line); }
+.fin-grp[open] { padding-bottom: 12px; }
+.fin-grp:last-child[open] { padding-bottom: 0; }
+.fin-grp summary { display: flex; align-items: center; gap: 10px; min-height: 48px; font-size: var(--fs-base); font-weight: 600; color: var(--ink); cursor: pointer; list-style: none; }
+.fin-grp summary::-webkit-details-marker { display: none; }
+.fin-grp summary::before { content: ''; flex: none; width: 8px; height: 8px; margin: 0 2px 2px; border-right: 2px solid var(--text3); border-bottom: 2px solid var(--text3); transform: rotate(-45deg); transition: transform .15s; }
+.fin-grp[open] summary::before { transform: rotate(45deg); }
+
+/* 4. 비교기업과 나란히: 회사별 막대(0에서 시작, 실선 평균, 점선 중앙값) + 회사 × 핵심 지표 표 */
+.fin-pbs { display: flex; flex-direction: column; gap: 4px; padding: 4px 0; }
+.fin-pb { display: grid; grid-template-columns: 140px minmax(0, 1fr) 72px; align-items: center; gap: 12px; min-height: 32px; }
+.fin-pb > span { overflow: hidden; font-size: var(--fs-md); color: var(--text2); white-space: nowrap; text-overflow: ellipsis; }
+.fin-pb > span small { margin-left: 6px; font-size: var(--fs-xs); color: var(--text3); }
+.fin-pb > span sup { font-size: var(--fs-xs); line-height: 0; color: var(--text3); }
+.fin-pb > div { position: relative; height: 16px; }
+.fin-pb i { position: absolute; top: 0; bottom: 0; min-width: 2px; border-radius: 0 var(--r-xs) var(--r-xs) 0; background: #C7D7FB; }
+.fin-pb i.neg { border-radius: var(--r-xs) 0 0 var(--r-xs); }
+/* 칸을 넘는 값(뺀 회사의 극단값): 끝을 옅게 흘려 더 이어진다는 표시 */
+.fin-pb i.over { border-radius: 0; background: linear-gradient(90deg, var(--line) 60%, transparent); }
+.fin-pb i.over.neg { background: linear-gradient(270deg, var(--line) 60%, transparent); }
+.fin-pb u { position: absolute; top: -10px; bottom: -10px; width: 0; border-left: 1px solid var(--line2); }
+.fin-pb b { position: absolute; top: -10px; bottom: -10px; width: 0; margin-left: -1px; border-left: 2px solid var(--text2); }
+.fin-pb b.med { border-left-style: dashed; }
+.fin-pb em { font-size: var(--fs-md); font-style: normal; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.fin-pb.me > span { font-weight: 600; color: var(--ink); }
+.fin-pb.me i { background: var(--primary); }
+.fin-pb.cut i:not(.over) { background: var(--line); }
+.fin-pb.cut em { color: var(--text3); }
+.fin-pleg { margin-left: 152px; }
+.va .fin-ct { table-layout: auto; }
+.va .fin-ct .st { width: auto; min-width: 150px; }
+.fin-ct th { min-width: 76px; vertical-align: bottom; word-break: keep-all; overflow-wrap: normal; }
+.fin-ct th.gh { padding-bottom: 2px; border-bottom: 0; font-size: var(--fs-sm); color: var(--text3); text-align: left; }
+.va .fin-ct td.st { word-break: keep-all; overflow-wrap: normal; }
+.fin-ct tr.tgt td { background: var(--primary-soft); color: var(--ink); font-weight: 600; }
+.fin-ct tr.stat td { background: var(--hover); color: var(--ink); }
+.fin-ct .cut { color: var(--text3); }
+
+/* 그림 위 값 풍선 */
+.fin-tip { --fs-sm: 13px; position: fixed; z-index: 60; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-radius: var(--r); background: #1F2937; color: #fff; font-size: var(--fs-sm); line-height: 18px; white-space: nowrap; font-variant-numeric: tabular-nums; pointer-events: none; box-shadow: 0 6px 20px rgba(17, 24, 39, .16); }
+.fin-tip[hidden] { display: none; }
+.fin-tip b { font-weight: 600; }
+.fin-tip span { color: #E5E7EB; }
+
+/* 폭은 화면이 아니라 .fin 자리 기준(오른쪽 요청사항 칸이 열리면 본문이 776px까지 줄어듦) */
+@container fin (max-width: 1000px) { /* 방사형 옆 표를 좁게: 열 폭은 내용만큼, 우위와 열위는 차이 아래 줄 */
+  .fin-gl { grid-template-columns: 340px minmax(0, 1fr); gap: 16px 20px; }
+  .va .fin-gl:not(.solo) .fin-g4 { table-layout: auto; }
+  .va .fin-gl:not(.solo) .fin-g4 .st { width: auto; }
+  .fin-gl:not(.solo) .fin-g4 th, .fin-gl:not(.solo) .fin-g4 td { padding-left: 6px; padding-right: 6px; }
+  .fin-gl:not(.solo) .fin-g4 td { padding-top: 8px; padding-bottom: 8px; }
+  .fin-gl:not(.solo) .fin-df em { line-height: 16px; }
+  .fin-gl:not(.solo) .fin-df { flex-wrap: wrap; row-gap: 0; }
+  .fin-gl:not(.solo) .fin-df em { width: 100%; text-align: right; }
+  .fin-gl:not(.solo) .fin-fn span { display: block; margin-left: 0; }
+}
+@container fin (max-width: 700px) {
+  .fin-gl { grid-template-columns: minmax(0, 1fr); }
+}
+@container fin (min-width: 1240px) {
+  .fin-chs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@container fin (max-width: 560px) {
+  .fin-head .va-ttl { align-items: flex-start; }
+  .fin-head .info-btn { width: 36px; height: 36px; padding: 0; justify-content: center; }
+  .fin-head .info-btn .info-txt { display: none; }
+  .fin-chs { grid-template-columns: minmax(0, 1fr); }
+  .va .fin-yt .st { width: 132px; }
+  .va .fin-yt { min-width: 540px; }
+  .va .fin-yt.ltm { min-width: 620px; }
+  .fin-yt th.bl { width: 88px; }
+  .va .fin-gl .fin-g4 { table-layout: auto; }
+  .va .fin-gl .fin-g4 .st { width: auto; }
+  .fin-gl .fin-g4 th, .fin-gl .fin-g4 td { padding-left: 6px; padding-right: 6px; }
+  .fin-gl .fin-g4 td { padding-top: 8px; padding-bottom: 8px; }
+  .fin-gl .fin-df em { line-height: 16px; }
+  .fin-gl .fin-df { flex-wrap: wrap; row-gap: 0; }
+  .fin-gl .fin-df em { width: 100%; text-align: right; }
+  .fin-gl .fin-fn span { display: block; margin-left: 0; }
+  .fin-pg { grid-template-columns: minmax(0, 1fr); }
+  .fin-ch .plot { height: 152px; }
+  .fin-pb { grid-template-columns: 96px minmax(0, 1fr) 60px; gap: 8px; }
+  .fin-pb > span small { display: block; margin: 0; line-height: 16px; }
+  .fin-pleg { margin-left: 0; }
+}
