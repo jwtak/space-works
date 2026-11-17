@@ -241,7 +241,7 @@ function v3eRunAll(inp, ov) {
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
   const t0 = now(), inp2 = v3eApplyOverrides(inp, ov), py0 = inp.py || {};
   const all = { inp: inp2, I: inp2.input, sw: inp2.switches, ov: inp2.ov || {}, runs: {}, checks: [],
-    py: { rows: {}, scen: {}, wavg: null, blend: null, sens: null, rdcf: null, ff: null, rel_model: null, wacc_matrix: null, alt: py0.alt, mc: py0.mc, typ: py0.typ, lbo: py0.lbo, rel_plus: py0.rel_plus } };
+    py: { rows: {}, scen: {}, wavg: null, blend: null, sens: null, rdcf: null, ff: null, rel_model: null, wacc_matrix: null, kd_path: null, alt: py0.alt, mc: py0.mc, typ: py0.typ, lbo: py0.lbo, rel_plus: py0.rel_plus } };
   for (const s of V3E.steps) if (s.all) s.fn(all);
   const res = all.py;
   res.checks = all.checks;
@@ -4534,6 +4534,7 @@ function step_blend(all) {
   all.py.ff = ff;
   all.py.rel_model = rm;
   all.py.wacc_matrix = v3eWaccMatrix(base);
+  all.py.kd_path = base.W.kd_path;               // 타인자본비용 경로(Base). engine.py res["kd_path"]
 }
 
 // E24: 점검과 DCF 맵. run.py compute_inp()가 뒤에 붙이는 C 모듈 점검은 사례의 py 값으로 같은 순서로 붙임:

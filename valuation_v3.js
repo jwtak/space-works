@@ -1955,13 +1955,11 @@ function v3wSyn(x) {
   if (i < 0) i = rows.length - 1;
   return { rows, small, i, cap: sp.large_cap_krw, rating: rows[i]?.[1] ?? '-' };
 }
-/* 자동 판정이 고른 타인자본비용 경로(엔진 c.W.kd_path). 맵 why가 근거 문장(notes.why.kd)으로 바뀌어(11-17 오후 3) Base를 WACC 단계(E15)까지 돌려 받음. 결과 묶음, 사례마다 한 번 */
-const V3W_KDP = new WeakMap();
-const v3wKdPath = (key, c, ov) => { if (!V3W_KDP.has(key)) { let p = null; try { p = typeof V3E !== 'undefined' && V3E.ready ? V3E.run(c, 'Base', ov, 'E15').W?.kd_path || null : null; } catch { p = null; } V3W_KDP.set(key, p); } return V3W_KDP.get(key); };
+/* 자동 판정이 고른 타인자본비용 경로: 엔진 결과(runAll 결과나 사례 py)의 kd_path */
 function v3wKdSec(x) {
   const m = x.I.market || {}, B = x.I.beta || {}, sw = x.sw, V = (id) => v3V(x, id), kr = m.spread?.kr_rating || {}, cr = B.credit_rating, hasR = !!cr && kr[cr] != null;
   const eff = V('CTL.a.debt_rate'), kdp = V('WACC.kd_pre'), rf = V('WACC.rf'), auto = sw.kd === 'auto';
-  let path = auto ? v3wKdPath(x.res, x.c, x.ov) : sw.kd;
+  let path = auto ? x.res?.kd_path || null : sw.kd;
   if (!V3W_KD[path]) path = 'synthetic';
   const ri = m.kd_recent_issue_src || null, riText = ri ? [ri.date ? `${ri.date} 발행` : '', v3Ok(ri.amount) ? v3Eok(ri.amount) : '', v3Ok(ri.n) && ri.n > 1 ? `${v3Num(ri.n)}건` : '', ri.grade ? `${ri.grade} 등급` : ''].filter(Boolean).join(', ') : '';
   const opts = [['auto', '자동'], ['synthetic', '합성 등급'], ['rating', '실제 등급', !hasR], ['effective', '실효이자율', !v3Ok(eff)], ['market_yield', v3Ok(m.kd_market_yield) ? `회사채 수익률 ${v3wP2(m.kd_market_yield)}` : '회사채 수익률', m.kd_market_yield == null],
@@ -1980,7 +1978,7 @@ function v3wKdSec(x) {
     sw.kd === 'manual' ? ['세전 타인자본비용', v3wMan(x, 'i.market.kd_manual', 'pct', 2, '세전 타인자본비용 직접 입력')] : null,
     krs.length ? ['실제 등급', v3wSel(x, 'i.beta.credit_rating', [[null, '없음'], ...krs.map((r) => [r, `${r} ${v3wP2(kr[r])}`])], cr ?? null, '실제 신용등급')] : null]);
   /* 근거 글(notes.why.kd)은 문서를 만든 때의 경로 기준이라, 방식 스위치와 경로가 그때와 같을 때만 보여 줌 */
-  const kwhy = sw.kd === x.c.switches.kd && path === (v3wKdPath(x.c, x.c, {}) || path) ? x.c.notes?.why?.kd || '' : '';
+  const kwhy = sw.kd === x.c.switches.kd && path === (x.c.py?.kd_path || path) ? x.c.notes?.why?.kd || '' : '';
   const kr2 = m.kd_by_rating || null, tn = kr2 && Array.isArray(kr2.tenors) ? kr2.tenors : [], mx = kr2?.matrix || null;
   let grid = '';
   if (mx && tn.length) {
