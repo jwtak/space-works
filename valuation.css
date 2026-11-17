@@ -115,13 +115,6 @@
 .va-sug small { display: block; font-size: var(--fs-sm); color: var(--text3); }
 .va-sug .empty { padding: 12px; font-size: var(--fs-md); color: var(--text3); }
 .va-mkv { margin-bottom: 16px; }
-.va-hist { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; height: 180px; align-items: end; }
-.va-hb { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; }
-.va-hb i { display: block; width: 100%; min-height: 2px; border-radius: var(--r-xs) var(--r-xs) 0 0; background: #C7D7FB; }
-.va-hb.tg i { background: var(--primary); }
-.va-hb.pk i { background: #D97706; }
-.va-hb span { margin-bottom: 4px; font-size: var(--fs-sm); color: var(--text3); font-variant-numeric: tabular-nums; }
-.va-hb small { margin-top: 6px; font-size: var(--fs-sm); color: var(--text3); white-space: nowrap; }
 .va-leg { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 12px 0 4px; font-size: var(--fs-md); color: var(--text2); }
 .va-leg span::before { content: ''; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 50%; vertical-align: -1px; }
 .va-leg .tg::before { background: var(--primary); }
@@ -141,20 +134,10 @@
 .va-sc circle.pk { fill: #D97706; stroke: #fff; stroke-width: 2; }
 .va-sc .cv { fill: none; stroke: var(--text3); stroke-width: 2; }
 .va-sc .dl { font-size: var(--fs-sm); font-weight: 600; fill: var(--ink); paint-order: stroke; stroke: #fff; stroke-width: 3px; }
-@media (max-width: 720px) {
-  .va-hist { height: 160px; }
-  .va-hb small { font-size: var(--fs-xs); transform: rotate(-35deg); transform-origin: top center; }
-}
 .va-cg { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: var(--fs-md); color: var(--text2); }
 .va-cg input { width: 88px; height: 32px; padding: 0 8px; border: 1px solid var(--line2); border-radius: var(--r); font: inherit; font-size: var(--fs-md); text-align: right; }
-.va-hist { grid-template-columns: repeat(10, minmax(0, 1fr)); }
 .va-pos { min-width: 600px; }
 .va-pos td.st { min-width: 120px; }
-@media (max-width: 720px) {
-  .va-hist { gap: 2px; }
-  .va-hb span { font-size: var(--fs-xs); }
-}
-.va-find { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 16px 20px; }
 .va-srch-l { flex: 1 1 280px; max-width: 480px; }
 .va-srch-l input { height: 44px; font-size: var(--fs-lg); }
 .va-lab { margin-right: 8px; font-size: var(--fs-md); color: var(--text2); }
@@ -172,20 +155,9 @@
 .va-pb.cut em { color: var(--text3); }
 .va-x { width: 28px; height: 28px; border: 0; border-radius: var(--r-sm); background: none; color: var(--text3); font-size: var(--fs-xl); cursor: pointer; }
 .va-x:hover { background: var(--hover); color: var(--ink); }
-.va-sbs { display: flex; flex-direction: column; gap: 8px; }
-.va-sb { display: grid; grid-template-columns: 120px 1fr 64px; align-items: center; gap: 10px; min-height: 28px; }
-.va-sb > span { overflow: hidden; font-size: var(--fs-md); color: var(--text2); white-space: nowrap; text-overflow: ellipsis; }
-.va-sb > div { position: relative; height: 14px; border-radius: var(--r-xs); background: var(--row); }
-.va-sb i { position: absolute; top: 0; bottom: 0; border-radius: var(--r-xs); background: #C7D7FB; }
-.va-sb b { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--text2); }
-.va-sb u { position: absolute; top: 50%; width: 10px; height: 10px; margin: -5px 0 0 -5px; border: 2px solid #fff; border-radius: 50%; background: var(--primary); }
-.va-sb em { font-size: var(--fs-md); font-style: normal; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
-.va-sb.me > span { font-weight: 600; color: var(--primary); }
-.va-sb.me i { background: #93B4F6; }
 .va-kv dd small { margin-left: 4px; font-size: var(--fs-sm); font-weight: 400; color: var(--text3); }
 @media (max-width: 720px) {
   .va-pb { grid-template-columns: 88px 1fr 56px 28px; }
-  .va-sb { grid-template-columns: 88px 1fr 56px; }
 }
 .va-tabs { margin: 0 0 16px; overflow-x: auto; }
 .va-tabs .mk-seg button { min-height: 40px; padding: 0 16px; font-size: var(--fs-base); }
@@ -276,3 +248,86 @@
 .va-tr .el { font-size: var(--fs-xs); font-weight: 700; }
 .va-tr .el.mk { fill: var(--text3); }
 .va-tr .el.me { fill: var(--primary); }
+
+/* ---------- 2026-11-17 네 탭 개편: 위 탭, 회사 줄, 요약 탭 ---------- */
+/* 위 탭 넷(요약, 재무분석, 상대가치평가, 절대가치평가): 폰에서는 아이콘을 빼고 이름 길이만큼 폭을 나눔 */
+@media (max-width: 760px) {
+  .deal-seg.va-vt button { flex: 1 1 auto; gap: 0; padding: 0 6px; font-size: var(--fs-base); }
+  .deal-seg.va-vt button svg.i { display: none; }
+}
+/* 탭 아래 회사 줄: 지금 보는 회사와 검색(네 탭 공통) */
+#va-co { margin-bottom: 16px; }
+.va-co { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 16px 24px; }
+.va-co-id { flex: 1 1 240px; min-width: 0; }
+.va-co-id h2 { margin: 0; font-size: var(--fs-2xl); line-height: 28px; font-weight: 700; }
+.va-co-id p { margin: 2px 0 0; font-size: var(--fs-md); line-height: 20px; color: var(--text3); }
+.va-co-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.va-co .va-srch-l { flex: 0 1 280px; width: 280px; max-width: 100%; }
+.va-srch-l .va-sug { top: 48px; }
+.va-co .info-btn { display: none; } /* 화면 설명: PC는 제목 줄, 폰은 회사 줄 */
+@media (max-width: 760px) {
+  #va-co { margin-bottom: 0; }
+  .page-head .va-pc { display: none; }
+  .va-co .info-btn { display: inline-flex; }
+  .va-co { padding: 4px 16px 12px; }
+  .va-co-id { flex-basis: 100%; }
+  .va-co-tools { flex: 1 1 100%; }
+  .va-co .va-srch-l { flex: 1 1 200px; width: auto; }
+}
+/* 상대가치평가 사례 머리: 회사 이름은 회사 줄에 있어 기준일과 평가 목적만 */
+.va-ttl:has(p:only-child) { align-items: center; }
+.va-ttl p:only-child { margin: 0; font-size: var(--fs-base); line-height: 22px; color: var(--text2); }
+/* 요약 탭 머리: 시장과 PER 종류 선택, 핵심 숫자 */
+.va-sumbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.va-sumbar .meta { margin-left: auto; font-size: var(--fs-sm); color: var(--text3); }
+/* 네 칸(넓으면 2×2, 좁으면 한 줄. 폭은 valuation.js VA_G2) */
+.va-g4 { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; }
+.va-g4.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.va-g4 > .card { min-width: 0; }
+.va-g4 .va-mkv { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; }
+.va-g4 .va-mkv dd { font-size: var(--fs-base); }
+/* 분포 막대: 구간별 종목 수. 위 세 줄은 이름표 자리(보는 회사, 평균, 중앙값 순) */
+.va-hg-w { position: relative; padding-top: 54px; }
+.va-hg-p { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); align-items: end; height: 220px; border-bottom: 1px solid var(--line2); }
+.va-hb { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; padding: 0 2px; }
+.va-hb i { display: block; width: 100%; min-height: 2px; border-radius: var(--r-xs) var(--r-xs) 0 0; background: #C7D7FB; }
+.va-hb.tg i { background: #93B4F6; }
+.va-hb span { position: relative; z-index: 1; margin-bottom: 2px; padding: 0 2px; background: var(--card); font-size: var(--fs-xs); line-height: 16px; color: var(--text3); font-variant-numeric: tabular-nums; }
+.va-hm { position: absolute; bottom: 0; width: 0; border-left: 2px dashed var(--text2); pointer-events: none; }
+.va-hm.md { top: 54px; }
+.va-hm.av { top: 36px; border-left-style: dotted; border-left-color: var(--text3); }
+.va-hm.tg { top: 18px; border-left-color: var(--primary); }
+.va-hm b { position: absolute; bottom: 100%; left: -1px; z-index: 2; padding: 0 4px; background: var(--card); font-size: var(--fs-xs); line-height: 18px; font-weight: 500; color: var(--text2); white-space: nowrap; }
+.va-hm.tg b { padding: 0 6px; border-radius: var(--r-xs); background: var(--primary); color: #fff; font-weight: 600; }
+.va-hx { position: relative; height: 18px; margin-top: 4px; }
+.va-hx span { position: absolute; top: 0; transform: translateX(-50%); font-size: var(--fs-xs); line-height: 18px; color: var(--text3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.va-hx span:first-child { transform: none; }
+.va-hx span:last-child { transform: translateX(-100%); }
+/* 업종별(테마별) PER 비교: 이름과 중앙값 한 줄, 그 아래 25～75% 구간 막대 */
+.va-grs { display: flex; flex-direction: column; gap: 12px; }
+.va-gr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 4px 12px; width: 100%; padding: 0; border: 0; background: none; font: inherit; text-align: left; }
+button.va-gr { cursor: pointer; }
+button.va-gr:hover .nm { color: var(--ink); }
+.va-gr .nm { overflow: hidden; font-size: var(--fs-md); line-height: 20px; color: var(--text2); white-space: nowrap; text-overflow: ellipsis; }
+.va-gr em { font-size: var(--fs-md); line-height: 20px; font-style: normal; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.va-gr em small { display: inline-block; min-width: 44px; margin-left: 6px; font-size: var(--fs-xs); font-weight: 400; color: var(--text3); text-align: right; }
+.va-gr .bar { grid-column: 1 / -1; position: relative; height: 12px; border-radius: var(--r-xs); background: var(--row); }
+.va-gr .bar i { position: absolute; top: 0; bottom: 0; min-width: 2px; border-radius: var(--r-xs); background: #C7D7FB; }
+.va-gr .bar b { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--text2); }
+.va-gr .bar u { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border: 2px solid #fff; border-radius: 50%; background: var(--primary); }
+.va-gr.me .nm, button.va-gr.me:hover .nm { font-weight: 600; color: var(--primary); }
+.va-gr.me .bar i { background: #93B4F6; }
+.va-leg .bd::before { width: 14px; height: 8px; border-radius: 2px; background: #C7D7FB; vertical-align: 0; }
+.va-leg .md::before { width: 2px; height: 12px; border-radius: 0; background: var(--text2); vertical-align: -2px; }
+.va-grs + .va-leg, .va-grs + .va-exbtn + .va-leg, .va-gl + .va-leg { margin-top: 16px; }
+.va-gl .va-pb { grid-template-columns: 110px 1fr 56px; }
+/* 접힌 구역(위치 표, 회귀) */
+.va-fold > summary { display: flex; align-items: center; min-height: 60px; padding: 0 24px; font-size: var(--fs-xl); line-height: 24px; font-weight: 600; color: var(--ink); cursor: pointer; list-style: none; }
+.va-fold > summary::-webkit-details-marker { display: none; }
+.va-fold > summary::after { content: ''; width: 8px; height: 8px; margin: -4px 4px 0 auto; border-right: 2px solid var(--text3); border-bottom: 2px solid var(--text3); transform: rotate(45deg); }
+.va-fold[open] > summary::after { margin-top: 4px; transform: rotate(-135deg); }
+.va-fold > .mk-body { padding-top: 4px; }
+@media (max-width: 760px) {
+  .va-fold > summary { min-height: 52px; padding: 0 16px; }
+  .va-gl .va-pb { grid-template-columns: 96px 1fr 56px; }
+}
