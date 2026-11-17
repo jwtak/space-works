@@ -60,3 +60,8 @@
   .rq-redit { min-height: 32px; font-size: var(--fs-md); }
   .rq-none { font-size: var(--fs-base); }
 }
+/* 761～1199px: 사이드바(248)와 요청사항 칸(304)을 빼면 본문이 200px 안팎까지 줄어 요청사항을 본문 아래로 내림(2026-11-17) */
+@media (min-width: 761px) and (max-width: 1199.98px) {
+  body.req-on .scroll { flex-direction: column; align-items: stretch; }
+  .req { position: static; width: auto; max-height: none; margin: 0 32px 32px !important; }
+}

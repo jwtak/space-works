@@ -12,6 +12,7 @@
 .fin-head .va-ttl { flex-direction: row; flex-wrap: wrap; align-items: center; }
 .fin-head .va-ttl p { flex: 1 1 200px; margin: 0; }
 .fin-head .va-tools { margin-left: auto; }
+.fin .card-head > .va-case { margin-left: auto; }
 
 /* 표: 숫자는 오른쪽, 묶음 이름 줄은 연한 띠 */
 .fin-t th:not(.st), .fin-t td:not(.st) { text-align: right; }
@@ -29,12 +30,12 @@
 .fin-leg { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; margin-top: 12px; font-size: var(--fs-sm); line-height: 20px; color: var(--text2); }
 .fin-leg span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .fin-leg b { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
-.fin-leg i { flex: none; width: 10px; height: 10px; border-radius: 3px; }
-.fin-leg i.ln { width: 14px; height: 2px; border-radius: var(--r-full); }
+.fin-leg i { flex: none; width: 10px; height: 10px; border-radius: var(--r-xs); }
+/* 선 그림 범례: 그림과 같은 선 + 점 */
+.fin-leg i.ln { position: relative; width: 16px; height: 2px; border-radius: var(--r-full); }
+.fin-leg i.ln::after { content: ''; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: inherit; }
 .fin-leg i.me { border-radius: 50%; background: var(--fin-s1); }
 .fin-leg i.pe { width: 8px; height: 8px; border-radius: 0; background: var(--text3); transform: rotate(45deg); }
-.fin-leg i.avg, .fin-leg i.med { width: 0; height: 14px; border-radius: 0; border-left: 2px solid var(--text2); }
-.fin-leg i.med { border-left-style: dashed; }
 .fin-leg .yr { color: var(--text3); }
 
 /* 1. 비교기업 대비: 방사형 그림 + 핵심 지표 표 */
@@ -55,15 +56,16 @@
 .fin-rd .fin-leg { justify-content: center; margin-top: 4px; }
 .fin-rd .fin-leg .yr[title] { cursor: help; }
 .fin-df { display: inline-flex; align-items: baseline; justify-content: flex-end; gap: 4px; color: var(--ink); white-space: nowrap; }
-.fin-df i { font-style: normal; font-size: var(--fs-xs); color: var(--text3); }
+.fin-df i { font-style: normal; font-size: var(--fs-xs); color: var(--text2); }
 .fin-df em { width: 28px; font-style: normal; font-size: var(--fs-xs); font-weight: 600; text-align: left; }
-.fin-df.good i, .fin-df.good em { color: var(--fin-good); }
-.fin-df.bad i, .fin-df.bad em { color: var(--fin-bad); }
+/* 화살표는 방향만(무채색), 좋고 나쁨은 우위와 열위 글자 색으로 */
+.fin-df.good em { color: var(--fin-good); }
+.fin-df.bad em { color: var(--fin-bad); }
 .fin-fn span { margin-left: 12px; }
 .fin-fn span b { color: var(--text2); }
 
 /* 2. 눈여겨볼 점 */
-.fin-pg { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 4px 16px; padding: 14px 0; border-top: 1px solid var(--row); }
+.fin-pg { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 4px 16px; padding: 16px 0; border-top: 1px solid var(--row); }
 .fin-pg:first-child { padding-top: 0; border-top: 0; }
 .fin-pg:last-child { padding-bottom: 0; }
 .fin-pg h3 { margin: 0; font-size: var(--fs-md); line-height: 24px; font-weight: 600; color: var(--ink); }
@@ -79,15 +81,15 @@
 /* 3. 5년 추세: 작은 그림 셋 + 묶음별 표(접고 폄) */
 .fin-chs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 32px; margin-bottom: 24px; }
 .fin-ch { margin: 0; min-width: 0; }
-.fin-ch figcaption { display: flex; align-items: baseline; gap: 6px; margin-bottom: 14px; }
+.fin-ch figcaption { display: flex; align-items: baseline; gap: 6px; margin-bottom: 16px; }
 .fin-ch figcaption b { font-size: var(--fs-base); font-weight: 600; color: var(--ink); }
 .fin-ch figcaption small { font-size: var(--fs-xs); color: var(--text3); }
 .fin-ch .plot { position: relative; height: 168px; margin-left: 48px; }
-.fin-ch .gl { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--row); }
-.fin-ch .gl.z { border-top-color: var(--line2); }
+.fin-ch .gl { position: absolute; left: 0; right: 0; height: 0; border-top: 1px solid var(--line); }
+.fin-ch .gl.z { border-top-color: var(--text4); }
 .fin-ch .gl span { position: absolute; right: 100%; top: -9px; width: 48px; padding-right: 8px; font-size: var(--fs-xs); line-height: 18px; font-style: normal; color: var(--text3); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .fin-ch .bds { position: absolute; inset: 0; display: flex; }
-.fin-ch .bd { flex: 1 1 0; min-width: 0; display: flex; justify-content: center; gap: 2px; padding: 0 5px; }
+.fin-ch .bd { flex: 1 1 0; min-width: 0; display: flex; justify-content: center; gap: 2px; padding: 0 4px; }
 .fin-ch .bd:hover { background: rgba(17, 24, 39, .04); }
 .fin-ch .b { position: relative; flex: 0 1 16px; height: 100%; }
 .fin-ch .b i { position: absolute; left: 0; right: 0; min-height: 1px; border-radius: var(--r-xs) var(--r-xs) 0 0; }
@@ -100,7 +102,7 @@
 .fin-grp { border-top: 1px solid var(--line); }
 .fin-grp[open] { padding-bottom: 12px; }
 .fin-grp:last-child[open] { padding-bottom: 0; }
-.fin-grp summary { display: flex; align-items: center; gap: 10px; min-height: 48px; font-size: var(--fs-base); font-weight: 600; color: var(--ink); cursor: pointer; list-style: none; }
+.fin-grp summary { display: flex; align-items: center; gap: 8px; min-height: 48px; font-size: var(--fs-base); font-weight: 600; color: var(--ink); cursor: pointer; list-style: none; }
 .fin-grp summary::-webkit-details-marker { display: none; }
 .fin-grp summary::before { content: ''; flex: none; width: 8px; height: 8px; margin: 0 2px 2px; border-right: 2px solid var(--text3); border-bottom: 2px solid var(--text3); transform: rotate(-45deg); transition: transform .15s; }
 .fin-grp[open] summary::before { transform: rotate(45deg); }
@@ -122,6 +124,14 @@
 .fin-pb b.med { border-left-style: dashed; }
 .fin-pb em { font-size: var(--fs-md); font-style: normal; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .fin-pb.me > span { font-weight: 600; color: var(--ink); }
+/* 평균선과 중앙값선 머리 이름표 */
+.fin-pbh { min-height: 20px; }
+.fin-pbh > div { height: 20px; }
+.fin-pbh b { top: 6px; }
+.fin-pbh small { position: absolute; top: 0; padding: 0 6px; font-size: var(--fs-xs); line-height: 16px; color: var(--text2); white-space: nowrap; }
+.fin-pbh small.l { transform: translateX(-100%); }
+.fin-pbh small[title] { cursor: help; }
+.fin-pbh small strong { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 .fin-pb.me i { background: var(--primary); }
 .fin-pb.cut i:not(.over) { background: var(--line); }
 .fin-pb.cut em { color: var(--text3); }
@@ -136,10 +146,10 @@
 .fin-ct .cut { color: var(--text3); }
 
 /* 그림 위 값 풍선 */
-.fin-tip { --fs-sm: 13px; position: fixed; z-index: 60; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-radius: var(--r); background: #1F2937; color: #fff; font-size: var(--fs-sm); line-height: 18px; white-space: nowrap; font-variant-numeric: tabular-nums; pointer-events: none; box-shadow: 0 6px 20px rgba(17, 24, 39, .16); }
+.fin-tip { --fs-sm: 13px; position: fixed; z-index: 60; display: flex; flex-direction: column; gap: 2px; padding: 8px 12px; border-radius: var(--r); background: var(--ink); color: var(--card); font-size: var(--fs-sm); line-height: 18px; white-space: nowrap; font-variant-numeric: tabular-nums; pointer-events: none; box-shadow: 0 6px 20px rgba(17, 24, 39, .16); }
 .fin-tip[hidden] { display: none; }
 .fin-tip b { font-weight: 600; }
-.fin-tip span { color: #E5E7EB; }
+.fin-tip span { color: var(--line); }
 
 /* 폭은 화면이 아니라 .fin 자리 기준(오른쪽 요청사항 칸이 열리면 본문이 776px까지 줄어듦) */
 @container fin (max-width: 1000px) { /* 방사형 옆 표를 좁게: 열 폭은 내용만큼, 우위와 열위는 차이 아래 줄 */
@@ -147,11 +157,13 @@
   .va .fin-gl:not(.solo) .fin-g4 { table-layout: auto; }
   .va .fin-gl:not(.solo) .fin-g4 .st { width: auto; }
   .fin-gl:not(.solo) .fin-g4 th, .fin-gl:not(.solo) .fin-g4 td { padding-left: 6px; padding-right: 6px; }
+  .fin-gl:not(.solo) .fin-fn span { display: block; margin-left: 0; }
+}
+@container fin (max-width: 880px) { /* 표 칸이 모자라면 우위와 열위를 차이 아래 줄로 */
   .fin-gl:not(.solo) .fin-g4 td { padding-top: 8px; padding-bottom: 8px; }
   .fin-gl:not(.solo) .fin-df em { line-height: 16px; }
   .fin-gl:not(.solo) .fin-df { flex-wrap: wrap; row-gap: 0; }
   .fin-gl:not(.solo) .fin-df em { width: 100%; text-align: right; }
-  .fin-gl:not(.solo) .fin-fn span { display: block; margin-left: 0; }
 }
 @container fin (max-width: 700px) {
   .fin-gl { grid-template-columns: minmax(0, 1fr); }
@@ -181,4 +193,7 @@
   .fin-pb { grid-template-columns: 96px minmax(0, 1fr) 60px; gap: 8px; }
   .fin-pb > span small { display: block; margin: 0; line-height: 16px; }
   .fin-pleg { margin-left: 0; }
+}
+@media (max-width: 760px) { /* 폰: 표 첫 열이 카드 시작선에 붙으므로 묶음 이름 줄도 띠 없이 같은 선에 */
+  .fin-t tr.grp td { padding-left: 0; background: none; }
 }

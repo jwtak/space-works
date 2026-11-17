@@ -79,7 +79,7 @@
 .va-peers td:last-child, .va-peers th:last-child { width: 90px; }
 .va-peers td.wrap small { display: block; margin-top: 4px; }
 .va-sim { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 6px 16px; margin: 10px 0 2px; padding: 10px 12px; border-radius: var(--r); background: var(--hover); }
-.va-sim dt { font-size: var(--fs-xs); color: var(--text3); }
+.va-sim dt { font-size: var(--fs-sm); color: var(--text3); }
 .va-sim dd { margin: 1px 0 0; font-size: var(--fs-sm); color: var(--text2); line-height: 19px; }
 .va-fun td:nth-child(3), .va-fun th:nth-child(3) { width: 90px; }
 .va-exbtn { margin-top: 12px; }
@@ -122,7 +122,7 @@
 .va-leg .pe::before { background: var(--ink); }
 .va-leg .cv::before { width: 16px; height: 2px; border-radius: var(--r-full); background: var(--text3); vertical-align: 3px; }
 .va-pos tr.va-tgt td { background: var(--primary-soft); }
-.va-pos tr.va-pkr td { background: #FFF8EC; }
+.va-pos tr.va-pkr td { background: var(--t-amber); }
 .va-scw { width: 100%; overflow: hidden; }
 .va-sc { display: block; width: 100%; height: auto; }
 .va-sc .gl { stroke: var(--row); stroke-width: 1; }
@@ -166,15 +166,15 @@
 .va-det summary .n { margin-left: 4px; color: var(--danger); }
 .va-sumg { display: grid; grid-template-columns: minmax(0, 1fr) 240px; gap: 24px; align-items: start; }
 .va-fb { display: flex; flex-direction: column; gap: 6px; }
-.va-fb-r { display: grid; grid-template-columns: 170px 1fr; align-items: center; gap: 12px; min-height: 44px; }
+.va-fb-r { display: grid; grid-template-columns: 228px 1fr; align-items: center; gap: 12px; min-height: 44px; }
 .va-fb-l { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 8px; }
 .va-fb-l em { font-size: var(--fs-sm); font-style: normal; color: var(--text3); }
 .va-fb-l b { font-size: var(--fs-md); font-weight: 600; color: var(--ink); }
 .va-fb-l b small { margin-left: 4px; font-size: var(--fs-sm); font-weight: 400; color: var(--text3); }
 .va-fb-b { position: relative; height: 44px; }
 .va-fb-b i { position: absolute; top: 12px; height: 20px; min-width: 2px; border-radius: var(--r-xs); background: var(--primary); }
-.va-fb-r.mk .va-fb-b i { background: #93B4F6; }
-.va-fb-b span.lo, .va-fb-b span.hi { position: absolute; top: 13px; font-size: var(--fs-sm); color: var(--text2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.va-fb-r.mk .va-fb-b i { background: var(--line2); }
+.va-fb-b span.lo, .va-fb-b span.hi { position: absolute; z-index: 1; top: 12px; padding: 0 2px; background: var(--card); line-height: 20px; font-size: var(--fs-sm); color: var(--text2); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .va-fb-b span.lo { transform: translateX(calc(-100% - 6px)); }
 .va-fb-b span.hi { margin-left: 6px; }
 .va-fb-b u { position: absolute; top: -4px; bottom: -4px; width: 0; border-left: 2px dashed var(--text4); }
@@ -196,11 +196,11 @@
 .va-asm dd { margin: 0; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
 .va-mcg { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 24px; align-items: start; }
 .va-mcg .va-pb { grid-template-columns: 130px 1fr 64px; }
-.va-mcg .va-pb > span small { margin-left: 6px; font-size: var(--fs-xs); color: var(--text3); }
+.va-mcg .va-pb > span small { margin-left: 6px; font-size: var(--fs-sm); color: var(--text3); }
 .va-calc { width: 100%; border-collapse: collapse; font-size: var(--fs-md); }
 .va-calc th { padding: 9px 12px; text-align: left; font-weight: 400; color: var(--text2); background: var(--hover); border-bottom: 2px solid #fff; }
 .va-calc td { padding: 9px 12px; text-align: right; color: var(--ink); font-variant-numeric: tabular-nums; border-bottom: 2px solid #fff; background: var(--hover); }
-.va-calc td small { margin-left: 4px; font-size: var(--fs-xs); color: var(--text3); }
+.va-calc td small { margin-left: 4px; font-size: var(--fs-sm); color: var(--text3); }
 .va-calc tbody.res tr { outline: 0; }
 .va-calc tbody.res th, .va-calc tbody.res td { background: var(--primary-soft); }
 .va-calc tbody.res tr.k th { color: var(--primary); font-weight: 600; }
@@ -239,7 +239,7 @@
 @media (max-width: 720px) { .va-fb-b { margin: 0 56px 0 60px; } }
 .va-fb-r.ref .va-fb-b i { background: #C7D7FB; }
 .va-fb-r.ref .va-fb-l b { font-weight: 500; color: var(--text2); }
-.va-asm dd small { margin-left: 4px; font-size: var(--fs-xs); font-weight: 400; color: var(--text3); }
+.va-asm dd small { margin-left: 4px; font-size: var(--fs-sm); font-weight: 400; color: var(--text3); }
 .va-thin { margin-top: 20px; }
 .va-split tr td.va-few { background: var(--t-amber); }
 .va-tr path { fill: none; stroke-linejoin: round; stroke-linecap: round; }
@@ -414,8 +414,8 @@ button.va-gr.me:hover { background: var(--primary-soft); }
 .va-gr .bar { grid-column: auto; height: 10px; }
 .va-gr em { text-align: right; }
 .va-gr em.mt { font-weight: 500; color: var(--text2); }
-.va-gr > small { font-size: var(--fs-xs); line-height: 20px; color: var(--text3); text-align: right; white-space: nowrap; }
-.va-grh { display: grid; margin: 0 -8px 4px; padding: 0 8px 6px; border-bottom: 1px solid var(--row); font-size: var(--fs-xs); line-height: 16px; color: var(--text3); }
+.va-gr > small { font-size: var(--fs-sm); line-height: 20px; color: var(--text3); text-align: right; white-space: nowrap; }
+.va-grh { display: grid; margin: 0 -8px 4px; padding: 0 8px 6px; border-bottom: 1px solid var(--row); font-size: var(--fs-sm); line-height: 18px; color: var(--text3); }
 .va-grh span:nth-child(n+3) { text-align: right; }
 .va-gh { margin: 12px 0 2px; padding: 0 8px; font-size: var(--fs-sm); line-height: 20px; font-weight: 600; color: var(--ink); }
 .va-gh:first-child { margin-top: 4px; }
@@ -433,3 +433,62 @@ button.va-gr.me:hover { background: var(--primary-soft); }
 .va-reqd { flex: none; font-size: var(--fs-md); color: var(--text3); }
 .va-none .empty { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 .va-none .empty p { margin: 0; }
+
+/* ---------- 2026-11-17 UI 전수 점검(가독성, 선 이름표, 덜어내기) ---------- */
+/* 분포 막대 칸은 옆 칸(PER 추이) 높이만큼 막대를 늘려 아래 빈자리를 없앰 */
+.va-g4 > .card:has(.va-hg) { display: flex; flex-direction: column; }
+.va-g4 > .card:has(.va-hg) > .mk-body { flex: 1; display: flex; flex-direction: column; }
+.va-g4 .va-hg { flex: 1; display: flex; flex-direction: column; }
+.va-g4 .va-hg-w { flex: 1; display: flex; flex-direction: column; }
+.va-g4 .va-hg-p { flex: 1; height: auto; min-height: 220px; }
+/* 선 차트 범례는 선 모양으로(점은 산점도만) */
+.va-leg .ln::before { width: 16px; height: 2px; border-radius: var(--r-full); background: var(--primary); vertical-align: 3px; }
+.va-leg .mdb::before { width: 3px; height: 12px; border-radius: var(--r-full); background: var(--primary); vertical-align: -2px; }
+.va-leg .ct::before { width: 14px; height: 8px; border-radius: 2px; background: var(--line); vertical-align: 0; }
+.va-ff + .va-leg { margin-top: 8px; }
+.va-sc .at { font-size: var(--fs-xs); font-weight: 600; fill: var(--text2); }
+/* 막대 목록 위 중앙값 이름표 줄 */
+.va-pbs .va-pbh { min-height: 20px; }
+.va-pbh > div { height: 20px; }
+.va-pb.va-pbh b.lab { top: 0; bottom: auto; width: auto; margin: 0; background: none; font-size: var(--fs-sm); line-height: 20px; font-weight: 600; color: var(--text2); white-space: nowrap; }
+.va-pbs + .va-leg { margin-top: 12px; }
+.va-mcg .va-pb { grid-template-columns: 132px 1fr 52px; }
+/* 상대가치평가 결과: 목표주가는 카드 안 카드 대신 구분선 하나 */
+.va-sumtop .va-tpbox { display: flex; flex-direction: column; justify-content: center; gap: 2px; padding: 0 24px 0 0; border: 0; border-right: 1px solid var(--line); border-radius: 0; background: none; }
+.va-tpbox > span { font-size: var(--fs-md); line-height: 20px; color: var(--text2); }
+.va-tpbox > b { font-size: var(--fs-4xl); line-height: 36px; font-weight: 700; color: var(--ink); letter-spacing: -0.02em; }
+.va-tpbox > em { font-style: normal; font-size: var(--fs-md); line-height: 20px; color: var(--text2); }
+.va-tpbox > em span { font-weight: 600; }
+.va-tpbox > em .up { color: var(--danger); }
+.va-tpbox > em .dn { color: var(--primary); }
+.va-tpbox > p { margin: 4px 0 0; font-size: var(--fs-sm); line-height: 18px; color: var(--text3); }
+/* 확인할 것: 접는 화살표를 아래 접힌 구역과 같은 모양으로 */
+.va-det > summary { display: flex; align-items: center; gap: 4px; list-style: none; }
+.va-det > summary::-webkit-details-marker { display: none; }
+.va-det > summary::after { content: ''; width: 7px; height: 7px; margin: -4px 0 0 8px; border-right: 2px solid var(--text3); border-bottom: 2px solid var(--text3); transform: rotate(45deg); }
+.va-det[open] > summary::after { margin-top: 4px; transform: rotate(-135deg); }
+/* 비교기업 선정 단계: 상자 대신 줄, 회사 이름은 무채색 */
+.va-selc li { margin: 0; padding: 0 4px; border: 0; border-bottom: 1px solid var(--row); border-radius: 0; }
+.va-selc li:last-child { border-bottom: 0; }
+.va-chips { gap: 6px; }
+.va-chips span, .va-two .va-chips span { padding: 2px 8px; border-radius: var(--r-xs); background: var(--fill); font-size: var(--fs-sm); line-height: 20px; font-weight: 500; color: var(--text2); }
+/* 표 안 보조 글자는 13px(공용 .mk-tbl 은 12px) */
+.va-mt td small, .va-split td small, .va-ap td small, .va-pos td small, .va-loo td small, .va-peers td small, .va-sct td small, .va-plist td small { font-size: var(--fs-sm); }
+.va-mt tr.va-stat td { white-space: normal; }
+/* 요약 탭 절대가치평가 시나리오 점: 색 변수는 절대가치평가 화면(#va-host[data-v3])에만 있어 여기서도 같은 값 */
+.va-sct { --v3-bull: var(--ok); --v3-base: var(--t-amber-c); --v3-bear: var(--danger); }
+@media (max-width: 760px) {
+  .va-ttl:has(p:only-child) { align-items: flex-start; }
+  .va-cmp .card-head > .mk-seg { margin-left: 0; }
+}
+@media (max-width: 720px) {
+  .va-sumtop .va-tpbox { padding: 0 0 16px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .va-sumtop .va-asm { grid-template-columns: minmax(0, 1fr); }
+  .va-mcg .va-pb { grid-template-columns: 112px 1fr 52px; }
+}
+/* Peer 비교 상승여력: 카드 안 카드 대신 구분선 */
+.va-tiles { gap: 16px 24px; margin-bottom: 24px; }
+.va-tile { padding: 0; border: 0; border-radius: 0; }
+.va-tile + .va-tile { padding-left: 24px; border-left: 1px solid var(--line); }
+.va-tile p { color: var(--text3); }
+@media (max-width: 760px) { .va-tile + .va-tile { padding-left: 0; border-left: 0; } }

@@ -185,7 +185,7 @@ function finChart(kind, title, unit, P, series) { // kind: cols(막대, 0에서 
     over = `<svg viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">${paths}</svg>${dots}`;
   }
   const li = P.n - 1;
-  const leg = `<div class="fin-leg"><span class="yr">${P.Y}</span>${series.map((s, k) => `<span><i class="s${k + 1} ${kind === 'lines' ? 'ln' : ''}"></i>${esc(s.name)} <b>${s.fmt(s.vals[li])}</b></span>`).join('')}</div>`;
+  const leg = `<div class="fin-leg"><span class="yr">${esc(P.Y)}년</span>${series.map((s, k) => `<span><i class="s${k + 1} ${kind === 'lines' ? 'ln' : ''}"></i>${esc(s.name)} <b>${s.fmt(s.vals[li])}</b></span>`).join('')}</div>`;
   const aria = `${title} ${P.years[0]}～${P.Y}. ${series.map((s) => `${s.name} ${s.vals.map((v) => s.fmt(v)).join(', ')}`).join('. ')}`;
   return `<figure class="fin-ch ${kind}" role="img" aria-label="${esc(aria)}"><figcaption><b>${esc(title)}</b>${unit ? `<small>${esc(unit)}</small>` : ''}</figcaption>
     <div class="plot">${grid}${over}<div class="bds">${bands}</div></div><div class="xl">${P.years.map((y) => `<span>${esc(y)}</span>`).join('')}</div>${leg}</figure>`;
@@ -251,13 +251,17 @@ function finPeerBars(c, P) {
   if (hi === lo) hi = lo + 1;
   const X = (v) => ((Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo)) * 100, z = X(0);
   const mark = (v, cls) => (finOk(v) ? `<b class="${cls}" style="left:${X(v).toFixed(2)}%"></b>` : '');
+  // 평균선과 중앙값선 머리에 이름과 값. 둘이 붙어 있어도 겹치지 않게 큰 쪽은 선 오른쪽, 작은 쪽은 선 왼쪽에 붙임
+  const ml = [['avg', '평균', st.avg], ['med', '중앙값', st.med]].filter(([, , v]) => finOk(v));
+  const side = (k, v) => (ml.length < 2 ? (X(v) > 60 ? 'l' : 'r') : (k === 'avg' ? st.avg >= st.med : st.med > st.avg) ? 'r' : 'l');
+  const head = ml.length ? `<div class="fin-pb fin-pbh" aria-hidden="true"><span></span><div>${ml.map(([k, nm, v]) => `${mark(v, k)}<small class="${k} ${side(k, v)}" ${k === 'avg' && finOk(st.n) ? `title="평균에 넣은 회사 ${st.n}곳"` : ''} style="left:${X(v).toFixed(2)}%">${nm} <strong>${finFmt(m, v, dec)}</strong></small>`).join('')}</div><em></em></div>` : '';
   const rows = all.map((x) => {
     const p = finOk(x.v) ? X(x.v) : z, over = finOk(x.v) && (x.v > hi || x.v < lo);
     return `<div class="fin-pb ${x.me ? 'me' : ''} ${x.cut || x.out ? 'cut' : ''}" data-tip="${esc(`${x.name}|${m.name || m.key} ${finFmt(m, x.v, dec)}${x.cut ? '|평균에서 뺌' : ''}`)}"><span>${esc(x.name)}${x.cut ? '<sup>*</sup>' : ''}${x.sub ? `<small>${esc(x.sub)}</small>` : ''}</span>
       <div>${lo < 0 ? `<u style="left:${z.toFixed(2)}%"></u>` : ''}${finOk(x.v) ? `<i class="${x.v < 0 ? 'neg' : ''} ${over ? 'over' : ''}" style="left:${Math.min(z, p).toFixed(2)}%;width:${Math.abs(p - z).toFixed(2)}%"></i>` : ''}${mark(st.avg, 'avg')}${mark(st.med, 'med')}</div><em>${finFmt(m, x.v, dec)}</em></div>`;
   }).join('');
-  const leg = finOk(st.avg) || finOk(st.med) ? `<div class="fin-leg fin-pleg">${finOk(st.avg) ? `<span><i class="avg"></i>평균 <b>${finFmt(m, st.avg, dec)}</b></span>` : ''}${finOk(st.med) ? `<span><i class="med"></i>중앙값 <b>${finFmt(m, st.med, dec)}</b></span>` : ''}${finOk(st.n) ? `<span class="yr">${st.n}곳</span>` : ''}${cut.size ? '<span class="yr"><sup>*</sup>평균에서 뺀 회사</span>' : ''}</div>` : '';
-  return `<div class="fin-pbs" role="img" aria-label="${esc(`${m.name || m.key} 회사별 값. ${all.map((x) => `${x.name} ${finFmt(m, x.v, dec)}`).join(', ')}`)}">${rows}</div>${leg}`;
+  const leg = cut.size ? '<div class="fin-leg fin-pleg"><span class="yr"><sup>*</sup>평균에서 뺀 회사</span></div>' : '';
+  return `<div class="fin-pbs" role="img" aria-label="${esc(`${m.name || m.key} 회사별 값. ${all.map((x) => `${x.name} ${finFmt(m, x.v, dec)}`).join(', ')}${ml.length ? `. ${ml.map(([, nm, v]) => `${nm} ${finFmt(m, v, dec)}`).join(', ')}` : ''}`)}">${head}${rows}</div>${leg}`;
 }
 function finPeerTable(c, P) { // 회사 × 핵심 지표
   const core = finCore(P), gs = P.groups.map((g) => ({ g, ms: core.filter((m) => m.group === g.key) })).filter((x) => x.ms.length), ms = gs.flatMap((x) => x.ms);
@@ -319,7 +323,7 @@ function finDraw(root, code) {
   const box = (t) => `<div class="card"><div class="empty">${t}</div></div>`;
   if (finS.err) { root.innerHTML = box(esc(finS.err)); return; }
   const list = finList(code), c = finCase(code);
-  if (!c) { root.innerHTML = box(finS.data?.cases?.length && code ? '재무분석은 리서치한 회사만 볼 수 있습니다.' : '아직 올라온 재무분석이 없습니다.'); return; }
+  if (!c) { root.innerHTML = box(finS.data?.cases?.length && code ? '이 회사는 아직 재무분석이 없습니다.' : '아직 올라온 재무분석이 없습니다.'); return; }
   const P = finPrep(c);
   finInfo(c, P);
   root.innerHTML = finHead(c, P, list) + finGlance(c, P) + finPoints(c, P) + finTrend(c, P) + finPeers(c, P) + finAccounts(c, P);

@@ -15,6 +15,11 @@
 .v3-n { margin-left: 4px; color: var(--primary); font-weight: 600; }
 .v3-err { margin: 0; padding: 10px 12px; border-radius: var(--r); background: var(--danger-soft); color: var(--danger); font-size: var(--fs-md); }
 .v3-head .va-ctrl .btn:disabled { color: var(--text4); cursor: default; }
+/* 머리 도구 단추는 한 줄로(넓은 화면에서 「엑셀 받기」만 아래로 떨어지던 것), 고르는 칸과 단추 묶음은 높이 36으로 맞춤 */
+.v3-head .va-ttl > div:first-child { flex: 1 1 auto; min-width: 0; }
+.v3-head .va-tools { flex: none; flex-wrap: nowrap; }
+.v3-head .va-ctrl .mk-seg button { height: 30px; }
+.v3-head .va-ctrl .va-case { height: 36px; }
 
 /* 가치 산정 흐름 */
 .v3-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--v3-base); }
@@ -120,7 +125,15 @@
 .v3-t tr.sum td { color: var(--ink); font-weight: 600; }
 .v3-t tr.key td { background: var(--primary-soft); color: var(--primary); font-weight: 700; }
 .v3-t tr.grp th, .v3-t tr.grp td { padding-top: 6px; padding-bottom: 6px; color: var(--text3); font-weight: 500; background: var(--hover); }
-.v3-at .why { min-width: 220px; max-width: 360px; }
+/* 가정 표의 근거 줄: 가정 줄 바로 아래 한 줄. 표가 옆으로 밀려도 글은 보이는 폭에 머묾 */
+.v3-atsc { container-type: inline-size; }
+.va .v3-at tr.v3-atr td { border-bottom: 0; }
+.va .v3-at tr.v3-atn td { padding: 0 0 8px; text-align: left; white-space: normal; }
+.v3-at tr.v3-atn td > div { position: sticky; left: 0; box-sizing: border-box; width: 100cqw; max-width: 100%; padding: 0 12px; }
+.v3-at tr.v3-atn .v3-why { -webkit-line-clamp: 1; color: var(--text2); }
+/* 표 안 작은 글(단위, 차수, 보조 이름)은 13px. market.css 기본은 12px */
+.va .v3-t td small, .va .v3-t td.st small, .va .v3-t th small { font-size: var(--fs-sm); }
+#va-host[data-v3] .va-calc td small, #va-host[data-v3] .va-calc th small { font-size: var(--fs-sm); }
 .v3-why { margin: 0; font-size: var(--fs-sm); line-height: 20px; color: var(--text2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; cursor: pointer; white-space: normal; word-break: keep-all; }
 .v3-why.open { display: block; }
 .v3-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px 32px; align-items: start; }
@@ -155,6 +168,15 @@
   .v3-wacc span:last-child { margin-left: 0; flex-basis: 100%; }
   .v3-step-h h2 small { display: none; }
   .va .v3-t .st { min-width: 112px; }
+  .v3-at tr.v3-atn td > div { padding: 0; }
+  /* 보고서 안 화면 단추: 좁으면 가로로 밀지 않고 두 줄로 */
+  .v3-sub { overflow: visible; }
+  .v3-sub .mk-seg { display: flex; flex-wrap: wrap; }
+  /* 머리 고르기 줄: 이름 폭을 같게 해 단추 묶음의 시작선을 맞춤 */
+  .v3-head .va-ctrl > div > span:first-child { min-width: 64px; }
+  /* 흐름 식 줄: 확인 필요 점은 숫자 위가 아니라 이름 뒤에 */
+  .v3-eq .v3-fc.wn::after { display: none; }
+  .v3-eq .v3-fc.wn > span::after { content: ''; display: inline-block; width: 8px; height: 8px; margin-left: 6px; border-radius: 50%; background: var(--v3-warn); vertical-align: 1px; }
   .va .v3-t td.st { white-space: normal; word-break: keep-all; }
 }
 @media (max-width: 760px) {
@@ -164,6 +186,8 @@
   .v3-iw input { height: 44px; font-size: var(--fs-lg); }
   .v3-ck { min-height: 44px; }
   .v3-f .mk-seg button, .v3-opt .mk-seg button, .v3-sub .mk-seg button { height: 40px; min-height: 40px; }
+  .v3-head .va-ctrl .mk-seg button { height: 38px; }
+  .v3-head .va-ctrl .va-case { height: 44px; }
   .v3-fs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
@@ -231,6 +255,7 @@
 
 /* 풋볼필드, 토네이도 */
 .v3c-ff .rg { fill: var(--cs, color-mix(in srgb, var(--c) 30%, var(--card))); }
+.v3c-ff .rg.s2 { fill: color-mix(in srgb, var(--primary) 18%, var(--card)); }
 .v3c-ff .md { fill: var(--ck, var(--c)); }
 .v3c-tor .b { fill: color-mix(in srgb, var(--c) 70%, var(--card)); }
 
@@ -257,7 +282,7 @@
 .va .v3r-t th { font-size: var(--fs-sm); color: var(--text3); font-weight: 500; white-space: nowrap; }
 .va .v3r-t td { color: var(--ink); border-bottom: 0; line-height: 20px; vertical-align: top; }
 .va .v3r-t td.h { color: var(--text2); }
-.va .v3r-t .st { min-width: 124px; max-width: 176px; padding-left: 0; padding-right: 8px; }
+.va .v3r-t .st { min-width: 152px; max-width: 192px; padding-left: 0; padding-right: 8px; }
 .va .v3r-t td.st { white-space: normal; word-break: keep-all; }
 .va .v3r-t tr.end td, .va .v3r-t tr.key td, .va .v3r-t tr.v3r-n td, .va .v3r-t tr.v3r-g td { border-bottom: 1px solid var(--row); }
 .va .v3r-t tr:last-child td { border-bottom: 0; }
@@ -279,16 +304,16 @@
 .v3r-c.d2 { padding-left: 24px; }
 .v3r-c.sub { color: var(--text3); font-size: var(--fs-sm); }
 .v3r-c b { font-weight: 600; color: var(--ink); }
-.v3r-t td.st .v3r-c small { display: inline; margin: 0 0 0 6px; font-size: var(--fs-xs); color: var(--text3); white-space: nowrap; }
+.v3r-t td.st .v3r-c small { display: inline; margin: 0 0 0 6px; font-size: var(--fs-sm); color: var(--text3); white-space: nowrap; }
 .v3r-nm { padding: 0; border: 0; background: none; font: inherit; font-weight: 500; color: var(--ink); text-align: left; cursor: pointer; }
 .v3r-nm:hover { color: var(--primary); }
 .v3r-nm:focus-visible, .v3r-lk:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--r-xs); }
 .v3r-nm::before { content: ''; display: inline-block; width: 5px; height: 5px; margin: 0 7px 2px 1px; border-right: 1.5px solid var(--text3); border-bottom: 1.5px solid var(--text3); transform: rotate(-45deg); }
 .v3r-nm[aria-expanded="true"]::before { margin: 0 6px 3px 2px; transform: rotate(45deg); }
 .v3r-tagw { position: relative; display: block; height: 20px; }
-.v3r-tag { position: absolute; right: 0; top: 1px; padding: 0 6px; border-radius: var(--r-xs); background: var(--v3-warn-soft); color: var(--v3-warn); font-size: var(--fs-xs); line-height: 18px; font-weight: 500; white-space: nowrap; }
+.v3r-tag { position: absolute; right: 0; top: 1px; padding: 0 6px; border-radius: var(--r-xs); background: var(--v3-warn-soft); color: var(--v3-warn); font-size: var(--fs-sm); line-height: 18px; font-weight: 500; white-space: nowrap; }
 .v3r-est { font-style: normal; border-bottom: 1px dashed var(--v3-warn); cursor: help; }
-.v3r-lk { display: block; padding: 0; border: 0; background: none; font: inherit; font-size: var(--fs-xs); color: var(--primary); text-align: left; cursor: pointer; }
+.v3r-lk { display: block; padding: 0; border: 0; background: none; font: inherit; font-size: var(--fs-sm); color: var(--primary); text-align: left; cursor: pointer; }
 .v3r-lk:hover { text-decoration: underline; }
 
 /* 근거 줄: 표가 옆으로 밀려도 보이는 폭에 머묾 */
@@ -301,9 +326,8 @@
 .v3r-x p { flex: 1 1 240px; margin: 0 0 10px; font-size: var(--fs-sm); line-height: 20px; color: var(--text2); word-break: keep-all; }
 
 /* 생각할 거리: 누르는 것이 아니라 글로만 */
-.v3r-ask { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin: 0 0 12px; font-size: var(--fs-sm); line-height: 22px; color: var(--text3); }
-.v3r-ask span { margin-right: 6px; }
-.v3r-ask i { padding: 0 8px; border-radius: var(--r-xs); background: var(--hover); font-style: normal; color: var(--text2); }
+.v3r-ask { margin: 0 0 12px; font-size: var(--fs-sm); line-height: 20px; color: var(--text2); word-break: keep-all; }
+.v3r-ask span { margin-right: 8px; color: var(--text3); }
 
 /* 방식 단추와 낱칸 */
 .v3r-opt { margin-top: 16px; }
@@ -397,6 +421,10 @@
 /* 가정별 평균에 넣을 해: 체크 칸은 연도 머리 아래 오른쪽 정렬 */
 .v3o-ext td:not(.st) { padding-top: 4px; padding-bottom: 4px; }
 .v3o-ext .v3o-ck { display: flex; }
+/* 연도 셋쯤인 체크 표가 카드 폭을 다 채워 체크가 멀리 떨어지지 않게 */
+.va .v3o-ext.v3-t { width: auto; min-width: 0; }
+.va .v3o-ext .st { min-width: 200px; }
+.va .v3o-ext th:not(.st), .va .v3o-ext td:not(.st) { min-width: 80px; }
 
 /* 참고 차트 */
 .v3o-ch { min-width: 0; }
@@ -450,7 +478,7 @@
 .v3w-seg button:disabled { color: var(--text4); cursor: default; }
 .v3w-opt .v3-iw { width: 112px; }
 .v3w-opt .v3-ck { white-space: nowrap; }
-.v3w-sel { max-width: 100%; height: 36px; padding: 0 8px; font-size: var(--fs-md); color: var(--ink); }
+.v3w-sel { max-width: 100%; height: 40px; padding: 0 8px; font-size: var(--fs-md); color: var(--ink); }
 .v3w-sel.chg { border-color: var(--primary); background: var(--primary-soft); }
 
 /* 식 표(항목, 값, 근거)와 표 안 지금 줄. 머리글은 좁아도 글자 중간에서 끊지 않음 */
@@ -458,7 +486,7 @@
 .v3w-ft th.tx, .v3w-ft td.tx { width: 58%; padding-left: 24px; }
 .v3w-ft td.tx { color: var(--text2); }
 .v3-t tr.v3w-on td { background: var(--hover); color: var(--ink); font-weight: 600; }
-.v3-t tr.v3w-off td:not(.st) { color: var(--text4); }
+.v3-t tr.v3w-off td:not(.st) { color: var(--text3); }
 .v3w-pt .v3-ck { min-height: 24px; }
 .v3w-wt th:not(.st), .v3w-gt th:not(.st) { width: 30%; }
 /* 선택지별 WACC: 지금 쓰는 칸은 굵게, 묶음 머리글은 가운데. 비교기업 표의 대상 회사 표시 */
@@ -469,7 +497,9 @@
 
 /* 메모 한 줄 */
 .v3w-notes { display: flex; flex-direction: column; gap: 8px; }
-.v3w-note { margin: 0; padding: 8px 12px; border-radius: var(--r); background: var(--hover); font-size: var(--fs-md); line-height: 20px; color: var(--text2); word-break: keep-all; }
+/* 보통 메모는 상자 없이 글로만(상자로 감싸면 입력 칸처럼 보임). 주의와 오류만 색 바탕 */
+.v3w-note { margin: 0; font-size: var(--fs-md); line-height: 20px; color: var(--text2); word-break: keep-all; }
+.v3w-note.warn, .v3w-note.err { padding: 8px 12px; border-radius: var(--r); }
 .v3w-note.warn { background: var(--v3-warn-soft); color: var(--v3-warn); }
 .v3w-note.err { background: var(--danger-soft); color: var(--danger); }
 
@@ -505,9 +535,13 @@
 /* 3차: 값이 없는데 사례가 고른 선택지(눌린 채 흐리게), 계산에 안 들어가는 칸, 접어 두는 참고 표 */
 .v3w-seg button.on.na { color: var(--text3); }
 .v3w-seg button[title] { cursor: help; }
-.v3-f.v3w-na > span:first-child { color: var(--text4); }
+.v3-f.v3w-na > span:first-child { color: var(--text3); }
 .v3w-fold { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; min-width: 0; }
 .v3w-fold > .mk-scroll, .v3w-fold > .v3w-note { align-self: stretch; }
+/* 펴기 단추: 글 시작선을 카드 글과 맞추고 펼칠 방향 표시 */
+.v3w-fold > .btn { margin-left: -8px; gap: 8px; }
+.v3w-fold > .btn::after { content: ''; width: 6px; height: 6px; margin-bottom: 3px; border-right: 1.5px solid var(--text3); border-bottom: 1.5px solid var(--text3); transform: rotate(45deg); }
+.v3w-fold > .btn[aria-expanded="true"]::after { margin: 3px 0 0; transform: rotate(-135deg); }
 .va .v3w-kr th.c, .v3w-kr td.c { color: var(--ink); font-weight: 600; }
 .va .v3w-kr th:not(.st), .va .v3w-kr td:not(.st) { min-width: 64px; }
 .v3w-cap2 { margin: 0; font-size: var(--fs-sm); line-height: 18px; color: var(--text3); }
@@ -526,7 +560,7 @@
 .v3b-it .v3-ci, .v3b-dl .v3-ci, .v3b-rel .v3-ci { width: 128px; margin-left: auto; }
 .v3b-it .put { width: 128px; color: var(--ink); }
 .v3b-it .why { min-width: 240px; }
-.v3b-it tr.off td.st, .v3b-it tr.off td.put { color: var(--text4); }
+.v3b-it tr.off td.st, .v3b-it tr.off td.put { color: var(--text3); }
 .v3b-it tr.grp td { text-align: left; }
 .v3b-ro { font-size: var(--fs-md); font-weight: 600; color: var(--ink); }
 .v3b-oi { width: 96px; }
@@ -534,7 +568,7 @@
 .v3b-calc th i { display: inline-block; width: 20px; font-style: normal; color: var(--text3); }
 .v3b-calc th small { margin-left: 8px; font-size: var(--fs-sm); color: var(--text3); }
 .v3b-calc tr.sum th, .v3b-calc tr.sum td { font-weight: 600; color: var(--ink); }
-.v3b-calc tr.off th, .v3b-calc tr.off td { color: var(--text4); }
+.v3b-calc tr.off th, .v3b-calc tr.off td { color: var(--text3); }
 .v3b-calc tbody.res tr.k th i { color: var(--primary); }
 .v3-opt + .v3b-calc, .v3b-calc + [data-o] > .v3-h3 { margin-top: 16px; }
 
