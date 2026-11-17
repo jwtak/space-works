@@ -100,18 +100,21 @@ function mkChartHover(root) {
 const mkLegend = (items) => `<div class="mk-legend">${items.map((i) => `<span><i style="background:${i.color}"></i>${esc(i.name)} <b>${esc(i.value)}</b></span>`).join('')}</div>`;
 
 // ---------- 시장 지표 ----------
-function mkIndexTable(ix) {
+// 주요 지수와 업종 대표 ETF(head '업종', 이름 아래 ETF 이름, 가격은 원 단위)가 같은 표를 쓴다
+function mkIndexTable(ix, head = '지수') {
   const rows = Object.entries(ix || {}).filter(([, v]) => v); if (!rows.length) return '';
   // 기준일은 지수마다 거의 같아 행마다 쓰지 않고 섹션 제목 옆 한 번(mkIndexDate), 다른 날짜인 지수만 이름에 마우스를 올리면
   const day = mkIndexDate(ix);
-  return `<div class="mk-scroll"><table class="mk-tbl"><thead><tr><th class="st">지수</th><th>종가</th><th>일간</th>${MK_SHORT.map(([, l]) => `<th>${l}</th>`).join('')}${MK_LONG.map(([k, l]) => `<th class="${k === '1y' ? 'bl' : ''}">${l}</th>`).join('')}</tr></thead><tbody>${rows.map(([n, d]) => `<tr>
-    <td class="st"${d.latest_date && d.latest_date !== day ? ` title="${esc(d.latest_date)} 종가"` : ''}><b>${esc(n)}</b></td><td class="strong">${mkNum(d.latest_close)}</td><td>${mkPct(d.daily_return, 2)}</td>
+  return `<div class="mk-scroll"><table class="mk-tbl"><thead><tr><th class="st">${head}</th><th>종가</th><th>일간</th>${MK_SHORT.map(([, l]) => `<th>${l}</th>`).join('')}${MK_LONG.map(([k, l]) => `<th class="${k === '1y' ? 'bl' : ''}">${l}</th>`).join('')}</tr></thead><tbody>${rows.map(([n, d]) => `<tr>
+    <td class="st"${d.latest_date && d.latest_date !== day ? ` title="${esc(d.latest_date)} 종가"` : ''}><b>${esc(n)}</b>${d.code ? `<small>${esc(d.name || d.code)}</small>` : ''}</td><td class="strong">${mkNum(d.latest_close, d.code ? 0 : 2)}</td><td>${mkPct(d.daily_return, 2)}</td>
     ${MK_SHORT.map(([k]) => `<td>${mkPct(d.returns?.[k]?.total, 2)}</td>`).join('')}${MK_LONG.map(([k]) => `<td class="${k === '1y' ? 'bl' : ''}">${mkRet(d.returns?.[k], k)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 function mkIndexDate(ix) {
   const c = {}; Object.values(ix || {}).forEach((d) => { if (d?.latest_date) c[d.latest_date] = (c[d.latest_date] || 0) + 1; });
   return Object.entries(c).sort((a, b) => b[1] - a[1] || b[0].localeCompare(a[0]))[0]?.[0] || '';
 }
+// 제목 옆 기준 시점: 장중에 모았으면 '장중', 아니면 '종가'
+const mkIndexWhen = (ix) => { const day = mkIndexDate(ix); if (!day) return ''; const live = Object.values(ix || {}).some((d) => d?.live && d.latest_date === day); return `<span class="mk-dim mk-hd">${esc(day)} ${live ? '장중' : '종가'}</span>`; };
 function mkDrawdowns(dd) {
   const rows = Object.entries(dd || {}).filter(([, v]) => v); if (!rows.length) return '';
   const C = 'var(--mk-up)', years = mkS.dd;
@@ -156,12 +159,13 @@ function mkMarketHTML() {
   const pol = (d.policy_rates || []).map((r) => mkTile(`${r.country} 기준금리`, mkNum(r.rate, 2), '%', esc(r.last_updated || ''))).join('')
     + Object.entries(d.cpi || {}).filter(([, v]) => v).map(([c, v]) => mkTile(`${c} 물가(전년비)`, mkNum(v.yoy, 2), '%', esc(v.date || ''))).join('');
   const parts = [
-    mkSec('주요 지수', mkIndexDate(d.indexes) ? `<span class="mk-dim mk-hd">${esc(mkIndexDate(d.indexes))} 종가</span>` : '', mkIndexTable(d.indexes)),
+    mkSec('주요 지수', mkIndexWhen(d.indexes), mkIndexTable(d.indexes)),
     Object.keys(d.drawdowns || {}).length ? mkSec('고점 대비 낙폭', mkSeg('dd', DD, mkS.dd ?? 'null'), mkDrawdowns(d.drawdowns)) : '',
     mkSec('금리·환율', mkSeg('rate', RT, mkS.rate ?? 'null'), mkRates(d)),
     pol ? mkSec('기준금리·물가', '', `<div class="mk-tiles">${pol}</div>`) : '',
   ];
   const more = mkS.more ? [
+    Object.keys(d.kr_industry || {}).length ? mkSec('업종 대표 ETF', mkIndexWhen(d.kr_industry), mkIndexTable(d.kr_industry, '업종')) : '',
     mkSec('국내 시가총액 TOP 10', mkSeg('stock', [['KOSPI', '코스피'], ['KOSDAQ', '코스닥']], mkS.stock), mkStocks(d.top_stocks?.[mkS.stock])),
     d.top_us_stocks?.length ? mkSec('미국 시가총액 TOP 10', '', mkStocks(d.top_us_stocks, true)) : '',
     mkSec('섹터별 수익률', mkSeg('sector', [['us', '미국'], ['kr', '국내']], mkS.sector), mkSectors(mkS.sector === 'us' ? d.us_sectors : d.kr_sectors)),
