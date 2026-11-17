@@ -316,6 +316,12 @@
 .va .v3r-cmp th.v3r-on { color: var(--primary); font-weight: 600; }
 .va .v3r-cmp td.v3r-on { font-weight: 600; }
 
+/* 연평균 성장률, 과거 성장률 표와 인원 표 */
+.va .v3r-cg .st { min-width: 96px; max-width: none; }
+.v3r-cg td small { display: inline; margin-left: 4px; font-size: var(--fs-xs); color: var(--text3); }
+.v3r-tip { cursor: help; }
+.v3r-ck { margin: 8px 0 0; font-size: var(--fs-sm); line-height: 20px; color: var(--text2); word-break: keep-all; }
+
 @container (max-width: 620px) {
   .va .v3r-t .st { min-width: 104px; max-width: 128px; }
   .v3r-c.d1 { padding-left: 8px; }
@@ -350,6 +356,11 @@
 .v3o-ck input:disabled { cursor: default; }
 .v3o-note { margin: 12px 0 0; font-size: var(--fs-sm); line-height: 20px; color: var(--text3); }
 .v3o-note:empty { display: none; }
+.v3o-res[title] { cursor: help; }
+.v3o .v3-h3 + .v3-fs { margin-top: 0; }
+/* 가정별 평균에 넣을 해: 체크 칸은 연도 머리 아래 오른쪽 정렬 */
+.v3o-ext td:not(.st) { padding-top: 4px; padding-bottom: 4px; }
+.v3o-ext .v3o-ck { display: flex; }
 
 /* 참고 차트 */
 .v3o-ch { min-width: 0; }
@@ -394,6 +405,11 @@
 .v3-t tr.v3w-off td:not(.st) { color: var(--text4); }
 .v3w-pt .v3-ck { min-height: 24px; }
 .v3w-wt th:not(.st), .v3w-gt th:not(.st) { width: 30%; }
+/* 선택지별 WACC: 지금 쓰는 칸은 굵게, 묶음 머리글은 가운데. 비교기업 표의 대상 회사 표시 */
+.v3-t td.v3w-cur { background: var(--hover); color: var(--ink); font-weight: 600; }
+.va .v3w-mt th.v3w-mg { text-align: center; border-bottom: 1px solid var(--line); }
+.v3w-mt td[title] { cursor: help; }
+.v3w-self { height: 20px; margin-left: 6px; padding: 0 6px; font-style: normal; }
 
 /* 메모 한 줄 */
 .v3w-notes { display: flex; flex-direction: column; gap: 8px; }
@@ -462,6 +478,12 @@
 .v3b-two { margin-top: 16px; }
 .v3b-rel tr.key td small { color: var(--primary); }
 .v3b-rel tr.key .v3-ci input { background: var(--card); }
+/* 모델 실적 기준 열이 있으면 표가 넓어져 두 표를 위아래로 */
+.v3b-rt.rm { grid-template-columns: minmax(0, 1fr); }
+.v3b-rt.rm > div { max-width: 560px; }
+.v3b-rt.rm > div:first-child { max-width: 720px; }
+.v3b-rel th small { margin-left: 4px; font-size: var(--fs-sm); font-weight: 400; color: var(--text3); }
+.v3b-as td.h { color: var(--text3); }
 .v3b-bw { display: grid; grid-template-columns: minmax(0, 1fr) 128px; gap: 16px 32px; align-items: end; max-width: 720px; }
 .v3b-bw-s { min-width: 0; }
 .v3b-bw-l { display: flex; justify-content: space-between; gap: 16px; font-size: var(--fs-md); color: var(--text2); font-variant-numeric: tabular-nums; }
@@ -502,9 +524,9 @@
 .v3y-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-left: auto; }
 .v3y-tools .v3-ck { margin: 0 8px; }
 .v3y-wrap { overflow: auto; max-height: calc(100vh - 128px); max-height: calc(100dvh - 128px); border-top: 1px solid var(--line); border-radius: 0 0 var(--r-lg) var(--r-lg); overscroll-behavior-x: contain; }
-.va .v3y-t { table-layout: fixed; width: 100%; min-width: calc(232px + var(--v3y-n) * 76px + 84px); }
+.va .v3y-t { table-layout: fixed; width: 100%; min-width: calc(232px + var(--v3y-n) * 76px + 184px); }
 .v3y-t col.c1 { width: 232px; }
-.v3y-t col.cg { width: 84px; }
+.v3y-t col.cg { width: 92px; }
 .v3y-t th, .v3y-t td { padding: 6px 8px; line-height: 20px; }
 .va .v3y-t thead th { position: sticky; top: 0; z-index: 3; padding-top: 10px; padding-bottom: 10px; white-space: nowrap; }
 .va .v3y-t thead th.st { z-index: 4; }
@@ -512,6 +534,8 @@
 .va .v3y-t .st { width: auto; min-width: 0; padding-left: 24px; overflow: hidden; text-overflow: ellipsis; }
 .v3y-t td.st small { color: var(--text3); font-size: var(--fs-sm); }
 .v3y-t .cg { padding-right: 24px; color: var(--text3); }
+.v3y-t .cg.h { padding-right: 8px; }
+.v3y-t thead th.cg[title] { cursor: help; }
 .v3y-t tbody tr:last-child td { border-bottom: 0; }
 .v3y-t tr.sum td.st { font-weight: 600; }
 .v3y-t tr.sub td.st { font-weight: 600; }
@@ -585,14 +609,15 @@
   .v3y-calc { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @container (max-width: 620px) {
-  .va .v3y-t { min-width: calc(136px + var(--v3y-n) * 72px + 72px); }
+  .va .v3y-t { min-width: calc(136px + var(--v3y-n) * 72px + 168px); }
   .v3y-t col.c1 { width: 136px; }
-  .v3y-t col.cg { width: 72px; }
+  .v3y-t col.cg { width: 84px; }
   .va .v3y-t .st { padding-left: 16px; }
   .va .v3y-t tr.l1 td.st { padding-left: 24px; }
   .va .v3y-t tr.l2 td.st { padding-left: 32px; }
   .va .v3y-t tr.l3 td.st { padding-left: 40px; }
   .v3y-t .cg { padding-right: 16px; }
+  .v3y-t .cg.h { padding-right: 8px; }
   .v3y-g { min-height: 44px; padding-left: 16px; }
   .v3y-tools { margin-left: 0; padding-bottom: 8px; }
   .v3y-tools .btn { height: 40px; }
@@ -609,9 +634,11 @@
 }
 /* 본문이 좁은 넓은 화면(오른쪽 요청사항 칸이 있을 때): 열을 좁혀 과거와 추정이 한 화면에 더 들어오게 */
 @container (min-width: 621px) and (max-width: 1000px) {
-  .va .v3y-t { min-width: calc(184px + var(--v3y-n) * 64px + 72px); }
+  .va .v3y-t { min-width: calc(184px + var(--v3y-n) * 64px + 168px); }
   .v3y-t col.c1 { width: 184px; }
-  .v3y-t col.cg { width: 72px; }
+  .v3y-t col.cg { width: 84px; }
+  .v3y-t .cg { padding-right: 16px; }
+  .v3y-t .cg.h { padding-right: 6px; }
   .v3y-t th, .v3y-t td { padding-left: 4px; padding-right: 6px; }
   .va .v3y-t .st { padding-left: 16px; }
   .va .v3y-t tr.l1 td.st { padding-left: 28px; }
@@ -700,6 +727,11 @@
   .v3p-memo { font-size: var(--fs-lg); }
 }
 
+/* 툴팁이 달린 제목, 다른 모형 계산 범위 */
+.v3p-tip { border-bottom: 1px dashed var(--text4); cursor: help; }
+.v3p-am { margin-top: 16px; }
+.v3p-am > div { flex-wrap: wrap; gap: 4px 16px; }
+
 /* ---------- 보고서: 민감도, 리버스, 풋볼필드, 몬테카를로 (52_rep_more.js, v3q-) ---------- */
 .v3q-note { margin: 0 0 12px; font-size: var(--fs-md); line-height: 20px; color: var(--text2); }
 .v3q-note.warn { color: var(--v3-warn); }
@@ -763,6 +795,15 @@
 /* 리버스 가정값 옆 과거 막대 */
 .v3q-sp { display: flex; align-items: center; gap: 8px; min-height: 32px; }
 .v3q-sp small { font-size: var(--fs-sm); color: var(--text3); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* 툴팁이 달린 글자, 다른 모형 민감도 펴기, 풋볼필드 표 아래 한 줄 */
+.v3q-tip { border-bottom: 1px dashed var(--text4); cursor: help; }
+.v3q-amb { margin-top: 16px; }
+.v3q-am { margin-top: 16px; }
+.v3q-cov { margin: 12px 0 0; }
+@media (max-width: 760px) {
+  .v3q-amb .btn { height: 44px; }
+}
 
 /* ---------- 보고서: 유형별 (54_typ.js, v3t-) ---------- */
 .v3t-note { margin: 12px 0 0; font-size: var(--fs-md); line-height: 20px; color: var(--text2); }
@@ -911,3 +952,5 @@
   .v3l-seg .mk-seg button { height: 44px; }
 }
 .va .v3l-fs td.st { white-space: nowrap; }
+/* 종결일 간격: 첫 추정 연도 머리 아래 기간 */
+.va .v3l-yt th small.v3l-yf { display: block; font-size: var(--fs-xs); font-weight: 400; color: var(--text3); white-space: nowrap; }
