@@ -249,30 +249,39 @@
 .va-tr .el.mk { fill: var(--text3); }
 .va-tr .el.me { fill: var(--primary); }
 
-/* ---------- 2026-11-17 네 탭 개편: 위 탭, 회사 줄, 요약 탭 ---------- */
-/* 위 탭 넷(요약, 재무분석, 상대가치평가, 절대가치평가): 폰에서는 아이콘을 빼고 이름 길이만큼 폭을 나눔 */
+/* ---------- 2026-11-17 다섯 탭 개편(시장동향, 재무분석, 요약, 상대가치평가, 절대가치평가) ---------- */
+/* 위 탭: 폰에서는 아이콘을 빼고 이름 길이만큼 폭을 나눔 */
 @media (max-width: 760px) {
-  .deal-seg.va-vt button { flex: 1 1 auto; gap: 0; padding: 0 6px; font-size: var(--fs-base); }
+  .deal-seg.va-vt { overflow-x: auto; }
+  .deal-seg.va-vt button { flex: 1 0 auto; gap: 0; padding: 0 10px; font-size: var(--fs-base); }
   .deal-seg.va-vt button svg.i { display: none; }
 }
-/* 탭 아래 회사 줄: 지금 보는 회사와 검색(네 탭 공통) */
-#va-co { margin-bottom: 16px; }
-.va-co { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 16px 24px; }
-.va-co-id { flex: 1 1 240px; min-width: 0; }
-.va-co-id h2 { margin: 0; font-size: var(--fs-2xl); line-height: 28px; font-weight: 700; }
+/* 탭 아래 회사 줄(카드 없이): 고른 회사 이름과 해제, 오른쪽 검색. 고르지 않았으면 검색과 평가한 회사 바로가기 */
+#va-co { margin-bottom: 20px; }
+.va-co { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; min-height: 44px; }
+.va-co-id { min-width: 0; }
+.va-co-id h2 { margin: 0; font-size: var(--fs-3xl); line-height: 30px; font-weight: 700; }
+.va-co-id h2 small { margin-left: 6px; font-size: var(--fs-md); font-weight: 500; color: var(--text3); }
 .va-co-id p { margin: 2px 0 0; font-size: var(--fs-md); line-height: 20px; color: var(--text3); }
-.va-co-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
-.va-co .va-srch-l { flex: 0 1 280px; width: 280px; max-width: 100%; }
-.va-srch-l .va-sug { top: 48px; }
+.va-co-x { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; margin-left: 4px; vertical-align: -6px; border: 0; border-radius: var(--r); background: none; color: var(--text3); cursor: pointer; }
+.va-co-x svg { transform: rotate(45deg); }
+.va-co-x:hover { background: var(--fill); color: var(--ink); }
+.va-co .va-srch-l { flex: 0 1 320px; width: 320px; max-width: 100%; margin-left: auto; }
+.va-co.none .va-srch-l { margin-left: 0; flex-basis: 360px; width: 360px; }
+.va-srch-l input { height: 40px; padding: 0 14px; border-color: var(--line2); background: var(--card); font-size: var(--fs-base); }
+.va-srch-l input:focus { outline: none; border-color: var(--primary); }
+.va-srch-l .va-sug { top: 44px; }
+.va-co-done { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.va-co-done > span { margin-right: 4px; font-size: var(--fs-md); color: var(--text3); }
+.va-chip { height: 32px; padding: 0 14px; border: 1px solid var(--line2); border-radius: var(--r-full); background: var(--card); font: inherit; font-size: var(--fs-md); font-weight: 500; color: var(--text2); cursor: pointer; }
+.va-chip:hover { border-color: var(--primary); color: var(--primary); }
 .va-co .info-btn { display: none; } /* 화면 설명: PC는 제목 줄, 폰은 회사 줄 */
 @media (max-width: 760px) {
-  #va-co { margin-bottom: 0; }
+  #va-co { margin: 0 16px 12px; }
   .page-head .va-pc { display: none; }
   .va-co .info-btn { display: inline-flex; }
-  .va-co { padding: 4px 16px 12px; }
-  .va-co-id { flex-basis: 100%; }
-  .va-co-tools { flex: 1 1 100%; }
-  .va-co .va-srch-l { flex: 1 1 200px; width: auto; }
+  .va-co-id { flex: 1 1 0; }
+  .va-co .va-srch-l, .va-co.none .va-srch-l { flex: 1 1 100%; width: auto; margin-left: 0; }
 }
 /* 상대가치평가 사례 머리: 회사 이름은 회사 줄에 있어 기준일과 평가 목적만 */
 .va-ttl:has(p:only-child) { align-items: center; }
@@ -286,32 +295,40 @@
 .va-g4 > .card { min-width: 0; }
 .va-g4 .va-mkv { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px 12px; }
 .va-g4 .va-mkv dd { font-size: var(--fs-base); }
-/* 분포 막대: 구간별 종목 수. 위 세 줄은 이름표 자리(보는 회사, 평균, 중앙값 순) */
-.va-hg-w { position: relative; padding-top: 54px; }
+/* 분포 막대: 구간별 종목 수. 중앙값은 실선, 평균은 점선(값은 위 작은 숫자 줄), 보는 회사는 파란 선과 이름표 */
+.va-hg-w { position: relative; padding-top: 8px; }
+.va-hg-w.has { padding-top: 28px; }
 .va-hg-p { display: grid; grid-template-columns: repeat(10, minmax(0, 1fr)); align-items: end; height: 220px; border-bottom: 1px solid var(--line2); }
 .va-hb { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; height: 100%; padding: 0 2px; }
 .va-hb i { display: block; width: 100%; min-height: 2px; border-radius: var(--r-xs) var(--r-xs) 0 0; background: #C7D7FB; }
 .va-hb.tg i { background: #93B4F6; }
 .va-hb span { position: relative; z-index: 1; margin-bottom: 2px; padding: 0 2px; background: var(--card); font-size: var(--fs-xs); line-height: 16px; color: var(--text3); font-variant-numeric: tabular-nums; }
-.va-hm { position: absolute; bottom: 0; width: 0; border-left: 2px dashed var(--text2); pointer-events: none; }
-.va-hm.md { top: 54px; }
-.va-hm.av { top: 36px; border-left-style: dotted; border-left-color: var(--text3); }
-.va-hm.tg { top: 18px; border-left-color: var(--primary); }
+.va-hm { position: absolute; top: 8px; bottom: 0; width: 0; border-left: 2px solid var(--text2); pointer-events: none; }
+.va-hg-w.has .va-hm { top: 28px; }
+.va-hm.av { border-left-style: dotted; border-left-color: var(--text3); }
+.va-hg-w .va-hm.tg { top: 22px; border-left: 2px dashed var(--primary); }
 .va-hm b { position: absolute; bottom: 100%; left: -1px; z-index: 2; padding: 0 4px; background: var(--card); font-size: var(--fs-xs); line-height: 18px; font-weight: 500; color: var(--text2); white-space: nowrap; }
 .va-hm.tg b { padding: 0 6px; border-radius: var(--r-xs); background: var(--primary); color: #fff; font-weight: 600; }
+.va-hg + .va-leg { margin-top: 12px; }
+.va-leg .av::before { width: 0; height: 12px; border-radius: 0; border-left: 2px dotted var(--text3); vertical-align: -2px; }
 .va-hx { position: relative; height: 18px; margin-top: 4px; }
 .va-hx span { position: absolute; top: 0; transform: translateX(-50%); font-size: var(--fs-xs); line-height: 18px; color: var(--text3); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .va-hx span:first-child { transform: none; }
 .va-hx span:last-child { transform: translateX(-100%); }
 /* 업종별(테마별) PER 비교: 이름과 중앙값 한 줄, 그 아래 25～75% 구간 막대 */
-.va-grs { display: flex; flex-direction: column; gap: 12px; }
-.va-gr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 4px 12px; width: 100%; padding: 0; border: 0; background: none; font: inherit; text-align: left; }
+.va-grs { display: flex; flex-direction: column; gap: 4px; margin: 0 -8px; }
+.va-gr { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 4px 12px; width: 100%; padding: 6px 8px 8px; border: 0; border-radius: var(--r); background: none; font: inherit; text-align: left; }
 button.va-gr { cursor: pointer; }
+button.va-gr:hover { background: var(--hover); }
 button.va-gr:hover .nm { color: var(--ink); }
+.va-gr.me { background: var(--primary-soft); }
+button.va-gr.me:hover { background: var(--primary-soft); }
+.va-gr .nm i.own { display: inline-block; width: 6px; height: 6px; margin: 0 0 2px 6px; border-radius: 50%; background: var(--primary); vertical-align: middle; }
 .va-gr .nm { overflow: hidden; font-size: var(--fs-md); line-height: 20px; color: var(--text2); white-space: nowrap; text-overflow: ellipsis; }
 .va-gr em { font-size: var(--fs-md); line-height: 20px; font-style: normal; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .va-gr em small { display: inline-block; min-width: 44px; margin-left: 6px; font-size: var(--fs-xs); font-weight: 400; color: var(--text3); text-align: right; }
 .va-gr .bar { grid-column: 1 / -1; position: relative; height: 12px; border-radius: var(--r-xs); background: var(--row); }
+.va-gr.me .bar { background: #fff; }
 .va-gr .bar i { position: absolute; top: 0; bottom: 0; min-width: 2px; border-radius: var(--r-xs); background: #C7D7FB; }
 .va-gr .bar b { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--text2); }
 .va-gr .bar u { position: absolute; top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border: 2px solid #fff; border-radius: 50%; background: var(--primary); }
@@ -330,4 +347,62 @@ button.va-gr:hover .nm { color: var(--ink); }
 @media (max-width: 760px) {
   .va-fold > summary { min-height: 52px; padding: 0 16px; }
   .va-gl .va-pb { grid-template-columns: 96px 1fr 56px; }
+}
+
+/* 시장동향 머리: 시장, PER 종류 선택(카드 없이)과 핵심 숫자 카드 */
+.va-fbar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.va-fbar .meta { margin-left: auto; font-size: var(--fs-sm); color: var(--text3); }
+.va-kpis { padding: 20px 24px; }
+.va-kpis dl { display: grid; gap: 16px 24px; margin: 0; }
+.va-kpis dl > div { min-width: 0; }
+.va-kpis dt { font-size: var(--fs-md); line-height: 20px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.va-kpis dd { margin: 4px 0 0; font-size: var(--fs-2xl); line-height: 28px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.va-kpis .k dd { font-size: var(--fs-4xl); line-height: 28px; font-weight: 700; letter-spacing: -0.02em; }
+.va-kpis dd small { margin-left: 4px; font-size: var(--fs-sm); font-weight: 400; color: var(--text3); }
+/* 차트 카드 위 작은 숫자 줄(중앙값, 평균, 25～75% 등) */
+.va-mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px 16px; margin: 0 0 16px; }
+.va-mini > div { min-width: 0; }
+.va-mini dt { font-size: var(--fs-sm); line-height: 18px; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.va-mini dd { margin: 2px 0 0; font-size: var(--fs-lg); line-height: 22px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.va .card-head h2 .meta { margin-left: 8px; font-weight: 400; }
+.va .card-head > .mk-seg { margin-left: auto; }
+.va-more { height: 32px; margin-top: 8px; padding: 0; border: 0; background: none; font: inherit; font-size: var(--fs-md); color: var(--text2); cursor: pointer; }
+.va-more:hover { color: var(--ink); text-decoration: underline; }
+/* 요약 탭 */
+.va-brief { padding: 24px; }
+.va-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+.va-two > .card { min-width: 0; }
+.va-two > .card:only-child { grid-column: 1 / -1; }
+.va-bv { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; margin-bottom: 16px; }
+.va-bv > span:first-child { flex-basis: 100%; font-size: var(--fs-md); color: var(--text2); }
+.va-bv b { font-size: var(--fs-4xl); line-height: 36px; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.va-bv .up, .va-bv .dn { font-size: var(--fs-lg); }
+.va-two .va-asm { margin-top: 8px; }
+.va-two .va-chips { margin-top: 16px; }
+.va-two .va-chips span { padding: 4px 10px; border-radius: var(--r-full); background: var(--fill); color: var(--text2); font-weight: 500; }
+.va-sct { table-layout: auto; }
+.va-sct td .v3p-dot, .va-sct td i { margin-right: 6px; }
+.va-link { display: inline-flex; align-items: center; gap: 2px; height: 32px; margin-left: auto; padding: 0 4px 0 8px; border: 0; border-radius: var(--r); background: none; font: inherit; font-size: var(--fs-md); color: var(--text2); cursor: pointer; }
+.va-link:hover { background: var(--fill); color: var(--ink); }
+.va-none { margin-bottom: 0; }
+/* 평가한 회사 목록 */
+.va-plist tr.va-prow { cursor: pointer; }
+.va-plist tr.va-prow:hover td { background: var(--hover); }
+.va-plist td.st b { color: var(--ink); }
+.va-plist td.st small { font-size: var(--fs-sm); color: var(--text3); }
+.va-plist td b { color: var(--ink); font-weight: 600; }
+/* 상대가치평가 결과의 목표주가 칸: 색 면 대신 큰 숫자 */
+.va-tpbox { background: var(--card); color: var(--ink); border: 1px solid var(--line); }
+.va-tpbox span { opacity: 1; color: var(--text2); }
+.va-tpbox b { color: var(--ink); }
+.va-tpbox b .up { color: var(--danger); }
+.va-tpbox b .dn { color: var(--primary); }
+.va-tpbox p { opacity: 1; color: var(--text3); }
+@media (max-width: 900px) {
+  .va-two { grid-template-columns: minmax(0, 1fr); }
+}
+@media (max-width: 760px) {
+  .va-fbar { padding: 0 16px; }
+  .va-kpis, .va-brief { padding: 16px; }
+  .va-kpis .k dd { font-size: var(--fs-3xl); }
 }

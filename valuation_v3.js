@@ -234,14 +234,14 @@ function v3Binfo(t) {
   return `<p class="v3-binfo">${keys.map(([k, nm]) => `<span${k === 'hq' || k === 'ceo' ? ' class="w"' : ''}${src[k] ? ` title="${esc(src[k])}"` : ''}>${nm} ${val(k)}</span>`).join(', ')}</p>`;
 }
 function v3Head(c, x) {
-  const t = x.t, cs = v3Cases(), r = x.res, bl = r.blend || {}, wv = r.wavg || {}, errs = (r.checks || []).filter((k) => k.level === 'err').length, n = v3Chg(x);
+  const t = x.t, cs = v3Cases().filter((y) => y.target.code === t.code), r = x.res, bl = r.blend || {}, wv = r.wavg || {}, errs = (r.checks || []).filter((k) => k.level === 'err').length, n = v3Chg(x);
   const typ = v3DcfTyp(x), dv = typ ? bl.dcf : wv.ok === false ? null : wv.ps;
   const pick = cs.length > 1 ? `<select class="va-case" data-v3-case aria-label="평가 사례">${cs.map((y) => `<option value="${esc(y.id)}" ${y.id === c.id ? 'selected' : ''}>${esc(y.target.name)} ${esc(y.target.val_date || '')}</option>`).join('')}</select>` : '';
   const kpi = `<div class="v3-kpi" data-o="kpi"><div class="tp"><span>목표주가</span><b>${v3Won(bl.target)}</b><em>${v3Up(bl.up)}${errs ? '<i class="v3-bad">점검 오류</i>' : ''}</em></div>
       <div><span>${esc(v3DcfName(x))}</span><b>${v3Won(dv)}</b><em>${v3Up(typ ? (v3Ok(dv) && t.close ? dv / t.close - 1 : null) : wv.up)}</em></div>
       <div><span>상대가치</span><b>${v3Won(bl.rel)}</b><em>${bl.rel_blocked ? '유형에 맞지 않아 뺌' : v3Up(v3Ok(bl.rel) && t.close ? bl.rel / t.close - 1 : null)}</em></div>
       <div><span>현재가</span><b>${v3Won(t.close)}</b><em>${esc(t.val_date || '')}</em></div></div>`;
-  return `<section class="card va-head v3-head"><div class="va-ttl"><div><h2>${esc(t.name)} <small>${esc(t.code || '')}</small>${c.mock ? '<span class="chip v3-mock" title="화면 확인용으로 만든 합성 입력입니다. 숫자를 평가로 읽지 않습니다.">시험용 합성 값</span>' : ''}</h2>
+  return `<section class="card va-head v3-head"><div class="va-ttl"><div>${c.mock ? '<h2><span class="chip v3-mock" title="화면 확인용으로 만든 합성 입력입니다. 숫자를 평가로 읽지 않습니다.">시험용 합성 값</span></h2>' : ''}
       <p>기준일 ${esc(t.val_date || '')}${t.bs_date ? `, 재무상태표 ${esc(t.bs_date)}` : ''}${t.wics ? `, ${esc(t.wics)}` : ''}</p>${v3Binfo(t)}</div>
       <div class="va-tools">${pick}${infoBtn('valuation_v3')}<button class="btn ghost" type="button" id="v3-json">입력 내려받기</button><button class="btn ghost" type="button" id="v3-xlsx">${ico('file', 'sm')}엑셀 받기</button></div></div>
     ${kpi}

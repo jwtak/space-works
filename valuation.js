@@ -1,6 +1,9 @@
-/* 투자업무 › 가치평가. 위 탭 넷: 요약(#valuation), 재무분석(#valuation/fin), 상대가치평가(#valuation/rel), 절대가치평가(#valuation/dcf).
-   탭 아래 회사 줄(#va-co)에서 고른 종목코드(vaS.code) 하나를 네 탭이 같이 쓴다. 재무분석은 valuation_fin.js renderFin(host, code), 절대가치평가는 valuation_v3.js renderV3(host)가 그린다(v3는 자기 사례를 따로 고름).
-   요약: 전 상장사 PER 분포, PER 추이, 업종별 PER 비교, 업종 안 PER 분포(SK오션플랜트 IM 99쪽 구성)와 접힌 구역(위치 표, 회귀). 데이터는 data/valuation_market.json, data/valuation_per_hist.json(가치평가 폴더 market.py).
+/* 투자업무 › 가치평가. 위 탭 다섯: 시장동향(#valuation), 재무분석(#valuation/fin), 요약(#valuation/sum), 상대가치평가(#valuation/rel), 절대가치평가(#valuation/dcf).
+   탭 아래 회사 줄(#va-co)에서 고른 종목코드(vaS.code) 하나를 다섯 탭이 같이 쓴다. 처음 들어오면 고른 회사가 없다(2026-11-17 사용자: 기본은 미선택).
+   재무분석은 valuation_fin.js renderFin(host, code), 절대가치평가는 valuation_v3.js renderV3(host)가 그 회사의 v3 사례로 그린다.
+   시장동향: 전 상장사 PER 분포, PER 추이, 업종별 PER 비교, 업종 안 PER 분포(SK오션플랜트 IM 99쪽 구성)와 접힌 구역(위치 표, 회귀). 회사를 고르지 않으면 시장과 업종끼리만.
+   데이터는 data/valuation_market.json, data/valuation_per_hist.json(가치평가 폴더 market.py).
+   요약: 결합 목표주가, 풋볼필드(v3 v3qFf), 상대가치평가와 절대가치평가 한 장씩. 상대가치평가 사례만 있으면 그 결과로.
    상대가치평가 데이터: OneDrive data/valuation.json — 05. 딜소싱\_자동화\가치평가 에서 relval.py run(사례 계산) 뒤 publish.py 로 올린다.
    사례마다 회사별 배수와 대상 회사 지표가 들어 있고, 비교기업 켜고 끄기, 국내만·해외만·합친 범위, 기준 기간, 할증·할인은 이 화면이 다시 계산한다.
    계산식은 relval.py 와 같다(사례의 py 값과 맞춰 봄). 원본 로직은 05. 딜소싱\가치평가 로직 노트.md 18장.
@@ -11,11 +14,12 @@ const VA_TTL = 600000;
 const VA_PER = { LTM: '최근 4분기', FY0: '직전 결산', FY1: '올해 추정', FY2: '내년 추정', FY3: '후년 추정' };
 const VA_MULT = { PER: ['equity', 'ni'], PBR: ['equity', 'equity'], PSR: ['equity', 'revenue'], 'EV/EBITDA': ['ev', 'ebitda'], 'EV/EBIT': ['ev', 'op'], 'EV/Sales': ['ev', 'revenue'] };
 const VA_MET = { ni: '순이익', equity: '자본', revenue: '매출', ebitda: 'EBITDA', op: '영업이익' };
-// vt: 위 탭(sum, fin, rel, dcf), code: 지금 보는 종목코드, cid: 그 회사의 평가 사례, lv·thm: 요약 탭 업종별 비교의 분류 단계와 고른 테마, fold: 요약 탭 접힌 구역
-const vaS = { data: null, at: 0, loading: null, err: '', vt: 'sum', code: null, cid: null, sel: {}, tblPer: null, showEx: false, open: {}, qp: {}, fold: {} };
+// vt: 위 탭(mkt, fin, sum, rel, dcf), code: 지금 보는 종목코드(저장하지 않아 새로 들어오면 비어 있음), cid: 그 회사의 평가 사례,
+// lv·thm: 시장동향 업종별 비교의 분류 단계와 고른 테마, gsel: 업종 안 분포로 고른 업종 {lv, name}, fold: 시장동향 접힌 구역
+const vaS = { data: null, at: 0, loading: null, err: '', vt: 'mkt', code: null, cid: null, sel: {}, tblPer: null, showEx: false, open: {}, qp: {}, fold: {}, gsel: null };
 Object.assign(vaS, viewGet('va', {}));
-if (!vaS.code && vaS.view) vaS.code = vaS.view; // 예전 저장값(빠른 조회로 보던 회사)
-const vaSave = () => viewSet('va', { code: vaS.code, cid: vaS.cid, sel: vaS.sel, tblPer: vaS.tblPer, qp: vaS.qp, tab: vaS.tab, trd: vaS.trd, lv: vaS.lv, thm: vaS.thm, mkMarket: vaS.mkMarket, mkKind: vaS.mkKind, fold: vaS.fold });
+vaS.code = null; vaS.gsel = null;
+const vaSave = () => viewSet('va', { cid: vaS.cid, sel: vaS.sel, tblPer: vaS.tblPer, qp: vaS.qp, tab: vaS.tab, trd: vaS.trd, lv: vaS.lv, thm: vaS.thm, mkMarket: vaS.mkMarket, mkKind: vaS.mkKind, fold: vaS.fold });
 const vaTabs = (key, opts, cur) => `<div class="va-tabs">${vaSeg(key, opts, cur)}</div>`;
 
 function vaLoad(force) {
@@ -254,8 +258,8 @@ function vaScenRange(c, r, nm) { // 배수별 Bear～Bull. 시나리오가 없�
   return v.lo && v.hi ? { lo: Math.min(v.lo.ps, v.hi.ps), hi: Math.max(v.lo.ps, v.hi.ps), lab: '25～75%' } : null;
 }
 
-function vaSummary(c, r) {
-  const s = r.s, t = c.target, tp = vaTarget(c, r), bt = t.broker_targets || [];
+function vaFootball(c, r) { // 풋볼필드: 52주 고저, 증권사 목표가, 배수별 범위와 현재가, 목표주가 선
+  const t = c.target, tp = vaTarget(c, r), bt = t.broker_targets || [];
   const rows = [['시장', '52주 고저', t.low52 && t.high52 ? { lo: t.low52, hi: t.high52 } : null]];
   if (bt.length) rows.push(['시장', `증권사 목표가 ${bt.length}곳`, { lo: Math.min(...bt.map((x) => x.goal)), hi: Math.max(...bt.map((x) => x.goal)) }]);
   const W_ = vaW(c), multi = Object.values(W_).filter((x) => x > 0).length > 1;
@@ -266,13 +270,17 @@ function vaSummary(c, r) {
   const ff = rows.map(([grp, lab, g, w], i) => `<div class="va-fb-r ${grp === '시장' ? 'mk' : grp === '참고' ? 'ref' : ''}"><div class="va-fb-l">${i === 0 || rows[i - 1][0] !== grp ? `<em>${grp}</em>` : '<em></em>'}<b>${esc(lab)}${w ? ` <small>${vaNum(w * 100)}%</small>` : ''}</b></div>
     <div class="va-fb-b">${g ? `<span class="lo" style="left:${X(g.lo)}">${vaNum(g.lo)}</span><i style="left:${X(g.lo)};width:calc(${X(g.hi)} - ${X(g.lo)})"></i><span class="hi" style="left:${X(g.hi)}">${vaNum(g.hi)}</span>` : ''}<u class="now" style="left:${X(t.close)}"></u>${tp ? `<u class="tp" style="left:${X(tp.ps)}"></u>` : ''}</div></div>`).join('');
   const leg = `<div class="va-fb-leg"><span class="now">현재가 ${vaWon(t.close)}</span>${tp ? `<span class="tp">목표주가 ${vaWon(Math.round(tp.ps / 100) * 100)}</span>` : ''}</div>`;
+  return `<div class="va-fb">${ff}</div>${leg}`;
+}
+function vaSummary(c, r) {
+  const s = r.s, t = c.target, tp = vaTarget(c, r), W_ = vaW(c);
   const m = t.metrics[s.base] || {}, divSh = t.shares + (t.pref_shares && !t.pref_listed ? t.pref_shares : 0);
   const lead = c.primary.filter((nm) => (W_[nm] || 0) > 0), item = VA_MULT[lead[0]]?.[1];
   const asm = [[`${VA_PER[s.base]} ${VA_MET[item] || '순이익'}`, `${vaNum(m[item || 'ni'])}억`], ...(item === 'ni' ? [['EPS', vaWon(m.ni ? (m.ni * 1e8) / divSh : null)]] : []), ...lead.map((nm) => [`Target ${nm}`, `${vaX(r.st[s.base][nm].median)} <small>${r.st[s.base][nm].n}곳 중앙값</small>`])];
   const box = `<div class="va-tpbox" ${c.method_reason ? `title="평가 배수 ${esc(c.method || '')}: ${esc(c.method_reason)}"` : ''}>${tp ? `<div><span>목표주가</span><b>${vaWon(Math.round(tp.ps / 100) * 100)}</b></div><div><span>상승여력</span><b>${vaUp(tp.up)}</b></div><p>${tp.parts.length > 1 ? tp.parts.map((p) => `${esc(p.nm)} ${vaNum(p.w * 100)}%`).join(', ') : `${esc(tp.parts[0].nm)} 기준, ${esc(VA_PER[s.base])}`}</p>` : '<p>계산된 배수가 없습니다.</p>'}</div>
     <dl class="va-asm">${asm.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join('')}</dl>`;
   const memo = c.conclusion ? `<div class="va-memo"><b>판단 메모</b><p>${esc(c.conclusion)}</p></div>` : '';
-  return vaSec('평가 결과', '', `<div class="va-sumtop">${box}</div><div class="va-fb">${ff}</div>${leg}${memo}${vaWarnCard(c, r)}`)
+  return vaSec('평가 결과', '', `<div class="va-sumtop">${box}</div>${vaFootball(c, r)}${memo}${vaWarnCard(c, r)}`)
     + [...lead, ...c.primary.filter((nm) => !lead.includes(nm))].map((nm) => vaMultCard(c, r, nm, !lead.includes(nm))).join('') + vaSelCard(c);
 }
 
@@ -368,29 +376,41 @@ const vaFocusQuick = (code) => { const x = vaS.mk?.by[code]; return x ? { code, 
 const vaCaseOf = (code) => (vaS.data?.cases || []).find((x) => x.target.code === code);
 const vaOkPer = (v) => v > 0 && v < 200; // 분포와 중앙값에 넣는 PER 범위
 
-// 지금 보는 종목코드. 네 탭이 같이 쓴다. 고른 적이 없으면 리서치한 사례의 대상 회사
+const vaV3Of = (code) => (typeof v3Cases === 'function' && code ? v3Cases().filter((c) => c.target.code === code) : []); // 그 회사의 절대가치평가(v3) 사례
+
+// 지금 보는 종목코드. 다섯 탭이 같이 쓴다. 고르지 않았으면 null
 function vaCode() {
-  if (vaS.code && (vaS.mk?.by[vaS.code] || vaCaseOf(vaS.code))) return vaS.code;
-  const cs = vaS.data?.cases || [], c = cs.find((x) => x.id === vaS.cid) || cs[0];
-  return (vaS.code = c ? c.target.code : null);
+  const k = vaS.code;
+  return k && (vaS.mk?.by[k] || vaCaseOf(k) || vaV3Of(k).length) ? k : null;
 }
 function vaRow(code) { // 시장 데이터의 그 회사 줄. 시장 데이터에 없는 사례 회사는 사례 값으로 채움
   const x = vaS.mk?.by[code]; if (x) return x;
-  const c = vaCaseOf(code); if (!c) return null;
-  const num = (v) => (typeof v === 'number' ? v : null), t = c.target;
-  return { code, name: t.name, market: '', per: num(t.mult?.LTM?.PER), estPer: num(t.mult?.FY1?.PER), mcap: t.mcap };
+  const c = vaCaseOf(code), v = vaV3Of(code)[0]; if (!c && !v) return null;
+  const num = (y) => (typeof y === 'number' ? y : null), t = c ? c.target : v.target;
+  return { code, name: t.name, market: '', per: num(t.mult?.LTM?.PER), estPer: num(t.mult?.FY1?.PER), mcap: t.mcap, industry: t.wics || '' };
 }
-function vaGo(code) { vaS.code = code; vaS.q = ''; vaS.pq = ''; vaShow(); }
+function vaGo(code) { vaS.code = code; vaS.q = ''; vaS.pq = ''; vaS.gsel = null; vaShow(); }
 
-// 탭 아래 회사 줄: 지금 보는 회사와 검색. 리서치한 평가가 있는 회사는 검색 결과에 적는다
+// 평가한 회사(상대가치평가 또는 절대가치평가 사례가 있는 회사): 회사 줄 바로가기와 회사를 고르지 않은 평가 탭에 씀
+function vaDone() {
+  const by = new Map();
+  for (const c of vaS.data?.cases || []) if (c.target?.code && !by.has(c.target.code)) by.set(c.target.code, { code: c.target.code, name: c.target.name, rel: c });
+  if (typeof v3Cases === 'function') for (const c of v3Cases()) { const k = c.target?.code; if (!k) continue; const o = by.get(k) || { code: k, name: c.target.name }; o.v3 ||= c; by.set(k, o); }
+  return [...by.values()];
+}
+
+// 탭 아래 회사 줄: 지금 보는 회사와 검색. 고른 회사가 없으면 검색과 평가한 회사 바로가기
 function vaCoBar() {
-  const code = vaCode(), x = code && vaRow(code), cs = vaS.data?.cases || [];
+  const code = vaCode(), x = code && vaRow(code);
   const cls = x ? [x.sector, x.industryGroup, x.industry].filter((v, i, a) => v && v !== a[i - 1]) : [];
   const sub = x ? [x.market, cls.join(' › ')].filter(Boolean).join(', ') : '';
-  const id = x ? `<h2>${esc(x.name)} <small>${esc(x.code)}</small></h2>${sub ? `<p>${esc(sub)}</p>` : ''}` : '<p>회사를 찾아 주세요.</p>';
-  const back = cs.length && !vaCaseOf(code) ? '<button class="btn ghost sm" type="button" data-va-back>리서치한 평가 보기</button>' : '';
-  return `<section class="card va-co"><div class="va-co-id">${id}</div>
-    <div class="va-co-tools"><div class="va-srch va-srch-l"><input type="search" data-va-q value="${esc(vaS.q || '')}" placeholder="회사 이름이나 종목코드로 찾기" aria-label="회사 검색" autocomplete="off"><div class="va-sug" id="va-sug">${vaS.q ? vaSug(vaS.q) : ''}</div></div>${back}${vaS.vt === 'sum' || vaS.vt === 'rel' ? infoBtn('valuation') : ''}</div></section>`; // 화면 설명은 PC에서는 제목 줄, 폰에서는 이 줄(valuation.css)
+  const srch = `<div class="va-srch va-srch-l"><input type="search" data-va-q value="${esc(vaS.q || '')}" placeholder="회사 이름이나 종목코드로 찾기" aria-label="회사 검색" autocomplete="off"><div class="va-sug" id="va-sug">${vaS.q ? vaSug(vaS.q) : ''}</div></div>`;
+  const info = vaS.vt === 'mkt' || vaS.vt === 'rel' || vaS.vt === 'sum' ? infoBtn('valuation') : ''; // 화면 설명은 PC에서는 제목 줄, 폰에서는 이 줄(valuation.css)
+  if (!x) {
+    const done = vaDone();
+    return `<div class="va-co none">${srch}${done.length ? `<div class="va-co-done"><span>평가한 회사</span>${done.map((o) => `<button type="button" class="va-chip" data-va-pick="${esc(o.code)}">${esc(o.name)}</button>`).join('')}</div>` : ''}${info}</div>`;
+  }
+  return `<div class="va-co"><div class="va-co-id"><h2>${esc(x.name)} <small>${esc(x.code)}</small><button type="button" class="va-co-x" data-va-clear aria-label="회사 선택 해제" title="선택 해제">${ico('plus', 'sm')}</button></h2>${sub ? `<p>${esc(sub)}</p>` : ''}</div>${srch}${info}</div>`;
 }
 function vaSug(qs, attr = 'data-va-pick') {
   const t = qs.trim().toLowerCase(); if (!t) return '';
@@ -428,14 +448,19 @@ function vaCw(full) { // 차트를 그릴 칸의 안쪽 폭(px). SVG를 실제 �
   return Math.max(260, Math.round((full || w < VA_G2 ? w : (w - 16) / 2) - pad - 2));
 }
 
-function vaGrp(x) { // 업종별 비교에서 고른 분류 단계와, 그 단계에서 보는 회사가 속한 묶음
-  const d = vaS.mk, th = vaThOf(x);
+function vaGrp(x) { // 업종별 비교에서 고른 분류 단계와 업종 안 분포로 볼 묶음. 줄을 눌러 고른 업종 > 보는 회사의 업종 > 종목이 가장 많은 업종
+  const d = vaS.mk, th = x ? vaThOf(x) : [];
   const lv = vaS.lv === 'theme' ? (th.length ? 'theme' : 'sector') : VA_LV.some(([k]) => k === vaS.lv) ? vaS.lv : 'sector';
-  if (lv !== 'theme') return { lv, name: x[lv] || null, has: (y) => !!x[lv] && y[lv] === x[lv] };
-  const i = th.find((k) => d.themes[k][0] === vaS.thm) ?? th[0];
-  return { lv, name: d.themes[i][0], has: (y) => d.thSet[i].has(y.code) };
+  if (lv === 'theme') {
+    const i = th.find((k) => d.themes[k][0] === vaS.thm) ?? th[0];
+    return { lv, name: d.themes[i][0], own: null, has: (y) => d.thSet[i].has(y.code) };
+  }
+  const own = x?.[lv] || null;
+  let name = vaS.gsel?.lv === lv ? vaS.gsel.name : own;
+  if (!name) { const n = {}; for (const y of vaMkUse()) if (y[lv]) n[y[lv]] = (n[y[lv]] || 0) + 1; name = Object.entries(n).sort((a, b) => b[1] - a[1])[0]?.[0] || null; }
+  return { lv, name, own, has: (y) => !!name && y[lv] === name };
 }
-function vaGrpRows(x, g, key) { // 묶음별 PER 중앙값과 25～75% 구간. 줄이 많으면 보는 회사와 같은 상위 분류를 먼저 넣고 종목 수가 많은 순으로 채움
+function vaGrpRows(x, g, key) { // 묶음별 PER 중앙값과 25～75% 구간. 줄이 많으면 고른 업종, 보는 회사와 같은 상위 분류를 먼저 넣고 종목 수가 많은 순으로 채움
   const d = vaS.mk, use = vaMkUse();
   const stat = (k, ys) => { const v = ys.map((y) => y[key]).filter(vaOkPer); return { k, n: v.length, med: vaQuant(v, 0.5), lo: vaQuant(v, 0.25), hi: vaQuant(v, 0.75) }; };
   const cut = (all, rank, open) => ({ total: all.length, rows: (open ? all : [...all].sort((a, b) => rank(a) - rank(b) || b.n - a.n).slice(0, VA_GMAX)).sort((a, b) => b.med - a.med) });
@@ -444,10 +469,11 @@ function vaGrpRows(x, g, key) { // 묶음별 PER 중앙값과 25～75% 구간. �
   for (const y of use) {
     if (!y[g.lv]) continue;
     (by[y[g.lv]] ||= []).push(y);
-    if (up && x[up] && y[up] === x[up]) sib.add(y[g.lv]);
+    if (up && x?.[up] && y[up] === x[up]) sib.add(y[g.lv]);
   }
-  const all = Object.entries(by).map(([k, ys]) => stat(k, ys)).filter((r) => r.n >= (r.k === g.name ? 1 : sib.has(r.k) ? 3 : 5));
-  return cut(all, (r) => (r.k === g.name ? 0 : sib.has(r.k) ? 1 : 2), false);
+  const key1 = (r) => r.k === g.name || r.k === g.own;
+  const all = Object.entries(by).map(([k, ys]) => stat(k, ys)).filter((r) => r.n >= (key1(r) ? 1 : sib.has(r.k) ? 3 : 5));
+  return cut(all, (r) => (key1(r) ? 0 : sib.has(r.k) ? 1 : 2), vaS.gAll);
 }
 
 function vaHisto(vals, tv, name) { // 구간별 종목 수 막대. 중앙값과 평균은 세로 점선, 보는 회사는 굵은 점선과 이름표
@@ -456,42 +482,45 @@ function vaHisto(vals, tv, name) { // 구간별 종목 수 막대. 중앙값과 
   const pos = (v) => { const i = at(v), [a, b] = VA_BUCKETS[i]; return +(((i + (v - a) / (b - a)) / N) * 100).toFixed(2); }; // 구간 폭이 달라 구간 안에서만 비례로 놓음
   const cnt = VA_BUCKETS.map(([a, b]) => vals.filter((v) => v >= a && v < b).length), mx = Math.max(...cnt);
   const med = vaQuant(vals, 0.5), avg = vaMean(vals), ti = vaOkPer(tv) ? at(tv) : -1;
-  const mark = (cls, v, label) => { const p = pos(v); return `<div class="va-hm ${cls}" style="left:${p}%"><b style="transform:translateX(-${p}%)">${label}</b></div>`; }; // 이름표는 선 위치만큼 왼쪽으로 당겨 칸 밖으로 안 나가게
+  const mark = (cls, v, label) => { const p = pos(v); return `<div class="va-hm ${cls}" style="left:${p}%">${label ? `<b style="transform:translateX(-${p}%)">${label}</b>` : ''}</div>`; }; // 이름표는 선 위치만큼 왼쪽으로 당겨 칸 밖으로 안 나가게
   const bars = cnt.map((n, i) => `<div class="va-hb ${i === ti ? 'tg' : ''}" title="${VA_BUCKETS[i][0]}～${VA_BUCKETS[i][1]}배 ${vaNum(n)}곳 (${vaNum((n / vals.length) * 100, 1)}%)"><span>${vaNum(n)}</span><i style="height:calc((100% - 24px) * ${(n / mx).toFixed(3)})"></i></div>`).join('');
   const ticks = [...VA_BUCKETS.map(([a]) => a), VA_BUCKETS[N - 1][1]].map((v, i) => `<span style="left:${(i / N) * 100}%">${v}</span>`).join('');
-  const out = ti >= 0 ? '' : `<p class="va-note">${esc(name)} ${tv >= 200 ? `${vaX(tv)}, 200배 이상이라 그림에 없음` : tv < 0 ? '적자 추정이라 PER 없음' : 'PER 없음'}</p>`;
-  return `<div class="va-hg" role="img" aria-label="PER 구간별 종목 수. 중앙값 ${vaNum(med, 1)}배, 평균 ${vaNum(avg, 1)}배${ti < 0 ? '' : `, ${esc(name)} ${vaNum(tv, 1)}배`}"><div class="va-hg-w"><div class="va-hg-p">${bars}</div>
-    ${mark('md', med, `중앙값 ${vaX(med)}`)}${mark('av', avg, `평균 ${vaX(avg)}`)}${ti < 0 ? '' : mark('tg', tv, `${esc(name)} ${vaX(tv)}`)}</div><div class="va-hx">${ticks}</div></div>${out}`;
+  const out = ti >= 0 || !name ? '' : `<p class="va-note">${esc(name)} ${tv >= 200 ? `${vaX(tv)}, 200배 이상이라 그림에 없음` : tv < 0 ? '적자 추정이라 PER 없음' : 'PER 없음'}</p>`;
+  const leg = `<div class="va-leg"><span class="md">중앙값</span><span class="av">평균</span></div>`;
+  return `<div class="va-hg" role="img" aria-label="PER 구간별 종목 수. 중앙값 ${vaNum(med, 1)}배, 평균 ${vaNum(avg, 1)}배${ti < 0 ? '' : `, ${esc(name)} ${vaNum(tv, 1)}배`}"><div class="va-hg-w ${ti < 0 ? '' : 'has'}"><div class="va-hg-p">${bars}</div>
+    ${mark('md', med, '')}${mark('av', avg, '')}${ti < 0 ? '' : mark('tg', tv, `${esc(name)} ${vaX(tv)}`)}</div><div class="va-hx">${ticks}</div></div>${leg}${out}`;
 }
 
-function vaCmp(x, g, key) { // 업종별 PER 비교: 분류 단계를 골라 묶음마다 중앙값과 25～75% 구간. 테마는 줄을 누르면 업종 안 분포가 그 테마로 바뀜
-  const th = vaThOf(x), isTh = g.lv === 'theme', { rows, total } = vaGrpRows(x, g, key);
-  const seg = `<div class="va-mctl">${vaSeg('lv', [...VA_LV, ...(th.length ? [['theme', '테마']] : [])], g.lv)}</div>`;
+function vaCmp(x, g, key) { // 업종별 PER 비교: 분류 단계를 골라 묶음마다 중앙값과 25～75% 구간. 줄을 누르면 업종 안 분포가 그 업종(테마)으로 바뀜
+  const th = x ? vaThOf(x) : [], isTh = g.lv === 'theme', { rows, total } = vaGrpRows(x, g, key);
+  const seg = vaSeg('lv', [...VA_LV, ...(th.length ? [['theme', '테마']] : [])], g.lv);
   const ttl = isTh ? '테마별 PER 비교' : '업종별 PER 비교';
-  if (!rows.length) return vaSec(ttl, '', `${seg}<div class="empty">PER이 있는 회사가 없습니다.</div>`);
-  const tv = x[key], mx = Math.max(...rows.map((r) => r.hi)) * 1.05, P = (v) => `${Math.min(100, (v / mx) * 100).toFixed(1)}%`;
-  const dotOn = (r) => (r.k === g.name || isTh) && vaOkPer(tv) && tv <= mx; // 보는 회사 PER 점. 눈금 밖이면 안 찍음
+  if (!rows.length) return vaSec(ttl, seg, '<div class="empty">PER이 있는 회사가 없습니다.</div>', 'va-cmp');
+  const tv = x?.[key], mx = Math.max(...rows.map((r) => r.hi)) * 1.05, P = (v) => `${Math.min(100, (v / mx) * 100).toFixed(1)}%`;
+  const dotOn = (r) => !!x && (r.k === g.own || isTh) && vaOkPer(tv) && tv <= mx; // 보는 회사 PER 점. 눈금 밖이면 안 찍음
   const row = (r) => {
     const me = r.k === g.name, dot = dotOn(r);
     const tip = esc(`${r.k} 중앙값 ${vaNum(r.med, 1)}배, 25～75% ${vaNum(r.lo, 1)}～${vaNum(r.hi, 1)}배, ${r.n}곳`);
-    const body = `<span class="nm">${esc(r.k)}</span><em>${vaX(r.med)}<small>${vaNum(r.n)}곳</small></em><span class="bar"><i style="left:${P(r.lo)};width:calc(${P(r.hi)} - ${P(r.lo)})"></i><b style="left:${P(r.med)}"></b>${dot ? `<u style="left:${P(tv)}"></u>` : ''}</span>`;
-    return isTh ? `<button type="button" class="va-gr ${me ? 'me' : ''}" data-va-thm="${esc(r.k)}" aria-pressed="${me}" title="${tip}">${body}</button>` : `<div class="va-gr ${me ? 'me' : ''}" title="${tip}">${body}</div>`;
+    const body = `<span class="nm">${esc(r.k)}${r.k === g.own && !isTh ? '<i class="own"></i>' : ''}</span><em>${vaX(r.med)}<small>${vaNum(r.n)}곳</small></em><span class="bar"><i style="left:${P(r.lo)};width:calc(${P(r.hi)} - ${P(r.lo)})"></i><b style="left:${P(r.med)}"></b>${dot ? `<u style="left:${P(tv)}"></u>` : ''}</span>`;
+    return `<button type="button" class="va-gr ${me ? 'me' : ''}" ${isTh ? 'data-va-thm' : 'data-va-grp'}="${esc(r.k)}" aria-pressed="${me}" title="${tip}">${body}</button>`;
   };
-  const more = isTh && total > VA_GMAX ? `<button class="btn ghost sm va-exbtn" type="button" data-va-thall>${vaS.thAll ? '접기' : `나머지 ${total - rows.length}개 보기`}</button>` : '';
+  const open = isTh ? vaS.thAll : vaS.gAll;
+  const more = total > VA_GMAX ? `<button class="va-more" type="button" ${isTh ? 'data-va-thall' : 'data-va-gall'}>${open ? '접기' : `나머지 ${total - rows.length}개`}</button>` : '';
   const leg = `<div class="va-leg"><span class="bd">25～75% 구간</span><span class="md">중앙값</span>${rows.some(dotOn) ? `<span class="tg">${esc(x.name)} ${vaX(tv)}</span>` : ''}</div>`;
-  return vaSec(ttl, !isTh && total > rows.length ? `<span class="meta">${total}개 중 ${rows.length}개</span>` : '', `${seg}<div class="va-grs">${rows.map(row).join('')}</div>${more}${leg}`);
+  return vaSec(`${ttl}${total > rows.length ? ` <span class="meta">${total}개 중 ${rows.length}개</span>` : ''}`, seg, `<div class="va-grs">${rows.map(row).join('')}</div>${more}${leg}`, 'va-cmp');
 }
 
 function vaPerList(ys, key, x) { // 회사가 적으면 막대 분포 대신 회사별 PER. 세로선은 중앙값
   const vs = ys.map((y) => y[key]), med = vaQuant(vs, 0.5), mx = Math.max(...vs) * 1.08, W = (v) => `${Math.min(100, (v / mx) * 100).toFixed(1)}%`;
-  const rows = [...ys].sort((a, b) => b[key] - a[key]).map((y) => `<div class="va-pb ${y.code === x.code ? 'me' : ''}"><span>${esc(y.name)}</span><div><i style="width:${W(y[key])}"></i><b style="left:${W(med)}"></b></div><em>${vaX(y[key])}</em></div>`).join('');
-  return `<div class="va-pbs va-gl">${rows}</div><div class="va-leg"><span class="md">중앙값 ${vaX(med)}</span></div>`;
+  const rows = [...ys].sort((a, b) => b[key] - a[key]).map((y) => `<div class="va-pb ${y.code === x?.code ? 'me' : ''}"><span>${esc(y.name)}</span><div><i style="width:${W(y[key])}"></i><b style="left:${W(med)}"></b></div><em>${vaX(y[key])}</em></div>`).join('');
+  return `<div class="va-pbs va-gl">${rows}</div><div class="va-leg"><span class="md">중앙값</span></div>`;
 }
-function vaInGrp(x, g, key) { // 업종 안 PER 분포: 업종별 비교에서 고른 단계의 보는 회사 업종(테마면 고른 테마)
+const vaStatRow = (vals) => (vals.length ? `<dl class="va-mini"><div><dt>중앙값</dt><dd>${vaX(vaQuant(vals, 0.5))}</dd></div><div><dt>평균</dt><dd>${vaX(vaMean(vals))}</dd></div><div><dt>25～75%</dt><dd>${vaNum(vaQuant(vals, 0.25), 1)}～${vaNum(vaQuant(vals, 0.75), 1)}배</dd></div></dl>` : '');
+function vaInGrp(x, g, key) { // 업종 안 PER 분포: 업종별 비교에서 고른 업종(테마)
   const ttl = g.lv === 'theme' ? '테마 안 PER 분포' : '업종 안 PER 분포';
   if (!g.name) return vaSec(ttl, '', '<div class="empty">업종 분류가 없는 회사입니다.</div>');
-  const ys = vaMkUse().filter((y) => g.has(y) && vaOkPer(y[key]));
-  return vaSec(ttl, `<span class="meta">${esc(g.name)}, ${vaNum(ys.length)}곳</span>`, ys.length && ys.length < 10 ? vaPerList(ys, key, x) : vaHisto(ys.map((y) => y[key]), x[key], x.name));
+  const ys = vaMkUse().filter((y) => g.has(y) && vaOkPer(y[key])), vals = ys.map((y) => y[key]), mine = x && g.has(x);
+  return vaSec(`${ttl} <span class="meta">${esc(g.name)}, ${vaNum(ys.length)}곳</span>`, '', `${vaStatRow(vals)}${ys.length && ys.length < 10 ? vaPerList(ys, key, x) : vaHisto(vals, mine ? x[key] : null, mine ? x.name : '')}`);
 }
 
 function vaPos(F, key) { // 보는 회사와 비교기업(또는 Peer)의 시장 내 위치와 회귀 적정 PER
@@ -504,21 +533,28 @@ function vaPos(F, key) { // 보는 회사와 비교기업(또는 Peer)의 시장
 }
 const vaFold = (k, title, body) => (body ? `<details class="card va-fold" ${vaS.fold[k] ? 'open' : ''}><summary data-va-fold="${k}">${title}</summary><div class="mk-body">${body}</div></details>` : '');
 
-function vaSumTab() {
-  const d = vaS.mk, code = vaCode(), x = code && vaRow(code);
+function vaMktTab() {
+  const d = vaS.mk, code = vaCode(), x = code ? vaRow(code) : null;
   if (!d) return '<div class="card"><div class="empty">시장 데이터를 읽지 못했습니다.</div></div>';
-  if (!x) return '<div class="card"><div class="empty">위에서 회사를 찾아 주세요.</div></div>';
-  const c = vaCase(), F = c ? vaFocusCase(c) : vaFocusQuick(code);
+  const c = x ? vaCase() : null, F = !x ? null : c ? vaFocusCase(c) : vaFocusQuick(code) || { code, name: x.name, close: null, peers: [], role: '선택', peerRole: 'Peer' };
   const key = vaS.mkKind || 'per', mkm = vaS.mkMarket || 'ALL', ML = { ALL: '시장', KOSPI: '코스피', KOSDAQ: '코스닥' }[mkm];
-  const all = vaMkUse().map((y) => y[key]).filter(vaOkPer), g = vaGrp(x), gv = g.name ? vaMkUse().filter((y) => g.has(y) && vaOkPer(y[key])).map((y) => y[key]) : [];
-  const pc = vaPctl(x[key], key), per = (v) => (v < 0 ? '적자' : vaX(v)), w = vaS.cw || 720;
-  const kv = [['최근 4분기 PER', per(x.per)], ['추정 PER', per(x.estPer)], [`${ML} 내 위치`, pc == null ? '-' : `하위 ${vaNum(pc * 100)}%`], [`${ML} 중앙값`, all.length ? vaX(vaQuant(all, 0.5)) : '-'],
-    [`${esc(g.name || '업종')} 중앙값`, gv.length ? `${vaX(vaQuant(gv, 0.5))} <small>${vaNum(gv.length)}곳</small>` : '-'], ['시가총액', vaCap(x.mcap)]];
-  const head = `<section class="card va-head"><div class="va-sumbar">${vaSeg('mkm', [['ALL', '전체'], ['KOSPI', '코스피'], ['KOSDAQ', '코스닥']], mkm)}${vaSeg('mkk', [['per', '최근 4분기 PER'], ['estPer', '추정 PER']], key)}${d.date ? `<span class="meta">${esc(d.date)} 기준</span>` : ''}</div>
-    <dl class="va-kv" style="grid-template-columns:repeat(${w >= 1000 ? 6 : w >= 520 ? 3 : 2}, minmax(0, 1fr))">${kv.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl></section>`;
-  const dist = vaSec(`${{ ALL: '전 상장사', KOSPI: '코스피', KOSDAQ: '코스닥' }[mkm]} PER 분포`, `<span class="meta">${vaNum(all.length)}곳</span>`, vaHisto(all, x[key], x.name));
-  return `${head}<div class="va-g4 ${w >= VA_G2 ? 'two' : ''}">${dist}${vaTrend(F)}${vaCmp(x, g, key)}${vaInGrp(x, g, key)}</div>
-    ${vaFold('pos', F.role === '대상' ? '대상과 비교기업 위치' : '선택한 회사와 Peer 위치', vaPos(F, key))}${vaFold('reg', 'PER 회귀', vaRegBody(F))}`;
+  const use = vaMkUse(), all = use.map((y) => y[key]).filter(vaOkPer), g = vaGrp(x), w = vaS.cw || 720;
+  const med = (xs) => (xs.length ? vaX(vaQuant(xs, 0.5)) : '-'), per = (v) => (v < 0 ? '적자' : vaX(v));
+  let kv;
+  if (x) {
+    const pc = vaPctl(x[key], key), gv = g.own ? use.filter((y) => y[g.lv] === g.own && vaOkPer(y[key])).map((y) => y[key]) : [];
+    kv = [[key === 'per' ? '최근 4분기 PER' : '추정 PER', per(x[key]), true], [key === 'per' ? '추정 PER' : '최근 4분기 PER', per(x[key === 'per' ? 'estPer' : 'per'])], [`${ML} 내 위치`, pc == null ? '-' : `하위 ${vaNum(pc * 100)}%`],
+      [`${ML} 중앙값`, med(all)], [`${g.lv === 'theme' ? '업종' : esc(g.own || '업종')} 중앙값`, gv.length ? `${med(gv)} <small>${vaNum(gv.length)}곳</small>` : '-'], ['시가총액', vaCap(x.mcap)]];
+  } else {
+    const by = (m) => d.list.filter((y) => y.market === m).map((y) => y[key]).filter(vaOkPer);
+    kv = [[`${ML} 중앙값`, med(all), true], ['평균', all.length ? vaX(vaMean(all)) : '-'], ['25～75%', all.length ? `${vaNum(vaQuant(all, 0.25), 1)}～${vaNum(vaQuant(all, 0.75), 1)}배` : '-'],
+      ['코스피 중앙값', med(by('KOSPI'))], ['코스닥 중앙값', med(by('KOSDAQ'))], ['PER 있는 종목', `${vaNum(all.length)}곳 <small>${vaNum(use.length)}곳 중</small>`]];
+  }
+  const bar = `<div class="va-fbar">${vaSeg('mkm', [['ALL', '전체'], ['KOSPI', '코스피'], ['KOSDAQ', '코스닥']], mkm)}${vaSeg('mkk', [['per', '최근 4분기 PER'], ['estPer', '추정 PER']], key)}${d.date ? `<span class="meta">${esc(d.date)} 기준</span>` : ''}</div>`;
+  const kpi = `<section class="card va-kpis"><dl style="grid-template-columns:repeat(${w >= 1000 ? 6 : w >= 520 ? 3 : 2}, minmax(0, 1fr))">${kv.map(([k, v, big]) => `<div class="${big ? 'k' : ''}"><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl></section>`;
+  const dist = vaSec(`${{ ALL: '전 상장사', KOSPI: '코스피', KOSDAQ: '코스닥' }[mkm]} PER 분포 <span class="meta">${vaNum(all.length)}곳</span>`, '', `${vaStatRow(all)}${vaHisto(all, x?.[key], x?.name || '')}`);
+  const fold = F ? `${vaFold('pos', F.role === '대상' ? '대상과 비교기업 위치' : '선택한 회사와 Peer 위치', vaPos(F, key))}${vaFold('reg', 'PER 회귀', vaRegBody(F))}` : '';
+  return `${bar}${kpi}<div class="va-g4 ${w >= VA_G2 ? 'two' : ''}">${dist}${vaTrend(F)}${vaCmp(x, g, key)}${vaInGrp(x, g, key)}</div>${fold}`;
 }
 
 function vaRegBody(F) { // PER 회귀(요약 탭 접힌 구역)
@@ -575,15 +611,16 @@ function vaSmooth(pts) { // 손PB rollingAvg: 점이 200개 넘으면 10개, 아
 function vaTrend(F) {
   const h = vaS.hist;
   if (!h) { if (!vaS.histErr) vaLoadHist(); return vaSec('PER 추이', '', `<div class="empty">${vaS.histErr ? 'PER 기록을 읽지 못했습니다.' : '불러오는 중…'}</div>`); }
-  const x = vaS.mk?.by[F.code], mkt = x?.market === 'KOSDAQ' ? 'KOSDAQ' : 'KOSPI', yrs = vaS.trd || '5';
+  const x = F ? vaS.mk?.by[F.code] : null, mkt = x?.market === 'KOSDAQ' ? 'KOSDAQ' : 'KOSPI', yrs = vaS.trd || '5';
   const cut = yrs === 'all' ? '' : (() => { const d = new Date(); d.setFullYear(d.getFullYear() - +yrs); return d.toISOString().slice(0, 10); })();
-  const ds = h.dates, a = h.per[F.code];
+  const ds = h.dates, a = F ? h.per[F.code] : null;
   const mPts = ds.map((d, i) => ({ d, v: h.mkt[mkt][i] })).filter((p) => p.v && p.d >= cut);
-  const sPts = a ? a.slice(1).map((v, i) => ({ d: ds[a[0] + i], v })).filter((p) => p.v && p.d >= cut) : [];
+  // 회사를 고르지 않으면 코스피(파랑)와 코스닥(회색) 중앙값을 같이 그림
+  const sPts = F ? (a ? a.slice(1).map((v, i) => ({ d: ds[a[0] + i], v })).filter((p) => p.v && p.d >= cut) : []) : ds.map((d, i) => ({ d, v: h.mkt.KOSDAQ?.[i] })).filter((p) => p.v && p.d >= cut);
   const seg = vaSeg('trd', [['1', '1년'], ['3', '3년'], ['5', '5년'], ['all', '전체']], yrs);
   if (mPts.length < 2) return vaSec('PER 추이', seg, '<div class="empty">기록이 쌓이는 중입니다.</div>');
   const M = vaSmooth(mPts), S = vaSmooth(sPts);
-  const W = vaCw(), H = W < 480 ? 210 : 260, P = { l: 40, r: 56, t: 12, b: 30 };
+  const W = vaCw(), H = W < 360 ? 210 : 260, P = { l: 40, r: 56, t: 12, b: 30 };
   const t0 = Date.parse(M[0].d), t1 = Date.parse(M[M.length - 1].d), vs = [...M, ...S].map((p) => p.v);
   const lo = Math.min(...vs), hi = Math.max(...vs), pad = (hi - lo) * 0.12 || 2, y0 = lo - pad, y1 = hi + pad;
   const X = (d) => P.l + ((Date.parse(d) - t0) / Math.max(1, t1 - t0)) * (W - P.l - P.r), Y = (v) => P.t + (1 - (v - y0) / (y1 - y0)) * (H - P.t - P.b);
@@ -593,23 +630,94 @@ function vaTrend(F) {
   const lm = M[M.length - 1], ls = S.length > 1 ? S[S.length - 1] : null, gap = ls ? Y(ls.v) - Y(lm.v) : 99, nudge = Math.abs(gap) < 14 ? (14 - Math.abs(gap)) / 2 * (gap < 0 ? -1 : 1) : 0;
   const end = (p, cls, dy) => `<text x="${(X(p.d) + 6).toFixed(1)}" y="${(Y(p.v) + 4 + dy).toFixed(1)}" class="${cls}">${vaNum(p.v, 1)}배</text>`;
   const svg = `<svg viewBox="0 0 ${W} ${H}" class="va-sc va-tr" role="img" aria-label="PER 추이">${yt}${xt}<path d="${path(M)}" class="mk"/>${S.length > 1 ? `<path d="${path(S)}" class="me"/>` : ''}${end(lm, 'el mk', -nudge)}${ls ? end(ls, 'el me', nudge) : ''}</svg>`;
-  const raw = sPts.map((p) => p.v);
-  const kv = raw.length < 2 ? [['지금', vaX(raw[0] ?? x?.per)], [`${mkt} 중앙값`, vaX(mPts[mPts.length - 1].v)]] : [['지금', vaX(raw[raw.length - 1])], ['기간 중앙값', vaX(vaQuant(raw, 0.5))], ['25～75%', `${vaNum(vaQuant(raw, 0.25), 1)}～${vaNum(vaQuant(raw, 0.75), 1)}배`], ['최저～최고', `${vaNum(Math.min(...raw), 1)}～${vaNum(Math.max(...raw), 1)}배`], [`${mkt} 중앙값`, vaX(mPts[mPts.length - 1].v)]];
-  const leg = `<div class="va-leg"><span class="tg">${esc(F.name)}</span><span class="cv">${mkt} 중앙값</span></div>`;
-  const note = sPts.length < 2 ? `<p class="va-note">${esc(F.name)} 기록은 ${esc(sPts[0]?.d || ds[ds.length - 1])}부터 쌓는 중</p>` : '';
-  return vaSec('PER 추이', seg, `<dl class="va-kv va-mkv">${kv.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>${leg}<div class="va-scw">${svg}</div>${note}`);
+  const raw = sPts.map((p) => p.v), mr = mPts.map((p) => p.v), last = (xs) => xs[xs.length - 1];
+  let kv, leg, note = '';
+  if (!F) { // 코스닥은 진한 선(me), 코스피는 회색 선(mk)
+    kv = [['코스피 중앙값', vaX(last(mr))], ['코스닥 중앙값', vaX(last(raw))], ['기간', `${mPts[0].d.slice(2, 7).replace('-', '.')}～${last(mPts).d.slice(2, 7).replace('-', '.')}`]];
+    leg = '<div class="va-leg"><span class="tg">코스닥 중앙값</span><span class="cv">코스피 중앙값</span></div>';
+  } else {
+    kv = raw.length < 2 ? [['지금', vaX(raw[0] ?? x?.per)], [`${mkt} 중앙값`, vaX(last(mr))]] : [['지금', vaX(last(raw))], ['기간 중앙값', vaX(vaQuant(raw, 0.5))], [`${mkt === 'KOSDAQ' ? '코스닥' : '코스피'} 중앙값`, vaX(last(mr))]];
+    leg = `<div class="va-leg"><span class="tg">${esc(F.name)}</span><span class="cv">${mkt === 'KOSDAQ' ? '코스닥' : '코스피'} 중앙값</span></div>`;
+    note = sPts.length < 2 ? `<p class="va-note">${esc(F.name)} 기록은 ${esc(sPts[0]?.d || ds[ds.length - 1])}부터 쌓는 중</p>` : '';
+  }
+  return vaSec('PER 추이', seg, `<dl class="va-mini">${kv.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>${leg}<div class="va-scw">${svg}</div>${note}`);
+}
+
+// ---------- 평가한 회사 목록(회사를 고르지 않은 재무분석, 요약, 상대가치평가, 절대가치평가) ----------
+function vaPickList() {
+  const done = vaDone();
+  if (!done.length) return '<div class="card"><div class="empty">아직 평가한 회사가 없습니다.</div></div>';
+  const rows = done.map((o) => {
+    let tp = null, up = null, close = null, day = '';
+    if (o.v3?.py?.blend) { const b = o.v3.py.blend; tp = b.target; up = b.up; close = o.v3.target.close; day = o.v3.target.val_date || ''; }
+    else if (o.rel) { const t = vaTarget(o.rel, vaCalc(o.rel)); tp = t ? Math.round(t.ps / 100) * 100 : null; up = t?.up; close = o.rel.target.close; day = o.rel.day; }
+    const kinds = [o.rel ? '상대가치' : '', o.v3 ? '절대가치' : ''].filter(Boolean).join(', ');
+    return `<tr class="va-prow" data-va-pick="${esc(o.code)}" tabindex="0"><td class="st"><b>${esc(o.name)}</b><small>${esc(o.code)}</small></td><td><b>${vaWon(tp)}</b></td><td>${vaUp(up) || '-'}</td><td>${vaWon(close)}</td><td>${esc(kinds)}</td><td>${esc(day)}</td></tr>`;
+  }).join('');
+  return vaSec('평가한 회사', `<span class="meta">${done.length}곳</span>`, `<div class="mk-scroll"><table class="mk-tbl va-plist"><thead><tr><th class="st">회사</th><th>목표주가</th><th>상승여력</th><th>현재가</th><th>평가</th><th>기준일</th></tr></thead><tbody>${rows}</tbody></table></div>`);
+}
+
+// ---------- 요약 탭: 결합 목표주가, 풋볼필드, 상대가치평가와 절대가치평가 한 장씩 ----------
+const vaGoTab = (k, label) => `<button type="button" class="va-link" data-va-vt="${k}">${label}${ico('right', 'sm')}</button>`;
+function vaBrief() {
+  const code = vaCode();
+  if (!code) return vaPickList();
+  const c = vaCase(), vs = vaV3Of(code), vc = vs.find((y) => y.id === v3S.cid) || vs[0];
+  if (!c && !vc) return `<div class="card va-none"><div class="empty">아직 평가하지 않은 회사입니다.</div></div>${vaPickList()}`;
+  const r = c ? vaCalc(c) : null, tp = c ? vaTarget(c, r) : null;
+  let x = null;
+  if (vc) try { x = v3Model(vc); } catch (e) { console.error(e); }
+  const round = (v) => (v == null ? null : Math.round(v / 100) * 100);
+  const close = x ? x.t.close : c.target.close, day = x ? x.t.val_date : c.day;
+  const relPs = x ? x.res.blend?.rel : round(tp?.ps), relUp = relPs && close ? relPs / close - 1 : null;
+  const cell = (lab, val, sub, cls = '') => `<div class="${cls}"><span>${lab}</span><b>${val}</b><em>${sub || ''}</em></div>`;
+  let kpi;
+  if (x) {
+    const bl = x.res.blend || {}, wd = bl.w_dcf, typ = v3DcfTyp(x), dv = typ ? bl.dcf : x.res.wavg?.ok === false ? null : x.res.wavg?.ps;
+    const wt = (w) => (w > 0 && w < 1 ? ` <small>비중 ${vaNum(w * 100)}%</small>` : '');
+    kpi = cell('목표주가', vaWon(bl.target), vaUp(bl.up), 'tp') + cell(`${esc(v3DcfName(x))}${wt(wd)}`, vaWon(dv), vaUp(dv && close ? dv / close - 1 : null))
+      + cell(`상대가치${wt(1 - wd)}`, vaWon(bl.rel), bl.rel_blocked ? '유형에 맞지 않아 뺌' : vaUp(relUp)) + cell('현재가', vaWon(close), esc(day || ''));
+  } else {
+    const nm = tp?.parts.map((p) => p.nm).join(', ') || '', st = nm && r.st[r.s.base][tp.parts[0].nm];
+    kpi = cell('목표주가', vaWon(round(tp?.ps)), vaUp(tp?.up), 'tp') + cell(`평가 배수 ${esc(nm)}`, st ? vaX(st.median) : '-', st ? `${esc(VA_PER[r.s.base])}, 비교기업 ${st.n}곳 중앙값` : '')
+      + cell('증권사 목표가 평균', vaWon(c.target.target_mean), '') + cell('현재가', vaWon(close), esc(day || ''));
+  }
+  const head = `<section class="card va-brief"><div class="v3-kpi">${kpi}</div></section>`;
+  const ff = x ? v3Try(v3qFf, x, vc) : vaSec('풋볼필드', '', vaFootball(c, r));
+  // 상대가치평가 한 장
+  let rel;
+  if (c) {
+    const s = r.s, lead = tp?.parts.map((p) => p.nm) || c.primary.slice(0, 1), nm = lead[0], st = r.st[s.base][nm], item = VA_MULT[nm]?.[1], m = c.target.metrics[s.base] || {};
+    const peers = vaUse(c, s).map((p) => p.name);
+    rel = vaSec('상대가치평가', vaGoTab('rel', '자세히'), `<div class="va-bv"><span>주당 가치</span><b>${vaWon(round(tp?.ps))}</b>${vaUp(tp?.up)}</div>
+      <dl class="va-asm"><div><dt>평가 배수</dt><dd>${esc(lead.join(', '))}, ${esc(VA_PER[s.base])}</dd></div><div><dt>Target ${esc(nm)}</dt><dd>${vaX(st?.median)} <small>${st?.n ?? 0}곳 중앙값</small></dd></div>
+      <div><dt>${esc(VA_PER[s.base])} ${esc(VA_MET[item] || '')}</dt><dd>${vaNum(m[item])}억</dd></div></dl>
+      ${peers.length ? `<div class="va-chips">${peers.map((n) => `<span>${esc(n)}</span>`).join('')}</div>` : ''}`);
+  } else rel = vaSec('상대가치평가', '', `<div class="va-bv"><span>주당 가치</span><b>${vaWon(relPs)}</b>${vaUp(relUp)}</div><p class="va-note">상대가치평가 사례 없이 절대가치평가 입력의 값</p>`);
+  // 절대가치평가 한 장
+  let abs = '';
+  if (x) {
+    const sc = x.res.scen || {}, wt = x.sw.weights || {}, V = (id, S = 'Base') => v3V(x, id, 0, S), wv = x.res.wavg || {};
+    const rows = V3_SCEN.map((S) => `<tr><td class="st">${v3pDot(S)}${S}</td><td>${vaWon(sc[S]?.ps)}</td><td>${vaUp(sc[S]?.up) || '-'}</td><td>${v3Pct(wt[S])}</td></tr>`).join('');
+    abs = vaSec('절대가치평가', vaGoTab('dcf', '자세히'), `<div class="va-bv"><span>${esc(v3DcfName(x))}</span><b>${vaWon(wv.ps)}</b>${vaUp(wv.up)}</div>
+      <div class="mk-scroll"><table class="mk-tbl va-sct"><thead><tr><th class="st">시나리오</th><th>주당 가치</th><th>상승여력</th><th>가중치</th></tr></thead><tbody>${rows}</tbody></table></div>
+      <dl class="va-asm"><div><dt>WACC</dt><dd>${v3Pct(V('WACC.wacc'), 2)}</dd></div><div><dt>영구성장률</dt><dd>${v3Pct(V('DCF.g_s'), 2)}</dd></div><div><dt>추정 기간</dt><dd>명시 ${x.tl.N}년${x.tl.M ? `, 전환 ${x.tl.M}년` : ''}</dd></div><div><dt>종료가치 비중</dt><dd>${v3Pct(V('DCF.tv_share'), 1)}</dd></div></dl>`);
+  }
+  const memo = c?.conclusion ? vaSec('판단 메모', '', `<p class="va-prof">${esc(c.conclusion)}</p>`) : '';
+  return `${head}${ff}<div class="va-two">${rel}${abs}</div>${memo}`;
 }
 
 // ---------- 그리기 ----------
-function vaDraw() { // 요약, 상대가치평가 탭 본문
-  const host = $('#va-host'); if (!host || (vaS.vt !== 'sum' && vaS.vt !== 'rel')) return;
+function vaDraw() { // 시장동향, 요약, 상대가치평가 탭 본문
+  const host = $('#va-host'); if (!host || !['mkt', 'sum', 'rel'].includes(vaS.vt)) return;
   vaS.cw = host.clientWidth;
-  if (vaS.vt === 'sum') { host.innerHTML = vaSumTab(); vaSave(); return; }
+  if (vaS.vt === 'mkt') { host.innerHTML = vaMktTab(); vaSave(); return; }
+  if (vaS.vt === 'sum') { host.innerHTML = vaBrief(); vaSave(); return; }
   if (vaS.err) { host.innerHTML = `<div class="card"><div class="empty">${esc(vaS.err)}</div></div>`; return; }
   const c = vaCase(), code = vaCode();
-  if (!c) { // 리서치한 평가가 없는 회사는 Peer 비교만
+  if (!c) { // 회사를 고르지 않았으면 평가한 회사 목록, 리서치한 평가가 없는 회사는 Peer 비교
     const x = code && vaS.mk?.by[code];
-    host.innerHTML = x ? vaPeerQ(vaFocusQuick(code), x) : `<div class="card"><div class="empty">${code ? '리서치한 평가가 없는 회사입니다.' : '아직 리서치한 평가가 없습니다. 위에서 회사를 찾으면 Peer와 비교해 볼 수 있습니다.'}</div></div>`;
+    host.innerHTML = !code ? vaPickList() : x ? vaPeerQ(vaFocusQuick(code), x) : '<div class="card"><div class="empty">상대가치평가가 없는 회사입니다.</div></div>';
     vaSave(); return;
   }
   vaS.cid = c.id;
@@ -620,34 +728,58 @@ function vaDraw() { // 요약, 상대가치평가 탭 본문
 }
 const vaCase = () => { const code = vaCode(), cs = (vaS.data?.cases || []).filter((x) => x.target.code === code); return cs.find((x) => x.id === vaS.cid) || cs[0] || null; }; // 지금 보는 회사의 평가 사례
 
-function vaShow() { // 회사 줄을 다시 그리고 지금 탭 본문을 그 회사로 바꿈. 절대가치평가는 v3가 자기 사례로 그려 둔 그대로
+function vaShow() { // 회사 줄을 다시 그리고 지금 탭 본문을 그 회사로 바꿈
   const co = $('#va-co'); if (co) co.innerHTML = vaCoBar();
-  if (vaS.vt === 'fin') vaFin(); else vaDraw();
+  if (vaS.vt === 'fin') vaFin(); else if (vaS.vt === 'dcf') vaDcf(); else vaDraw();
   vaSave();
 }
-function vaFin() { // 재무분석은 valuation_fin.js 가 그린다. 회사를 바꿀 때마다 새 칸을 넘겨 이벤트가 겹치지 않게 함
-  const old = $('#va-host'); if (!old) return;
-  const host = old.cloneNode(false), code = vaCode();
+function vaFresh() { // 회사를 바꿀 때마다 새 칸을 넘겨 이벤트가 겹치지 않게 함(재무분석, 절대가치평가)
+  const old = $('#va-host'); if (!old) return null;
+  const host = old.cloneNode(false);
+  host.removeAttribute('data-v3');
   old.replaceWith(host);
+  host.addEventListener('click', (e) => { const pk = e.target.closest('[data-va-pick]'); if (pk && !host.hasAttribute('data-v3')) vaGo(pk.dataset.vaPick); });
+  return host;
+}
+function vaFin() { // 재무분석은 valuation_fin.js 가 그린다
+  const host = vaFresh(), code = vaCode(); if (!host) return;
   const msg = (t) => { host.innerHTML = `<div class="card"><div class="empty">${esc(t)}</div></div>`; };
-  if (!code) return msg('위에서 회사를 찾아 주세요.');
+  if (!code) { host.innerHTML = vaPickList(); return; }
   if (typeof renderFin !== 'function') return msg('준비 중입니다.');
   try { Promise.resolve(renderFin(host, code)).catch((e) => msg(e.message)); } catch (e) { msg(e.message); }
 }
+function vaDcf() { // 절대가치평가: 고른 회사의 v3 사례(valuation_v3.js). v3 사례가 하나도 없으면 예전 DCF 화면
+  const host = vaFresh(), code = vaCode(); if (!host) return;
+  if (typeof renderV3 !== 'function') { host.innerHTML = typeof renderDcf === 'function' ? '' : '<div class="card"><div class="empty">준비 중입니다.</div></div>'; if (typeof renderDcf === 'function') renderDcf(host); return; }
+  if (!v3Cases().length) { renderV3(host); return; }
+  if (!code) { host.innerHTML = vaPickList(); return; }
+  const cs = vaV3Of(code);
+  if (!cs.length) { host.innerHTML = `<div class="card va-none"><div class="empty">절대가치평가가 없는 회사입니다.</div></div>${vaPickList()}`; return; }
+  if (!cs.some((c) => c.id === v3S.cid)) v3S.cid = cs[0].id;
+  renderV3(host);
+}
 
-function vaBindCo(co) { // 회사 줄: 검색해서 고르기
+function vaBindCo(co) { // 회사 줄: 검색해서 고르기, 평가한 회사 바로가기, 선택 해제
   co.addEventListener('input', (e) => {
     if (e.target.matches('[data-va-q]')) { vaS.q = e.target.value; const box = $('#va-sug'); if (box) box.innerHTML = vaSug(vaS.q); }
   });
   co.addEventListener('click', (e) => {
     const pk = e.target.closest('[data-va-pick]');
     if (pk) { vaGo(pk.dataset.vaPick); return; }
-    if (e.target.closest('[data-va-back]')) { const cs = vaS.data?.cases || [], c = cs.find((x) => x.id === vaS.cid) || cs[0]; if (c) vaGo(c.target.code); }
+    if (e.target.closest('[data-va-clear]')) vaGo(null);
   });
 }
 
 function vaBind(host) {
+  host.addEventListener('keydown', (e) => { const pk = e.key === 'Enter' && e.target.closest('tr[data-va-pick]'); if (pk) vaGo(pk.dataset.vaPick); });
   host.addEventListener('click', (e) => {
+    const pk = e.target.closest('[data-va-pick]');
+    if (pk) { vaGo(pk.dataset.vaPick); return; }
+    const vt = e.target.closest('[data-va-vt]');
+    if (vt) { location.hash = `#valuation/${vt.dataset.vaVt}`; return; }
+    const gp = e.target.closest('[data-va-grp]');
+    if (gp) { vaS.gsel = { lv: vaS.lv || 'sector', name: gp.dataset.vaGrp }; vaDraw(); return; }
+    if (e.target.closest('[data-va-gall]')) { vaS.gAll = !vaS.gAll; vaDraw(); return; }
     const qc = vaCase() ? null : vaCode(); // 리서치한 평가가 없는 회사면 그 종목코드(Peer를 직접 고르는 회사)
     const pa = e.target.closest('[data-va-padd]');
     if (pa && qc) { const l = (vaS.qp[qc] ||= []); if (pa.dataset.vaPadd !== qc && !l.includes(pa.dataset.vaPadd)) l.push(pa.dataset.vaPadd); vaS.pq = ''; vaDraw(); return; }
@@ -707,43 +839,41 @@ async function vaDownload(btn, c) {
   finally { btn.disabled = false; }
 }
 
-const VA_VT = [['sum', '요약', 'grid'], ['fin', '재무분석', 'file'], ['rel', '상대가치평가', 'chart'], ['dcf', '절대가치평가', 'calc']];
-let vaRO = null; // 요약 탭 폭이 바뀌면(창 크기, 요청사항 칸) 차트를 그 폭으로 다시 그림
+const VA_VT = [['mkt', '시장동향', 'globe'], ['fin', '재무분석', 'file'], ['sum', '요약', 'grid'], ['rel', '상대가치평가', 'chart'], ['dcf', '절대가치평가', 'calc']];
+let vaRO = null; // 시장동향, 요약 탭 폭이 바뀌면(창 크기, 요청사항 칸) 차트를 그 폭으로 다시 그림
 async function renderValuation() {
-  const vt = (location.hash.match(/^#valuation\/(fin|rel|dcf)\b/) || [])[1] || 'sum';
+  const vt = (location.hash.match(/^#valuation\/(fin|sum|rel|dcf)\b/) || [])[1] || 'mkt';
   vaS.vt = vt;
-  PAGE.innerHTML = `<div class="page-head"><h1>가치평가</h1><span class="mk-upd" id="va-upd"></span>${vt === 'sum' || vt === 'rel' ? `<div class="tools va-pc">${infoBtn('valuation')}</div>` : ''}</div>
+  PAGE.innerHTML = `<div class="page-head"><h1>가치평가</h1><span class="mk-upd" id="va-upd"></span>${['mkt', 'sum', 'rel'].includes(vt) ? `<div class="tools va-pc">${infoBtn('valuation')}</div>` : ''}</div>
     <div class="deal-seg va-vt" role="tablist">${VA_VT.map(([k, t, i]) => `<button type="button" role="tab" aria-selected="${k === vt}" class="${k === vt ? 'on' : ''}" data-vt="${k}">${ico(i)}${t}</button>`).join('')}</div>
     <div id="va-co" class="va"></div>
     <div id="va-host" class="mk va"><div class="card"><div class="empty">불러오는 중…</div></div></div>`;
-  PAGE.querySelectorAll('[data-vt]').forEach((b) => b.addEventListener('click', () => { location.hash = b.dataset.vt === 'sum' ? '#valuation' : `#valuation/${b.dataset.vt}`; }));
+  PAGE.querySelectorAll('[data-vt]').forEach((b) => b.addEventListener('click', () => { location.hash = b.dataset.vt === 'mkt' ? '#valuation' : `#valuation/${b.dataset.vt}`; }));
   const host = $('#va-host');
   vaBindCo($('#va-co'));
   vaRO?.disconnect();
-  if (vt === 'dcf') { // 모델 v3 사례가 있으면 v3 화면(valuation_v3.js), 없으면 renderV3가 renderDcf로 넘김
-    if (typeof renderV3 === 'function') renderV3(host); else if (typeof renderDcf === 'function') renderDcf(host); else host.innerHTML = '<div class="card"><div class="empty">준비 중입니다.</div></div>';
-  } else if (vt !== 'fin') vaBind(host);
-  if (vt === 'sum' && typeof ResizeObserver === 'function') {
+  if (['mkt', 'sum', 'rel'].includes(vt)) vaBind(host);
+  if ((vt === 'mkt' || vt === 'sum') && typeof ResizeObserver === 'function') {
     let t = 0;
-    vaRO = new ResizeObserver(() => { clearTimeout(t); t = setTimeout(() => { if (host.isConnected && vaS.vt === 'sum' && vaS.cw && Math.abs(host.clientWidth - vaS.cw) > 4) vaDraw(); }, 150); });
+    vaRO = new ResizeObserver(() => { clearTimeout(t); t = setTimeout(() => { if (host.isConnected && vaS.vt === vt && vaS.cw && Math.abs(host.clientWidth - vaS.cw) > 4) vaDraw(); }, 150); });
     vaRO.observe(host);
   }
-  await Promise.all([vaLoad(), vaLoadMkt()]);
-  if (!host.isConnected) return; // 불러오는 사이 다른 화면으로 감
-  const u = new Date((vt === 'sum' ? vaS.mk?.generated_at : vt === 'rel' ? vaS.data?.updated_at : null) || NaN);
+  await Promise.all([vaLoad(), vaLoadMkt(), typeof v3Load === 'function' ? v3Load().catch(() => {}) : null]);
+  if (!$('#va-co')?.isConnected) return; // 불러오는 사이 다른 화면으로 감
+  const u = new Date((vt === 'mkt' ? vaS.mk?.generated_at : vt === 'rel' ? vaS.data?.updated_at : vt === 'sum' ? v3S?.data?.updated_at || vaS.data?.updated_at : null) || NaN);
   if (!isNaN(u)) $('#va-upd').textContent = `${u.getMonth() + 1}/${u.getDate()} ${pad(u.getHours())}:${pad(u.getMinutes())} 업데이트`;
   vaShow();
 }
 
 TAB_INFO.valuation = { title: '가치평가', rows: [
-  ['이 화면', '회사 하나를 골라 요약, 재무분석, 상대가치평가, 절대가치평가 네 탭으로 봅니다. 탭 아래 검색에서 고른 회사는 탭을 옮겨도 그대로입니다. 리서치한 평가가 없는 상장사도 요약과 상대가치평가의 Peer 비교는 볼 수 있습니다.'],
-  ['탭', ['요약: 시장과 업종 안에서 이 회사 PER이 어디쯤인지. PER 분포, PER 추이, 업종별 PER 비교, 업종 안 PER 분포와 접힌 구역 둘(비교기업 위치 표, PER 회귀)', '재무분석: 고른 회사의 재무제표 분석', '상대가치평가: 리서치한 평가가 있으면 결과, 배수 상세, 검증, 선정 근거. 없으면 Peer 비교', '절대가치평가: DCF 모델. 평가 사례는 그 탭 머리에서 따로 고름', '회사 검색: 리서치한 평가가 있는 회사는 검색 결과에 표시. 「리서치한 평가 보기」는 마지막에 본 평가 회사로 돌아감']],
-  ['요약 읽는 법', ['위 숫자: 최근 4분기 PER, 추정 PER, 시장 안에서 PER이 낮은 쪽부터 몇 %에 있는지, 시장 중앙값, 업종별 비교에서 고른 분류의 중앙값, 시가총액. 추정 이익이 적자면 「적자」', '전체, 코스피, 코스닥과 최근 4분기 PER, 추정 PER 선택은 분포 두 칸, 업종별 비교, 위 숫자에 같이 적용. PER 추이는 늘 최근 4분기 PER', 'PER 분포: 코스피, 코스닥 전 종목(우선주, 스팩 제외) 가운데 PER 0～200배 종목을 구간별로 센 막대. 구간 폭은 30배까지 5배, 그 뒤는 10배, 25배, 125배. 점선은 중앙값과 평균, 파란 굵은 점선과 이름표는 고른 회사. PER이 없거나 200배 이상이면 선 없이 그림 아래에 적음', '업종별 PER 비교: 분류 단계(FnGuide 대분류, 중분류, 소분류, 네이버 테마)를 고름. 줄마다 연한 막대는 25～75% 구간, 세로선은 중앙값, 오른쪽은 중앙값과 종목 수. 진한 줄은 고른 회사가 속한 업종, 파란 점은 고른 회사 PER', '대분류는 5곳 이상인 업종 모두. 중분류와 소분류는 고른 회사와 같은 상위 분류에 든 업종을 먼저 넣고 종목 수가 많은 업종으로 채워 10개까지', '테마: 고른 회사가 든 테마마다 한 줄(한 종목이 여러 테마에 듦). 10개가 넘으면 종목 수가 많은 테마부터 보이고 나머지는 펼쳐 봄. 줄을 누르면 업종 안 분포가 그 테마로 바뀜', '업종 안 PER 분포: 업종별 비교에서 고른 분류 단계에서 고른 회사가 속한 업종(테마면 누른 테마)의 종목만 모은 분포. 10곳 미만이면 회사별 PER 막대, 세로선은 중앙값', 'PER 추이: 고른 회사의 최근 4분기 PER과 그 회사 시장(KOSPI, KOSDAQ) 중앙값. 손PB와 같이 점이 200개 넘으면 10개, 아니면 4개씩 이동평균. 시장 중앙값은 PER 2～500배, 금융 업종 제외. 평일 16:30에 쌓고, 그 전 기록은 손PB가 2016-05부터 모은 같은 네이버 PER(시장 중앙값과 리서치 사례 회사만, 2025년까지는 주 1회)', '추이 위 숫자: 지금, 기간 중 PER 중앙값, 25～75%, 최저～최고(이동평균 전 값)', '위치 표: 리서치한 평가가 있으면 대상과 국내 비교기업, 없으면 고른 회사와 상대가치평가 탭에서 넣은 Peer. 이익 성장률은 최근 4분기 PER ÷ 추정 PER − 1, 괴리는 회귀 적정 PER ÷ 지금 PER − 1', 'PER 회귀: 이익 성장률이 같을 때 시장이 주는 PER을 보는 보조 지표. 손PB 상대가치 화면과 같은 식. log(PER) = 상수 + 성장률 계수 × 이익 성장률 + 베타 계수 × 베타 + 업종 더미. 표본은 최근 4분기 PER 2～500배, 추정 PER 0～200배, 성장률 0～500%, 베타 −1～4인 회사, 업종 5곳 미만은 기준 업종. 가로축은 200%에서 자름. 성장률이 0 이하인 회사는 직접 넣으면 단순 회귀 곡선으로 계산']],
+  ['이 화면', '시장동향, 재무분석, 요약, 상대가치평가, 절대가치평가 다섯 탭입니다. 처음에는 고른 회사가 없고, 탭 아래 검색이나 평가한 회사 단추로 고르면 탭을 옮겨도 그대로입니다. 이름 옆 ×로 선택을 풉니다.'],
+  ['탭', ['시장동향: 회사를 고르지 않으면 시장과 업종끼리 PER 비교(전 상장사 분포, 코스피와 코스닥 중앙값 추이, 업종별 비교, 업종 안 분포). 고르면 그 회사가 어디쯤인지와 접힌 구역 둘(비교기업 위치 표, PER 회귀)', '재무분석: 고른 회사의 재무제표 분석', '요약: 결합 목표주가, 풋볼필드, 상대가치평가와 절대가치평가 핵심 값. 「자세히」로 각 탭에 감', '상대가치평가: 리서치한 평가가 있으면 결과, 배수 상세, 검증, 선정 근거. 없으면 Peer 비교', '절대가치평가: 고른 회사의 DCF 모델', '회사를 고르지 않은 재무분석, 요약, 상대가치평가, 절대가치평가는 평가한 회사 목록. 줄을 누르면 그 회사로 감']],
+  ['시장동향 읽는 법', ['업종별 PER 비교의 줄을 누르면 업종 안 PER 분포가 그 업종으로 바뀜. 고른 줄은 파란 바탕, 고른 회사의 업종은 이름 옆 파란 점', '회사를 고르지 않았을 때 위 숫자: 시장 중앙값, 평균, 25～75%, 코스피와 코스닥 중앙값, PER 있는 종목 수', '고른 회사가 있을 때 위 숫자: 최근 4분기 PER, 추정 PER, 시장 안에서 PER이 낮은 쪽부터 몇 %에 있는지, 시장 중앙값, 업종별 비교에서 고른 분류의 중앙값, 시가총액. 추정 이익이 적자면 「적자」', '전체, 코스피, 코스닥과 최근 4분기 PER, 추정 PER 선택은 분포 두 칸, 업종별 비교, 위 숫자에 같이 적용. PER 추이는 늘 최근 4분기 PER', 'PER 분포: 코스피, 코스닥 전 종목(우선주, 스팩 제외) 가운데 PER 0～200배 종목을 구간별로 센 막대. 구간 폭은 30배까지 5배, 그 뒤는 10배, 25배, 125배. 실선은 중앙값, 점선은 평균(값은 그림 위 숫자 줄), 파란 점선과 이름표는 고른 회사. PER이 없거나 200배 이상이면 선 없이 그림 아래에 적음', '업종별 PER 비교: 분류 단계(FnGuide 대분류, 중분류, 소분류, 네이버 테마)를 고름. 줄마다 연한 막대는 25～75% 구간, 세로선은 중앙값, 오른쪽은 중앙값과 종목 수. 진한 줄은 고른 회사가 속한 업종, 파란 점은 고른 회사 PER', '대분류는 5곳 이상인 업종 모두. 중분류와 소분류는 고른 회사와 같은 상위 분류에 든 업종을 먼저 넣고 종목 수가 많은 업종으로 채워 10개까지', '테마: 고른 회사가 든 테마마다 한 줄(한 종목이 여러 테마에 듦). 10개가 넘으면 종목 수가 많은 테마부터 보이고 나머지는 펼쳐 봄. 줄을 누르면 업종 안 분포가 그 테마로 바뀜', '업종 안 PER 분포: 업종별 비교에서 고른 분류 단계에서 고른 회사가 속한 업종(테마면 누른 테마)의 종목만 모은 분포. 10곳 미만이면 회사별 PER 막대, 세로선은 중앙값', 'PER 추이: 고른 회사의 최근 4분기 PER과 그 회사 시장(코스피, 코스닥) 중앙값. 회사를 고르지 않으면 코스피와 코스닥 중앙값. 손PB와 같이 점이 200개 넘으면 10개, 아니면 4개씩 이동평균. 시장 중앙값은 PER 2～500배, 금융 업종 제외. 평일 16:30에 쌓고, 그 전 기록은 손PB가 2016-05부터 모은 같은 네이버 PER(시장 중앙값과 리서치 사례 회사만, 2025년까지는 주 1회)', '추이 위 숫자: 지금, 기간 중 PER 중앙값(이동평균 전 값), 시장 중앙값', '위치 표: 리서치한 평가가 있으면 대상과 국내 비교기업, 없으면 고른 회사와 상대가치평가 탭에서 넣은 Peer. 이익 성장률은 최근 4분기 PER ÷ 추정 PER − 1, 괴리는 회귀 적정 PER ÷ 지금 PER − 1', 'PER 회귀: 이익 성장률이 같을 때 시장이 주는 PER을 보는 보조 지표. 손PB 상대가치 화면과 같은 식. log(PER) = 상수 + 성장률 계수 × 이익 성장률 + 베타 계수 × 베타 + 업종 더미. 표본은 최근 4분기 PER 2～500배, 추정 PER 0～200배, 성장률 0～500%, 베타 −1～4인 회사, 업종 5곳 미만은 기준 업종. 가로축은 200%에서 자름. 성장률이 0 이하인 회사는 직접 넣으면 단순 회귀 곡선으로 계산']],
   ['상대가치평가', '비슷한 상장사들의 배수(PER, EV/EBITDA 등) 중앙값을 대상 회사 이익에 곱해 적정 주가를 봅니다. 비교기업 선정과 해외 배수, 시나리오 근거는 리서치로 채우고, 계산은 이 화면과 엑셀이 같은 식으로 합니다.'],
   ['바꿔 볼 수 있는 것', ['배수 표의 체크를 풀거나 켜면 그 회사를 빼거나 넣고 다시 계산', '비교기업 범위: 국내만, 해외만, 국내와 해외. 「국내와 해외 따로」 표는 범위와 상관없이 셋 다 보여 줌', '기준 기간: 최근 4분기, 올해 추정, 내년 추정', 'PER 10～50배만: 증권신고서 관행대로 PER이 10배 미만이거나 50배 초과인 비교기업을 PER 통계에서 뺌', '적용 결과 표의 조정(%): 할증은 +, 할인은 −', '처음 구성으로: 리서치에서 정한 구성으로 되돌림']],
   ['배수 정의', { table: [['배수', '분자', '분모'], ['PER', '시가총액', '지배주주 순이익'], ['PBR', '시가총액', '지배주주 자본'], ['EV/EBITDA', 'EV', 'EBITDA'], ['EV/EBIT', 'EV', '영업이익'], ['EV/Sales', 'EV', '매출']] }],
   ['금액 정의', ['시가총액: 자사주를 뺀 보통주 수 × 종가 + 우선주(상장이면 우선주 종가, 비상장이면 보통주 종가로 1:1 가정)', 'EV: 시가총액 + 순부채 + 비지배지분', '순부채: 이자발생부채(전환사채, 리스 포함) − 현금, 단기금융상품, 단기 당기손익공정가치 금융자산', '배수와 이익은 같은 기간끼리 곱함. 대표값은 중앙값, 범위는 25%～75%', 'EV 배수로 구한 주주가치 = 배수 × 지표 − 순부채 − 비지배지분 + 비영업자산']],
   ['상대가치평가 읽는 법', ['안쪽 탭: 결과(풋볼필드와 목표주가, 배수별 평가표, 비교기업 선정), 배수 상세(국내와 해외 따로, 배수별 범위, 회사별 배수, 적용 결과), 검증(한 회사씩 빼기, 시나리오), 선정 근거(단계별 기준과 회사별 이유)', '풋볼필드: 52주 고저, 증권사 목표가 최저～최고, 배수별 Bear～Bull(시나리오가 없으면 25～75%). 회색 점선은 현재가, 빨간 점선은 목표주가', '목표주가: 평가 배수 하나로 계산(100원 단위 반올림). 기본은 PER, 금융업은 PBR, 순이익 적자면 EV/EBITDA, EBITDA도 적자면 EV/Sales(국내 IPO 증권신고서와 셀사이드 관행). 리서치에서 바꿀 수 있고, 다른 배수는 풋볼필드 「참고」 줄과 교차 확인 표로만 봄', '배수별 평가표: 막대 세로선이 Target 배수(비교기업 중앙값), 표는 지표 × Target 배수 = 주당 가치', '범위 막대(배수 상세): 비교기업 배수 25～75% 구간을 대상 회사에 적용한 주당 가치, 가운데 선은 중앙값', '배수 표 체크: 풀면 그 회사가 통계에서 빠지고 결론이 바로 다시 계산됨. 취소선 PER은 10～50배 밖이라 통계에서 뺀 값', '조정(%): 성장률이나 이익률 차이처럼 근거가 있을 때만 넣고 판단 메모에 이유를 남김', '비교기업이 3곳 미만이면 배수 평가 칸 아래에 다른 범위(국내, 해외, 국내와 해외)와 대상 회사 업종(FnGuide 소분류, 같은 PER 범위 조건) 중앙값을 참고로 보여 줌. 「국내와 해외 따로」 표에서는 주황', '한 회사씩 빼기: 한 곳만 빼도 주당 가치가 15% 넘게 움직이면 주황 표시', '시나리오: 배수는 그대로 두고 대상 회사 이익만 바꿔 적용. 근거는 시나리오 이름에 마우스를 올리면 보임', 'NM: 분모가 0 이하(적자 등)라 계산하지 않음', '주황 칸: 중앙값의 2배를 넘거나 절반에 못 미치는 배수', '확인할 것: 지금 구성에서 비교기업 수 부족, 평균과 중앙값 차이, 한 회사에 기대는 결과, 데이터 지연 등']],
-  ['Peer 비교', ['리서치한 평가가 없는 회사를 상대가치평가 탭에서 열면 나옴. Peer는 검색해 넣거나 같은 업종(소분류) 시가총액 상위 5곳을 한 번에 넣음', '세로선은 Peer 최근 4분기 PER 중앙값, 흐린 막대는 10～50배 밖이라 중앙값에서 뺀 회사', '넣은 Peer는 요약 탭의 위치 표와 PER 회귀 그림에도 같이 나옴']],
+  ['Peer 비교', ['리서치한 평가가 없는 회사를 상대가치평가 탭에서 열면 나옴. Peer는 검색해 넣거나 같은 업종(소분류) 시가총액 상위 5곳을 한 번에 넣음', '세로선은 Peer 최근 4분기 PER 중앙값, 흐린 막대는 10～50배 밖이라 중앙값에서 뺀 회사', '넣은 Peer는 시장동향 탭의 위치 표와 PER 회귀 그림에도 같이 나옴']],
   ['출처', ['시장 데이터: 네이버 금융 PER(최근 4분기, 추정), FnGuide 업종 분류, 네이버 테마. 평일 장 마감 뒤 갱신', '국내 비교기업: 네이버 기업정보(와이즈리포트) 실적과 컨센서스, KIND 상장법인 목록. 실적 발표 직후 며칠은 반영이 늦어 대상 회사는 분기보고서와 증권사 리포트로 고쳐 넣음', '해외 비교기업: 리서치로 모은 배수(회사별 출처와 기준일은 비교기업 선정 칸)', '계산 원본과 사례 폴더: 05. 딜소싱 > _자동화 > 가치평가']],
 ] };
