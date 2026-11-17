@@ -1,0 +1,100 @@
+/* 시장동향 › 벤처투자 (vc.js) — 요약 줄·필터는 ipo.css, 필터 이름표는 radar.css(.rd-fing·.rd-finl), 카드·타일·차트·표는 market.css(mk-*)를 그대로 쓰고 여기엔 새로 필요한 것만.
+   이 화면의 글자는 14px 이상(market.css의 12·13px 칸은 여기서 14로 올린다). */
+
+.vc-page { display: flex; flex-direction: column; }
+.vc-body { display: flex; flex-direction: column; gap: 16px; }
+.vc-fcard { margin-bottom: 16px; }
+.vc-fcard .ipo-filter:last-child { border-bottom: 0; }
+.vc-sel { max-width: 200px; }
+.ipo-filter .vc-sel { margin-left: 0; }
+
+/* 지역 칩: 줄바꿈해서 다 보이게 */
+.vc-regf .rd-fing { align-items: flex-start; }
+.vc-regf .rd-finl { line-height: 36px; }
+.vc-chips { display: flex; flex-wrap: wrap; gap: 8px; min-width: 0; }
+.vc-chips button { height: 36px; padding: 0 14px; border: 1px solid var(--line2); border-radius: var(--r-full); background: var(--card); color: var(--text2); font-size: var(--fs-md); font-weight: 500; cursor: pointer; white-space: nowrap; }
+.vc-chips button:hover:not(.on) { border-color: var(--text3); color: var(--ink); }
+.vc-chips button.on { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+
+/* 합계 카드 머리: 공시월 + 누적/그 달만 */
+.vc-per { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.vc-per .select { height: 34px; }
+.vc-page .mk-seg button { height: 28px; font-size: var(--fs-md); }
+.vc-page .mk-seg button:disabled { color: var(--text4); cursor: default; }
+.vc-note { margin: 12px 0 0; font-size: var(--fs-md); line-height: 20px; color: var(--text3); }
+
+/* 타일: 작은 글씨 13 → 14 */
+.vc-page .mk-tile small, .vc-page .mk-tile p { font-size: var(--fs-md); }
+.vc-page .mk-hd { font-size: var(--fs-md); }
+
+/* 가로 막대(상위 10곳·비중): 이름 | 막대 | 금액·비중 */
+.vc-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; align-items: start; }
+.vc-grid > .mk-sec { min-width: 0; }
+.vc-hb { display: flex; flex-direction: column; }
+.vc-hr { display: grid; grid-template-columns: minmax(0, 180px) minmax(40px, 1fr) auto; align-items: center; gap: 12px; min-height: 36px; padding: 4px 8px; margin: 0 -8px; border: 0; border-radius: var(--r-sm); background: none; font: inherit; text-align: left; color: var(--text2); }
+.vc-grid .vc-hr { grid-template-columns: minmax(0, 120px) minmax(40px, 1fr) auto; }
+button.vc-hr { cursor: pointer; }
+button.vc-hr:hover { background: var(--hover); }
+.vc-hr.on { background: var(--primary-soft); }
+.vc-hr .l { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--fs-md); color: var(--ink); }
+.vc-hr .l em { display: inline-block; width: 22px; font-style: normal; color: var(--text3); font-variant-numeric: tabular-nums; }
+.vc-hr .bar { height: 10px; border-radius: var(--r-xs); background: var(--row); overflow: hidden; }
+.vc-hr .bar i { display: block; height: 100%; min-width: 2px; background: var(--t-blue-i); border-radius: var(--r-xs); }
+.vc-hb > .vc-hr:first-child .bar i, .vc-hr.on .bar i { background: var(--primary); }
+.vc-hr .v { display: flex; align-items: baseline; justify-content: flex-end; gap: 8px; min-width: 112px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.vc-hr .v b { font-size: var(--fs-md); font-weight: 600; color: var(--ink); }
+.vc-hr .v small { min-width: 36px; text-align: right; font-size: var(--fs-md); color: var(--text3); }
+.vc-hr.on .l, .vc-hr.on .v b { color: var(--primary); }
+
+/* 월별 막대: 고른 달만 진하게, 글자 14 */
+.vc-bars .b:last-child i { background: var(--t-blue-i); }
+.vc-bars .b.on i { background: var(--primary); }
+.vc-bars .v, .vc-bars .l { font-size: var(--fs-md); }
+.vc-bars .b.on .l { color: var(--ink); font-weight: 600; }
+
+/* 누적 추이 선: 축 글자 14, 오른쪽 축 칸을 '10,961억'이 들어가게 */
+.vc-page .mk-chart .plot { margin-right: 72px; }
+.vc-page .mk-chart .xt { height: 20px; margin-right: 72px; }
+.vc-page .mk-chart .yl, .vc-page .mk-chart .xt span, .vc-page .mk-chart .tip { font-size: var(--fs-md); }
+.vc-page .mk-legend { font-size: var(--fs-md); }
+
+/* 투자사 목록 */
+.vc-tbl .st { width: 220px; }
+.vc-tbl td small, .vc-tbl td.st small { font-size: var(--fs-md); }
+.vc-tbl td.st small.vc-alt { display: none; }
+.vc-tbl th { padding-top: 4px; padding-bottom: 4px; }
+.vc-sort { display: inline-flex; align-items: center; gap: 2px; height: 36px; padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--text2); cursor: pointer; }
+.vc-sort.on, .vc-sort:hover { color: var(--ink); }
+.vc-dir { display: inline-block; width: 12px; color: var(--primary); }
+.vc-morewrap { display: flex; justify-content: center; padding-top: 12px; }
+
+@media (max-width: 760px) {
+  .vc-fcard { margin-bottom: 12px; }
+  .vc-body { gap: 12px; }
+  .vc-sel { max-width: none; }
+  .vc-regf .rd-finl { line-height: 20px; }
+  .vc-chips button { height: 44px; padding: 0 16px; font-size: var(--fs-base); }
+  #page .vc-page .ipo-filter.mf-pri > select.mf-x { height: 44px; }
+  .vc-page .mk-sec .card-head { align-items: center; }
+  .vc-per { flex: 1 1 100%; margin-left: 0; }
+  .vc-per .select { flex: 1 1 auto; min-width: 0; height: 44px; }
+  .vc-page .mk-seg button { padding: 0 12px; }
+  .vc-grid { grid-template-columns: minmax(0, 1fr); gap: 12px; }
+  /* 막대: 이름과 금액을 한 줄에, 막대는 그 아래 전체 폭(이름이 잘리지 않게) */
+  .vc-hr, .vc-grid .vc-hr { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'l v' 'b b'; gap: 4px 12px; min-height: 44px; padding: 6px 8px; }
+  .vc-hr .l { grid-area: l; }
+  .vc-hr .v { grid-area: v; min-width: 0; gap: 6px; }
+  .vc-hr .bar { grid-area: b; height: 8px; }
+  .vc-bars .v { display: none; }
+  .vc-bars .b.on .v { display: block; white-space: nowrap; }
+  .vc-page .mk-seg button { height: 44px; }
+  .vc-morewrap .btn { height: 44px; }
+  .vc-page .mk-chart .yl, .vc-page .mk-chart .xt span { font-size: var(--fs-md); }
+  /* 표: 주력 업종 칸 대신 이름 아래 작은 글씨, 정렬 머리는 누르기 쉽게 44 */
+  .vc-tbl .vc-c-main { display: none; }
+  .vc-tbl td.st small.vc-alt { display: block; }
+  .vc-tbl .st { width: auto; }
+  .vc-tbl th:not(.st), .vc-tbl td:not(.st) { width: 96px; }
+  .vc-tbl th:nth-child(3), .vc-tbl td:nth-child(3) { width: 68px; }
+  .vc-sort { height: 44px; }
+}
