@@ -255,15 +255,15 @@ function v3Head(c, x) {
 
 // ---------- 단계 상태 ----------
 /* 점검 id → 단계 번호. 엔진 맵(v3eMAP_CHECKS)이 단계 상태를 warn으로 주고, 화면은 이 표로 그 단계 머리에 주의와 오류 문장을 보여 줌(설계서 7-2).
-   엔진 표에 없는 id도 주의나 오류면 그 단계를 「확인 필요」로 바꿈. ratio_jump는 묶음마다 한 줄씩 나와 판관비 단계에 모음 */
+   엔진 표에 없는 id도 주의나 오류면 그 단계를 「확인 필요」로 바꿈. 매출원가율이 튄 것은 cogs_jump(매출원가), 판관비 묶음이 튄 것은 ratio_jump(판관비) */
 const V3_CHK_STEP = { cons_gap: 1, rseg_checks: 1, basis_mix: 1, hist_tie: 1, fy1_stale: 1, rev_check: 1, assump_range: 1, rev_sanity: 1, cons_n: 1, pv_hist: 1,
-  gpm_range: 2, asp_vs_ucost: 2, seg_cost_hist: 2, resid_no_cost: 2, cost_key_name: 2, ratio_jump: 3, labor_scope: 3, labor_ratio: 3, sga_spike: 3, share_le_1: 3, sga_resid: 3, tax_outlier: 4,
+  gpm_range: 2, cogs_jump: 2, asp_vs_ucost: 2, seg_cost_hist: 2, resid_no_cost: 2, cost_key_name: 2, ratio_jump: 3, labor_scope: 3, labor_ratio: 3, sga_spike: 3, share_le_1: 3, sga_resid: 3, tax_outlier: 4,
   capex_da: 5, nwc_jump: 5, dep_rate_trend: 5, reinv_neg: 5, ppe_xfer_sum: 5, fcff_cross: 5, ppe_check: 5, ppe_roll_short: 5, capex_exp_unused: 5, nwc_avg_gap: 5, nwc_scope: 5, loan_dep: 5, rou_life: 5, capex_drv: 5,
   neg_cash: 6, bs_balance: 6, cash_roll: 6, re_roll: 6, rate_jump: 6, circ_converge: 6, cb_schedule: 6,
   premium_evidence: 7, erp_fallback: 7, stable_beta: 7, beta_index: 7, manual_missing: 7, ke_model: 7, beta_px_tie: 7, peer_self: 7, rf_fallback: 7, prem_overlap: 7, beta_px_basis: 7, kd_missing: 8, kd_consistency: 8,
   override: 9, model_rate_pair: 9, stable_vs_peer: 9, mcap_basis: 9, wacc_vs_broker: 9, g_vs_rate: 10, stable_rr: 10, tv_share: 10, dcf_fit: 10, g_fallback: 10, tv_avg: 10,
   nonop_loan_dup: 11, ev_def_align: 12, bridge_basis: 12, dilution: 13, dilution_src: 13, shares_align: 13, double_count: 13, weights: 14, upside_big: 14, type_block: 15, dcf_rel_gap: 15, rel_scen_src: 15,
-  sotp_input: 15, sotp_why: 15, sotp_cover: 15, sotp_margin: 15, sotp_double: 15, sotp_gap: 15 };
+  sotp_input: 15, sotp_why: 15, sotp_cover: 15, sotp_margin: 15, sotp_double: 15, sotp_gap: 15, fin_ddm_low: 15 };
 /* 끝값 하나만 준 가정 점검(to_no_fy0, to_unused)은 가정 키마다 단계가 다름. 엔진이 k.value = [{key, step: 맵 단계 이름 또는 null}]로 줌(11-17 오후 판).
    옛 문서(k.value가 가정 키 글자 목록)는 접두어로 봄. step이 null이거나 어느 단계에도 안 맞는 키(물가상승률 등)는 점검 탭에만 나옴 */
 const V3_KEY_STEP = [[/^rev\./, 1], [/^(cogs|ucost|gpm)/, 2], [/^(sga_|hc\.|wage_g|labor_|rev_per_hc|dep_sga_share|amort_sga_share)/, 3], [/^tax_/, 4],
@@ -277,11 +277,7 @@ function v3ChkSteps(x, k) {
   return [...new Set(out.filter((n) => n >= 1))];
 }
 /* n단계 머리에 보여 줄 점검(주의, 오류). 같은 문장은 한 번만 */
-function v3StepChk(x, n) {
-  const ck = (x.res.checks || []).filter((k) => k.level !== 'info'), own = ck.filter((k) => v3ChkSteps(x, k).includes(n));
-  const ids = !own.length && typeof v3eMAP_CHECKS !== 'undefined' ? v3eMAP_CHECKS[(x.res.map || [])[n - 1]?.step] : null; // 문장이 없을 때만 엔진 연결표로(같은 점검이 두 단계에 걸린 ratio_jump 등)
-  return [...new Set((own.length || !ids ? own : ck.filter((k) => ids.includes(k.id))).map((k) => k.text))];
-}
+const v3StepChk = (x, n) => [...new Set((x.res.checks || []).filter((k) => k.level !== 'info' && v3ChkSteps(x, k).includes(n)).map((k) => k.text))];
 function v3Stat(x) {
   if (x._stat) return x._stat;
   const st = (x.res.map || []).map((m) => m.status || 'todo');
@@ -1054,11 +1050,11 @@ function v3rStack(R, nodes, n) {
 /* 엔진 행 이름 끝의 「과거 CAGR(4년)」, 「명시 기간 CAGR(5년)」(CAGR 열 머리 툴팁과 연수 견주기) */
 const v3rCgTail = (x, id) => /(?:과거|명시 기간) CAGR\(\d+년\)$/.exec(x.lab[id]?.name || '')?.[0] || '';
 /* 가정이 어떤 꼴로 정해졌는지(끝값 하나, 과거 실적 규칙): 엔진이 만든 글 notes.form[<가정 키>].text 그대로(화면이 입력을 보고 추정하지 않음).
-   표에는 짧은 표시(끝값 지정, 규칙 이름)만 두고 전문은 title. 칸을 고쳐 연도별 값이 되면 엔진 글이 없어져 표시도 사라짐. {txt, tip} 또는 null */
+   표에는 엔진이 준 짧은 이름(notes.form[키].short)만 두고 전문은 title. 칸을 고쳐 연도별 값이 되면 엔진 글이 없어져 표시도 사라짐. {txt, tip} 또는 null */
 function v3rForm(x, key) {
   const fm = v3rNotes(x).form?.[key]; if (!fm || !fm.text) return null;
-  const t = String(fm.text), i = t.lastIndexOf(': ');
-  return { txt: fm.kind === 'to' ? '끝값 지정' : i >= 0 ? t.slice(i + 2) : t, tip: t };
+  const t = String(fm.text); // 짧은 이름도 엔진 값(short). 없는 문서는 글 전문을 그대로
+  return { txt: fm.short || t, tip: t };
 }
 const v3rFm = (fm) => (fm ? `<small class="v3r-fm" title="${esc(fm.tip)}">${esc(fm.txt)}</small>` : '');
 /* 이름 옆 표시. 입력하는 동안에도 바뀌게 data-o 로 감쌈(글이 없어도 자리는 둠) */
@@ -1485,13 +1481,16 @@ v3On('change', '[data-v3o-ex]', (el, x) => {
 });
 /* 가정별 「평균에 넣을 해」 표. items [{key, name}] 가운데 엔진이 평균을 낸 가정(notes.avg에 있는 키)만 줄로 그림. 줄이 없으면 빈 글자.
    사례 입력에 값이 지정된 가정은 평균을 쓰지 않아 뺌(끝값만 주고 직전 실적을 몰라 평균에서 출발한 가정은 둠). 다른 조각(2, 3단계)도 이 함수를 부름 */
+const v3oExAll = (x) => { const ks = (x.res.checks || []).filter((k) => k.id === 'avg_exclude_all').flatMap((k) => (Array.isArray(k.value) ? k.value : [])); return ks.length ? ks : null; };
+const v3oExIgn = (x, key, a) => { const ks = v3oExAll(x); return ks ? ks.includes(key) : !!a?.ign; };
 function v3oExTbl(x, items) {
   const form = (x.live ? x.res.notes?.form : x.c.notes?.form) || {};
   const its = (items || []).filter(Boolean).map((it) => ({ ...it, a: v3oExRow(x, it.key) })).filter((it) => it.a && (!v3oGiven(x, it.key) || form[it.key]?.miss));
   if (!its.length) return '';
   const ys = v3oSortU(its.flatMap((it) => it.a.win));
-  const rows = its.map((it) => `<tr><td class="st">${esc(it.name || v3Lab(x, `CTL.a.${it.key}`).name)}</td>${ys.map((y) => `<td>${it.a.win.includes(y) ? v3oExCk(x, it.key, y, it.a.on.includes(y)) : ''}</td>`).join('')}</tr>`).join('');
-  return `<div class="mk-scroll"><table class="mk-tbl v3-t v3o-t v3o-ext"><thead><tr><th class="st">가정</th>${ys.map((y) => `<th>${y}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>${its.some((it) => it.a.ign) ? v3oNotes(x, ['avg_exclude_all']) : ''}`;
+  const all = (x.res.checks || []).find((k) => k.id === 'avg_exclude_all')?.text || '';
+  const rows = its.map((it) => `<tr><td class="st"${v3oExIgn(x, it.key, it.a) && all ? ` title="${esc(all)}"` : ''}>${esc(it.name || v3Lab(x, `CTL.a.${it.key}`).name)}</td>${ys.map((y) => `<td>${it.a.win.includes(y) ? v3oExCk(x, it.key, y, it.a.on.includes(y)) : ''}</td>`).join('')}</tr>`).join('');
+  return `<div class="mk-scroll"><table class="mk-tbl v3-t v3o-t v3o-ext"><thead><tr><th class="st">가정</th>${ys.map((y) => `<th>${y}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>${its.some((it) => v3oExIgn(x, it.key, it.a)) ? v3oNotes(x, ['avg_exclude_all']) : ''}`;
 }
 const v3oChart = (key, title, unit, legend, svg) => `<div class="v3o-ch"><h3 class="v3-h3">${title}${unit ? `<small>${unit}</small>` : ''}</h3>${legend || ''}<div data-o="v3o-${key}">${svg}</div></div>`;
 
@@ -1529,7 +1528,7 @@ function v3oStepTax(x, c) {
     ${tr('세전이익', (r) => v3oFmt((R['IS.ebt'] || [])[r.i] ?? null, 'amt'))}${tr('법인세', (r) => v3oFmt((R['IS.tax'] || [])[r.i] ?? null, 'amt'))}
     ${tr('유효세율<small>%</small>', (r) => v3oFmt(r.eff, 'pct'), 'sum', ty.a ? `<td class="bl" data-o="v3o-taxavg">${v3oFmt(ty.avg, 'pct')}</td>` : '')}
     ${T ? tr('법정 세율 대비<small>배</small>', (r) => `<span class="${r.state === 'auto' ? 'v3o-out' : ''}">${v3oFmt(r.ratio, 'x')}</span>`) : ''}
-    ${given || !ty.a ? '' : tr('평균에 넣을 해', ck)}</tbody></table></div>${ty.a?.ign && !given ? v3oNotes(x, ['avg_exclude_all']) : ''}`;
+    ${given || !ty.a ? '' : tr('평균에 넣을 해', ck)}</tbody></table></div>${ty.a && v3oExIgn(x, 'tax_eff', ty.a) && !given ? v3oNotes(x, ['avg_exclude_all']) : ''}`;
   // 손익 법인세 가정
   const mwhy = (x.res.map || []).find((m) => m.step === '법인세')?.why;
   const opt = v3oOpt(`<span>세율 방식</span>${v3oSw(x, 'sw.tax_mode', [['eff_avg', '평균 유효세율'], ['statutory', '법정 누진'], ['marginal', '한계세율']], mode)}`,
@@ -1561,7 +1560,9 @@ function v3oStepTax(x, c) {
 
 // ---------- 5단계 재투자 ----------
 /* 자산별 변동표(워터폴) 줄 이름. labels 에는 「건물 bop」처럼 영어 꼬리가 붙어 있어 엑셀 시트와 같은 우리말로 바꿔 씀(묶음 이름은 묶음 제목 줄에) */
-const V3O_PPE = { bop: '기초', capex: '취득', xfer: '대체', dep: '상각', oth: '처분, 손상, 기타', eop: '기말' };
+/* 워터폴 묶음 줄의 순서. 이름은 엔진 labels(「건물 기초」 등)에서 묶음 이름을 떼고 씀(묶음 이름은 묶음 제목 줄에 있음) */
+const V3O_PPE = ['bop', 'capex', 'xfer', 'dep', 'oth', 'eop'];
+const v3oPpeNm = (x, id, grp) => { const n = v3Lab(x, id).name; return grp && n.startsWith(`${grp} `) ? n.slice(grp.length + 1) : n; };
 const v3oPpeCls = (x) => (x.I.ppe_roll?.classes || []).filter((cl) => cl && x.R[`PPE.${cl.id}.eop`]);
 /* 워터폴 표 둘: 자산별 변동(묶음마다 기초, 취득, 대체, 상각, 기말. 변동표 과거 값이 있는 해는 과거 열로, 끝에 묶음 합과 재무상태표 차이)과
    감가상각 내역(상각하는 묶음마다 내용연수, 기존 자산 상각, 취득 연도별 상각) */
@@ -1571,7 +1572,7 @@ function v3oWf(x) {
   for (const cl of cls) {
     const p = `PPE.${cl.id}.`, nm = cl.name || cl.id, life = v3V(x, `${p}life`);
     roll.push({ grp: nm });
-    Object.keys(V3O_PPE).forEach((k) => { const id = p + k; if (R[id] && (k === 'bop' || k === 'eop' || v3oNz(x, id))) roll.push({ id, name: V3O_PPE[k], nb: true, ho: k === 'oth', cls: k === 'eop' ? 'sum' : '' }); });
+    V3O_PPE.forEach((k) => { const id = p + k; if (R[id] && (k === 'bop' || k === 'eop' || v3oNz(x, id))) roll.push({ id, name: v3oPpeNm(x, id, nm), nb: true, ho: k === 'oth', cls: k === 'eop' ? 'sum' : '' }); });
     if (!R[`${p}dep_exist`]) continue;
     const lt = v3Ok(life) ? `${v3Num(life, Number.isInteger(life) ? 0 : 1)}년` : '';
     dep.push({ grp: nm }, { id: `${p}dep_exist`, name: '기존 자산', pre: [cl.life_src && lt ? `<span class="v3o-res" title="${esc(cl.life_src)}">${lt}</span>` : lt] });
@@ -1579,7 +1580,7 @@ function v3oWf(x) {
     dep.push({ id: `${p}dep`, name: '상각 합계', cls: 'sum' });
   }
   if (R['PPE.check']) roll.push({ grp: '검증' }, { id: 'PPE.check', name: '묶음 합 − 재무상태표', chk: true, nb: true });
-  const ids = cls.flatMap((cl) => Object.keys(V3O_PPE).map((k) => `PPE.${cl.id}.${k}`)), hx = v3oHx(x, ids);
+  const ids = cls.flatMap((cl) => V3O_PPE.map((k) => `PPE.${cl.id}.${k}`)), hx = v3oHx(x, ids);
   return [v3oTbl(x, 'ppewf', hx.length ? 'hist+fc' : 'fc', roll, hx.length ? { hx } : {}), v3oTbl(x, 'ppedep', 'fc', dep, { pre: ['내용연수'] })];
 }
 function v3oStepReinv(x, c) {
@@ -1904,7 +1905,7 @@ function v3wErpSec(x) {
   const itip = is ? [[is.as_of ? `${is.as_of} 기준` : '', v3Ok(is.kospi) ? `KOSPI ${v3Num(is.kospi, 2)}` : '', v3Ok(is.per) ? `PER ${v3Num(is.per, 2)}배` : '', v3Ok(is.rf) ? `국고채 10년 ${v3wP2(is.rf)}` : ''].filter(Boolean).join(', '), is.note || ''].filter(Boolean).join('. ') : '';
   const opts = Object.entries(V3W_ERP).filter(([v]) => v !== 'manual' || k === 'manual' || v3Ok(e.manual)).map(([v, l]) => [v, v3Ok(e[EK[v]]) ? `${l} ${v3wP2(e[EK[v]])}` : l, !v3Ok(e[EK[v]]), v === 'implied_kospi' ? itip : '']);
   const itRows = it ? Object.keys(V3W_IMP).filter((q) => it[q] && v3Ok(it[q].erp)) : [];
-  const itTbl = itRows.length ? v3wFold(x, 'erpi', '방법별 내재 프리미엄', `<div class="mk-scroll"><table class="mk-tbl v3-t v3w-t v3w-wt"><thead><tr><th class="st">방법</th><th>기대수익률</th><th>내재 프리미엄</th></tr></thead><tbody>${itRows.map((q) => `<tr class="${is?.pick === q ? 'v3w-on' : ''}"><td class="st">${V3W_IMP[q]}</td><td>${v3wP2(it[q].r)}</td><td>${v3wP2(it[q].erp)}</td></tr>`).join('')}</tbody></table></div>${is?.note ? `<p class="v3w-note">${esc(is.note)}</p>` : ''}`) : '';
+  const itTbl = itRows.length ? v3wFold(x, 'erpi', '방법별 내재 프리미엄', `<div class="mk-scroll"><table class="mk-tbl v3-t v3w-t v3w-wt"><thead><tr><th class="st">방법</th><th>기대수익률</th><th>내재 프리미엄</th></tr></thead><tbody>${itRows.map((q) => `<tr class="${is?.pick === q ? 'v3w-on' : ''}"><td class="st"${is?.formula && typeof is.formula === 'object' && is.formula[q] ? ` title="${esc(is.formula[q])}"` : ''}>${V3W_IMP[q]}</td><td>${v3wP2(it[q].r)}</td><td>${v3wP2(it[q].erp)}</td></tr>`).join('')}</tbody></table></div>${is?.note ? `<p class="v3w-note">${esc(is.note)}</p>` : ''}`) : '';
   const b0 = v3Ok(e[EK[k]]) ? e[EK[k]] : null, erp = v3V(x, 'WACC.erp'), asof = typeof m.as_of === 'object' ? m.as_of?.erp : '';
   const dam = x.ov['m.erp'] == null && (k === 'damodaran' || k === 'damodaran_cds') && v3Ok(e.mature) && v3Ok(erp);
   const ft = dam ? v3wFt('', [['성숙시장 프리미엄', v3wP2(e.mature), 'Damodaran 성숙시장'], ['국가위험 프리미엄', v3wP2(erp - e.mature), k === 'damodaran' ? '한국 국가 등급 기준' : '한국 CDS 기준'],
@@ -1954,10 +1955,13 @@ function v3wSyn(x) {
   if (i < 0) i = rows.length - 1;
   return { rows, small, i, cap: sp.large_cap_krw, rating: rows[i]?.[1] ?? '-' };
 }
+/* 자동 판정이 고른 타인자본비용 경로(엔진 c.W.kd_path). 맵 why가 근거 문장(notes.why.kd)으로 바뀌어(11-17 오후 3) Base를 WACC 단계(E15)까지 돌려 받음. 결과 묶음, 사례마다 한 번 */
+const V3W_KDP = new WeakMap();
+const v3wKdPath = (key, c, ov) => { if (!V3W_KDP.has(key)) { let p = null; try { p = typeof V3E !== 'undefined' && V3E.ready ? V3E.run(c, 'Base', ov, 'E15').W?.kd_path || null : null; } catch { p = null; } V3W_KDP.set(key, p); } return V3W_KDP.get(key); };
 function v3wKdSec(x) {
   const m = x.I.market || {}, B = x.I.beta || {}, sw = x.sw, V = (id) => v3V(x, id), kr = m.spread?.kr_rating || {}, cr = B.credit_rating, hasR = !!cr && kr[cr] != null;
   const eff = V('CTL.a.debt_rate'), kdp = V('WACC.kd_pre'), rf = V('WACC.rf'), auto = sw.kd === 'auto';
-  let path = auto ? (x.res.map || [])[7]?.why : sw.kd;
+  let path = auto ? v3wKdPath(x.res, x.c, x.ov) : sw.kd;
   if (!V3W_KD[path]) path = 'synthetic';
   const ri = m.kd_recent_issue_src || null, riText = ri ? [ri.date ? `${ri.date} 발행` : '', v3Ok(ri.amount) ? v3Eok(ri.amount) : '', v3Ok(ri.n) && ri.n > 1 ? `${v3Num(ri.n)}건` : '', ri.grade ? `${ri.grade} 등급` : ''].filter(Boolean).join(', ') : '';
   const opts = [['auto', '자동'], ['synthetic', '합성 등급'], ['rating', '실제 등급', !hasR], ['effective', '실효이자율', !v3Ok(eff)], ['market_yield', v3Ok(m.kd_market_yield) ? `회사채 수익률 ${v3wP2(m.kd_market_yield)}` : '회사채 수익률', m.kd_market_yield == null],
@@ -1976,7 +1980,7 @@ function v3wKdSec(x) {
     sw.kd === 'manual' ? ['세전 타인자본비용', v3wMan(x, 'i.market.kd_manual', 'pct', 2, '세전 타인자본비용 직접 입력')] : null,
     krs.length ? ['실제 등급', v3wSel(x, 'i.beta.credit_rating', [[null, '없음'], ...krs.map((r) => [r, `${r} ${v3wP2(kr[r])}`])], cr ?? null, '실제 신용등급')] : null]);
   /* 근거 글(notes.why.kd)은 문서를 만든 때의 경로 기준이라, 방식 스위치와 경로가 그때와 같을 때만 보여 줌 */
-  const kwhy = sw.kd === x.c.switches.kd && path === ((x.c.map || [])[7]?.why || path) ? x.c.notes?.why?.kd || '' : '';
+  const kwhy = sw.kd === x.c.switches.kd && path === (v3wKdPath(x.c, x.c, {}) || path) ? x.c.notes?.why?.kd || '' : '';
   const kr2 = m.kd_by_rating || null, tn = kr2 && Array.isArray(kr2.tenors) ? kr2.tenors : [], mx = kr2?.matrix || null;
   let grid = '';
   if (mx && tn.length) {
@@ -2587,8 +2591,6 @@ const V3Y_G = [
    찾은 행의 서식이 다르거나 추정 연도 값이 가정 값과 한 해도 안 맞으면 짝으로 보지 않고 「그 밖의 가정」에 둠. 맞지 않는 해의 칸은 계산값으로 보여 줌 */
 const V3Y_PAIR = { tax_eff: 'TAX.eff', tax_adj: 'TAX.adj', tax_credit: 'TAX.credit', debt_rate: 'DEBT.rate', rnd_pct: 'RND.pct', rou_add_abs: 'PPE.rou_add', cb_convert: 'DEBT.cb.conv' };
 const V3Y_RATIO = { pct: 1, x: 1, days: 1 };
-/* 유형자산 워터폴 묶음 줄(PPE.<묶음>.<꼬리>) 이름의 꼬리를 엑셀 워터폴 시트와 같은 우리말로 */
-const V3Y_PPE = { bop: '기초', capex: '취득', xfer: '대체', dep: '상각', oth: '처분, 손상, 기타', eop: '기말' };
 
 /* 사업부별 합산 계산표의 줄 이름(labels 이름에 붙은 풀이를 덜어 냄) */
 const V3Y_SOTP = { 'DCF.sotp.ev': '합산 영업가치', 'DCF.sotp.net': '주주가치 다리 합', 'DCF.sotp.dcf_ps': '전사 DCF 주당 가치', 'DCF.sotp.gap': '전사 DCF 대비', 'DCF.sotp.hq': '본사 비용 가치' };
@@ -2604,8 +2606,6 @@ function v3yName(x, id) {
     const g = x.I.opex?.groups?.[`custom.${k}`], ln = g?.line && (x.I.revbuild?.lines || []).find((l) => l.id === g.line);
     return g?.name || (ln ? `${ln.name} 연동 비용` : k);
   });
-  const pm = /^PPE\.[^.]+\.(bop|capex|xfer|dep|oth|eop)$/.exec(id);
-  if (pm && n.endsWith(` ${pm[1]}`)) n = `${n.slice(0, -pm[1].length)}${V3Y_PPE[pm[1]]}`;
   if (V3Y_SOTP[id]) n = V3Y_SOTP[id];
   return n.replace(/ g$/, ' 성장률').replace(/ val$/, '').replace(/\(차이\)$/, '');
 }
@@ -2857,6 +2857,7 @@ const V3Y_IN = {
   mult: 'EBITDA 배수', pik_rate: 'PIK 금리', sweep_pct: '임의 상환 비율', max_iter: '이자 순환 반복 한도', party_fee_to_lender: '금융 수수료 대주 수입', entry_basis: '진입 기준', min_cash: '최소 현금', base_rate: '기준금리',
   bal: '결산 말 잔액', fy0: '직전 결산 말', fy0p: '그 전 결산 말', sotp: '사업부별 합산',
   remain_life: '기존 잔액 남은 연수',
+  party_irr: '참여자별 수익',
   lbo: 'LBO', close_gap: '종결일 간격', entry_net_debt: '종결일 순차입금', premium: '인수 프리미엄', stake: '인수 지분율', tx_fee_pct: '거래 수수료율', exit_year: '회수 연도', equity_value: '지분가치',
   options: '스톡옵션', bw: '신주인수권', rsu: 'RSU', rcps: '상환전환우선주', qty: '수량', strike: '행사가', conv_price: '전환가', basic_hist: '연도별 유통주식수', scen: '시나리오',
 };
@@ -3313,18 +3314,17 @@ function v3qSensTbl(t, xName, xf, close, o = {}) {
     <tr>${t.x.map((v, j) => `<th class="${j === cj ? 'c' : ''}"${o.xt ? ` title="${esc(o.xt(v))}"` : ''}>${xf(v)}</th>`).join('')}</tr></thead>
     <tbody>${t.y.map((w, i) => `<tr><td class="st${i === ci ? ' c' : ''}">${v3Pct(w, 2)}</td>${(t.z[i] || []).map((v, j) => cell(v, i, j)).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
-/* 토네이도 WACC 줄 툴팁(M1-405). 엔진이 준 줄의 폭(ps_hi − ps_lo)과 움직인 폭(hi − lo)으로 1%p당 영향을 견줌.
-   WACC가 가장 큰 줄이 아니면 가장 큰 줄 이름과 WACC 순위를, 영구성장률 줄 폭이 0이면 첫 문장만. 배수가 크면(안정기 ROC = WACC 설정) 까닭을 덧붙임 */
+/* 토네이도 WACC 줄 툴팁(M1-405). 1%p당 영향 비율은 엔진 값 sens.tornado_k.k(WACC ÷ 영구성장률. 없거나 null이면 배수 문장을 뺌).
+   WACC가 가장 큰 줄이 아니면 가장 큰 줄 이름과 WACC 순위를 밝힘. 배수가 크면(안정기 ROC = WACC 설정) 까닭을 덧붙임 */
 function v3qTorTip(x) {
   const nm = (r) => String(r.var ?? '').replace(/\s*\(.*?\)/g, ''), tr = (x.res.sens?.tornado || []).filter(Boolean);
-  const wd = (r) => (v3Ok(r?.ps_lo) && v3Ok(r?.ps_hi) ? Math.abs(r.ps_hi - r.ps_lo) : 0), per = (r) => (r && v3Ok(r.lo) && v3Ok(r.hi) && r.hi !== r.lo ? wd(r) / (Math.abs(r.hi - r.lo) * 100) : 0);
-  const w = tr.find((r) => nm(r) === 'WACC'), g = tr.find((r) => nm(r) === '영구성장률');
+  const wd = (r) => (v3Ok(r?.ps_lo) && v3Ok(r?.ps_hi) ? Math.abs(r.ps_hi - r.ps_lo) : 0);
+  const w = tr.find((r) => nm(r) === 'WACC'), k = x.res.sens?.tornado_k?.k;
   if (!w || !wd(w)) return '';
   const ord = [...tr].sort((a, b) => wd(b) - wd(a)), rank = ord.indexOf(w) + 1;
   let t = rank === 1 ? '결과를 가장 크게 움직이는 단일 가정은 WACC입니다.' : `이 사례에서 결과를 가장 크게 움직이는 가정은 ${nm(ord[0])}이고 WACC는 ${rank}번째입니다.`;
-  const kw = per(w), kg = per(g);
-  if (kw > 0 && kg > 0) {
-    const k = kw / kg, x1 = (v) => (v >= 10 ? `약 ${v3Num(v)}배` : `${v3Num(v, 1)}배`);
+  if (v3Ok(k) && k > 0) {
+    const x1 = (v) => `${v3Num(v, 1)}배`; // 엔진 비율 그대로 소수 한 자리(휴젤 17.8배)
     t += k >= 1 ? ` 같은 1%p로 보면 WACC 영향이 영구성장률의 ${x1(k)}입니다.` : ` 같은 1%p로 보면 영구성장률 영향이 WACC의 ${x1(1 / k)}입니다.`;
     if (k > 5 && x.sw.roc_s === 'wacc') t += ' 안정기 ROC를 WACC와 같게 둔 설정에서는 영구성장률을 올려도 재투자가 같이 늘어 영향이 작게 나옵니다.';
   }
@@ -4186,6 +4186,7 @@ function v3lAltF(x, L, F) {
     if (lt.end) h += v3lRo('최근 12개월 기준일', lt.end);
   }
   if (v3Ok(I.sweep_pct)) h += F('임의 상환 비율', 'sweep_pct', I.sweep_pct, { fmt: 'pct' });
+  if (typeof I.party_irr === 'boolean') h += v3F('참여자별 수익', v3lSw(x, 'party_irr', [[false, '끔'], [true, '계산']], I.party_irr));
   if (I.circ && v3Ok(I.circ.max_iter)) h += F('이자 순환 반복 한도', 'max_iter', I.circ.max_iter, { fmt: 'num', d: 0, u: '회' });
   return h;
 }
@@ -4221,7 +4222,7 @@ function v3lDeal(x, L) {
   const picked = od ? Object.keys(od.items || {}).filter((k) => od.pick?.[k] && Math.abs(od.items[k] || 0) > 1e-9).map((k) => V3L_OLD[k] || k) : [];
   const orow = od ? `<tr><td class="st">승계 차입${picked.length ? `<small>${esc(picked.join(', '))}</small>` : ''}</td>${na('EBITDA 배수')}${td('금액', v3lF(od.amt, 'amt'))}${od.float ? oc('spread', od.spread, 'pct', '가산금리', 2) : na('가산금리')}${od.float ? na('고정금리') : oc('rate', od.rate_fix, 'pct', '고정금리', 2)}
       ${FL ? (od.float ? oc('floor', od.floor, 'pct', '금리 하한', 2) : na('금리 하한')) : ''}${td('첫해 금리', v3lF(v3lRow(L, 'old.rate')?.[1], 'pct2'))}${pik ? na('PIK 금리') : ''}${oc('mand_pct', od.mand_pct, 'pct', '연 의무 상환', 2)}${oc('term', od.term, 'num', '만기 연수', 0)}</tr>` : '';
-  const sumA = L.su?.sources?.debt, sumX = v3Ok(sumA) ? (L.fin_scen || []).find((r) => r && v3Ok(r.debt) && Math.abs(r.debt - sumA) <= 1e-6 * Math.max(1, Math.abs(sumA)))?.lev_x : null;
+  const sumA = L.su?.sources?.debt, sumX = L.su?.lev_x; // 합계는 엔진 값(신규 차입, 신규 차입 ÷ 진입 기준 EBITDA)
   const tt = ks.length ? `<h3 class="v3-h3">${v3lTip(L, '차입 구성', 'tranches')}</h3><div class="mk-scroll"><table class="mk-tbl v3-t v3l-tt${FL ? ' w10' : ''}"><thead><tr><th class="st">트랜치</th><th>EBITDA 배수</th><th>금액</th><th>가산금리</th><th>고정금리</th>${FL ? '<th>금리 하한</th>' : ''}<th>첫해 금리</th>${pik ? '<th>PIK 금리</th>' : ''}<th>연 의무 상환</th><th>만기 연수</th></tr></thead>
     <tbody>${rows}<tr class="sum"><td class="st">${od ? '신규 합계' : '합계'}</td>${td('EBITDA 배수', v3Ok(sumX) ? v3Num(sumX, 2) : '')}${td('금액', v3Ok(sumA) ? v3Num(sumA) : '')}<td></td><td></td>${FL ? '<td></td>' : ''}<td></td>${pik ? '<td></td>' : ''}<td></td><td></td></tr>${orow}</tbody></table></div>` : '';
   return v3Sec('거래 가정', L.preset === 'modellers' ? '<span class="meta">원형 재현</span>' : '', `<div class="v3-fs">${fs}</div>${tt}${v3lWhyList(x, L)}`, 'v3l-deal');
@@ -4278,9 +4279,10 @@ function v3lCredit(x, L) {
   const nd = v3lRow(L, 'net_debt'), de = cr.debt_ebitda, n = Math.max(nd?.length || 0, de?.length || 0), ys = v3lYs(L, n);
   const chart = n && (Array.isArray(nd) || Array.isArray(de)) ? `${v3cLegend([Array.isArray(nd) ? { label: '순차입금', cls: 's2' } : null, Array.isArray(de) ? { label: v3lNm(L, 'cr.debt_ebitda'), cls: 's1', kind: 'line' } : null])}
     ${v3cBars({ w: v3Wd(x), h: 240, labels: ys, bars: Array.isArray(nd) ? [{ name: '순차입금', values: nd, cls: 's2' }] : [], lines: Array.isArray(de) ? [{ name: v3lNm(L, 'cr.debt_ebitda'), values: de, cls: 's1' }] : [], fmt: (v) => v3Num(v), lineFmt: (v) => `${v3Num(v, 1)}배`, title: '순차입금과 총차입 배수' })}` : '';
-  const low = 1; // 이자보상배율 경고선(lbo.py cov_warn 기본)
+  const I = L.input || {}, low = v3Ok(I.cov_warn) ? I.cov_warn : null, okr = Array.isArray(I.cov_ok) && I.cov_ok.every(v3Ok) ? I.cov_ok : null; // 이자보상배율 경고선과 안정 구간은 엔진 값(py.lbo.input)
+  const covTip = [low != null ? `${v3Num(low, 1)}배 미만 주의` : '', okr ? `${v3Num(okr[0], 1)}～${v3Num(okr[1], 1)}배 안정 구간` : ''].filter(Boolean).join(', ');
   const tbl = keys.length ? `<div class="mk-scroll"><table class="mk-tbl v3-t v3l-yt"><thead><tr><th class="st">지표</th>${ys.map((y) => `<th>${y}</th>`).join('')}</tr></thead>
-    <tbody>${keys.map((k) => `<tr><td class="st">${esc(v3lNm(L, `cr.${k}`))}</td>${ys.map((_, j) => { const v = cr[k][j]; return `<td class="${/_int$/.test(k) && v3Ok(v) && v < low ? 'v3l-bad' : ''}">${v3Ok(v) ? v3Num(v, 2) : '-'}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>` : '<div class="empty">신용 지표가 없습니다.</div>';
+    <tbody>${keys.map((k) => `<tr><td class="st"${/_int$/.test(k) && covTip ? ` title="${esc(covTip)}"` : ''}>${esc(v3lNm(L, `cr.${k}`))}</td>${ys.map((_, j) => { const v = cr[k][j]; return `<td class="${/_int$/.test(k) && low != null && v3Ok(v) && v < low ? 'v3l-bad' : ''}">${v3Ok(v) ? v3Num(v, 2) : '-'}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>` : '<div class="empty">신용 지표가 없습니다.</div>';
   return v3Sec('신용 지표', '<span class="meta">단위 배</span>', `${chart ? `<div class="v3l-ch">${chart}</div>` : ''}${tbl}`);
 }
 
@@ -4341,7 +4343,7 @@ function v3lScen(x, L) {
     return `<tr class="${on ? 'on' : ''}"><td class="st">시나리오 ${esc(r.no ?? '')}${tag ? `<small>${tag}</small>` : ''}</td><td title="${esc(tipOf(r))}">${v3X(r.lev_x, 2)}</td><td>${v3Num(r.debt)}</td><td>${v3Num(r.equity)}</td>
       <td class="${r.warn ? 'v3l-bad' : ''}">${v3Pct(r.lev_pct, 1)}</td><td>${v3Num(r.exit_net_debt)}</td><td>${v3Num(r.exit_eq)}</td><td>${v3Pct(r.irr, 1)}</td><td>${v3X(r.mom, 2)}</td>${peak ? `<td>${v3Num(r.rcf_peak)}</td>` : ''}</tr>`;
   }).join('');
-  return v3Sec('조달 시나리오', v3lUnit(L), `<div class="mk-scroll"><table class="mk-tbl v3-t v3l-fs"><thead><tr><th class="st">구분</th><th>총차입 배수</th><th>신규 차입</th><th>사모펀드 출자</th><th>차입 비중</th><th>회수 순차입금</th><th>회수 지분가치</th><th>IRR</th><th>MoM</th>${peak ? '<th>리볼버 최대 잔액</th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>`);
+  return v3Sec('조달 시나리오', v3lUnit(L), `<div class="mk-scroll"><table class="mk-tbl v3-t v3l-fs"><thead><tr><th class="st">구분</th><th>총차입 배수</th><th>신규 차입</th><th>사모펀드 출자</th><th${v3Ok(L.input?.lev_warn) ? ` title="${esc(v3Pct(L.input.lev_warn, 0))} 초과 주의"` : ''}>차입 비중</th><th>회수 순차입금</th><th>회수 지분가치</th><th>IRR</th><th>MoM</th>${peak ? '<th>리볼버 최대 잔액</th>' : ''}</tr></thead><tbody>${rows}</tbody></table></div>`);
 }
 
 // ===== 조정 재무상태표 =====
@@ -4549,7 +4551,7 @@ function v3Info(c) {
       '바텀업 베타: 비교기업 조정 베타를 회사마다 무차입화한 값의 중앙값을 목표 D/E로 재차입. 무차입 베타 = 조정 베타 ÷ (1 + (1 − 세율) × D/E). 세율은 입력 세율, 회사별 구간 세율, 대상 한계세율 가운데 고름',
       `베타 하한${sw('beta_floor') != null ? ` ${v3Num(sw('beta_floor'), 2)}` : ' 0.8'}: 계산한 베타가 이보다 낮으면 하한을 쓰고 점검에 참고로 남김`,
       '타인자본비용 단계의 「등급별 회사채 수익률 펴기」에서 대상 등급과 만기별 수익률을 봄. 최근 발행 금리에는 발행일과 금액이 붙음',
-      '세전 타인자본비용 자동 순서: 회사채 시장 수익률, 실제 신용등급 스프레드, 실효이자율(리스를 뺀 차입금이 시가총액의 5% 이상일 때), 이자보상배율로 정한 합성 등급 스프레드',
+      '세전 타인자본비용 자동 순서: 회사채 시장 수익률, 최근 발행 금리, 실제 신용등급 스프레드, 실효이자율(리스를 뺀 차입금이 시가총액의 5% 이상일 때), 이자보상배율로 정한 합성 등급 스프레드',
       '자본 비중은 시가총액과 이자부부채(리스 포함)의 지금 비율. 시가총액은 기준일 값 대신 1년, 2년 일평균으로 바꿀 수 있음',
       '선택지별 WACC 표: 베타 기간과 방식, 무위험이자율, 주식위험프리미엄을 하나씩 바꿨을 때의 WACC. 굵은 칸이 지금 조합이고 칸에 마우스를 올리면 적용 베타와 계산 베타가 보임',
       '안정기 WACC: 안정기 베타를 0.8에서 1.2 사이로 잘라 다시 계산함. 전환 기간 할인율은 명시 기간 WACC에서 안정기 WACC까지 직선',
@@ -4588,7 +4590,7 @@ function v3Info(c) {
     ['민감도', [
       '이중 변수 표: WACC × 영구성장률, WACC × 종료연도 영업이익률, 셋째 표는 전환 기간이 있으면 WACC × 전환 기간 성장률 가산, 없으면 WACC × 명시 기간 매출 성장률 가산(모든 매출 줄에 같은 폭). 5 × 5이며 가운데 칸이 지금 값',
       '다른 모형 민감도: 배당할인모형은 자기자본비용 × 영구성장률, 잔여이익모형은 자기자본비용 × 마지막 해 ROE',
-      '변수별 영향의 WACC 줄 이름에 마우스를 올리면 영구성장률과 견준 1%p당 영향이 보임',
+      '변수별 영향의 WACC 줄 이름에 마우스를 올리면 영구성장률과 견준 1%p당 영향(엔진이 계산한 비율)이 보임',
       '요약의 「다른 가정」 표는 파이썬이 처음 값으로 계산한 결과. 그 아래 FCFE 순차입, 배당할인모형 단계 단추 옆 값은 지금 입력으로 다시 계산한 Base 주당 가치',
       'WACC를 움직이면 명시 기간과 안정기 WACC가 같은 폭으로 움직임',
       '토네이도: 변수 하나만 정한 폭으로 올리고 내렸을 때의 주당 가치',
@@ -4630,7 +4632,8 @@ function v3Info(c) {
       '민감도는 인수 프리미엄과 회수 배수를 움직인 IRR, MoM 표. 가운데 칸이 지금 가정',
       '최근 12개월 진입, 기존 차입 승계, 금리 하한, 임의 상환 비율, 인수가격 배분, 참여자별 수익은 그 선택지를 켠 사례에서만 보임',
       '인수가격 배분: 초과 인수가에서 식별 무형자산을 빼고 이연법인세부채를 더한 값이 영업권. 내용연수 0은 상각하지 않는 자산',
-      '참여자별 수익: 선순위, 메자닌, 재무적 투자자 묶음과 트랜치별 IRR, MoM',
+      '참여자별 수익: 선순위, 메자닌, 재무적 투자자 묶음과 트랜치별 IRR, MoM. 꺼진 사례는 거래 가정의 「참여자별 수익」을 「계산」으로 바꿔 입력을 내려받아 파이썬에서 다시 계산',
+      '신용 지표의 이자보상배율 경고선과 안정 구간, 조달 시나리오의 차입 비중 주의선은 사례 입력 값. 줄 이름과 열 머리에 마우스를 올리면 보임',
       '「가정 근거 펴기」에서 거래 가정의 근거와 계산 방식을 봄. 밑줄 친 칸 이름에 마우스를 올려도 같은 글이 보임',
       '거래 종결일이 결산일과 다르고 종결일 간격을 반영한 사례: 첫 추정 연도는 종결일 뒤 기간만 반영해 연도 머리에 그 기간이 붙고, 보유 기간은 소수로 표시. 진입 표에 결산 순차입금과 종결일까지 달라진 금액이 나옴',
       '파이썬에서만 계산함. 거래 가정 칸을 바꾸면 입력 내려받기 파일에 실리고, 파이썬을 다시 돌려야 결과가 바뀜']],
