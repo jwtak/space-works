@@ -48,7 +48,7 @@
 .rd-card2 { margin-top: 16px; }
 
 /* 자문사별 보기: 자문사 이름 줄 + 맡은 딜 */
-.rd-grp { display: flex; align-items: baseline; gap: 8px; padding: 16px 24px 8px; border-top: 1px solid var(--line); }
+.rd-grp { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; padding: 16px 24px 8px; border-top: 1px solid var(--line); } /* 묶음 설명 글이 붙으면(FI 회수) 폰에서 줄바꿈 */
 .rd-grp b { font-size: var(--fs-base); line-height: 22px; font-weight: 600; }
 .rd-grp span { font-size: var(--fs-sm); color: var(--text3); }
 .ipo-head + .rd-grp { border-top: 0; }

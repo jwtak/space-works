@@ -625,7 +625,7 @@ matchMedia('(max-width: 760px)').addEventListener('change', () => { if (S && rou
 
 /* ---------- 딜소싱·뉴스·파이프라인 (2026-11-11 사용자 승인으로 11개 탭을 정리)
    뉴스(사이드바): 딜 뉴스 — 회사 목록이 아니라 매일 훑는 소식
-   딜소싱: 행사(행사·IR — 회사를 직접 만나는 자리, 11/11 사용자 '맨 앞으로') / 상장(상장 준비 | 신규상장) / 매물(입찰딜 | 매각희망 | 매물장터) / 타깃(오너기업 | 중복상장 | 상폐 위험·CB | 섹터 | 소비재 | 딥테크, 소비재·딥테크는 11/16 사용자 요청)
+   딜소싱: 행사(행사·IR — 회사를 직접 만나는 자리, 11/11 사용자 '맨 앞으로') / 상장(상장 준비 | 신규상장) / 매물(입찰딜 | FI 회수(11/17 '매각희망'에서 이름 바꿈) | 매물장터) / 타깃(오너기업 | 중복상장 | 상폐 위험·CB | 섹터 | 소비재 | 딥테크, 소비재·딥테크는 11/16 사용자 요청)
    파이프라인(사이드바): 팩트시트(관심 회사 모음, 11/16 사용자가 타깃에서 옮김, 왼쪽) | 파이프라인(모든 탭에서 올린 카드가 모이는 곳)
    주소는 예전 그대로 #deals/<화면>(다른 화면·홈 카드·파이프라인 '돌아가기'가 쓴다). #deals/<묶음>은 그 묶음에서 마지막으로 본 화면으로.
    PE 앵글은 오너기업(heir)·중복상장(dup) 두 화면으로 펼친다 — pe.js 안의 묶음 값(peS.grp)만 바꿔서 그리고 pe.js 자체 전환 줄은 숨긴다.
@@ -638,7 +638,7 @@ const DEAL_SCREENS = {
   yesim: ['상장 준비', 'flag', () => (typeof renderYesim === 'function' ? renderYesim : null)],
   ipo: ['신규상장', 'chart', () => (typeof renderIpo === 'function' ? renderIpo : null)],
   bids: ['입찰딜', 'send', () => (typeof renderBids === 'function' ? renderBids : null)],
-  sell: ['매각희망', 'upload', () => (typeof renderSell === 'function' ? renderSell : null)],
+  sell: ['FI 회수', 'upload', () => (typeof renderSell === 'function' ? renderSell : null)],
   kmx: ['매물장터', 'clip', () => (typeof renderKmx === 'function' ? renderKmx : null)],
   heir: ['오너기업', 'link', () => dealPe('heir')],
   dup: ['중복상장', 'link', () => dealPe('dup')],

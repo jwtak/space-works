@@ -15,7 +15,7 @@ const rdDoneCls = (st) => (st === RD_DONE ? ' ct-done' : '');
 const RD_TTL = 5 * 60000;
 const RD_TAB = {
   yesim: { file: 'data/yesim.json', label: '예심청구', unit: '곳' },
-  sell: { file: 'data/sell.json', label: '매각희망', unit: '건' },
+  sell: { file: 'data/sell.json', label: 'FI 회수', unit: '건' }, // 2026-11-17 '매각희망'에서 이름 바꿈(주소 #deals/sell·키 sell은 그대로)
   bids: { file: 'data/bids.json', label: '입찰딜', unit: '건' },
 };
 const RD_YS_F = [['all', '전체'], ['mandate', '주관사 선정'], ['review', '심사 중'], ['ok', '승인'], ['drop', '철회·미승인'], ['new', '새 소식'], ['hidden', '가린 회사']];
@@ -165,7 +165,7 @@ Object.assign(TAB_INFO, {
       '규정은 매번 바뀔 수 있습니다. 딜 뉴스에 \'상장 규정\' 태그 기사가 뜨거나 실무서 새 판이 나오면 이 설명을 고칩니다.',
     ]],
   ] },
-  'deals/sell': { title: '매각희망', rows: [
+  'deals/sell': { title: 'FI 회수', rows: [
     ['무엇인가', '다른 PE·VC가 비상장 지분(구주)을 팔아야 하거나 팔려는 신호를 모은 목록입니다. 상장 주식 블록은 사지 않으므로 지분 축소 공시, 락업 해제, 타법인 EB는 넣지 않습니다.'],
     ['왜 보나', '파는 쪽이 급할수록 구주·세컨더리를 할인된 값에 살 수 있습니다. 신생 GP가 딜을 얻는 현실적인 경로입니다.'],
     ['어떻게 보나', [
@@ -173,7 +173,7 @@ Object.assign(TAB_INFO, {
       '근거의 \'예심 주주\'는 예심을 청구한 회사의 주주, \'투자설명서 주주\'는 상장했거나 상장 직전인 회사의 주주입니다.',
       '철회: 예심을 철회해 FI 회수가 늦어진 회사입니다. 매도 후보는 그 회사의 FI입니다.',
       '뉴스: 매각 기사 중 우선협상 전이고 우리가 낄 여지(입찰딜 적합도 상·중)가 있는 것만 남깁니다.',
-      '기본 정렬은 우선순입니다. 만기가 지난 조합이 가진 비상장 회사, 그 밖의 비상장 회사, 나머지 순이고 같은 묶음 안에서는 날짜가 가까운 순입니다.',
+      '기본 정렬은 우선순이고 세 묶음으로 나눠 보입니다. ① 만기 지난 조합: 연장 기간에 들어간 조합이 가진 비상장 회사 ② 만기 임박과 예심 철회: 만기가 다가오는 조합의 비상장 회사와 예심을 철회한 회사 ③ 매각 뉴스와 상장사. 묶음 안에서는 오늘에서 가까운 날짜 순입니다.',
       '펼치면 근거 한 줄, 매도 후보, 원문 링크가 나옵니다.',
     ]],
     ['그래서 할 일', [
@@ -583,7 +583,7 @@ function rdDhead(tab, x, sum, extra = '') {
     </div>`;
 }
 
-const RD_PIPE_SRC = { yesim: '예심청구', sell: '매각희망', bids: '입찰딜' };
+const RD_PIPE_SRC = { yesim: '예심청구', sell: 'FI 회수', bids: '입찰딜' };
 // '있음' 링크의 data-pp-ref = 파이프라인 화면이 그 딜을 펼쳐 보여 줄 때 쓰는 ref. 분류 전 임시 카드는 올리기 버튼이 없다
 function rdPipe(tab, x) {
   if (typeof pipeAdd !== 'function') return '';
@@ -856,7 +856,7 @@ function rdSignals() {
     ${list.length ? `<div class="ipo-head ipo-cols"><div>날짜</div><div>회사</div><div class="rd-c2">신호</div><div class="rd-span3">기사</div><div>매체</div></div>${list.map(row).join('')}` : '<div class="empty">조건에 맞는 신호가 없습니다.</div>'}</section>`;
 }
 
-/* ---------- 매각희망 ---------- */
+/* ---------- FI 회수(옛 이름 매각희망) ---------- */
 function rdSellList() {
   const s = rdS.sell, d = s.data; if (!d) return [];
   const q = s.q.trim().toLowerCase();
@@ -866,6 +866,11 @@ function rdSellList() {
   // 우선순: 만기 지난 조합의 비상장 회사 → 그 밖의 비상장(만기·철회, 종목코드 없음) → 나머지
   const grp = (x) => (x.kind === '뉴스' || x.code ? 2 : x.kind === '만기' && x.dd != null && x.dd < 0 ? 0 : 1);
   const prio = (a, b) => grp(a) - grp(b) || near(a, b);
+  if (!RD_SELL_SORT.some(([v]) => v === s.sort) || s.sort === 'prio') { // 우선순은 묶음마다 머리줄(이름·건수·설명, 2026-11-17 사용자)
+    const out = [];
+    list.sort(prio).forEach((x, i, a) => { const g = grp(x); if (!i || grp(a[i - 1]) !== g) out.push({ grp: g, n: a.filter((y) => grp(y) === g).length }); out.push(x); });
+    return out;
+  }
   const by = {
     prio,
     near,
@@ -910,7 +915,7 @@ function rdSellDetail(x) {
   const fb = f ? `${rdKv('조합명', rdNm(f.name))}${rdKv('운용사', rdNm(f.gp))}${rdKv('결성일', esc(rdYmd(f.formed)))}${rdKv('만기일', f.expiry ? rdDateDd(rdYmd(f.expiry), fdd) : '')}${rdKv('결성액', esc(f.size))}` : '';
   const base = rdBox('근거', ev.trim() ? ev : RD_NONE);
   return `<div class="ipo-detail">${rdDhead('sell', x, x.detail)}
-    <div class="ipo-pane"><div class="ipo-stack">${fqBox(rdKey('sell', x.id), x, '매각희망')}
+    <div class="ipo-pane"><div class="ipo-stack">${fqBox(rdKey('sell', x.id), x, 'FI 회수')}
       ${fb ? `<div class="ipo-two-col">${base}${rdBox('조합', fb)}</div>` : base}
       ${rdNewsBox(x.news)}
     </div></div>
@@ -1007,7 +1012,10 @@ function rdStageOpts() {
 
 /* ---------- 그리기 ---------- */
 const RD_LIST = { yesim: rdYsList, sell: rdSellList, bids: rdBidsList };
-const RD_ROW = { yesim: (x) => (x.grp != null ? rdGrpRow(x) : x.mn ? rdMnRow(x) : rdYsRow(x)), sell: rdSellRow, bids: (x) => (x.grp != null ? `<div class="rd-grp"><b>${esc(x.grp)}</b><span>${x.n}건</span></div>` : rdBidsRow(x, false)) };
+// FI 회수 우선순 묶음 머리: [이름, 설명]
+const RD_SELL_GRP = [['만기 지난 조합', '연장 기간에 들어가 팔 압박이 가장 큰 곳'], ['만기 임박과 예심 철회', '1～2년 안에 팔아야 하거나 회수가 늦어진 곳'], ['매각 뉴스와 상장사', '참고용']];
+const rdSellGrpRow = (x) => `<div class="rd-grp"><b>${RD_SELL_GRP[x.grp]?.[0] || ''}</b><span>${x.n}건</span><span>${RD_SELL_GRP[x.grp]?.[1] || ''}</span></div>`;
+const RD_ROW = { yesim: (x) => (x.grp != null ? rdGrpRow(x) : x.mn ? rdMnRow(x) : rdYsRow(x)), sell: (x) => (x.grp != null ? rdSellGrpRow(x) : rdSellRow(x)), bids: (x) => (x.grp != null ? `<div class="rd-grp"><b>${esc(x.grp)}</b><span>${x.n}건</span></div>` : rdBidsRow(x, false)) };
 const RD_HEAD = { yesim: RD_YS_HEAD, sell: RD_SELL_HEAD, bids: RD_BIDS_HEAD };
 // 컨택한 곳(연락함·미팅·보류)은 맨 아래 '컨택한 곳' 묶음으로 내리고 흐리게(사용자 2026-11-10). 검토 완료는 제자리에 진한 회색으로 둔다(11-16).
 // 묶음 머리가 있는 목록(예심청구 전체·주관사순)은 남은 행 수로 머리를 다시 세고, 다 빠진 묶음은 지운다

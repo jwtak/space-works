@@ -8,7 +8,7 @@
 const PP_STAGES = ['발굴', '검토', '미팅', '실사', '투자심의', '완료', '드롭'];
 const PP_END = ['완료', '드롭'];            // '진행 중'에서 빼는 단계
 const PP_HOT = ['미팅', '실사', '투자심의'];  // 목록 칩을 파랑으로
-const PP_SRCS = ['소개', '신규상장', '예심청구', '매각희망', '입찰딜', '행사·IR', '상폐 위험·CB', 'PE 앵글', '소비재', '딥테크', '기타'];
+const PP_SRCS = ['소개', '신규상장', '예심청구', 'FI 회수', '입찰딜', '행사·IR', '상폐 위험·CB', 'PE 앵글', '소비재', '딥테크', '기타'];
 const PP_TYPES = ['메자닌', '구주', '프리IPO', '경영권', '기타'];
 const PP_SORTS = [['next', '다음 연락일순'], ['at', '최근 수정순'], ['created', '등록일순']];
 
@@ -36,7 +36,7 @@ TAB_INFO['deals/pipeline'] = { title: '파이프라인', rows: [
   ]],
 ] };
 // ref 앞부분 → 그 딜이 있는 탭
-const PP_TABS = { ipo: ['#deals/ipo', '신규상장'], yesim: ['#deals/yesim', '예심청구'], sell: ['#deals/sell', '매각희망'], bids: ['#deals/bids', '입찰딜'], events: ['#deals/events', '행사·IR'], facts: ['#deals/facts', '팩트시트'], delist: ['#deals/delist', '상폐 위험·CB'], pe: ['#deals/pe', 'PE 앵글'], cons: ['#deals/cons', '소비재'], deep: ['#deals/deep', '딥테크'] };
+const PP_TABS = { ipo: ['#deals/ipo', '신규상장'], yesim: ['#deals/yesim', '예심청구'], sell: ['#deals/sell', 'FI 회수'], bids: ['#deals/bids', '입찰딜'], events: ['#deals/events', '행사·IR'], facts: ['#deals/facts', '팩트시트'], delist: ['#deals/delist', '상폐 위험·CB'], pe: ['#deals/pe', 'PE 앵글'], cons: ['#deals/cons', '소비재'], deep: ['#deals/deep', '딥테크'] };
 const PP_HASH = '#deals/pipeline';
 const PP_TTL = 5 * 60000;
 const PP_WD = '일월화수목금토';
@@ -56,7 +56,8 @@ const ppViewSave = () => viewSet('pp', { q: ppS.q, stage: ppS.stage, sort: ppS.s
 /* ---------- 데이터 ---------- */
 // 파일은 배열이어야 한다. 다른 모양이거나 깨졌으면 덮어쓰지 않도록 읽기부터 멈춘다
 const PP_BAD = '파이프라인 자료 형식이 올바르지 않습니다';
-const ppArr = (v) => { if (!Array.isArray(v)) throw new Error(PP_BAD); return v; };
+// 출처 '매각희망'은 11/17 'FI 회수'로 이름이 바뀌었다. 읽을 때 새 이름으로(다음 저장 때 파일에도 반영)
+const ppArr = (v) => { if (!Array.isArray(v)) throw new Error(PP_BAD); v.forEach((x) => { if (x && x.src === '매각희망') x.src = 'FI 회수'; }); return v; };
 const ppRead = () => STORE.readJSON('pipeline').catch((e) => { throw e instanceof SyntaxError ? new Error(PP_BAD) : e; });
 
 function pipeLoad(force) {
