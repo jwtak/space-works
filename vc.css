@@ -68,6 +68,36 @@ button.vc-hr:hover { background: var(--hover); }
 .vc-dir { display: inline-block; width: 12px; color: var(--primary); }
 .vc-morewrap { display: flex; justify-content: center; padding-top: 12px; }
 
+/* 투자사 펼치기: 행을 누르면 보유 회사(공시). 모양은 ipo.css 펼침(연파랑 머리 + 흰 묶음 박스 .ipo-box·.ipo-tbl) */
+.vc-tbl tr.vc-row { cursor: pointer; }
+.vc-tbl tr.vc-row:hover td { background: var(--hover); }
+.vc-tbl tr.vc-row.open td { background: var(--primary-soft); border-bottom-color: transparent; }
+.vc-open { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.vc-open b { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.vc-chev { display: flex; flex: none; color: var(--text3); transition: transform .15s ease; }
+.vc-row.open .vc-chev { transform: rotate(90deg); color: var(--primary); }
+.vc-tbl tr.vc-row:hover td.st b, .vc-tbl tr.vc-row.open td.st b { color: var(--primary); }
+.vc-tbl td.st small.vc-alt { padding-left: 20px; }
+.vc-tbl td.vc-dcell { padding: 0 12px 16px; white-space: normal; overflow: visible; background: var(--primary-soft); border-bottom: 1px solid var(--line); cursor: default; }
+.vc-hold .ipo-box-h { align-items: baseline; }
+.vc-hold .ipo-box-b { padding: 8px 16px 12px; }
+.vc-hold .empty { padding: 16px 0; }
+.vc-hnote { margin: 0 0 4px; font-size: var(--fs-md); line-height: 20px; color: var(--text3); }
+/* 안쪽 표: 바깥 .mk-tbl·.vc-tbl 칸 규칙(한 줄 말줄임·폭)을 되돌린다 */
+.vc-tbl table.vc-htbl th, .vc-tbl table.vc-htbl td { width: auto; padding: 8px 12px 8px 0; font-size: var(--fs-md); line-height: 20px; white-space: normal; overflow: visible; overflow-wrap: anywhere; background: none; color: var(--text2); }
+.vc-tbl table.vc-htbl th { color: var(--text3); white-space: nowrap; }
+.vc-tbl table.vc-htbl th:nth-child(1) { width: 30%; }
+.vc-tbl table.vc-htbl th:nth-child(2) { width: 72px; }
+.vc-tbl table.vc-htbl th:nth-child(4) { width: 160px; }
+.vc-tbl table.vc-htbl th:nth-child(5) { width: 80px; }
+.vc-tbl table.vc-htbl td.vc-hpct { color: var(--ink); font-weight: 600; }
+.vc-hname { color: var(--ink); font-weight: 600; text-decoration: none; }
+.vc-hname:hover { color: var(--primary); text-decoration: underline; }
+.vc-hname svg.i.sm { width: 14px; height: 14px; margin-left: 2px; color: var(--text3); vertical-align: -2px; }
+.vc-lst { display: inline-flex; align-items: center; height: 22px; margin-left: 6px; padding: 0 8px; border-radius: var(--r-full); font-size: var(--fs-md); font-weight: 500; white-space: nowrap; background: var(--fill); color: var(--text2); vertical-align: 1px; }
+.vc-lst.un { background: var(--t-blue); color: var(--t-blue-c); }
+.vc-via { display: block; }
+
 @media (max-width: 760px) {
   .vc-fcard { margin-bottom: 12px; }
   .vc-body { gap: 12px; }
@@ -97,4 +127,18 @@ button.vc-hr:hover { background: var(--hover); }
   .vc-tbl th:not(.st), .vc-tbl td:not(.st) { width: 96px; }
   .vc-tbl th:nth-child(3), .vc-tbl td:nth-child(3) { width: 68px; }
   .vc-sort { height: 44px; }
+  /* 보유 회사: 표 대신 회사마다 한 덩어리(회사 / 지분율 근거 기준일 / 보유 조합), 회사 이름 링크는 44 높이 */
+  /* 펼친 칸(colspan 4)이 넷째 열을 새로 만들어 이름 칸을 줄이지 않게, 숨긴 주력 업종 머리는 폭 0으로 남긴다 */
+  .vc-tbl th.vc-c-main { display: table-cell; width: 0; padding: 0; border: 0; overflow: hidden; visibility: hidden; }
+  .vc-tbl td.vc-dcell { padding: 0 0 12px; }
+  .vc-hold .ipo-box-h { padding: 12px; }
+  .vc-hold .ipo-box-b { padding: 4px 12px 12px; }
+  .vc-tbl table.vc-htbl, .vc-tbl table.vc-htbl tbody { display: block; }
+  .vc-tbl table.vc-htbl thead { display: none; }
+  .vc-tbl table.vc-htbl tr { display: flex; flex-wrap: wrap; column-gap: 12px; padding: 0 0 10px; border-bottom: 1px solid var(--row); }
+  .vc-tbl table.vc-htbl tr:last-child { border-bottom: 0; padding-bottom: 0; }
+  .vc-tbl table.vc-htbl td { padding: 0; border: 0; }
+  .vc-tbl table.vc-htbl td.vc-hco { flex: 1 1 100%; }
+  .vc-tbl table.vc-htbl td.vc-hvia { order: 5; flex: 1 1 100%; margin-top: 2px; }
+  .vc-hname { display: inline-flex; align-items: center; min-height: 44px; }
 }

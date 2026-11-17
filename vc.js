@@ -9,6 +9,7 @@ const VC_TTL = 10 * 60000;
 const VC_STALE = 2; // 최근 공시월이 지금보다 두 달 넘게 앞이면 빨간 글씨
 const VC_TOP = 10, VC_PAGE = 20;
 const VC_SORTS = ['amt', 'cnt', 'name'];
+const VC_HOLD_TOP = 15; // 펼친 보유 회사는 15곳까지, 나머지는 버튼으로
 
 // 새로 고친 뒤에도 고른 달·필터·정렬을 이어 보게 창마다 기억한다(app.js viewGet·viewSet, 키 vc)
 const vcS = (() => {
@@ -18,9 +19,10 @@ const vcS = (() => {
     data: null, err: '', at: 0, loading: null, host: null, more: false,
     f: { mon: s('mon'), mode: v.mode === 'mon' ? 'mon' : 'cum', major: s('major'), minor: s('minor'), stage: s('stage'), region: s('region'), q: s('q') },
     sort: VC_SORTS.includes(v.sort) ? v.sort : 'amt', dir: v.dir === 'asc' ? 'asc' : 'desc',
+    open: new Set(Array.isArray(v.open) ? v.open.filter((x) => typeof x === 'string') : []), hmore: new Set(),
   };
 })();
-const vcViewSave = () => viewSet('vc', { ...vcS.f, sort: vcS.sort, dir: vcS.dir });
+const vcViewSave = () => viewSet('vc', { ...vcS.f, sort: vcS.sort, dir: vcS.dir, open: [...vcS.open] });
 
 /* ---------- 데이터 ---------- */
 const vcStr = (v) => (v == null || typeof v === 'object' ? '' : String(v).trim());
@@ -30,6 +32,22 @@ const vcPair = (x) => (Array.isArray(x) && x.length >= 2 && Number.isFinite(+x[0
 const vcMap = (o) => { const out = {}; for (const [k, x] of Object.entries(vcObj(o))) { const p = vcPair(x); if (p && k) out[k] = p; } return out; };
 const vcSum = (m) => Object.values(m).reduce((s, p) => [s[0] + p[0], s[1] + p[1]], [0, 0]);
 const vcList = (a) => [...new Set((Array.isArray(a) ? a : []).map(vcStr).filter(Boolean))];
+const vcNum = (v) => (v == null || v === '' || !Number.isFinite(+v) ? null : +v);
+
+// 보유 회사(공시): hold[운용사 id] = [{co, cc, listed, pct, via, basis, date}]. 비상장 먼저, 그다음 지분율 큰 순(지분율 없으면 뒤)
+function vcHoldNorm(o) {
+  const out = {};
+  for (const [id, a] of Object.entries(vcObj(o))) {
+    if (!Array.isArray(a)) continue;
+    const list = a.map(vcObj).map((x) => ({
+      co: vcStr(x.co), listed: x.listed === true, pct: vcNum(x.pct), via: vcList(x.via), basis: vcStr(x.basis),
+      date: /^\d{4}-\d{2}-\d{2}/.test(vcStr(x.date)) ? vcStr(x.date).slice(0, 10) : '',
+    })).filter((x) => x.co);
+    list.sort((p, q) => p.listed - q.listed || (q.pct ?? -1) - (p.pct ?? -1));
+    if (list.length) out[id] = list;
+  }
+  return out;
+}
 
 function vcNorm(raw) {
   const vcs = (Array.isArray(raw.vcs) ? raw.vcs : []).map((x, i) => {
@@ -63,6 +81,7 @@ function vcNorm(raw) {
   return {
     generated: vcStr(raw.generated), asof: vcYm(vcStr(raw.asof)) ? vcStr(raw.asof) : ms.at(-1) || '', months: ms,
     basis: vcStr(raw.basis), sources: vcObj(raw.sources), ind, stage, region, vcs,
+    hold: vcHoldNorm(raw.hold), holdNote: vcStr(raw.hold_note),
   };
 }
 
@@ -227,10 +246,30 @@ function vcTable(rows) {
   const list = rows.slice().sort((a, b) => (k === 'name' ? a.v.name.localeCompare(b.v.name, 'ko') : k === 'cnt' ? a.p[0] - b.p[0] || a.p[1] - b.p[1] : a.p[1] - b.p[1]) * sg);
   const shown = vcS.more ? list : list.slice(0, VC_PAGE), rest = list.length - shown.length;
   const th = (key, label, cls = '') => `<th class="${cls}" aria-sort="${k === key ? (vcS.dir === 'asc' ? 'ascending' : 'descending') : 'none'}"><button type="button" class="vc-sort${k === key ? ' on' : ''}" data-vc-sort="${key}">${label}<span class="vc-dir" aria-hidden="true">${k === key ? (vcS.dir === 'asc' ? '▴' : '▾') : ''}</span></button></th>`;
-  return `<div class="mk-scroll"><table class="mk-tbl vc-tbl"><thead><tr>${th('name', '투자사', 'st')}${th('amt', '투자금액')}${th('cnt', '건수')}<th class="vc-c-main">주력 업종</th></tr></thead><tbody>${shown.map((r) => {
-    const x = vcMain(r.rec);
-    return `<tr><td class="st"><b>${esc(r.v.name)}</b>${x ? `<small class="vc-alt">${esc(x.mn)} ${x.share}</small>` : ''}</td><td class="strong">${vcAmt(r.p[1])}억</td><td>${r.p[0].toLocaleString('ko-KR')}건</td><td class="vc-c-main">${x ? `${esc(x.mn)}<small>${esc(x.mj)} ${x.share}</small>` : '<span class="mk-dim">-</span>'}</td></tr>`;
+  return `<div class="mk-scroll"><table class="mk-tbl vc-tbl"><thead><tr>${th('name', '투자사', 'st')}${th('amt', '투자금액')}${th('cnt', '건수')}<th class="vc-c-main">주력 업종</th></tr></thead><tbody>${shown.map((r, i) => {
+    const x = vcMain(r.rec), open = vcS.open.has(r.v.id), hid = `vc-hold-${i}`;
+    return `<tr class="vc-row${open ? ' open' : ''}" data-vc-row="${esc(r.v.id)}"><td class="st"><button type="button" class="vc-open" aria-expanded="${open}"${open ? ` aria-controls="${hid}"` : ''} title="보유 회사(공시) ${open ? '접기' : '펼치기'}"><span class="vc-chev" aria-hidden="true">${ico('right', 'sm')}</span><b>${esc(r.v.name)}</b></button>${x ? `<small class="vc-alt">${esc(x.mn)} ${x.share}</small>` : ''}</td><td class="strong">${vcAmt(r.p[1])}억</td><td>${r.p[0].toLocaleString('ko-KR')}건</td><td class="vc-c-main">${x ? `${esc(x.mn)}<small>${esc(x.mj)} ${x.share}</small>` : '<span class="mk-dim">-</span>'}</td></tr>${open ? `<tr class="vc-drow" id="${hid}"><td class="vc-dcell" colspan="4">${vcHold(r.v)}</td></tr>` : ''}`;
   }).join('')}</tbody></table></div>${rest > 0 ? `<div class="vc-morewrap"><button type="button" class="btn sm" data-vc-more>나머지 ${rest.toLocaleString('ko-KR')}곳 보기</button></div>` : ''}`;
+}
+
+/* ---------- 보유 회사(공시) ---------- */
+// 회사 쪽 서류 주주 명단에서 그 운용사나 그 조합 이름이 나온 회사(vc_contract.md '추가'). DIVA에는 피투자기업 명단이 없다
+const vcDart = (n) => `https://dart.fss.or.kr/dsab007/main.do?option=corp&textCrpNm=${encodeURIComponent(n)}`;
+function vcVia(a) {
+  if (!a.length) return '<span class="mk-dim">-</span>';
+  const one = (x) => `<span class="vc-via">${esc(x === '직접' ? '직접 보유' : x)}</span>`;
+  return a.length > 2 ? `${a.slice(0, 2).map(one).join('')}<span class="vc-via mk-dim" title="${esc(a.slice(2).join(', '))}">외 ${a.length - 2}개</span>` : a.map(one).join('');
+}
+function vcHold(v) {
+  const d = vcS.data, list = d.hold[v.id] || [];
+  const note = d.holdNote ? `<p class="vc-hnote">${esc(d.holdNote)}</p>` : '';
+  const head = `<div class="ipo-box-h">보유 회사(공시)${list.length ? `<span class="muted">${list.length.toLocaleString('ko-KR')}곳</span>` : ''}</div>`;
+  if (!list.length) return `<div class="ipo-box vc-hold">${head}<div class="ipo-box-b">${note}<div class="empty">공시 주주 명단에서 찾은 회사가 없습니다.</div></div></div>`;
+  const shown = vcS.hmore.has(v.id) ? list : list.slice(0, VC_HOLD_TOP), rest = list.length - shown.length;
+  const pct = (p) => (p == null ? '<span class="mk-dim">-</span>' : `${p.toLocaleString('ko-KR', { maximumFractionDigits: 2 })}%`);
+  return `<div class="ipo-box vc-hold">${head}<div class="ipo-box-b">${note}<table class="ipo-tbl vc-htbl"><thead><tr><th>회사</th><th>지분율</th><th>보유 조합</th><th>근거</th><th>기준일</th></tr></thead><tbody>${shown.map((x) => `<tr>
+      <td class="vc-hco"><a class="vc-hname" href="${esc(vcDart(x.co))}" target="_blank" rel="noopener noreferrer" title="DART에서 회사 찾기">${esc(x.co)}${ico('ext', 'sm')}</a><span class="vc-lst${x.listed ? '' : ' un'}">${x.listed ? '상장' : '비상장'}</span></td>
+      <td class="vc-hpct">${pct(x.pct)}</td><td class="vc-hvia">${vcVia(x.via)}</td><td class="vc-hbasis">${x.basis ? esc(x.basis) : '<span class="mk-dim">-</span>'}</td><td class="vc-hdate">${x.date ? yymd(x.date) : '<span class="mk-dim">-</span>'}</td></tr>`).join('')}</tbody></table>${rest > 0 ? `<div class="vc-morewrap"><button type="button" class="btn sm" data-vc-hmore="${esc(v.id)}">나머지 ${rest.toLocaleString('ko-KR')}곳 보기</button></div>` : ''}</div></div>`;
 }
 
 /* ---------- 본문 ---------- */
@@ -319,7 +358,17 @@ function vcBind(root) {
     if (sb) { const k = sb.dataset.vcSort; if (vcS.sort === k) vcS.dir = vcS.dir === 'asc' ? 'desc' : 'asc'; else { vcS.sort = k; vcS.dir = k === 'name' ? 'asc' : 'desc'; } vcDraw(); return; }
     if (t.closest('[data-vc-more]')) { vcS.more = true; vcDraw(); return; }
     if (t.closest('#vc-reset')) { Object.assign(f, { major: '', minor: '', stage: '', region: '', q: '' }); refilter(true); return; }
-    if (t.closest('#vc-ref')) vcLoad(true).then(() => vcDraw(true)).catch((e) => toast(e.message));
+    if (t.closest('#vc-ref')) { vcLoad(true).then(() => vcDraw(true)).catch((e) => toast(e.message)); return; }
+    const hm = t.closest('[data-vc-hmore]'); if (hm) { vcS.hmore.add(hm.dataset.vcHmore); vcDraw(); return; }
+    // 투자사 행을 누르면 보유 회사(공시)를 펼치고 접는다. 펼친 칸 안(링크·표)은 그대로
+    if (t.closest('a, .vc-drow')) return;
+    const row = t.closest('[data-vc-row]');
+    if (row) {
+      const id = row.dataset.vcRow, kb = !!t.closest('.vc-open');
+      if (vcS.open.has(id)) vcS.open.delete(id); else vcS.open.add(id);
+      vcDraw();
+      if (kb) [...root.querySelectorAll('[data-vc-row]')].find((r) => r.dataset.vcRow === id)?.querySelector('.vc-open')?.focus();
+    }
   });
   root.addEventListener('change', (ev) => {
     const id = ev.target.id, v = ev.target.value, f = vcS.f;
@@ -372,6 +421,7 @@ function vcInfo() {
         '비중 막대를 누르면 그 항목으로 거르고, 한 번 더 누르면 풀립니다.',
         '공시가 아직 안 올라온 투자사는 그 달 숫자에서 빠집니다. 최근 달은 공시가 다 모이기 전이라 작게 나올 수 있습니다.',
         '최근 공시월이 두 달 넘게 지나면 빨간 글씨로 표시합니다.',
+        '투자사 목록에서 투자사를 누르면 보유 회사(공시)가 펼쳐집니다. 회사의 감사보고서, 예심, 투자설명서, 대량보유 공시의 주주 명단에서 그 운용사나 운용 조합 이름을 찾은 것이라, 주요 주주로 적힌 회사만 나오고 전체 포트폴리오는 아닙니다.',
       ]],
       ['그래서 할 일', [
         '비중이 커진 업종에서 1～2년 전 시리즈 A, B를 받은 회사를 딜소싱 후보로 봅니다.',
