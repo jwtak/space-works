@@ -19,7 +19,7 @@ const VA_MET = { ni: '순이익', equity: '자본', revenue: '매출', ebitda: '
 const vaS = { data: null, at: 0, loading: null, err: '', vt: 'mkt', code: null, cid: null, sel: {}, tblPer: null, showEx: false, open: {}, qp: {}, fold: {}, gsel: null };
 Object.assign(vaS, viewGet('va', {}));
 vaS.code = null; vaS.gsel = null;
-const vaSave = () => viewSet('va', { cid: vaS.cid, sel: vaS.sel, tblPer: vaS.tblPer, qp: vaS.qp, tab: vaS.tab, trd: vaS.trd, lv: vaS.lv, thm: vaS.thm, mkMarket: vaS.mkMarket, mkKind: vaS.mkKind, fold: vaS.fold });
+const vaSave = () => viewSet('va', { cid: vaS.cid, sel: vaS.sel, tblPer: vaS.tblPer, qp: vaS.qp, tab: vaS.tab, trd: vaS.trd, lv: vaS.lv, thm: vaS.thm, mkMarket: vaS.mkMarket, mkKind: vaS.mkKind, fold: vaS.fold, gord: vaS.gord });
 const vaTabs = (key, opts, cur) => `<div class="va-tabs">${vaSeg(key, opts, cur)}</div>`;
 
 function vaLoad(force) {
@@ -343,7 +343,7 @@ function vaLoadMkt() {
         const ix = Object.fromEntries(d.cols.map((k, i) => [k, i]));
         d.list = d.rows.map((x) => Object.fromEntries(Object.entries(ix).map(([k, i]) => [k, x[i]])));
         d.by = Object.fromEntries(d.list.map((x) => [x.code, x]));
-        if (Array.isArray(d.themes)) d.themes = VA_TH_GROUP.map(([n, re]) => [n, [...new Set(d.themes.filter((t) => re.test(t[0])).flatMap((t) => t[1]))]]).filter((t) => t[1].length); // 테마를 세부 업종으로 묶음
+        if (Array.isArray(d.themes)) d.themes = VA_TH_GROUP.map(([n, re, sec]) => [n, [...new Set(d.themes.filter((t) => re.test(t[0])).flatMap((t) => t[1]))], sec]).filter((t) => t[1].length); // 테마를 세부 업종으로 묶음
         if (Array.isArray(d.themes) && d.themes.length) { // 네이버 테마 [[이름, [종목코드]]]. 한 종목이 여러 테마에 듦
           d.thSet = d.themes.map((t) => new Set(t[1]));
           d.thOf = {};
@@ -439,23 +439,19 @@ function vaPeerQ(F, x) {
 // ---------- 요약 탭: 전 상장사 PER 분포, PER 추이, 업종별 PER 비교, 업종 안 PER 분포 (SK오션플랜트 IM 99쪽 구성) ----------
 const VA_LV = [['sector', '대분류'], ['industryGroup', '중분류'], ['industry', '소분류']]; // FnGuide 분류 단계. 세부 업종(네이버 테마를 묶은 것, lv 'theme')은 데이터에 themes 가 있을 때만
 /* 세부 업종: 네이버 테마를 2차전지 정도 크기로 묶음(2026-11-17 사용자 「2차전지(나트륨이온), 전고체가 나뉠 정도로 너무 세부적이지는 않게」).
-   [묶음 이름, 테마 이름 정규식]. 맞는 테마들의 종목을 합침(한 종목이 여러 묶음에 들 수 있음). 어느 묶음에도 안 맞는 테마(행사, 정책, 계절, 특정 회사, 지수 등)는 뺌. 새 테마가 생기면 여기에 넣음 */
-const VA_TH_GROUP = [
-  ['반도체', /^반도체|시스템반도체|HBM|CXL|소캠|전력반도체|유리 기판/], ['2차전지', /^2차전지|^리튬$|폐배터리|전기차 화재/], ['전기차', /^전기차$|^전기차\(충전/], ['자동차부품', /^자동차부품$|^타이어$/],
-  ['자율주행', /자율주행|스마트카/], ['디스플레이', /OLED|플렉서블 디스플레이|^LED|마이크로 LED/], ['스마트폰 부품', /^스마트폰$|폴더블폰|카메라모듈|^PCB|무선충전|MLCC/],
-  ['통신장비', /^5G|통신장비|광통신/], ['로봇', /로봇/], ['AI', /AI 챗봇|온디바이스 AI|음성인식|의료AI/], ['클라우드, 데이터센터', /클라우드|데이터센터|냉각시스템/],
-  ['IT 서비스', /^SI\(|^NI\(/], ['보안', /^보안주|바이오인식|CCTV/], ['양자컴퓨팅', /양자/], ['게임', /게임/], ['엔터, 콘텐츠', /엔터테인먼트|영상콘텐츠|음원|웹툰|미디어|^광고$|캐릭터|모바일콘텐츠/],
-  ['메타버스', /메타버스|가상현실|증강현실/], ['핀테크', /핀테크|전자결제|마이데이터|인터넷은행/], ['가상자산', /가상화폐|블록체인|^NFT|^STO|스테이블코인/],
-  ['증권', /^증권$/], ['은행, 보험', /^은행$|손해보험/], ['창투사', /창투사/], ['리츠', /리츠/], ['지주사', /^지주사$/],
-  ['제약', /^제약업체$/], ['바이오', /바이오시밀러|mRNA|면역항암제|유전자 치료제|줄기세포|마이크로바이옴|탈모 치료/], ['비만치료제', /비만치료제/], ['진단, 백신', /백신\/진단시약/],
-  ['의료기기', /^의료기기$|치아 치료/], ['미용 의료', /보톡스|미용기기/], ['디지털 헬스케어', /원격진료/], ['화장품', /^화장품$/], ['건강기능식품', /건강기능식품/],
-  ['음식료', /음식료|주류업/], ['농축수산', /^사료$|^육계$|^수산$|^농업$|^비료$/], ['패션, 의류', /패션/], ['유통', /소매유통|백화점|면세점/], ['물류', /종합 물류|콜드체인/],
-  ['여행, 레저', /^여행$|호텔|카지노|^골프$/], ['교육', /교육/], ['방산', /방위산업/], ['우주항공', /우주항공|항공기부품|UAM|드론/], ['조선', /^조선/], ['해운', /^해운$/],
-  ['철강', /철강|강관/], ['비철금속', /비철금속|희귀금속|^니켈$/], ['화학', /석유화학|페인트|윤활유|탈 플라스틱|그래핀/], ['건설', /건설 중소형|리모델링|시멘트|아스콘/],
-  ['기계', /건설기계|공작기계|피팅|스마트팩토리/], ['원자력', /원자력|핵융합/], ['전력설비', /전력설비|^전선$|스마트그리드|ESS/], ['신재생에너지', /태양광|풍력/],
-  ['수소', /수소에너지|SOFC/], ['가스, 에너지', /LNG|LPG|도시가스|셰일가스|주유소|자원개발/], ['환경', /수자원|탄소|공기청정기/], ['철도', /^철도$/], ['제지', /골판지|조림/],
+   [묶음 이름, 테마 이름 정규식, 대분류]. 맞는 테마들의 종목을 합침(한 종목이 여러 묶음에 들 수 있음). 어느 묶음에도 안 맞는 테마(행사, 정책, 계절, 특정 회사, 지수 등)는 뺌. 새 테마가 생기면 여기에 넣음 */
+const VA_TH_GROUP = [ // [묶음 이름, 테마 이름 정규식, 대분류]. 이 순서가 「기본 순서」
+  ['반도체', /^반도체|시스템반도체|HBM|CXL|소캠|전력반도체|유리 기판/, 'IT'], ['디스플레이', /OLED|플렉서블 디스플레이|^LED|마이크로 LED/, 'IT'], ['스마트폰 부품', /^스마트폰$|폴더블폰|카메라모듈|^PCB|무선충전|MLCC/, 'IT'], ['통신장비', /^5G|통신장비|광통신/, 'IT'], ['로봇', /로봇/, 'IT'], ['AI', /AI 챗봇|온디바이스 AI|음성인식|의료AI/, 'IT'], ['클라우드, 데이터센터', /클라우드|데이터센터|냉각시스템/, 'IT'], ['IT 서비스', /^SI\(|^NI\(/, 'IT'], ['보안', /^보안주|바이오인식|CCTV/, 'IT'], ['양자컴퓨팅', /양자/, 'IT'],
+  ['2차전지', /^2차전지|^리튬$|폐배터리|전기차 화재/, '2차전지, 자동차'], ['전기차', /^전기차$|^전기차\(충전/, '2차전지, 자동차'], ['자동차부품', /^자동차부품$|^타이어$/, '2차전지, 자동차'], ['자율주행', /자율주행|스마트카/, '2차전지, 자동차'],
+  ['게임', /게임/, '콘텐츠, 인터넷'], ['엔터, 콘텐츠', /엔터테인먼트|영상콘텐츠|음원|웹툰|미디어|^광고$|캐릭터|모바일콘텐츠/, '콘텐츠, 인터넷'], ['메타버스', /메타버스|가상현실|증강현실/, '콘텐츠, 인터넷'],
+  ['방산', /방위산업/, '산업재'], ['우주항공', /우주항공|항공기부품|UAM|드론/, '산업재'], ['조선', /^조선/, '산업재'], ['해운', /^해운$/, '산업재'], ['기계', /건설기계|공작기계|피팅|스마트팩토리/, '산업재'], ['건설', /건설 중소형|리모델링|시멘트|아스콘/, '산업재'], ['철도', /^철도$/, '산업재'], ['물류', /종합 물류|콜드체인/, '산업재'],
+  ['원자력', /원자력|핵융합/, '에너지, 소재'], ['전력설비', /전력설비|^전선$|스마트그리드|ESS/, '에너지, 소재'], ['신재생에너지', /태양광|풍력/, '에너지, 소재'], ['수소', /수소에너지|SOFC/, '에너지, 소재'], ['가스, 에너지', /LNG|LPG|도시가스|셰일가스|주유소|자원개발/, '에너지, 소재'], ['환경', /수자원|탄소|공기청정기/, '에너지, 소재'], ['철강', /철강|강관/, '에너지, 소재'], ['비철금속', /비철금속|희귀금속|^니켈$/, '에너지, 소재'], ['화학', /석유화학|페인트|윤활유|탈 플라스틱|그래핀/, '에너지, 소재'], ['제지', /골판지|조림/, '에너지, 소재'],
+  ['제약', /^제약업체$/, '헬스케어'], ['바이오', /바이오시밀러|mRNA|면역항암제|유전자 치료제|줄기세포|마이크로바이옴|탈모 치료/, '헬스케어'], ['비만치료제', /비만치료제/, '헬스케어'], ['진단, 백신', /백신\/진단시약/, '헬스케어'], ['의료기기', /^의료기기$|치아 치료/, '헬스케어'], ['미용 의료', /보톡스|미용기기/, '헬스케어'], ['디지털 헬스케어', /원격진료/, '헬스케어'],
+  ['화장품', /^화장품$/, '소비재'], ['건강기능식품', /건강기능식품/, '소비재'], ['음식료', /음식료|주류업/, '소비재'], ['농축수산', /^사료$|^육계$|^수산$|^농업$|^비료$/, '소비재'], ['패션, 의류', /패션/, '소비재'], ['유통', /소매유통|백화점|면세점/, '소비재'], ['여행, 레저', /^여행$|호텔|카지노|^골프$/, '소비재'], ['교육', /교육/, '소비재'],
+  ['증권', /^증권$/, '금융'], ['은행, 보험', /^은행$|손해보험/, '금융'], ['창투사', /창투사/, '금융'], ['리츠', /리츠/, '금융'], ['지주사', /^지주사$/, '금융'], ['핀테크', /핀테크|전자결제|마이데이터|인터넷은행/, '금융'], ['가상자산', /가상화폐|블록체인|^NFT|^STO|스테이블코인/, '금융'],
 ];
 const VA_UP = { industryGroup: 'sector', industry: 'industryGroup' };
+const VA_SEC_ORD = ['IT', '통신서비스', '산업재', '에너지', '소재', '유틸리티', '의료', '필수소비재', '경기소비재', '금융']; // FnGuide 대분류의 「기본 순서」
 const VA_GMAX = 10; // 업종별 비교에 한 번에 보이는 줄 수
 const VA_G2 = 700; // 네 칸을 두 줄로 놓는 화면 폭(px). 그보다 좁으면 한 줄
 const vaCap = (v) => (v == null ? '-' : v >= 10000 ? `${vaNum(v / 10000, 1)}조` : `${vaNum(v)}억`);
@@ -479,21 +475,36 @@ function vaGrp(x) { // 업종별 비교에서 고른 분류 단계와 업종 안
   if (!name) { const n = {}; for (const y of vaMkUse()) if (y[lv]) n[y[lv]] = (n[y[lv]] || 0) + 1; name = Object.entries(n).sort((a, b) => b[1] - a[1])[0]?.[0] || null; }
   return { lv, name, own, has: (y) => !!name && y[lv] === name };
 }
-function vaGrpRows(x, g, key) { // 묶음별 PER 중앙값과 25～75% 구간. 줄이 많으면 고른 업종, 보는 회사와 같은 상위 분류를 먼저 넣고 종목 수가 많은 순으로 채움
-  const d = vaS.mk, use = vaMkUse();
-  const stat = (k, ys) => { const v = ys.map((y) => y[key]).filter(vaOkPer); return { k, n: v.length, med: vaQuant(v, 0.5), lo: vaQuant(v, 0.25), hi: vaQuant(v, 0.75) }; };
-  const cut = (all, rank, open) => ({ total: all.length, rows: (open ? all : [...all].sort((a, b) => rank(a) - rank(b) || b.n - a.n).slice(0, VA_GMAX)).sort((a, b) => b.med - a.med) });
-  if (g.lv === 'theme') return cut((x ? vaThOf(x) : d.themes.map((_, k) => k)).map((i) => stat(d.themes[i][0], use.filter((y) => d.thSet[i].has(y.code)))).filter((r) => r.n), (r) => (r.k === g.name ? 0 : 1), vaS.thAll);
-  const by = {}, up = VA_UP[g.lv], sib = new Set();
-  for (const y of use) {
-    if (!y[g.lv]) continue;
-    (by[y[g.lv]] ||= []).push(y);
-    if (up && x?.[up] && y[up] === x[up]) sib.add(y[g.lv]);
+function vaGrpRows(x, g, key) { // 묶음별 PER 중앙값과 25～75% 구간, 1개월 상승률 중앙값, 20일 거래대금 합. 순서(vaS.gord): 기본은 전부, 상승률과 거래대금은 위 10개(펼치면 전부)
+  const d = vaS.mk, use = vaMkUse(), ord = vaGord();
+  const stat = (k, ys, sec) => {
+    const v = ys.map((y) => y[key]).filter(vaOkPer), r1 = ys.map((y) => y.r1m).filter((z) => typeof z === 'number');
+    return { k, sec, n: v.length, med: vaQuant(v, 0.5), lo: vaQuant(v, 0.25), hi: vaQuant(v, 0.75), r1: r1.length >= 3 ? vaQuant(r1, 0.5) : null, tv: ys.reduce((a, y) => a + (y.tv20 || 0), 0) };
+  };
+  let all;
+  if (g.lv === 'theme') all = (x ? vaThOf(x) : d.themes.map((_, k) => k)).map((i) => stat(d.themes[i][0], use.filter((y) => d.thSet[i].has(y.code)), d.themes[i][2])).filter((r) => r.n);
+  else {
+    const by = {}, up = VA_UP[g.lv];
+    for (const y of use) if (y[g.lv]) (by[y[g.lv]] ||= []).push(y);
+    all = Object.entries(by).map(([k, ys]) => stat(k, ys, up ? ys[0].sector : null)).filter((r) => r.n >= (r.k === g.name || r.k === g.own ? 1 : 5));
   }
-  const key1 = (r) => r.k === g.name || r.k === g.own;
-  const all = Object.entries(by).map(([k, ys]) => stat(k, ys)).filter((r) => r.n >= (key1(r) ? 1 : sib.has(r.k) ? 3 : 5));
-  return cut(all, (r) => (key1(r) ? 0 : sib.has(r.k) ? 1 : 2), vaS.gAll);
+  const tvAll = use.reduce((a, y) => a + (y.tv20 || 0), 0);
+  for (const r of all) r.sh = tvAll ? r.tv / tvAll : null;
+  const total = all.length;
+  if (vaGord() === 'base') { // 늘 같은 자리: 세부 업종은 VA_TH_GROUP 순서, FnGuide는 대분류 순서 안에서 종목 수 순
+    const si = (sec) => { const k = VA_SEC_ORD.indexOf(sec); return k < 0 ? 99 : k; };
+    if (g.lv === 'theme') { const ix = Object.fromEntries(d.themes.map((t, k) => [t[0], k])); all.sort((a, b) => ix[a.k] - ix[b.k]); }
+    else if (g.lv === 'sector') all.sort((a, b) => si(a.k) - si(b.k));
+    else all.sort((a, b) => si(a.sec) - si(b.sec) || b.n - a.n);
+    return { total, rows: all, head: g.lv !== 'sector' };
+  }
+  const m = ord === 'r1m' ? (r) => r.r1 ?? -9 : (r) => r.tv;
+  all.sort((a, b) => m(b) - m(a));
+  const open = g.lv === 'theme' ? vaS.thAll : vaS.gAll, rows = open ? all : all.slice(0, VA_GMAX);
+  const keep = all.find((r) => (r.k === g.name || r.k === g.own) && !rows.includes(r)); // 보고 있는 업종은 순위 밖이어도 맨 아래에 붙임
+  return { total, rows: keep ? [...rows, keep] : rows, head: false };
 }
+const vaGord = () => (['r1m', 'tv'].includes(vaS.gord) && vaS.mk?.cols?.includes('r1m') ? vaS.gord : 'base');
 
 function vaHisto(vals, tv, name) { // 구간별 종목 수 막대. 중앙값(실선), 평균(점선), 보는 회사(파란 점선)마다 선 위에 이름표(손PB 분포 그림처럼)
   if (!vals.length) return '<div class="empty">PER이 있는 회사가 없습니다.</div>';
@@ -517,23 +528,29 @@ function vaHisto(vals, tv, name) { // 구간별 종목 수 막대. 중앙값(실
     ${mk}</div><div class="va-hx">${ticks}</div></div>${out}`;
 }
 
-function vaCmp(x, g, key) { // 업종별 PER 비교: 분류 단계를 골라 묶음마다 중앙값과 25～75% 구간. 줄을 누르면 업종 안 분포가 그 업종(테마)으로 바뀜
-  const th = x ? vaThOf(x) : [], isTh = g.lv === 'theme', { rows, total } = vaGrpRows(x, g, key);
+function vaCmp(x, g, key) { // 업종별 PER 비교: 분류 단계와 순서를 골라 묶음마다 PER 중앙값, 25～75% 구간, 1개월 상승률. 줄을 누르면 업종 안 분포가 그 업종으로 바뀜
+  const th = x ? vaThOf(x) : [], isTh = g.lv === 'theme', { rows, total, head } = vaGrpRows(x, g, key), ord = vaGord();
   const seg = vaSeg('lv', [...VA_LV, ...(vaS.mk?.thSet && (!x || th.length) ? [['theme', '세부 업종']] : [])], g.lv);
+  const oseg = vaS.mk?.cols?.includes('r1m') ? `<div class="va-mctl">${vaSeg('gord', [['base', '기본 순서'], ['r1m', '1개월 상승률'], ['tv', '거래대금']], ord)}</div>` : '';
   const ttl = '업종별 PER 비교';
-  if (!rows.length) return vaSec(ttl, seg, '<div class="empty">PER이 있는 회사가 없습니다.</div>', 'va-cmp');
+  if (!rows.length) return vaSec(ttl, seg, `${oseg}<div class="empty">PER이 있는 회사가 없습니다.</div>`, 'va-cmp');
   const tv = x?.[key], mx = Math.max(...rows.map((r) => r.hi)) * 1.05, P = (v) => `${Math.min(100, (v / mx) * 100).toFixed(1)}%`;
   const dotOn = (r) => !!x && (r.k === g.own || isTh) && vaOkPer(tv) && tv <= mx; // 보는 회사 PER 점. 눈금 밖이면 안 찍음
+  const third = ord === 'tv' ? (r) => (r.sh == null ? '-' : `${vaNum(r.sh * 100, 1)}%`) : (r) => (r.r1 == null ? '-' : vaUp(r.r1));
   const row = (r) => {
     const me = r.k === g.name, dot = dotOn(r);
-    const tip = esc(`${r.k} 중앙값 ${vaNum(r.med, 1)}배, 25～75% ${vaNum(r.lo, 1)}～${vaNum(r.hi, 1)}배, ${r.n}곳`);
-    const body = `<span class="nm">${esc(r.k)}${r.k === g.own && !isTh ? '<i class="own"></i>' : ''}</span><em>${vaX(r.med)}<small>${vaNum(r.n)}곳</small></em><span class="bar"><i style="left:${P(r.lo)};width:calc(${P(r.hi)} - ${P(r.lo)})"></i><b style="left:${P(r.med)}"></b>${dot ? `<u style="left:${P(tv)}"></u>` : ''}</span>`;
-    return `<button type="button" class="va-gr ${me ? 'me' : ''}" ${isTh ? 'data-va-thm' : 'data-va-grp'}="${esc(r.k)}" aria-pressed="${me}" title="${tip}">${body}</button>`;
+    const tip = esc(`${r.k} PER 중앙값 ${vaNum(r.med, 1)}배, 25～75% ${vaNum(r.lo, 1)}～${vaNum(r.hi, 1)}배, ${r.n}곳${r.r1 != null ? `, 1개월 상승률 중앙값 ${vaNum(r.r1 * 100, 1)}%` : ''}${r.tv ? `, 20일 거래대금 ${vaCap(r.tv)}` : ''}`);
+    return `<button type="button" class="va-gr ${me ? 'me' : ''}" ${isTh ? 'data-va-thm' : 'data-va-grp'}="${esc(r.k)}" aria-pressed="${me}" title="${tip}"><span class="nm">${esc(r.k)}${r.k === g.own && !isTh ? '<i class="own"></i>' : ''}</span>`
+      + `<span class="bar"><i style="left:${P(r.lo)};width:calc(${P(r.hi)} - ${P(r.lo)})"></i><b style="left:${P(r.med)}"></b>${dot ? `<u style="left:${P(tv)}"></u>` : ''}</span><em class="mt">${third(r)}</em><em>${vaX(r.med)}</em><small>${vaNum(r.n)}곳</small></button>`;
   };
+  let body = '', sec = null;
+  for (const r of rows) { if (head && r.sec && r.sec !== sec) { body += `<div class="va-gh">${esc(r.sec)}</div>`; sec = r.sec; } body += row(r); }
+  const hdr = `<div class="va-grh"><span>업종</span><span>PER 25～75%</span><span>${ord === 'tv' ? '거래대금 비중' : '1개월'}</span><span>PER</span><span></span></div>`;
   const open = isTh ? vaS.thAll : vaS.gAll;
-  const more = total > VA_GMAX ? `<button class="va-more" type="button" ${isTh ? 'data-va-thall' : 'data-va-gall'}>${open ? '접기' : `나머지 ${total - rows.length}개`}</button>` : '';
-  const leg = `<div class="va-leg"><span class="bd">25～75% 구간</span><span class="md">중앙값</span>${rows.some(dotOn) ? `<span class="tg">${esc(x.name)} ${vaX(tv)}</span>` : ''}</div>`;
-  return vaSec(`${ttl}${total > rows.length ? ` <span class="meta">${total}개 중 ${rows.length}개</span>` : ''}`, seg, `<div class="va-grs">${rows.map(row).join('')}</div>${more}${leg}`, 'va-cmp');
+  const more = ord !== 'base' && total > VA_GMAX ? `<button class="va-more" type="button" ${isTh ? 'data-va-thall' : 'data-va-gall'}>${open ? '접기' : `나머지 ${total - VA_GMAX}개`}</button>` : '';
+  const leg = `<div class="va-leg"><span class="bd">PER 25～75% 구간</span><span class="md">PER 중앙값</span>${rows.some(dotOn) ? `<span class="tg">${esc(x.name)} ${vaX(tv)}</span>` : ''}</div>`;
+  const meta = ord !== 'base' && total > rows.length ? ` <span class="meta">${total}개 중 ${rows.length}개</span>` : ` <span class="meta">${total}개</span>`;
+  return vaSec(`${ttl}${meta}`, seg, `${oseg}${hdr}<div class="va-grs">${body}</div>${more}${leg}`, 'va-cmp');
 }
 
 function vaPerList(ys, key, x) { // 회사가 적으면 막대 분포 대신 회사별 PER. 세로선은 중앙값
@@ -815,7 +832,7 @@ function vaBind(host) {
       vaS.mk.list.filter((y) => y.industry === x.industry && y.code !== x.code && !l.includes(y.code)).sort((a, b) => (b.mcap || 0) - (a.mcap || 0)).slice(0, 5).forEach((y) => l.push(y.code));
       vaDraw(); return;
     }
-    const sg = e.target.closest('[data-va-seg]'), SK = { mkm: 'mkMarket', mkk: 'mkKind', qpr: 'qpr', tab: 'tab', trd: 'trd', lv: 'lv' };
+    const sg = e.target.closest('[data-va-seg]'), SK = { mkm: 'mkMarket', mkk: 'mkKind', qpr: 'qpr', tab: 'tab', trd: 'trd', lv: 'lv', gord: 'gord' };
     if (sg && SK[sg.dataset.vaSeg]) { vaS[SK[sg.dataset.vaSeg]] = sg.dataset.v; vaDraw(); return; }
     const tm = e.target.closest('[data-va-thm]');
     if (tm) { vaS.thm = tm.dataset.vaThm; vaDraw(); return; }
@@ -893,7 +910,7 @@ async function renderValuation() {
 TAB_INFO.valuation = { title: '가치평가', rows: [
   ['이 화면', '시장동향, 재무분석, 요약, 상대가치평가, 절대가치평가 다섯 탭입니다. 처음에는 고른 회사가 없고, 탭 아래 검색이나 평가한 회사 단추로 고르면 탭을 옮겨도 그대로입니다. 이름 옆 ×로 선택을 풉니다.'],
   ['탭', ['시장동향: 회사를 고르지 않으면 시장과 업종끼리 PER 비교(전 상장사 분포, 코스피와 코스닥 중앙값 추이, 업종별 비교, 업종 안 분포). 고르면 그 회사가 어디쯤인지와 접힌 구역 둘(비교기업 위치 표, PER 회귀)', '재무분석: 고른 회사의 재무제표 분석', '요약: 결합 목표주가, 풋볼필드, 상대가치평가와 절대가치평가 핵심 값. 「자세히」로 각 탭에 감', '상대가치평가: 리서치한 평가가 있으면 결과, 배수 상세, 검증, 선정 근거. 없으면 Peer 비교', '절대가치평가: 고른 회사의 DCF 모델', '회사를 고르지 않은 재무분석, 요약, 상대가치평가, 절대가치평가는 평가한 회사 목록. 줄을 누르면 그 회사로 감']],
-  ['시장동향 읽는 법', ['업종별 PER 비교의 줄을 누르면 업종 안 PER 분포가 그 업종으로 바뀜. 고른 줄은 파란 바탕, 고른 회사의 업종은 이름 옆 파란 점', '회사를 고르지 않았을 때 위 숫자: 시장 중앙값, 평균, 25～75%, 코스피와 코스닥 중앙값, PER 있는 종목 수', '고른 회사가 있을 때 위 숫자: 최근 4분기 PER, 추정 PER, 시장 안에서 PER이 낮은 쪽부터 몇 %에 있는지, 시장 중앙값, 업종별 비교에서 고른 분류의 중앙값, 시가총액. 추정 이익이 적자면 「적자」', '전체, 코스피, 코스닥과 최근 4분기 PER, 추정 PER 선택은 분포 두 칸, 업종별 비교, 위 숫자에 같이 적용. PER 추이는 늘 최근 4분기 PER', 'PER 분포: 코스피, 코스닥 전 종목(우선주, 스팩 제외) 가운데 PER 0～200배 종목을 구간별로 센 막대. 구간은 0, 3, 5, 8, 10, 13, 15, 20, 25, 30, 40, 50, 75, 200배에서 끊음. 실선은 중앙값, 점선은 평균, 파란 점선은 고른 회사이고 선마다 위에 이름표. PER이 없거나 200배 이상이면 선 없이 그림 아래에 적음', '업종별 PER 비교: 분류 단계(FnGuide 대분류, 중분류, 소분류와 세부 업종)를 고름. 줄마다 연한 막대는 25～75% 구간, 세로선은 중앙값, 오른쪽은 중앙값과 종목 수. 파란 바탕 줄은 업종 안 분포로 보는 업종, 파란 점은 고른 회사 PER', '대분류는 5곳 이상인 업종 모두. 중분류와 소분류는 고른 회사와 같은 상위 분류에 든 업종을 먼저 넣고 종목 수가 많은 업종으로 채워 10개까지', '세부 업종: 2차전지, 반도체, 화장품처럼 FnGuide 소분류와 다르게 나눈 50여 개 묶음. 네이버 테마를 묶어 만듦(2차전지는 소재, 장비, 전고체 등을 합침). 행사, 정책, 계절, 특정 회사, 지수 테마는 뺌. 한 종목이 여러 묶음에 듦. 회사를 고르지 않으면 전체, 고르면 그 회사가 든 묶음만. 10개가 넘으면 종목 수가 많은 것부터 보이고 나머지는 펼쳐 봄', '업종 안 PER 분포: 업종별 비교에서 누른 업종의 종목만 모은 분포. 누르지 않았으면 고른 회사의 업종, 회사도 없으면 종목이 가장 많은 업종. 10곳 미만이면 회사별 PER 막대, 세로선은 중앙값', 'PER 추이: 고른 회사의 최근 4분기 PER과 그 회사 시장(코스피, 코스닥) 중앙값. 회사를 고르지 않으면 코스피와 코스닥 중앙값. 손PB와 같이 점이 200개 넘으면 10개, 아니면 4개씩 이동평균. 시장 중앙값은 PER 2～500배, 금융 업종 제외. 평일 16:30에 쌓고, 그 전 기록은 손PB가 2016-05부터 모은 같은 네이버 PER(시장 중앙값과 리서치 사례 회사만, 2025년까지는 주 1회)', '추이 위 숫자: 고른 회사가 있으면 지금, 기간 중 PER 중앙값(이동평균 전 값), 시장 중앙값. 없으면 코스피와 코스닥 지금 중앙값', '위치 표: 리서치한 평가가 있으면 대상과 국내 비교기업, 없으면 고른 회사와 상대가치평가 탭에서 넣은 Peer. 이익 성장률은 최근 4분기 PER ÷ 추정 PER − 1, 괴리는 회귀 적정 PER ÷ 지금 PER − 1', 'PER 회귀: 이익 성장률이 같을 때 시장이 주는 PER을 보는 보조 지표. 손PB 상대가치 화면과 같은 식. log(PER) = 상수 + 성장률 계수 × 이익 성장률 + 베타 계수 × 베타 + 업종 더미. 표본은 최근 4분기 PER 2～500배, 추정 PER 0～200배, 성장률 0～500%, 베타 −1～4인 회사, 업종 5곳 미만은 기준 업종. 가로축은 200%에서 자름. 성장률이 0 이하인 회사는 직접 넣으면 단순 회귀 곡선으로 계산']],
+  ['시장동향 읽는 법', ['업종별 PER 비교의 줄을 누르면 업종 안 PER 분포가 그 업종으로 바뀜. 고른 줄은 파란 바탕, 고른 회사의 업종은 이름 옆 파란 점', '회사를 고르지 않았을 때 위 숫자: 시장 중앙값, 평균, 25～75%, 코스피와 코스닥 중앙값, PER 있는 종목 수', '고른 회사가 있을 때 위 숫자: 최근 4분기 PER, 추정 PER, 시장 안에서 PER이 낮은 쪽부터 몇 %에 있는지, 시장 중앙값, 업종별 비교에서 고른 분류의 중앙값, 시가총액. 추정 이익이 적자면 「적자」', '전체, 코스피, 코스닥과 최근 4분기 PER, 추정 PER 선택은 분포 두 칸, 업종별 비교, 위 숫자에 같이 적용. PER 추이는 늘 최근 4분기 PER', 'PER 분포: 코스피, 코스닥 전 종목(우선주, 스팩 제외) 가운데 PER 0～200배 종목을 구간별로 센 막대. 구간은 0, 3, 5, 8, 10, 13, 15, 20, 25, 30, 40, 50, 75, 200배에서 끊음. 실선은 중앙값, 점선은 평균, 파란 점선은 고른 회사이고 선마다 위에 이름표. PER이 없거나 200배 이상이면 선 없이 그림 아래에 적음', '업종별 PER 비교: 분류 단계(FnGuide 대분류, 중분류, 소분류와 세부 업종)와 순서를 고름. 한 줄에 업종, PER 25～75% 구간 막대(세로선은 중앙값), 1개월 상승률, PER 중앙값, 종목 수.', '순서: 기본 순서는 늘 같은 자리(세부 업종은 IT, 2차전지와 자동차, 콘텐츠, 산업재, 에너지와 소재, 헬스케어, 소비재, 금융 머리 아래, FnGuide는 대분류 순서 안에서 종목 수 순)이고 전부 보임. 1개월 상승률은 묶음 안 종목의 21거래일 상승률 중앙값이 높은 순, 거래대금은 최근 20거래일 거래대금 합이 큰 순(셋째 칸은 전체 거래대금 가운데 비중)이고 위 10개, 나머지는 펼쳐 봄. 보고 있는 업종이 10위 밖이면 맨 아래에 붙음 파란 바탕 줄은 업종 안 분포로 보는 업종, 파란 점은 고른 회사 PER', '대분류는 5곳 이상인 업종 모두. 중분류와 소분류는 고른 회사와 같은 상위 분류에 든 업종을 먼저 넣고 종목 수가 많은 업종으로 채워 10개까지', '세부 업종: 2차전지, 반도체, 화장품처럼 FnGuide 소분류와 다르게 나눈 50여 개 묶음. 네이버 테마를 묶어 만듦(2차전지는 소재, 장비, 전고체 등을 합침). 행사, 정책, 계절, 특정 회사, 지수 테마는 뺌. 한 종목이 여러 묶음에 듦. 회사를 고르지 않으면 전체, 고르면 그 회사가 든 묶음만. 10개가 넘으면 종목 수가 많은 것부터 보이고 나머지는 펼쳐 봄', '업종 안 PER 분포: 업종별 비교에서 누른 업종의 종목만 모은 분포. 누르지 않았으면 고른 회사의 업종, 회사도 없으면 종목이 가장 많은 업종. 10곳 미만이면 회사별 PER 막대, 세로선은 중앙값', 'PER 추이: 고른 회사의 최근 4분기 PER과 그 회사 시장(코스피, 코스닥) 중앙값. 회사를 고르지 않으면 코스피와 코스닥 중앙값. 손PB와 같이 점이 200개 넘으면 10개, 아니면 4개씩 이동평균. 시장 중앙값은 PER 2～500배, 금융 업종 제외. 평일 16:30에 쌓고, 그 전 기록은 손PB가 2016-05부터 모은 같은 네이버 PER(시장 중앙값과 리서치 사례 회사만, 2025년까지는 주 1회)', '추이 위 숫자: 고른 회사가 있으면 지금, 기간 중 PER 중앙값(이동평균 전 값), 시장 중앙값. 없으면 코스피와 코스닥 지금 중앙값', '위치 표: 리서치한 평가가 있으면 대상과 국내 비교기업, 없으면 고른 회사와 상대가치평가 탭에서 넣은 Peer. 이익 성장률은 최근 4분기 PER ÷ 추정 PER − 1, 괴리는 회귀 적정 PER ÷ 지금 PER − 1', 'PER 회귀: 이익 성장률이 같을 때 시장이 주는 PER을 보는 보조 지표. 손PB 상대가치 화면과 같은 식. log(PER) = 상수 + 성장률 계수 × 이익 성장률 + 베타 계수 × 베타 + 업종 더미. 표본은 최근 4분기 PER 2～500배, 추정 PER 0～200배, 성장률 0～500%, 베타 −1～4인 회사, 업종 5곳 미만은 기준 업종. 가로축은 200%에서 자름. 성장률이 0 이하인 회사는 직접 넣으면 단순 회귀 곡선으로 계산']],
   ['상대가치평가', '비슷한 상장사들의 배수(PER, EV/EBITDA 등) 중앙값을 대상 회사 이익에 곱해 적정 주가를 봅니다. 비교기업 선정과 해외 배수, 시나리오 근거는 리서치로 채우고, 계산은 이 화면과 엑셀이 같은 식으로 합니다.'],
   ['바꿔 볼 수 있는 것', ['배수 표의 체크를 풀거나 켜면 그 회사를 빼거나 넣고 다시 계산', '비교기업 범위: 국내만, 해외만, 국내와 해외. 「국내와 해외 따로」 표는 범위와 상관없이 셋 다 보여 줌', '기준 기간: 최근 4분기, 올해 추정, 내년 추정', 'PER 10～50배만: 증권신고서 관행대로 PER이 10배 미만이거나 50배 초과인 비교기업을 PER 통계에서 뺌', '적용 결과 표의 조정(%): 할증은 +, 할인은 −', '처음 구성으로: 리서치에서 정한 구성으로 되돌림']],
   ['배수 정의', { table: [['배수', '분자', '분모'], ['PER', '시가총액', '지배주주 순이익'], ['PBR', '시가총액', '지배주주 자본'], ['EV/EBITDA', 'EV', 'EBITDA'], ['EV/EBIT', 'EV', '영업이익'], ['EV/Sales', 'EV', '매출']] }],
