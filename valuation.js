@@ -400,7 +400,24 @@ function vaDone() {
   return [...by.values()];
 }
 
-// 탭 아래 회사 줄: 지금 보는 회사와 검색. 고른 회사가 없으면 검색과 평가한 회사 바로가기
+// 평가 요청(2026-11-17 사용자 「정한 게 있어야만 작동하니까 요청하기 이런 거」): 오른쪽 요청사항에 kind 'va' 글로 남기고, 반영 전이면 「요청함」으로 보여 줌
+const vaHasEval = (code) => !!(code && (vaCaseOf(code) || vaV3Of(code).length));
+const vaReqOf = (code) => (typeof rqS === 'object' ? rqS.items.find((r) => r.kind === 'va' && r.code === code && r.status !== 'done') : null);
+function vaReqBtn(code) {
+  if (!code || vaHasEval(code) || typeof rqAct !== 'function') return '';
+  const r = vaReqOf(code), d = r ? new Date(r.at) : null;
+  return r ? `<span class="va-reqd" title="${esc(`${r.by} 요청`)}">평가 요청함${d && !isNaN(d) ? ` ${d.getMonth() + 1}/${d.getDate()}` : ''}</span>` : `<button type="button" class="btn sm va-req" data-va-req="${esc(code)}">평가 요청</button>`;
+}
+async function vaRequest(code) {
+  const x = vaRow(code); if (!x || vaReqOf(code)) return;
+  if (!rqS.loaded) await rqLoad().catch(() => {});
+  if (vaReqOf(code)) { vaShow(); return; }
+  const item = { id: uid(), page: 'valuation', kind: 'va', code, text: `[평가 요청] ${x.name}(${code}) 상대가치평가와 절대가치평가`, by: rqWho(), email: (G.account?.username || '').toLowerCase(), at: new Date().toISOString(), status: 'open', replies: [] };
+  await rqAct((items) => { if (!items.some((i) => i.id === item.id)) items.push(item); }, '평가 요청을 남겼습니다');
+  vaShow(); // 실패해도 다시 그려 단추를 되살림
+}
+
+// 탭 위 회사 줄: 지금 보는 회사와 검색. 고른 회사가 없으면 검색과 평가한 회사 바로가기
 function vaCoBar() {
   const code = vaCode(), x = code && vaRow(code);
   const cls = x ? [x.sector, x.industryGroup, x.industry].filter((v, i, a) => v && v !== a[i - 1]) : [];
@@ -411,7 +428,7 @@ function vaCoBar() {
     const done = vaDone();
     return `<div class="va-co none">${srch}${done.length ? `<div class="va-co-done"><span>평가한 회사</span>${done.map((o) => `<button type="button" class="va-chip" data-va-pick="${esc(o.code)}">${esc(o.name)}</button>`).join('')}</div>` : ''}${info}</div>`;
   }
-  return `<div class="va-co"><div class="va-co-id"><h2>${esc(x.name)} <small>${esc(x.code)}</small><button type="button" class="va-co-x" data-va-clear aria-label="회사 선택 해제" title="선택 해제">${ico('plus', 'sm')}</button></h2>${sub ? `<p>${esc(sub)}</p>` : ''}</div>${srch}${info}</div>`;
+  return `<div class="va-co"><div class="va-co-id"><h2>${esc(x.name)} <small>${esc(x.code)}</small><button type="button" class="va-co-x" data-va-clear aria-label="회사 선택 해제" title="선택 해제">${ico('plus', 'sm')}</button></h2>${sub ? `<p>${esc(sub)}</p>` : ''}</div>${vaReqBtn(code)}${srch}${info}</div>`;
 }
 function vaSug(qs, attr = 'data-va-pick') {
   const t = qs.trim().toLowerCase(); if (!t) return '';
@@ -685,6 +702,7 @@ function vaTrend(F) {
   return vaSec('PER 추이', seg, `<dl class="va-mini">${kv.map(([k, v]) => `<div><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>${leg}<div class="va-scw">${svg}</div>${note}`);
 }
 
+const vaNone = (code, what) => `<div class="card va-none"><div class="empty"><p>${what}</p>${vaReqBtn(code)}</div></div>`; // 평가가 없는 회사: 안내와 평가 요청
 // ---------- 평가한 회사 목록(회사를 고르지 않은 재무분석, 요약, 상대가치평가, 절대가치평가) ----------
 function vaPickList() {
   const done = vaDone();
@@ -705,7 +723,7 @@ function vaBrief() {
   const code = vaCode();
   if (!code) return vaPickList();
   const c = vaCase(), vs = vaV3Of(code), vc = vs.find((y) => y.id === v3S.cid) || vs[0];
-  if (!c && !vc) return `<div class="card va-none"><div class="empty">아직 평가하지 않은 회사입니다.</div></div>${vaPickList()}`;
+  if (!c && !vc) return `${vaNone(code, '아직 평가하지 않은 회사입니다.')}${vaPickList()}`;
   const r = c ? vaCalc(c) : null, tp = c ? vaTarget(c, r) : null;
   let x = null;
   if (vc) try { x = v3Model(vc); } catch (e) { console.error(e); }
@@ -759,7 +777,7 @@ function vaDraw() { // 시장동향, 요약, 상대가치평가 탭 본문
   const c = vaCase(), code = vaCode();
   if (!c) { // 회사를 고르지 않았으면 평가한 회사 목록, 리서치한 평가가 없는 회사는 Peer 비교
     const x = code && vaS.mk?.by[code];
-    host.innerHTML = !code ? vaPickList() : x ? vaPeerQ(vaFocusQuick(code), x) : '<div class="card"><div class="empty">상대가치평가가 없는 회사입니다.</div></div>';
+    host.innerHTML = !code ? vaPickList() : `${vaNone(code, '상대가치평가가 없는 회사입니다.')}${x ? vaPeerQ(vaFocusQuick(code), x) : ''}`;
     vaSave(); return;
   }
   vaS.cid = c.id;
@@ -780,7 +798,11 @@ function vaFresh() { // 회사를 바꿀 때마다 새 칸을 넘겨 이벤트�
   const host = old.cloneNode(false);
   host.removeAttribute('data-v3');
   old.replaceWith(host);
-  host.addEventListener('click', (e) => { const pk = e.target.closest('[data-va-pick]'); if (pk && !host.hasAttribute('data-v3')) vaGo(pk.dataset.vaPick); });
+  host.addEventListener('click', (e) => {
+    if (host.hasAttribute('data-v3')) return;
+    const pk = e.target.closest('[data-va-pick]'); if (pk) { vaGo(pk.dataset.vaPick); return; }
+    const rq = e.target.closest('[data-va-req]'); if (rq) { rq.disabled = true; vaRequest(rq.dataset.vaReq); }
+  });
   return host;
 }
 function vaFin() { // 재무분석은 valuation_fin.js 가 그린다
@@ -796,7 +818,7 @@ function vaDcf() { // 절대가치평가: 고른 회사의 v3 사례(valuation_v
   if (!v3Cases().length) { renderV3(host); return; }
   if (!code) { host.innerHTML = vaPickList(); return; }
   const cs = vaV3Of(code);
-  if (!cs.length) { host.innerHTML = `<div class="card va-none"><div class="empty">절대가치평가가 없는 회사입니다.</div></div>${vaPickList()}`; return; }
+  if (!cs.length) { host.innerHTML = `${vaNone(code, '절대가치평가가 없는 회사입니다.')}${vaPickList()}`; return; }
   if (!cs.some((c) => c.id === v3S.cid)) v3S.cid = cs[0].id;
   renderV3(host);
 }
@@ -808,7 +830,8 @@ function vaBindCo(co) { // 회사 줄: 검색해서 고르기, 평가한 회사 
   co.addEventListener('click', (e) => {
     const pk = e.target.closest('[data-va-pick]');
     if (pk) { vaGo(pk.dataset.vaPick); return; }
-    if (e.target.closest('[data-va-clear]')) vaGo(null);
+    if (e.target.closest('[data-va-clear]')) { vaGo(null); return; }
+    const rq = e.target.closest('[data-va-req]'); if (rq) { rq.disabled = true; vaRequest(rq.dataset.vaReq); }
   });
 }
 
@@ -817,6 +840,8 @@ function vaBind(host) {
   host.addEventListener('click', (e) => {
     const pk = e.target.closest('[data-va-pick]');
     if (pk) { vaGo(pk.dataset.vaPick); return; }
+    const rq = e.target.closest('[data-va-req]');
+    if (rq) { rq.disabled = true; vaRequest(rq.dataset.vaReq); return; }
     const vt = e.target.closest('[data-va-vt]');
     if (vt) { location.hash = `#valuation/${vt.dataset.vaVt}`; return; }
     const gp = e.target.closest('[data-va-grp]');
@@ -890,8 +915,8 @@ async function renderValuation() {
   const top = ['sum', 'rel', 'dcf'].includes(vt) ? 'val' : vt;
   if (top === 'val') vaS.vsub = vt;
   PAGE.innerHTML = `<div class="page-head"><h1>가치평가</h1><span class="mk-upd" id="va-upd"></span>${['mkt', 'sum', 'rel'].includes(vt) ? `<div class="tools va-pc">${infoBtn('valuation')}</div>` : ''}</div>
-    <div class="deal-seg va-vt" role="tablist">${VA_VT.map(([k, t, i]) => `<button type="button" role="tab" aria-selected="${k === top}" class="${k === top ? 'on' : ''}" data-vt="${k}">${ico(i)}${t}</button>`).join('')}</div>
     <div id="va-co" class="va"></div>
+    <div class="deal-seg va-vt" role="tablist">${VA_VT.map(([k, t, i]) => `<button type="button" role="tab" aria-selected="${k === top}" class="${k === top ? 'on' : ''}" data-vt="${k}">${ico(i)}${t}</button>`).join('')}</div>
     ${top === 'val' ? `<div class="va-sub" role="tablist">${VA_SUB.map(([k, t]) => `<button type="button" role="tab" aria-selected="${k === vt}" class="${k === vt ? 'on' : ''}" data-vt="${k}">${t}</button>`).join('')}</div>` : ''}
     <div id="va-host" class="mk va"><div class="card"><div class="empty">불러오는 중…</div></div></div>`;
   PAGE.querySelectorAll('[data-vt]').forEach((b) => b.addEventListener('click', () => { const k = b.dataset.vt === 'val' ? vaS.vsub || 'sum' : b.dataset.vt; location.hash = k === 'mkt' ? '#valuation' : `#valuation/${k}`; })); // 가치평가는 마지막에 본 하위 탭으로
@@ -912,7 +937,8 @@ async function renderValuation() {
 }
 
 TAB_INFO.valuation = { title: '가치평가', rows: [
-  ['이 화면', '시장동향, 재무분석, 가치평가 세 탭이고, 가치평가 안에 요약, 상대가치평가, 절대가치평가가 있습니다. 처음에는 고른 회사가 없고, 탭 아래 검색이나 평가한 회사 단추로 고르면 탭을 옮겨도 그대로입니다. 이름 옆 ×로 선택을 풉니다.'],
+  ['이 화면', '시장동향, 재무분석, 가치평가 세 탭이고, 가치평가 안에 요약, 상대가치평가, 절대가치평가가 있습니다. 회사는 탭 위 줄에서 한 번 고르면 모든 탭이 그 회사를 봅니다. 처음에는 고른 회사가 없고, 이름 옆 ×로 선택을 풉니다.'],
+  ['평가 요청', '아직 평가하지 않은 회사를 고르면 회사 이름 옆과 가치평가 탭에 「평가 요청」 단추가 나옵니다. 누르면 오른쪽 요청사항에 「[평가 요청] 회사 이름(종목코드)」 글이 남고, 반영 완료 전까지 「평가 요청함」으로 보입니다.'],
   ['탭', ['시장동향: 회사를 고르지 않으면 시장과 업종끼리 PER 비교(전 상장사 분포, 코스피와 코스닥 중앙값 추이, 업종별 비교, 업종 안 분포). 고르면 그 회사가 어디쯤인지와 접힌 구역 둘(비교기업 위치 표, PER 회귀)', '재무분석: 고른 회사의 재무제표 분석', '가치평가 › 요약: 결합 목표주가, 풋볼필드, 상대가치평가와 절대가치평가 핵심 값. 「자세히」로 각 탭에 감', '가치평가 › 상대가치평가: 리서치한 평가가 있으면 결과, 배수 상세, 검증, 선정 근거. 없으면 Peer 비교', '가치평가 › 절대가치평가: 고른 회사의 DCF 모델', '회사를 고르지 않은 재무분석과 가치평가는 평가한 회사 목록. 줄을 누르면 그 회사로 감']],
   ['시장동향 읽는 법', ['업종별 PER 비교의 줄을 누르면 업종 안 PER 분포가 그 업종으로 바뀜. 고른 줄은 파란 바탕, 고른 회사의 업종은 이름 옆 파란 점', '회사를 고르지 않았을 때 위 숫자: 시장 중앙값, 평균, 25～75%, 코스피와 코스닥 중앙값, PER 있는 종목 수', '고른 회사가 있을 때 위 숫자: 최근 4분기 PER, 추정 PER, 시장 안에서 PER이 낮은 쪽부터 몇 %에 있는지, 시장 중앙값, 업종별 비교에서 고른 분류의 중앙값, 시가총액. 추정 이익이 적자면 「적자」', '전체, 코스피, 코스닥과 최근 4분기 PER, 추정 PER 선택은 분포 두 칸, 업종별 비교, 위 숫자에 같이 적용. PER 추이는 늘 최근 4분기 PER', 'PER 분포: 코스피, 코스닥 전 종목(우선주, 스팩 제외) 가운데 PER 0～200배 종목을 구간별로 센 막대. 구간은 0, 3, 5, 8, 10, 13, 15, 20, 25, 30, 40, 50, 75, 200배에서 끊음. 실선은 중앙값, 점선은 평균, 파란 점선은 고른 회사이고 선마다 위에 이름표. PER이 없거나 200배 이상이면 선 없이 그림 아래에 적음', '업종별 PER 비교: 분류 단계(FnGuide 대분류, 중분류, 소분류와 세부 업종)와 순서를 고름. 한 줄에 업종, PER 25～75% 구간 막대(세로선은 중앙값), 1개월 상승률, PER 중앙값, 종목 수.', '순서: 기본 순서는 늘 같은 자리(세부 업종은 IT, 2차전지와 자동차, 콘텐츠, 산업재, 에너지와 소재, 헬스케어, 소비재, 금융 머리 아래, FnGuide는 대분류 순서 안에서 종목 수 순)이고 전부 보임. 1개월 상승률은 묶음 안 종목의 21거래일 상승률 중앙값이 높은 순, 거래대금은 최근 20거래일 거래대금 합이 큰 순(셋째 칸은 전체 거래대금 가운데 비중)이고 위 10개, 나머지는 펼쳐 봄. 보고 있는 업종이 10위 밖이면 맨 아래에 붙음', '파란 바탕 줄은 업종 안 분포로 보는 업종, 파란 점은 고른 회사 PER, 고른 회사의 업종은 이름 옆 파란 점', 'FnGuide 분류는 PER 있는 종목이 5곳 이상인 업종만(고른 회사와 누른 업종은 1곳이어도)', '세부 업종: 2차전지, 반도체, 화장품처럼 FnGuide 소분류와 다르게 나눈 50여 개 묶음. 네이버 테마를 묶어 만듦(2차전지는 소재, 장비, 전고체 등을 합침). 행사, 정책, 계절, 특정 회사, 지수 테마는 뺌. 한 종목이 여러 묶음에 듦. 회사를 고르지 않으면 전체, 고르면 그 회사가 든 묶음만', '업종 안 PER 분포: 업종별 비교에서 누른 업종의 종목만 모은 분포. 누르지 않았으면 고른 회사의 업종, 회사도 없으면 종목이 가장 많은 업종. 10곳 미만이면 회사별 PER 막대, 세로선은 중앙값', 'PER 추이: 고른 회사의 최근 4분기 PER과 그 회사 시장(코스피, 코스닥) 중앙값. 회사를 고르지 않으면 코스피와 코스닥 중앙값. 손PB와 같이 점이 200개 넘으면 10개, 아니면 4개씩 이동평균. 시장 중앙값은 PER 2～500배, 금융 업종 제외. 평일 16:30에 쌓고, 그 전 기록은 손PB가 2016-05부터 모은 같은 네이버 PER(시장 중앙값과 리서치 사례 회사만, 2025년까지는 주 1회)', '추이 위 숫자: 고른 회사가 있으면 지금, 기간 중 PER 중앙값(이동평균 전 값), 시장 중앙값. 없으면 코스피와 코스닥 지금 중앙값', '위치 표: 리서치한 평가가 있으면 대상과 국내 비교기업, 없으면 고른 회사와 상대가치평가 탭에서 넣은 Peer. 이익 성장률은 최근 4분기 PER ÷ 추정 PER − 1, 괴리는 회귀 적정 PER ÷ 지금 PER − 1', 'PER 회귀: 이익 성장률이 같을 때 시장이 주는 PER을 보는 보조 지표. 손PB 상대가치 화면과 같은 식. log(PER) = 상수 + 성장률 계수 × 이익 성장률 + 베타 계수 × 베타 + 업종 더미. 표본은 최근 4분기 PER 2～500배, 추정 PER 0～200배, 성장률 0～500%, 베타 −1～4인 회사, 업종 5곳 미만은 기준 업종. 가로축은 200%에서 자름. 성장률이 0 이하인 회사는 직접 넣으면 단순 회귀 곡선으로 계산']],
   ['상대가치평가', '비슷한 상장사들의 배수(PER, EV/EBITDA 등) 중앙값을 대상 회사 이익에 곱해 적정 주가를 봅니다. 비교기업 선정과 해외 배수, 시나리오 근거는 리서치로 채우고, 계산은 이 화면과 엑셀이 같은 식으로 합니다.'],
