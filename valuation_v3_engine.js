@@ -168,6 +168,7 @@ function v3eSeta(c, key, dflt, why, scn) {
   const fm = c.A_form[key];
   if (fm && !('text' in fm)) { // 가정 꼴 글(notes.form)
     fm.text = v3eFormText(fm, v3eAFmt(c, key));
+    fm.short = fm.kind === 'rule' ? (fm.rule in v3eFORM_RULE ? v3eFORM_RULE[fm.rule] : v3eFORM_RULE.avg4) : '끝값 지정'; // 화면 꼴 칸의 짧은 이름
     if (!c.notes.form) c.notes.form = {};
     c.notes.form[key] = fm;
   }
@@ -359,6 +360,22 @@ function step_expand(c) {
 // ── E03 macro ────────────────────────────────────────────────────────
 const v3eRF_ORDER = ['avg_3m', 'spot', 'avg_1y', 'avg_2y', 'manual'];
 const v3eRF_NAME = { avg_3m: '3개월 평균', spot: '기준일', avg_1y: '1년 평균', avg_2y: '2년 평균', manual: '직접 입력' };
+// 점검 문장에 스위치 값 대신 찍는 한글 이름(11-17 오후 3. 화면에 내부 이름이 보이지 않게)
+const v3eERP_NAME = { damodaran: 'Damodaran 한국 합계', damodaran_cds: 'Damodaran 한국 합계(CDS 기준)', historical: 'KOSPI 과거 초과수익',
+  implied_kospi: 'KOSPI 내재 프리미엄', manual: '직접 입력' };
+const v3eG_NAME = { cpi10: '소비자물가 10년 평균', rf: '무위험이자율', gdp_nominal: '명목 GDP 성장률', manual: '직접 입력',
+  avg: '물가, GDP, 업계 성숙기 성장률 평균', peer_mature: '업계 성숙기 성장률' };
+const v3eBETA_MODE_NAME = { manual: '직접 입력', accounting: '회계 베타' };
+const v3eBETA_WIN_NAME = { '2y_w': '2년 주간', '3y_w': '3년 주간', '5y_m': '5년 월간', '1y_d': '1년 일별' };
+const v3eINDEX_NAME = { KS11: 'KOSPI', KQ11: 'KOSDAQ' };
+const v3eKE_MODEL_NAME = { capm: 'CAPM', bond_rp: '채권 수익률 가산', ff3: '3요인 모형', firm_prem: '기업 고유 프리미엄 가산' };
+const v3eKD_PATH_NAME = { market_yield: '회사채 수익률', recent_issue: '최근 발행 금리', peer_avg: '비교기업 평균', rating: '신용등급 스프레드',
+  effective: '실효이자율', synthetic: '합성 등급', extra_spread: '합성 등급 + 추가 스프레드', manual: '직접 입력' };
+const v3eTYP_METHOD_NAME = { rim: '잔여이익모형', ddm: '배당할인모형', nav: '순자산가치', dcf: 'DCF', dcf_p: 'DCF(부도 확률 가중)' };
+const v3eDDM_STAGE_NAME = { two: '2단계', three: '3단계', h: 'H 모형', gordon: '고든' };
+const v3eBRIDGE_BASIS_NAME = { latest: '재무상태표 기준일', fy0: '직전 결산 말', avg2: '직전 두 결산 말 평균' };
+// 이름 표에서 값 이름(없으면 값 그대로. 파이썬 dict.get(x, x))
+function v3eNm(T, x) { return Object.prototype.hasOwnProperty.call(T, x) ? T[x] : v3ePyStr(x); }
 
 function step_macro(c) {
   const m = c.I.market, sw = c.sw, ov = c.ov;
@@ -366,7 +383,7 @@ function step_macro(c) {
   if (rf == null) { // 고른 선택지 값이 입력에 없으면 3개월 평균, 기준일, 1년 평균, 2년 평균, 직접 입력 순으로 있는 값(없으면 0%와 err)
     const alt = v3eRF_ORDER.find((k) => v3eGet(m.rf, k) != null);
     rf = alt ? m.rf[alt] : 0.0;
-    v3eChk(c, 'rf_fallback', alt ? 'warn' : 'err', '무위험이자율 선택지 ' + v3ePyStr(sw.rf) + '의 값이 입력에 없어 ' + (alt ? v3eRF_NAME[alt] + ' 값을 씀' : '0%로 계산'));
+    v3eChk(c, 'rf_fallback', alt ? 'warn' : 'err', '무위험이자율 선택지 ' + v3eNm(v3eRF_NAME, sw.rf) + '의 값이 입력에 없어 ' + (alt ? v3eRF_NAME[alt] + ' 값을 씀' : '0%로 계산'));
   }
   if (v3eT(v3eGet(sw, 'rf_cds'))) rf = rf - v3eNz(v3eGet(m, 'cds'));
   rf = v3eGet(ov, 'm.rf', rf);
@@ -375,7 +392,7 @@ function step_macro(c) {
   let erp = v3eGet(m.erp, erp_key);
   if (erp == null) { // 값이 없는 선택지(historical, implied_kospi, manual 미입력)는 Damodaran 합계로
     erp = v3eGet(m.erp, 'total');
-    v3eChk(c, 'erp_fallback', 'warn', 'ERP 선택지 ' + sw.erp + '의 값이 입력에 없어 Damodaran 한국 합계를 씀');
+    v3eChk(c, 'erp_fallback', 'warn', 'ERP 선택지 ' + v3eNm(v3eERP_NAME, sw.erp) + '의 값이 입력에 없어 Damodaran 한국 합계를 씀');
   }
   c.erp = v3eGet(ov, 'm.erp', erp);
   const g_avg = [v3eGet(m, 'cpi10'), v3eGet(m, 'gdp10'), v3eGet(m, 'g_peer_mature')].filter((x) => x != null);   // avg: 물가, 명목 GDP, 업계 성숙기(있으면) 평균
@@ -384,7 +401,7 @@ function step_macro(c) {
   if (g_raw == null) { // 고른 출처 값이 없으면 물가 10년 평균, 그것도 없으면 무위험이자율
     const has = v3eGet(m, 'cpi10') != null;
     g_raw = has ? m.cpi10 : rf;
-    v3eChk(c, 'g_fallback', 'warn', '영구성장률 출처 ' + v3ePyStr(sw.g) + '의 값이 입력에 없어 ' + (has ? '소비자물가 10년 평균' : '무위험이자율') + '을 씀');
+    v3eChk(c, 'g_fallback', 'warn', '영구성장률 출처 ' + v3eNm(v3eG_NAME, sw.g) + '의 값이 입력에 없어 ' + (has ? '소비자물가 10년 평균' : '무위험이자율') + '을 씀');
   }
   let g = v3eT(sw.g_cap) ? Math.min(g_raw, rf) : g_raw;
   g = v3eGet(ov, 'o.g', g);
@@ -418,6 +435,20 @@ function v3eAvgNote(c, key, win, idx) {
   if (!c.notes.avg) c.notes.avg = {};
   c.notes.avg[key] = { win: win.map((i) => ys[i]), used: idx.map((i) => ys[i]) };
 }
+// tornado_k: 토네이도 WACC 와 영구성장률 줄을 같은 1%p 로 맞춘 주당 가치 변화와 그 비율(M1-405 의 k). 줄이 없으면 null
+function v3eTornadoK(tor) {
+  const w = tor.find((t) => t.var === 'WACC'), g = tor.find((t) => t.var === '영구성장률');
+  if (!w || !g || !v3eT(w.hi) || !v3eT(g.hi) || [w.ps_lo, w.ps_hi, g.ps_lo, g.ps_hi].some((x) => x == null)) return null;
+  const sw_ = Math.abs(w.ps_hi - w.ps_lo) / (2 * w.hi * 100), sg_ = Math.abs(g.ps_hi - g.ps_lo) / (2 * g.hi * 100);
+  return { wacc_1pp: sw_, g_1pp: sg_, k: v3eT(sg_) ? sw_ / sg_ : null };
+}
+// _avg_all_chk: avg_exclude_all 점검. 창의 모든 해를 빼 빼기를 무시한 평균의 가정 키를 value 목록에 모음(가정 키 없는 평균은 null)
+function v3eAvgAllChk(c, key) {
+  let ck = c.checks.find((x) => x.id === 'avg_exclude_all');
+  if (!ck) { v3eChk(c, 'avg_exclude_all', 'warn', '평균 창의 모든 해를 빼도록 되어 있어 빼기를 무시하고 평균을 냄', []); ck = c.checks[c.checks.length - 1]; }
+  const k = key == null ? null : key;
+  if (!ck.value.includes(k)) ck.value.push(k);
+}
 // _avg_idx: 평균에 넣을 과거 열 번호. 최근 avg_years 개 해에서 뺄 연도를 뺌(창을 과거로 늘리지 않음, 설계서 9-3)
 function v3eAvgIdx(c, key) {
   const ex = v3eAvgExclude(c.I, key);
@@ -427,7 +458,7 @@ function v3eAvgIdx(c, key) {
   const win = all.slice(-Math.trunc(Number(c.sw.avg_years)));
   let idx = win.filter((i) => !ex.includes(ys[i]));
   if (!idx.length && win.length) { // 창의 모든 해를 빼면 빼기를 무시(평균이 비어 계산이 멈추지 않게)
-    if (!c.checks.some((ck) => ck.id === 'avg_exclude_all')) v3eChk(c, 'avg_exclude_all', 'warn', '평균 창의 모든 해를 빼도록 되어 있어 빼기를 무시하고 평균을 냄');
+    v3eAvgAllChk(c, key);
     idx = win;
   }
   v3eAvgNote(c, key, win, idx);
@@ -1122,7 +1153,7 @@ function step_assets(c) {
   const drv = v3eCapexDrv(c);                         // 드라이버(M1-125): 증설 물량 × 단위 투자비, 출점 수 × 점포당 투자비. 직접 입력에 더함
   for (const rid of Object.keys(drv)) cx = cx.map((x, k) => x + drv[rid][k]);
   if (sw.ppe_mode === 'simple') {                     // simple 은 CAPEX = 매출 × 비율 하나(설계서 2-5, 원형 101 Model 121～122행). 확장 CAPEX 칸을 쓰지 않음(M1-125)
-    if (cx.some((x) => v3eT(v3eNz(x)))) v3eChk(c, 'capex_exp_unused', 'info', 'ppe_mode 가 simple 이라 확장 CAPEX 입력을 쓰지 않음(쓰려면 maint_exp)');
+    if (cx.some((x) => v3eT(v3eNz(x)))) v3eChk(c, 'capex_exp_unused', 'info', '유형자산 방식이 단순(매출 × CAPEX 비율)이라 확장 CAPEX 입력을 쓰지 않음(쓰려면 유지와 확장을 나누는 방식으로)');
     cx = v3eFill(N, 0.0);
   }
   const rp = v3eSeta(c, 'rou_add_pct', v3eNz(v3eAvg(c, rou_h, R.rev, null, 'rou_add_pct')));
@@ -1576,7 +1607,7 @@ function step_nwc(c) {
     const ex = v3eAvgExclude(I, k);
     const idx = w.filter((i) => !ex.includes(ys[i]));
     if (!idx.length && w.length) {
-      if (!c.checks.some((ck) => ck.id === 'avg_exclude_all')) v3eChk(c, 'avg_exclude_all', 'warn', '평균 창의 모든 해를 빼도록 되어 있어 빼기를 무시하고 평균을 냄');
+      v3eAvgAllChk(c, k);
       v3eAvgNote(c, k, w, w);
       return [w, []];
     }
@@ -2386,7 +2417,7 @@ function step_wacc(c) {
   let mode = sw.beta_mode;
   let used = mode;
   if ((mode === 'manual' || mode === 'accounting') && v3eGet(B, mode) == null) { // 직접 입력을 골랐는데 값이 없으면 자동 판정으로(하한도 그대로 걸림)
-    v3eChk(c, 'manual_missing', 'warn', '베타 방식 ' + mode + '의 값이 입력에 없어 자동 판정(회귀 또는 바텀업)으로 계산');
+    v3eChk(c, 'manual_missing', 'warn', '베타 방식 ' + v3eNm(v3eBETA_MODE_NAME, mode) + '의 값이 입력에 없어 자동 판정(회귀 또는 바텀업)으로 계산');
     mode = 'auto';
   }
   if (mode === 'auto') {
@@ -2405,7 +2436,7 @@ function step_wacc(c) {
   if (km === 'ff3') {                                  // 파마 프렌치 3요인: CAPM 에 규모(SMB), 가치(HML) 요인 가산 = 대상 요인 베타(B.ff3) × 요인 프리미엄(m.ff3)
     const fb = v3eOr(v3eGet(B, 'ff3'), {}), fp = v3eOr(v3eGet(m, 'ff3'), {});
     if ([v3eGet(fb, 'smb'), v3eGet(fb, 'hml'), v3eGet(fp, 'smb'), v3eGet(fp, 'hml')].some((x) => x == null)) {
-      v3eChk(c, 'ke_model', 'warn', '자기자본비용 모형 ff3의 요인 프리미엄(SMB, HML)이나 대상 요인 베타가 입력에 없어 CAPM으로 계산');
+      v3eChk(c, 'ke_model', 'warn', '자기자본비용 모형 3요인 모형의 요인 프리미엄(SMB, HML)이나 대상 요인 베타가 입력에 없어 CAPM으로 계산');
     } else {
       ff3 = [fb.smb * fp.smb, fb.hml * fp.hml];
       prem = prem + ff3[0] + ff3[1];
@@ -2413,12 +2444,12 @@ function step_wacc(c) {
   } else if (km === 'firm_prem') {                     // CAPM + 기업 고유 프리미엄(sw.ke_firm_prem) + ESG 가산(sw.ke_esg_prem). prem_size, prem_spec 은 빼고 국가 프리미엄만 남김
     firm = v3eNz(v3eGet(sw, 'ke_firm_prem')) + v3eNz(v3eGet(sw, 'ke_esg_prem'));
     if (v3eT(v3eNz(v3eGet(sw, 'prem_size'))) || v3eT(v3eNz(v3eGet(sw, 'prem_spec')))) {
-      v3eChk(c, 'prem_overlap', 'warn', '자기자본비용 모형 firm_prem은 규모, 개별 위험을 기업 고유 프리미엄(ke_firm_prem)에 담으므로 prem_size, prem_spec은 더하지 않음');
+      v3eChk(c, 'prem_overlap', 'warn', '자기자본비용 모형이 기업 고유 프리미엄 가산이라 규모, 개별 위험은 기업 고유 프리미엄에 담고 규모 프리미엄, 개별 위험 프리미엄은 더하지 않음');
     }
-    if (!firm) v3eChk(c, 'ke_model', 'warn', '자기자본비용 모형 firm_prem의 기업 고유 프리미엄(ke_firm_prem, ke_esg_prem)이 0이라 CAPM(국가 프리미엄만 더함)과 같음');
+    if (!firm) v3eChk(c, 'ke_model', 'warn', '자기자본비용 모형이 기업 고유 프리미엄 가산인데 기업 고유 프리미엄과 ESG 가산이 0이라 CAPM(국가 프리미엄만 더함)과 같음');
     prem = v3eNz(v3eGet(sw, 'prem_country')) + firm;
   } else if (km !== 'capm' && km !== 'bond_rp') {
-    v3eChk(c, 'ke_model', 'warn', '자기자본비용 모형 ' + v3ePyStr(km) + '은 계산식이 없어 CAPM으로 계산');
+    v3eChk(c, 'ke_model', 'warn', '자기자본비용 모형 ' + v3eNm(v3eKE_MODEL_NAME, km) + '은 계산식이 없어 CAPM으로 계산');
   }
   let ke = rf + beta * erp + prem;
   const W = v3eOr(v3eGet(I, 'wacc_in'), {});
@@ -2441,17 +2472,30 @@ function step_wacc(c) {
   let kd_pre = { market_yield: v3eGet(m, 'kd_market_yield'), recent_issue: v3eGet(m, 'kd_recent_issue'), peer_avg: v3eGet(m, 'kd_peer_avg'),
     rating: v3eGet(v3eGet(m.spread, 'kr_rating', {}), v3eGet(B, 'credit_rating')) == null ? null : rf + m.spread.kr_rating[B.credit_rating],
     effective: eff, synthetic: spread == null ? null : rf + spread, extra_spread: spread == null ? null : rf + spread + v3eNz(v3eGet(m, 'kd_extra_spread')), manual: v3eGet(m, 'kd_manual') }[path];
+  const kd_fb = kd_pre == null; // 고른 경로 값이 없어 합성 등급으로 계산
   if (kd_pre == null) {
     if (spread == null) v3eChk(c, 'kd_missing', 'err', '합성 등급 스프레드가 비어 타인자본비용을 계산할 수 없음(0%로 계산)');
-    else if (path !== 'synthetic') v3eChk(c, 'kd_missing', 'warn', '타인자본비용 경로 ' + v3ePyStr(path) + '의 값이 입력에 없어 합성 등급(무위험이자율 + 스프레드)으로 계산');
+    else if (path !== 'synthetic') v3eChk(c, 'kd_missing', 'warn', '타인자본비용 경로 ' + v3eNm(v3eKD_PATH_NAME, path) + '의 값이 입력에 없어 합성 등급(무위험이자율 + 스프레드)으로 계산');
     kd_pre = rf + v3eNz(spread);
   }
+  let kd_txt; // 맵 타인자본비용 단계 값 글(11-17 오후 3. 경로가 회사채 수익률이어도 「합성 등급」으로 나오던 것)
+  if (path === 'synthetic' || path === 'extra_spread' || kd_fb) kd_txt = (kd_fb && path !== 'synthetic' ? v3eNm(v3eKD_PATH_NAME, path) + ' 값이 없어 ' : '') + '합성 등급 ' + v3ePyStr(rating) + (path === 'extra_spread' && !kd_fb ? ' + 추가 스프레드' : '');
+  else kd_txt = v3eNm(v3eKD_PATH_NAME, path) + (path === 'rating' ? ' ' + v3ePyStr(v3eGet(B, 'credit_rating')) : '');
   const kd = kd_pre * (1 - t_m);
   if (km === 'bond_rp') ke = kd_pre + v3eNz(v3eGet(sw, 'ke_bond_rp'), 0.04);
   const ks_ = v3eOr(v3eGet(m, 'kd_src'), {});          // 타인자본비용 근거(inputs._market_auto): 쓴 경로의 출처, 자동 판정이 건너뛴 사유(「확인 불가」)
   if (!('kd' in c.notes.why)) {
     if (v3eT(v3eGet(ks_, path))) c.notes.why.kd = ks_[path];
-    else if (kmode === 'auto' && v3eT(v3eGet(ks_, 'market_yield')) && v3eT(v3eGet(ks_, 'recent_issue'))) c.notes.why.kd = '회사채 수익률 ' + ks_.market_yield + ', 최근 발행 금리 ' + ks_.recent_issue;
+    else if (kmode === 'auto' && v3eT(v3eGet(ks_, 'market_yield')) && v3eT(v3eGet(ks_, 'recent_issue'))) {
+      let tail = ''; // 자동 판정이 고른 까닭까지(11-17 오후 3)
+      if (path === 'rating') tail = ', 신용등급 ' + v3ePyStr(v3eGet(B, 'credit_rating')) + ' 스프레드';
+      else if (path === 'effective') tail = ', 리스 뺀 이자부부채가 시가총액의 5% 이상이라 실효이자율';
+      else if (path === 'synthetic') {
+        const rs = !v3eT(mcap) ? '시가총액을 몰라' : debt_ex_lease < 0.05 * mcap ? '리스 뺀 이자부부채가 시가총액의 5% 미만이라' : '실효이자율이 없어';
+        tail = (v3eT(v3eGet(B, 'credit_rating')) ? ', 신용등급 ' + v3ePyStr(B.credit_rating) + ' 스프레드 없음' : '') + ', ' + rs + (cov != null ? ' 이자보상배율 ' + v3eFmt2(cov, ',.1f') + '배로 정한 합성 등급 ' + v3ePyStr(rating) : ' 합성 등급 ' + v3ePyStr(rating));
+      }
+      c.notes.why.kd = '회사채 수익률 ' + ks_.market_yield + ', 최근 발행 금리 ' + ks_.recent_issue + tail;
+    }
   }
   const wd = de_t / (1 + de_t);
   let wacc = (1 - wd) * ke + wd * kd;
@@ -2468,7 +2512,7 @@ function step_wacc(c) {
   const sh = v3eNz(v3eGet(ov, 'o.wacc_shift'));
   wacc = wacc + sh; wacc_s = wacc_s + sh;
   c.W = { beta: beta, beta_used: used, floored: floored, ke: ke, ke_s: ke_s, kd_pre: kd_pre, kd: kd, wd: wd, wacc: wacc, wacc_s: wacc_s,
-    beta_s: beta_s, cov: cov, rating: rating, spread: spread, kd_path: path, de: de, de_t: de_t, beta_reg: beta_reg, beta_bu: beta_bu,
+    beta_s: beta_s, cov: cov, rating: rating, spread: spread, kd_path: path, kd_txt: kd_txt, de: de, de_t: de_t, beta_reg: beta_reg, beta_bu: beta_bu,
     bu_t: bu_t, bu_peer: bu_peer, mcap: mcap, ibd: ibd, small: small, override: ovw != null, raw_t: raw_t, prem: prem };
   v3eOne(c, 'WACC.beta_raw', raw_t);
   v3eOne(c, 'WACC.beta_adj', adjb(raw_t));
@@ -2626,7 +2670,7 @@ function step_fade(c) {
   let fg = sw.fade_growth; const g_man = v3eGet(sw, 'fade_g_manual');
   if (fg === 'manual' && g_man == null) {              // 직접 입력을 골랐는데 값이 없으면 직선
     fg = 'linear';
-    if (M) v3eChk(c, 'manual_missing', 'warn', '전환 기간 성장률 직접 입력값(fade_g_manual)이 없어 직선 보간으로 계산');
+    if (M) v3eChk(c, 'manual_missing', 'warn', '전환 기간 성장률 직접 입력값이 없어 직선 보간으로 계산');
   }
   const m_last = margin[margin.length - 1];
   let m_fade;
@@ -2634,7 +2678,7 @@ function step_fade(c) {
   else m_fade = m_last;
   let m_target = v3eGet(v3eOr(v3eGet(v3eOr(v3eGet(c.I, 'assump'), {}), c.S), {}), 'fade_margin_target'); // 시나리오별 목표 이익률(적자 유형)이 먼저
   if (typeof m_target !== 'number') m_target = v3eGet(sw, 'fade_margin_target');
-  if (sw.fade_margin === 'to_target' && m_target == null) v3eChk(c, 'manual_missing', 'warn', '목표 이익률(fade_margin_target)이 없어 전환 기간 이익률을 마지막 해 그대로 둠');
+  if (sw.fade_margin === 'to_target' && m_target == null) v3eChk(c, 'manual_missing', 'warn', '전환 기간 목표 이익률이 없어 전환 기간 이익률을 마지막 해 그대로 둠');
   if (sw.roc_s === 'manual' && v3eGet(sw, 'roc_s_manual') == null) v3eChk(c, 'manual_missing', 'warn', '안정기 ROC 직접 입력값이 없어 안정기 WACC 를 씀');
   const tax_r = X.tax_r.slice(), tax = X.tax.slice(), nopat = X.nopat.slice(), reinv = X.reinv.slice(), fcff = X.fcff.slice(), ic = X.ic.slice(), roic = X.roic.slice();
   let wacc_t = v3eFill(N, wacc);
@@ -2960,7 +3004,7 @@ function step_alt_models(c) {
     eq_ddm = v3eSum(xs3) + pv3 + d_ty3 / (ke_s - g_s) * p_df3;
   }
   if ((stg !== 'two' || sw.dcf_model === 'ddm') && po_last < 0.05) {
-    v3eChk(c, 'ddm_low_div', 'warn', '배당성향이 ' + v3eFmt2(po_last * 100, '.1f') + '%로 거의 없어 배당할인모형(' + v3ePyStr(stg) + ') 값이 매우 작음. 자사주 매입이 많으면 div_buyback, 아니면 FCFF 를 볼 것');
+    v3eChk(c, 'ddm_low_div', 'warn', '배당성향이 ' + v3eFmt2(po_last * 100, '.1f') + '%로 거의 없어 배당할인모형(' + v3eNm(v3eDDM_STAGE_NAME, stg) + ') 값이 매우 작음. 자사주 매입이 많으면 배당에 자사주 매입을 더한 방식, 아니면 FCFF 를 볼 것');
   }
   P('DCF.ddm.div', div.concat([div_ty]));
   v3eOne(c, 'DCF.ddm.eq', eq_ddm);
@@ -3043,8 +3087,15 @@ const v3eSOTP_KEYS = ['units', 'assets', 'hq', 'ev', 'net', 'eq', 'ps_raw', 'ps'
 
 // _sotp_a: 사업부별 합산 가정 하나(CTL.a.sotp.<...>). 가정 덮기(a.<key>.<시나리오>)가 먼저, 없으면 입력 값. one 이면 값 하나, 아니면 명시 기간 배열. 값이 없으면 null
 function v3eSotpA(c, key, spec, one) {
-  if (key in c.A_to) v3eToGiven(c, key, null);
-  let arr = v3eGet(c.A_given, key);
+  const own = key in v3eOr(v3eGet(v3eOr(v3eGet(c.I, 'assump'), {}), c.S), {});
+  let arr;
+  if (c.S !== 'Base' && !own && v3eE01IsDict(spec) && c.S in spec) { // 시나리오별 입력 값이 Base 덮기보다 먼저(Base 에서만 고친 배수가 Bull, Bear 로 번지던 것, 11-17 오후 3)
+    delete c.A_to[key];
+    arr = null;
+  } else {
+    if (key in c.A_to) v3eToGiven(c, key, null);
+    arr = v3eGet(c.A_given, key);
+  }
   if (arr == null) arr = v3eExpand(v3ePick(spec === undefined ? null : spec, c.S), c.N);
   if (arr == null || arr.some((x) => x == null)) return null;
   if (one) { v3eOne(c, 'CTL.a.' + key, arr[0]); return arr[0]; }
@@ -3082,7 +3133,7 @@ function step_sotp(c) {
     const metric = v3eOr(v3eGet(u, 'metric'), 'ebitda');
     const rids = v3eT(v3eGet(u, 'group')) ? ['REV.g.' + u.group + '.val'] : v3eOr(v3eGet(u, 'lines'), []).map((x) => 'REV.l.' + x + '.val');
     if (!rids.length || rids.some((r) => !(r in R))) {
-      bad('사업부 ' + nm + '에 연결한 매출 묶음이나 줄(group, lines)이 매출 표에 없어 합산에서 뺌');
+      bad('사업부 ' + nm + '에 연결한 매출 묶음이나 줄이 매출 표에 없어 합산에서 뺌');
       continue;
     }
     const rev = []; for (let k = 0; k < N; k++) rev.push(v3eSum(rids.map((r) => v3eNz(R[r][H + k]))));
@@ -3095,14 +3146,14 @@ function step_sotp(c) {
       if (cr != null && sr != null) { mg = []; for (let k = 0; k < N; k++) mg.push(1 - cr[k] - sr[k]); }
     }
     if (mg == null && (method === 'dcf' || metric !== 'sales')) {
-      bad('사업부 ' + nm + '의 영업이익률(margin)이나 원가율과 배부 판관비율(cogs_r, sga_r) 가정이 없어 합산에서 뺌');
+      bad('사업부 ' + nm + '의 영업이익률이나 원가율과 배부 판관비율 가정이 없어 합산에서 뺌');
       continue;
     }
     let ev, basis;
     if (method === 'multiple') {
       const mult = v3eSotpA(c, key + '.multiple', v3eGet(a, 'multiple'), true);
       if (mult == null || !(metric in v3eSOTP_METRIC)) {
-        bad('사업부 ' + nm + '의 배수(multiple)가 없거나 지표(metric)가 sales, ebit, ebitda 가 아니라 합산에서 뺌');
+        bad('사업부 ' + nm + '의 배수가 없거나 지표가 매출, 영업이익, EBITDA 가운데 하나가 아니라 합산에서 뺌');
         continue;
       }
       const yk = v3eSotpYear(u, N);
@@ -3171,7 +3222,7 @@ function step_sotp(c) {
       v3eOne(c, pre + '.tv', tv);
       basis = '사업부 DCF(WACC ' + v3eFmt2((wu != null ? wu : W.wacc) * 100, '.2f') + '%, 영구성장률 ' + v3eFmt2(g_u * 100, '.2f') + '%, 종료가치 비중 ' + v3eFmt2(v3eT(ev) ? tv * df_ty / ev * 100 : 0.0, '.1f') + '%)';
     }
-    if (!v3eT(v3eGet(u, 'why'))) v3eChk(c, 'sotp_why', 'err', '사업부별 합산: 사업부 ' + nm + '의 배수나 가정에 근거 문장(why)이 없음');
+    if (!v3eT(v3eGet(u, 'why'))) v3eChk(c, 'sotp_why', 'err', '사업부별 합산: 사업부 ' + nm + '의 배수나 가정에 근거 문장이 없음');
     v3eOne(c, pre + '.ev', ev);
     parts.push({ id: uid, name: nm, method: method, ev: ev, basis: basis });
     tot_units += ev;
@@ -3194,13 +3245,13 @@ function step_sotp(c) {
     const listed = v3eOr(v3eGet(x, 'kind'), v3eGet(x, 'mcap') != null ? 'listed' : 'unlisted') === 'listed';
     const base = v3eGet(x, 'mcap') != null ? x.mcap : v3eGet(x, 'value');
     if (base == null) {
-      bad('보유 자산 ' + nm + '의 시가총액(mcap)이나 평가액(value)이 없어 합산에서 뺌');
+      bad('보유 자산 ' + nm + '의 시가총액이나 평가액이 없어 합산에서 뺌');
       continue;
     }
     const stake = v3eNz(v3eGet(x, 'stake'), 1.0);
     const disc = v3eGet(x, 'disc') != null ? x.disc : v3eNz(v3eGet(sw, listed ? 'sotp_disc_listed' : 'sotp_disc_unlisted'), listed ? 0.5 : 0.3);
     const val = base * stake * (1 - disc);
-    if (!v3eT(v3eGet(x, 'why'))) v3eChk(c, 'sotp_why', 'err', '사업부별 합산: 보유 자산 ' + nm + '의 금액에 근거 문장(why)이 없음');
+    if (!v3eT(v3eGet(x, 'why'))) v3eChk(c, 'sotp_why', 'err', '사업부별 합산: 보유 자산 ' + nm + '의 금액에 근거 문장이 없음');
     v3eOne(c, 'DCF.sotp.h.' + aid, val);
     assets.push({ id: aid, name: nm, kind: listed ? 'listed' : 'unlisted', base: base, stake: stake, disc: disc, value: val });
     tot_assets += val;
@@ -3216,14 +3267,14 @@ function step_sotp(c) {
     hq_cost = P('DCF.sotp.hq_cost', cs);
     if (v3eGet(hq, 'method') === 'multiple') {
       const hm = v3eSotpA(c, 'sotp.hq.multiple', v3eGet(ha, 'multiple'), true);
-      if (hm == null) bad('본사 비용 배수(hq.a.multiple)가 없어 본사 비용을 빼지 않음');
+      if (hm == null) bad('본사 비용 배수가 없어 본사 비용을 빼지 않음');
       hq_v = cs[v3eSotpYear(hq, N)] * v3eNz(hm);
     } else if (W.wacc_s > g_s) {
       const dfc = R['DCF.df'];
       const xs = []; for (let k = 0; k < L; k++) xs.push(cs[k] * (1 - F.tax_r[k]) * (k === 0 ? stub : 1.0) * dfc[k]);
       hq_v = v3eSum(xs) + cs[L] * (1 - F.tax_r[L]) / (W.wacc_s - g_s) * dfc[L];
     } else bad('안정기 WACC 가 영구성장률 이하라 본사 비용 가치를 계산할 수 없어 빼지 않음');
-    if (!v3eT(v3eGet(hq, 'why'))) v3eChk(c, 'sotp_why', 'err', '사업부별 합산: 본사 비용 가정에 근거 문장(why)이 없음');
+    if (!v3eT(v3eGet(hq, 'why'))) v3eChk(c, 'sotp_why', 'err', '사업부별 합산: 본사 비용 가정에 근거 문장이 없음');
   }
   const ev = tot_units + tot_assets - hq_v;
   const g0 = (rid) => v3eNz(R[rid][0]);
@@ -3305,18 +3356,18 @@ function v3eChecksQ4(inp, c, add, pct) {
   const basis = v3eOr(v3eGet(sw, 'bridge_basis'), 'latest');
   if (basis !== 'latest') {
     const b2 = v3eBridgeOf(I, sw);
-    if (b2 === br) add('bridge_basis', 'warn', '주주가치 다리 잔액 기준 ' + v3ePyStr(basis) + '에 쓸 결산 말 잔액(input.bridge.bal)이 입력에 없어 재무상태표 기준일 잔액을 씀');
+    if (b2 === br) add('bridge_basis', 'warn', '주주가치 다리 잔액 기준 ' + v3eNm(v3eBRIDGE_BASIS_NAME, basis) + '에 쓸 결산 말 잔액이 입력에 없어 재무상태표 기준일 잔액을 씀');
     else {
       const nc = (b) => v3eNz(v3eGet(b, 'cash')) + v3eNz(v3eGet(b, 'st_fin')) - v3eSum(Object.values(b.debt).map((v) => v3eNz(v)));
-      const nm = { fy0: '직전 결산 말', avg2: '직전 두 결산 말 평균' }[basis];
-      add('bridge_basis', 'info', '주주가치 다리를 ' + nm + ' 잔액으로 계산(sw.bridge_basis = ' + basis + '). 순현금 ' + v3eFmt2(nc(b2), ',.0f') + '억, 재무상태표 기준일(' + v3ePyStr(v3eGet(br, 'date')) + ') 잔액으로는 ' + v3eFmt2(nc(br), ',.0f') + '억',
+      const nm = v3eBRIDGE_BASIS_NAME[basis];
+      add('bridge_basis', 'info', '주주가치 다리를 ' + nm + ' 잔액으로 계산. 순현금 ' + v3eFmt2(nc(b2), ',.0f') + '억, 재무상태표 기준일(' + v3ePyStr(v3eGet(br, 'date')) + ') 잔액으로는 ' + v3eFmt2(nc(br), ',.0f') + '억',
         nc(b2) - nc(br));
     }
   }
   const mode = v3eOr(v3eGet(sw, 'sotp'), 'off');
   const s = v3eGet(c, 'sotp');
   if ((mode === 'show' || mode === 'target') && !v3eT(v3eGet(v3eOr(v3eGet(I, 'sotp'), {}), 'units'))) {
-    add('sotp_input', 'info', '사업부별 합산(sw.sotp)이 켜져 있지만 사업부 입력(input.sotp.units)이 없어 계산하지 않음');
+    add('sotp_input', 'info', '사업부별 합산이 켜져 있지만 사업부 입력이 없어 계산하지 않음');
   }
   if (!v3eT(s)) return;
   const y1 = c.years_f[0];
@@ -3335,12 +3386,12 @@ function v3eChecksQ4(inp, c, add, pct) {
   }
   const names = new Set(v3eOr(v3eGet(br, 'nonop'), []).filter((x) => v3eT(v3eGet(x, 'name'))).map((x) => v3ePyStr(x.name)));
   const dup = s.asset_list.filter((a) => names.has(a.name)).map((a) => a.name);
-  if (dup.length && s.nonop_on) add('sotp_double', 'warn', '사업부별 합산: 보유 자산 줄 ' + dup.join(', ') + '이 주주가치 다리의 비영업자산에도 있음. 이중 계산이면 input.sotp.nonop 을 exclude 로');
+  if (dup.length && s.nonop_on) add('sotp_double', 'warn', '사업부별 합산: 보유 자산 줄 ' + dup.join(', ') + '이 주주가치 다리의 비영업자산에도 있음. 이중 계산이면 사업부별 합산 입력에서 다리 비영업자산을 빼도록 바꿈');
   if (s.gap != null) {
     add('sotp_gap', Math.abs(s.gap) > 0.3 ? 'warn' : 'info',
       '사업부별 합산 주당 가치 ' + v3eFmt2(s.ps, ',.0f') + '원, 전사 DCF ' + v3eFmt2(s.dcf_ps, ',.0f') + '원 대비 ' + v3eFmt2(s.gap * 100, '+.1f') + '%', s.gap);
   }
-  if (mode === 'target') add('sotp_target', 'info', '목표주가의 DCF 자리에 사업부별 합산 값을 씀(sw.sotp = target). 시나리오 주당 가치, 가중평균, 민감도 표도 합산 값 기준');
+  if (mode === 'target') add('sotp_target', 'info', '목표주가의 DCF 자리에 사업부별 합산 값을 씀. 시나리오 주당 가치, 가중평균, 민감도 표도 합산 값 기준');
 }
 
 // ── E20～E24: 시나리오, 민감도, 리버스, 결합, 점검 (engine.py weighted ～ run_all, run.py compute()를 줄 단위로 옮김) ──
@@ -3508,7 +3559,7 @@ function v3eSensitivities(inp, base, snap, steps) {
   const roe0 = v3eNz(base.rows['DCF.rim.roe_last'][0], ke0);
   const t4 = { x: d5(st.g).map((d) => g0 + d), y: ks.map((d) => ke0 + d), z: ks.map((dk) => d5(st.g).map((dg) => alt_ps({ 'o.ke_shift': kk0 + dk, 'o.g': g0 + dg }, 'DCF.ddm.ps'))) };
   const t5 = { x: d5(st.margin).map((d) => roe0 + d), y: ks.map((d) => ke0 + d), z: ks.map((dk) => d5(st.margin).map((dr) => alt_ps({ 'o.ke_shift': kk0 + dk, 'o.rim_roe': roe0 + dr }, 'DCF.rim.ps'))) };
-  return { wacc_g: t1, wacc_margin: t2, wacc_fade: t3, tornado: tor, ddm_ke_g: t4, rim_ke_roe: t5 };
+  return { wacc_g: t1, wacc_margin: t2, wacc_fade: t3, tornado: tor, tornado_k: v3eTornadoK(tor), ddm_ke_g: t4, rim_ke_roe: t5 };
 }
 
 function v3eBisect(fn, lo, hi, n = 200) {
@@ -3671,7 +3722,7 @@ function v3eChecksMore(inp, c, add, pct) {
   const ld = v3eOr(v3eGet(I, 'loan_dep'), {});
   if (v3eT(v3eGet(ld, 'ca')) && v3eOr(v3eGet(sw, 'loan_class'), 'nwc') === 'nwc' && v3eT(v3eNz(v3eLast(ld.ca)))) {
     add('loan_dep', 'info', '기타유동자산에 대여금, 보증금 ' + v3eFmt2(v3eLast(ld.ca), ',.1f') + '억(' + v3eOr(v3eGet(ld, 'names'), []).join(', ') + ')이 들어 있어 운전자본으로 계산됨. '
-      + '영업과 무관하면 sw.loan_class = nonop 으로 비영업자산에 넣음');
+      + '영업과 무관하면 대여금, 보증금 분류를 비영업자산으로 바꿈');
   }
   // market_changed: 지난 실행과 달라진 시장 입력(CHK.stale_inputs 보강)
   const mp = v3eOr(v3eGet(I, 'market_prev'), {}), m_ = I.market;
@@ -3685,7 +3736,7 @@ function v3eChecksMore(inp, c, add, pct) {
       ['기준일 종가', v3eGet(mp, 'close'), v3eGet(tg, 'close'), 'won']];
     const fm_ = (x, k) => (k === true ? pct(x, 2) : k === 'num' ? v3eFmt2(x, ',.3f') : v3eFmt2(x, ',.0f') + '원');
     const ch_ = pairs.filter((x) => x[1] != null && x[2] != null && Math.abs(x[1] - x[2]) > 1e-9)
-      .map((x) => x[0] + ' ' + fm_(x[1], x[3]) + ' → ' + fm_(x[2], x[3]));
+      .map((x) => x[0] + ' ' + fm_(x[1], x[3]) + '에서 ' + fm_(x[2], x[3]));
     if (ch_.length) add('stale_inputs', 'info', '지난 실행(' + v3eOr(v3eGet(mp, 'at'), '날짜 모름') + ')과 달라진 시장 입력: ' + ch_.join(', '));
   }
   // bs_cf_pair: 과거 유형자산 증감 중 CAPEX, 감가상각, 사용권자산으로 설명되지 않는 몫(처분, 대체 등)이 큰 해
@@ -3715,13 +3766,13 @@ function v3eChecksQ1(inp, c, add, pct) {
   const lump = no.find((x) => v3eGet(x, 'name') === '비영업자산'), loan = no.find((x) => v3eGet(x, 'name') === '대여금, 보증금');
   if (v3eGet(sw, 'loan_class') === 'nonop' && lump && loan && v3eT(v3eNz(v3eGet(loan, 'amount')))) {
     add('nonop_loan_dup', 'warn', '하나로 묶어 넣은 비영업자산 ' + f1(v3eNz(v3eGet(lump, 'amount'))) + '억에 대여금, 보증금 ' + f1(v3eNz(v3eGet(loan, 'amount'))) + '억이 이미 들어 있으면 '
-      + '두 번 더해짐(sw.loan_class = nonop 이 같은 금액을 따로 더함). 묶은 금액에서 빼거나 loan_class 를 nwc 로 둠', v3eNz(v3eGet(loan, 'amount')));
+      + '두 번 더해짐(대여금, 보증금을 비영업자산으로 분류해 같은 금액을 따로 더함). 묶은 금액에서 빼거나 대여금, 보증금 분류를 운전자본으로 둠', v3eNz(v3eGet(loan, 'amount')));
   }
   // resid_no_cost: 사업부 원가율, 단위원가 방식에서 줄 합에 안 잡히는 추정 매출에 원가가 붙지 않음
   const rs = v3eFc(c, 'REV.resid').map((x) => v3eNz(x));
   if ((sw.cogs_mode === 'seg_ratio' || sw.cogs_mode === 'unit_cost') && v3eOr(v3eGet(sw, 'resid_cost'), 'none') !== 'etc' && rs.some((x) => Math.abs(x) > 1e-9)) {
     add('resid_no_cost', 'warn', '줄 합에 안 잡히는 추정 매출(체계 차이 조정) ' + v3ePyStr(c.years_f[0]) + '년 ' + f1(rs[0]) + '억에서 ' + v3ePyStr(v3eLast(c.years_f)) + '년 ' + f1(v3eLast(rs)) + '억에 원가가 붙지 않아 '
-      + '매출총이익이 그만큼 크게 나옴(sw.resid_cost = etc 로 기타 잔여 원가율이나 전사 원가율을 붙임)', rs);
+      + '매출총이익이 그만큼 크게 나옴(잔여 매출 원가 스위치를 기타 잔여 원가율로 바꾸면 기타 잔여 원가율이나 전사 원가율을 붙임)', rs);
   }
   // cost_key_name: 원가 키 이름이 엔진 행 이름과 겹침(OPX.cogs.etc, .mat, .labor, .dep, .other, .l.<줄>)
   const bad = [];
@@ -3729,7 +3780,11 @@ function v3eChecksQ1(inp, c, add, pct) {
     const ck = v3eGet(v3eOr(v3eGet(ln, 'cost'), {}), 'cogs_r_key');
     if (v3eT(ck) && (['etc', 'mat', 'labor', 'dep', 'other', 'l'].includes(ck) || String(ck).includes('.')) && !bad.includes(ck)) bad.push(ck);
   }
-  if (bad.length) add('cost_key_name', 'err', '원가 키 이름이 엔진 행 이름과 겹쳐 쓸 수 없음: ' + bad.join(', ') + '(etc, mat, labor, dep, other, l 과 점이 든 이름은 피함. revbuild 줄의 cost.cogs_r_key 를 바꿈)', bad);
+  if (bad.length) add('cost_key_name', 'err', '원가 키 이름이 엔진 행 이름과 겹쳐 쓸 수 없음: ' + bad.join(', ') + '(etc, mat, labor, dep, other, l 과 점이 든 이름은 피함. 매출 줄의 사업부 원가율 키를 바꿈)', bad);
+}
+// _akey_name: 가정 키의 사람이 읽는 이름(가정 행 이름). 행이 없는 키는 원가 방식 이름표, 그것도 없으면 키
+function v3eAkeyName(inp, c, k) {
+  return v3eOr(v3eGet(v3eOr(v3eGet(v3eOr(v3eGet(inp, 'labels'), {}), 'CTL.a.' + k), v3eOr(c.labels['CTL.a.' + k], {})), 'name'), v3eOr(v3eCogsModeName[k], k));
 }
 function v3eChecksP1a(inp, c, add, pct) {
   const sw = inp.switches, lines = inp.input.revbuild.lines;
@@ -3738,12 +3793,12 @@ function v3eChecksP1a(inp, c, add, pct) {
     if (ln.type !== 'price_volume') continue;
     const miss = [];
     for (const [hk, nm] of [['vol', '수량'], ['price', '단가']]) if (!v3eT(v3eLast(v3eHist(c, 'REV.l.' + ln.id + '.' + hk)))) miss.push(nm);
-    if (miss.length) add('pv_hist', 'err', v3ePyStr(ln.name) + ': 수량 × 단가 줄인데 직전 실적 ' + miss.join(', ') + ' 값이 없어 매출이 0으로 계산됨(revbuild 줄의 hist_vol, hist_price에 rSegment KPI 줄을 연결)');
+    if (miss.length) add('pv_hist', 'err', v3ePyStr(ln.name) + ': 수량 × 단가 줄인데 직전 실적 ' + miss.join(', ') + ' 값이 없어 매출이 0으로 계산됨(매출 줄의 과거 수량, 단가에 rSegment KPI 줄을 연결)');
   }
   // to_no_fy0: 끝값 하나 꼴인데 직전 실적을 몰라 과거 평균(없으면 끝값)에서 출발한 가정
-  if (c.A_to_miss.length) add('to_no_fy0', 'warn', '끝값 하나만 준 가정 가운데 직전 실적을 몰라 과거 평균(없으면 끝값 그대로)에서 출발한 것: ' + c.A_to_miss.join(', '), c.A_to_miss.map((k) => ({ key: k, step: v3eAssumpStep(k) })));
+  if (c.A_to_miss.length) add('to_no_fy0', 'warn', '끝값 하나만 준 가정 가운데 직전 실적을 몰라 과거 평균(없으면 끝값 그대로)에서 출발한 것: ' + c.A_to_miss.map((k) => v3eAkeyName(inp, c, k)).join(', '), c.A_to_miss.map((k) => ({ key: k, step: v3eAssumpStep(k) })));
   // to_unused: 끝값 하나 꼴로 줬지만 지금 방식에서 읽지 않아 쓰이지 않은 가정
-  if (Object.keys(c.A_to).length) add('to_unused', 'warn', '끝값 하나만 준 가정 가운데 지금 방식에서 읽지 않아 쓰이지 않은 것: ' + Object.keys(c.A_to).join(', '), Object.keys(c.A_to).map((k) => ({ key: k, step: v3eAssumpStep(k) })));
+  if (Object.keys(c.A_to).length) add('to_unused', 'warn', '끝값 하나만 준 가정 가운데 지금 방식에서 읽지 않아 쓰이지 않은 것: ' + Object.keys(c.A_to).map((k) => v3eAkeyName(inp, c, k)).join(', '), Object.keys(c.A_to).map((k) => ({ key: k, step: v3eAssumpStep(k) })));
   // seg_cost_hist: 사업부 원가 방식인데 과거 사업부 원가가 없어 사업부 원가율 기본값이 전사 평균인 키(결과가 전사 원가율 방식과 같아짐)
   if (sw.cogs_mode === 'seg_ratio' && !('OPX.cogs.etc' in c.rows)) {
     const keys = [];
@@ -3751,7 +3806,7 @@ function v3eChecksP1a(inp, c, add, pct) {
       const ck = v3eGet(v3eOr(v3eGet(ln, 'cost'), {}), 'cogs_r_key');
       if (v3eT(ck) && !keys.includes(ck) && !(('OPX.cogs_r.' + ck) in c.rows) && !(('cogs_r.' + ck) in c.A_given)) keys.push(ck);
     }
-    if (keys.length) add('seg_cost_hist', 'info', '과거 사업부 원가가 없어 사업부 원가율 기본값을 전사 평균으로 둔 키: ' + keys.join(', ') + '(revbuild cost_hist에 rSegment 원가 줄을 연결하면 사업부별 평균)');
+    if (keys.length) add('seg_cost_hist', 'info', '과거 사업부 원가가 없어 사업부 원가율 기본값을 전사 평균으로 둔 키: ' + keys.join(', ') + '(매출 줄의 과거 원가에 rSegment 원가 줄을 연결하면 사업부별 평균)');
   }
 }
 // _checks_p1b: 판관비, 인원 점검(설계서 2-17 CHK.labor_ratio, share_le_1, ratio_jump 보강과 sga_resid, hc_dept_sum)
@@ -3850,13 +3905,13 @@ function v3eChecksP2(inp, c, add, pct) {
       }
       if (top) tail = '. 대손상각비 ÷ 매출이 가장 높은 해 ' + v3ePyStr(top[1]) + '년 ' + pct(top[0], 2);
     }
-    add('nwc_avg_gap', 'info', '3년 평균과 5년 평균 차이가 20%를 넘는 운전자본 항목: ' + gap.join(', ') + '. 튄 해의 계정 주석을 확인하고 평균에서 뺄지 정함(avg_exclude)' + tail);
+    add('nwc_avg_gap', 'info', '3년 평균과 5년 평균 차이가 20%를 넘는 운전자본 항목: ' + gap.join(', ') + '. 튄 해의 계정 주석을 확인하고 평균에서 뺄지 정함' + tail);
   }
   // nwc_scope: 당기법인세부채, 미지급배당금을 예전처럼 운전자본에 둔 경우(sw.taxpay_class = nwc)
   const ne = v3eOr(v3eGet(I, 'nwc_excl'), {});
   if (v3eT(v3eGet(ne, 'cl')) && v3eOr(v3eGet(ne, 'class'), 'nonop') === 'nwc' && v3eT(v3eNz(v3eLast(ne.cl)))) {
     add('nwc_scope', 'info', '기타유동부채에 당기법인세부채, 미지급배당금 ' + v3eFmt2(v3eLast(ne.cl), ',.1f') + '억(' + v3eOr(v3eGet(ne, 'names'), []).join(', ') + ')이 들어 있어 운전자본으로 계산됨. '
-      + '설계서 2-6 대로 빼려면 sw.taxpay_class = nonop');
+      + '설계서 2-6 대로 빼려면 당기법인세부채 분류를 비영업으로 바꿈');
   }
   // dep_rate_trend: 첫해 뒤에도 감가상각률이 과거 범위를 벗어나는 해(M3-064, 원형 301은 2023E 5.6%에서 2027E 13.3%로 해마다 오름)
   let dr_h = [];
@@ -3879,7 +3934,7 @@ function v3eChecksP2(inp, c, add, pct) {
       for (const x of prior) pm += x;
       pm /= prior.length;
       if (Math.abs(v3eLast(rh) - pm) > 0.02) {
-        add('rate_jump', 'info', '추정 이자율로 쓴 직전 실효이자율 ' + pct(v3eLast(rh), 2) + '이 그 앞 ' + prior.length + '개 해 평균 ' + pct(pm, 2) + '와 2%p 넘게 다름(sw.int_rate = avg4 나 직접 입력 검토)');
+        add('rate_jump', 'info', '추정 이자율로 쓴 직전 실효이자율 ' + pct(v3eLast(rh), 2) + '이 그 앞 ' + prior.length + '개 해 평균 ' + pct(pm, 2) + '와 2%p 넘게 다름(추정 이자율을 최근 4년 평균이나 직접 입력으로 바꿀지 검토)');
       }
     }
     const ibd = R['DEBT.ibd'];
@@ -3914,7 +3969,7 @@ function v3eChecksQ3(inp, c, add, pct) {
     }
   }
   if (used.length) {
-    add('capex_drv', 'info', '확장 CAPEX 를 드라이버로 계산함(명시 기간 합): ' + used.join(', ') + (sw.ppe_mode !== 'simple' ? '' : '. ppe_mode 가 simple 이라 쓰이지 않음'));
+    add('capex_drv', 'info', '확장 CAPEX 를 드라이버로 계산함(명시 기간 합): ' + used.join(', ') + (sw.ppe_mode !== 'simple' ? '' : '. 유형자산 방식이 단순(매출 × CAPEX 비율)이라 쓰이지 않음'));
   }
 }
 
@@ -3933,16 +3988,16 @@ function v3eChecksP3(inp, ctxs, add, pct) {
   }
   const code = v3eGet(inp.target, 'code');
   if (v3eT(code) && v3eOr(v3eGet(I.beta, 'peers'), []).some((p) => v3eGet(p, 'code') === code && v3eT(v3eGet(p, 'include', true)))) {
-    add('peer_self', 'info', '대상 회사가 베타 비교기업 통계에 들어 있음(include_target)');
+    add('peer_self', 'info', '대상 회사가 베타 비교기업 통계에 들어 있음(대상 포함 스위치가 켜짐)');
   }
   const P = v3eOr(v3eGet(W, 'px'), {});               // 가격 표 대조: 표의 창과 지수에 맞는 입력 원 베타와 견줌(KOSPI 표면 KOSPI 회귀 값)
   const tk = v3eGet(P, 'index') === 'KS11' && v3eGet(I.beta, 'index') !== 'KS11' ? v3eGet(I.beta, 'target_kospi') : null;
   const raw = v3eGet(v3eOr(v3eGet(v3eOr(v3eT(tk) ? tk : v3eGet(I.beta, 'target'), {}), v3eGet(P, 'window')), {}), 'raw');
   const sl = v3eGet(P, 'slope');
   if (sl != null && raw != null && Math.abs(sl - raw) > 1e-4) add('beta_px_tie', 'warn', '가격 표로 다시 계산한 원 베타 ' + v3eFmt2(sl, '.4f') + '가 입력 원 베타 ' + v3eFmt2(raw, '.4f') + '와 다름', sl - raw);
-  if (v3eT(v3eGet(W, 'px')) && !v3eT(P.follow)) add('beta_px_basis', 'info', '가격 표가 ' + v3ePyStr(P.window) + ', ' + v3ePyStr(P.index) + ' 기준 하나뿐이라 지금 고른 베타 기간(' + v3ePyStr(sw.beta_window) + ')이나 지수와 다름. 대조 줄은 표 기준 값');
+  if (v3eT(v3eGet(W, 'px')) && !v3eT(P.follow)) add('beta_px_basis', 'info', '가격 표가 ' + v3eNm(v3eBETA_WIN_NAME, P.window) + ', ' + v3eNm(v3eINDEX_NAME, P.index) + ' 기준 하나뿐이라 지금 고른 베타 기간(' + v3eNm(v3eBETA_WIN_NAME, sw.beta_window) + ')이나 지수와 다름. 대조 줄은 표 기준 값');
   if (v3eGet(sw, 'ke_model') === 'firm_prem' && (v3eT(v3eNz(v3eGet(sw, 'ke_firm_prem'))) || v3eT(v3eNz(v3eGet(sw, 'ke_esg_prem')))) && !v3eT(v3eGet(v3eOr(v3eGet(I, 'notes_in'), {}), 'premium_why'))) {
-    add('premium_evidence', 'warn', '기업 고유 프리미엄(ke_firm_prem, ke_esg_prem)에 근거가 없음');
+    add('premium_evidence', 'warn', '기업 고유 프리미엄과 ESG 가산에 근거가 없음');
   }
   if (v3eGet(sw, 'rel_scen_src') === 'model' && v3eT(v3eGet(v3eOr(v3eGet(I, 'rel'), {}), 'ps')) && v3eRelModel(inp, ctxs) == null) {
     add('rel_scen_src', 'warn', '상대가치 시나리오를 모델 값으로 계산할 수 없어 외부 값을 씀(평가 배수 기간이 FY1～FY3 이 아니거나 배수, 주식수가 없음)');
@@ -4062,7 +4117,7 @@ function v3eChecks(inp, ctxs, scen, wavg, rd) {
     add('rseg_checks', 'warn', 'rSegment 검산 ' + v3ePyStr(v3eGet(k, 'check')) + ': ' + v3ePyStr(v3eGet(k, 'text')), v3eGet(k, 'diff'));
   }
   keep('rseg_checks');
-  if (v3eOr(v3eGet(v3eOr(v3eGet(meta, 'notes'), {}), 'warn'), []).includes('basis_mix')) add('basis_mix', 'err', 'revbuild 가 출처 계열이 다른 체계를 섞음');
+  if (v3eOr(v3eGet(v3eOr(v3eGet(meta, 'notes'), {}), 'warn'), []).includes('basis_mix')) add('basis_mix', 'err', '매출 줄 구성이 출처 계열이 다른 체계(공시와 IR)를 섞음');
   keep('basis_mix');
   const tol = 1.5;
   bad = [];
@@ -4083,7 +4138,7 @@ function v3eChecks(inp, ctxs, scen, wavg, rd) {
   if (!(0.8 <= W.beta_s && W.beta_s <= 1.2)) add('stable_beta', 'warn', '안정기 베타 ' + v3eFmt2(W.beta_s, '.2f') + '가 0.8～1.2 밖');
   const bt = v3eOr(v3eGet(v3eOr(v3eGet(I.beta, 'target'), {}), sw.beta_window), {});
   if (v3eGet(bt, 'raw') != null) {
-    add('beta_stats', 'info', '회귀 베타(' + v3ePyStr(sw.beta_window) + ') ' + v3eFmt2(bt.raw, '.2f') + ', 표준오차 ' + v3eFmt2(v3eNz(v3eGet(bt, 'se')), '.2f')
+    add('beta_stats', 'info', '회귀 베타(' + v3eNm(v3eBETA_WIN_NAME, sw.beta_window) + ') ' + v3eFmt2(bt.raw, '.2f') + ', 표준오차 ' + v3eFmt2(v3eNz(v3eGet(bt, 'se')), '.2f')
       + ', R² ' + v3eFmt2(v3eNz(v3eGet(bt, 'r2')), '.2f') + ', 관측수 ' + v3ePyStr(v3eGet(bt, 'n')), v3eGet(bt, 'raw'));
   }
   if (v3eT(W.floored)) add('beta_floor', 'info', '베타 하한 ' + v3ePyStr(sw.beta_floor) + ' 적용(계산값 ' + v3eFmt2(v3eNz(W.beta_used === 'regression' ? W.beta_reg : W.beta_bu), '.2f') + ')');
@@ -4134,7 +4189,7 @@ function v3eChecks(inp, ctxs, scen, wavg, rd) {
   const out_rng = [];
   for (let k = 0; k < N; k++) if (hg.length && !(v3eMinOf(hg) - 1e-9 <= R['OPX.gpm'][H + k] && R['OPX.gpm'][H + k] <= v3eMaxOf(hg) + 1e-9)) out_rng.push(yf[k]);
   if (out_rng.length) add('gpm_range', 'warn', '추정 매출총이익률이 과거 범위(' + pct(v3eMinOf(hg)) + '～' + pct(v3eMaxOf(hg)) + ') 밖: ' + out_rng.map(v3ePyStr).join(', '));
-  if (sw.cogs_mode !== 'components') add('cogs_link', 'info', '원가 방식이 ' + (v3eCogsModeName[sw.cogs_mode] || v3ePyStr(sw.cogs_mode)) + '(' + v3ePyStr(sw.cogs_mode) + ')이라 원가 쪽 감가상각비와 인건비는 스케줄 변화가 반영되지 않음');
+  if (sw.cogs_mode !== 'components') add('cogs_link', 'info', '원가 방식이 ' + (v3eCogsModeName[sw.cogs_mode] || v3ePyStr(sw.cogs_mode)) + ((w) => { const k = w.charCodeAt(w.length - 1) - 0xAC00; return k >= 0 && k <= 11171 && k % 28 ? '이라' : '라'; })(v3eCogsModeName[sw.cogs_mode] || v3ePyStr(sw.cogs_mode)) + ' 원가 쪽 감가상각비와 인건비는 스케줄 변화가 반영되지 않음');
   if (v3eT(v3eGet(meta, 'sga_unmapped'))) add('sga_unmapped', 'info', '기타관리비로 묶은 판관비 계정: ' + meta.sga_unmapped.join(', '));
   keep('sga_unmapped');
   for (const rid of Object.keys(R).filter((k) => k.startsWith('OPX.sga.') && k.split('.').length - 1 === 2 && !k.endsWith('resid') && !k.endsWith('cagr_h') && !k.endsWith('cagr_f'))) {
@@ -4143,9 +4198,9 @@ function v3eChecks(inp, ctxs, scen, wavg, rd) {
     for (let i = 1; i < H; i++) if (hv[i] != null && v3eT(hv[i - 1]) && hv[i] / hv[i - 1] - 1 > 0.5 && hv[i] > 10) sp.push(ys[i]);
     if (sp.length) add('sga_spike', 'info', name(rid) + '가 전년보다 50% 넘게 늘어난 해: ' + sp.map(v3ePyStr).join(', '));
   }
-  for (const rid of ['OPX.sga_r', 'OPX.cogs_r']) {
+  for (const rid of ['OPX.sga_r', 'OPX.cogs_r']) { // 원가율 줄은 cogs_jump(매출원가 단계), 판관비율과 묶음 줄은 ratio_jump(판관비 단계)
     const a0 = R[rid][H - 1], a1 = R[rid][H];
-    if (v3eT(a0) && a1 != null && Math.abs(a1 - a0) > 0.05) add('ratio_jump', 'warn', name(rid) + ' 첫해 ' + pct(a1) + '가 직전 실적 ' + pct(a0) + '와 5%p 넘게 다름');
+    if (v3eT(a0) && a1 != null && Math.abs(a1 - a0) > 0.05) add(rid === 'OPX.sga_r' ? 'ratio_jump' : 'cogs_jump', 'warn', name(rid) + ' 첫해 ' + pct(a1) + '가 직전 실적 ' + pct(a0) + '와 5%p 넘게 다름');
   }
   for (const rid of ['OPX.dep_sga_share', 'OPX.amort_sga_share']) {
     if (R[rid].some((x) => x != null && x > 1 + 1e-9)) add('share_le_1', 'warn', name(rid) + '이 1을 넘음');
@@ -4240,7 +4295,7 @@ function v3eChecks(inp, ctxs, scen, wavg, rd) {
 // DCF 맵 15단계의 지금 값 한 줄(화면 오른쪽 패널)
 // MAP_CHECKS: 맵 단계별로 거는 점검 id
 const v3eMAP_CHECKS = { '매출액': ['rev_check', 'rseg_checks', 'basis_mix', 'cons_gap', 'assump_range', 'rev_sanity', 'cons_n', 'fy1_stale'],
-  '매출원가': ['gpm_range', 'ratio_jump', 'asp_vs_ucost'], '판관비': ['ratio_jump', 'sga_spike', 'labor_ratio', 'share_le_1'],
+  '매출원가': ['gpm_range', 'cogs_jump', 'asp_vs_ucost'], '판관비': ['ratio_jump', 'sga_spike', 'labor_ratio', 'share_le_1'],
   '법인세': ['tax_outlier'], '재투자': ['capex_da', 'reinv_neg', 'nwc_jump', 'dep_rate_trend', 'ppe_xfer_sum', 'fcff_cross'],
   '재무 구조': ['neg_cash', 'rate_jump', 'circ_converge'], '자기자본비용': ['stable_beta', 'premium_evidence', 'beta_index', 'manual_missing'],
   '타인자본비용': ['kd_missing', 'kd_consistency'], '할인율 확정': ['override', 'model_rate_pair', 'stable_vs_peer', 'mcap_basis'],
@@ -4291,14 +4346,14 @@ function v3eMap(inp, c, wavg, blend, checks) {
   const rb = I.revbuild;
   const cov = W.cov == null ? '확인 불가' : v3eFmt2(W.cov, ',.1f');
   const used = v3eGet({ regression: '회귀 베타', bottom_up: '바텀업 베타', manual: '직접 입력' }, W.beta_used, '') + (v3eT(W.floored) ? ', 하한 적용' : '');
-  const m = [['내러티브', '매출액', v3ePyStr(c.years_f[0]) + '년 ' + amt(R['REV.total'][H]) + '억에서 ' + v3ePyStr(v3eLast(c.years_f)) + '년 ' + amt(v3eLast(R['REV.total'])) + '억, 줄 ' + rb.lines.length + '개', 'revbuild 줄별 근거'],
+  const m = [['내러티브', '매출액', v3ePyStr(c.years_f[0]) + '년 ' + amt(R['REV.total'][H]) + '억에서 ' + v3ePyStr(v3eLast(c.years_f)) + '년 ' + amt(v3eLast(R['REV.total'])) + '억, 줄 ' + rb.lines.length + '개', '매출 줄별 근거'],
     ['내러티브', '매출원가', '원가율 ' + pct(R['OPX.cogs_r'][H]) + '에서 ' + pct(v3eLast(R['OPX.cogs_r'])), v3eOr(v3eGet(why, 'cogs_r'), '리서치 값')],
     ['내러티브', '판관비', '판관비율 ' + pct(R['OPX.sga_r'][H]) + '에서 ' + pct(v3eLast(R['OPX.sga_r'])), '묶음별 드라이버'],
     ['내러티브', '법인세', '유효세율 ' + pct(R['CTL.a.tax_eff'][0]) + ', 종료연도 ' + pct(v3eLast(c.F.tax_r)), v3eOr(v3eGet(why, 'tax_eff'), '')],
     ['내러티브', '재투자', 'CAPEX ' + amt(R['DCF.capex'][0]) + '억에서 ' + amt(R['DCF.capex'][N - 1]) + '억, 마지막 해 ROIC ' + pct(v3eLast(c.X.roic)), v3eOr(v3eGet(why, 'capex_maint_pct'), '')],
     ['내러티브', '재무 구조', '이자부부채 ' + amt(R['DEBT.ibd'][H - 1]) + '억, 배당성향 ' + pct(R['CTL.a.payout'][0]), v3eOr(v3eGet(why, 'debt_rate'), '')],
     ['할인율', '자기자본비용', 'Ke ' + pct(W.ke, 2) + '(rf ' + pct(c.rf, 2) + ', 베타 ' + v3eFmt2(W.beta, '.2f') + ', ERP ' + pct(c.erp, 2) + ')', used],
-    ['할인율', '타인자본비용', '세전 ' + pct(W.kd_pre, 2) + '(합성 등급 ' + v3ePyStr(W.rating) + ', 이자보상배율 ' + cov + '배)', W.kd_path],
+    ['할인율', '타인자본비용', '세전 ' + pct(W.kd_pre, 2) + '(' + W.kd_txt + ', 이자보상배율 ' + cov + '배)', v3eOr(v3eGet(why, 'kd'), v3eNm(v3eKD_PATH_NAME, W.kd_path))],
     ['할인율', '할인율 확정', 'WACC ' + pct(W.wacc, 2) + ', 안정기 ' + pct(W.wacc_s, 2) + ', 부채 비중 ' + pct(W.wd), ''],
     ['종료가치', '성장 단계와 종료가치', '전환 ' + v3ePyStr(c.M) + '년, 영구성장률 ' + pct(c.g_s, 2) + ', 종료가치 비중 ' + pct(c.out.tv_share), ''],
     ['내재 가치', '비영업자산', '현금성자산 ' + amt(R['DCF.cash'][0]) + '억 + 비영업자산 ' + amt(R['DCF.nonop'][0]) + '억', ''],
@@ -4424,7 +4479,7 @@ function v3eBlendChecks(inp, blend) {
   const rel = v3eOr(v3eGet(inp.input, 'rel'), {});
   const src = v3eGet(blend, 'dcf_src');
   if (src === 'blocked') out.push({ id: 'type_block', level: 'warn', text: '유형별 주당 가치가 없어 연결 DCF를 목표주가에서 뺌', value: null });
-  else if (src !== 'dcf') out.push({ id: 'type_block', level: 'info', text: '목표주가의 DCF 자리에 유형별 주당 가치 ' + v3eFmt2(blend.dcf, ',.0f') + '원을 씀. 방법: ' + v3ePyStr(blend.dcf_src) + ', Base 기준', value: blend.dcf });
+  else if (src !== 'dcf') out.push({ id: 'type_block', level: 'info', text: '목표주가의 DCF 자리에 유형별 주당 가치 ' + v3eFmt2(blend.dcf, ',.0f') + '원을 씀. 방법: ' + v3eNm(v3eTYP_METHOD_NAME, blend.dcf_src) + ', Base 기준', value: blend.dcf });
   if (v3eT(v3eGet(blend, 'rel_blocked'))) out.push({ id: 'type_block', level: 'info', text: '상대가치 평가 배수 ' + v3ePyStr(v3eGet(rel, 'method')) + '는 이 유형에서 쓰지 않아 결합에서 뺌', value: null });
   return out;
 }
