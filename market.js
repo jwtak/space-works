@@ -163,9 +163,9 @@ function mkMarketHTML() {
     Object.keys(d.drawdowns || {}).length ? mkSec('고점 대비 낙폭', mkSeg('dd', DD, mkS.dd ?? 'null'), mkDrawdowns(d.drawdowns)) : '',
     mkSec('금리·환율', mkSeg('rate', RT, mkS.rate ?? 'null'), mkRates(d)),
     pol ? mkSec('기준금리·물가', '', `<div class="mk-tiles">${pol}</div>`) : '',
+    Object.keys(d.kr_industry || {}).length ? mkSec('업종 대표 ETF', mkIndexWhen(d.kr_industry), mkIndexTable(d.kr_industry, '업종')) : '',
   ];
   const more = mkS.more ? [
-    Object.keys(d.kr_industry || {}).length ? mkSec('업종 대표 ETF', mkIndexWhen(d.kr_industry), mkIndexTable(d.kr_industry, '업종')) : '',
     mkSec('국내 시가총액 TOP 10', mkSeg('stock', [['KOSPI', '코스피'], ['KOSDAQ', '코스닥']], mkS.stock), mkStocks(d.top_stocks?.[mkS.stock])),
     d.top_us_stocks?.length ? mkSec('미국 시가총액 TOP 10', '', mkStocks(d.top_us_stocks, true)) : '',
     mkSec('섹터별 수익률', mkSeg('sector', [['us', '미국'], ['kr', '국내']], mkS.sector), mkSectors(mkS.sector === 'us' ? d.us_sectors : d.kr_sectors)),
