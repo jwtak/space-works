@@ -167,6 +167,12 @@
   .v3-fs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
+/* 머리: 기본 정보 한 줄, 합성 사례 표시 */
+.va-ttl p.v3-binfo { margin-top: 4px; line-height: 20px; word-break: keep-all; overflow-wrap: anywhere; }
+.va-ttl p.v3-binfo span[title] { cursor: help; }
+.va-ttl p.v3-binfo span:not(.w) { white-space: nowrap; }
+.va-ttl h2 .chip.v3-mock { margin-left: 8px; vertical-align: 3px; background: var(--v3-warn-soft); color: var(--v3-warn); font-weight: 600; }
+
 /* ---------- v3 차트 (05_charts.js가 만든 SVG와 범례) ---------- */
 /* 계열 색: --c 막대와 선, --ck 표시선 라벨 글자, --cs 추정 막대와 범위 막대의 연한 채움, --cl 추정 막대 테두리, --ct 조각 위 글자 */
 .v3c { display: block; max-width: 100%; height: auto; }
@@ -335,7 +341,14 @@
 /* 가정 꼴 표시(과거 실적 규칙, 끝값 지정): 가정 줄의 빈 과거 칸 끝이나 이름 옆 */
 .v3r-tag.n { background: var(--hover); color: var(--text2); font-size: var(--fs-sm); cursor: help; }
 .v3r-t td.st .v3r-c small.v3r-fm { padding: 1px 5px; border-radius: var(--r-xs); background: var(--hover); font-size: var(--fs-sm); color: var(--text2); cursor: help; }
+.v3r-t td.st .v3r-c small.v3r-fm { display: inline-block; white-space: normal; word-break: keep-all; }
 .v3r-tip { cursor: help; }
+/* 입력값이 긴 칸: 여섯 자(예 -16.95)는 칸 여백을 줄여 같은 폭에 넣고, 일곱 자부터는 칸을 넓힘 */
+.va .v3r-t td.in.w6, .va .v3r-t td.in.w7 { padding-left: 1px; padding-right: 1px; }
+.v3r-t td.in.w6 .v3-ci input, .v3r-t td.in.w7 .v3-ci input { padding: 0 2px; }
+.v3r-t td.in.w7 .v3-ci { min-width: 56px; }
+/* 바꿀 수 없는 분류(운반비 묶음): 지금 값만 */
+.v3r-res { font-size: var(--fs-md); color: var(--ink); white-space: nowrap; cursor: help; }
 .v3r-ck { margin: 8px 0 0; font-size: var(--fs-sm); line-height: 20px; color: var(--text2); word-break: keep-all; }
 
 @container (max-width: 620px) {
@@ -350,6 +363,8 @@
 }
 @media (max-width: 760px) {
   .v3r-t .v3-ci { min-width: 60px; }
+  .v3r-t td.in.w6 .v3-ci input, .v3r-t td.in.w7 .v3-ci input { padding: 0 3px; }
+  .v3r-t td.in.w7 .v3-ci { min-width: 72px; }
   .v3r-t .v3-ci input { height: 40px; font-size: var(--fs-lg); }
   .v3r-nm, .v3r-lk, .v3r-hb { min-height: 44px; }
   .v3r-lk { font-size: var(--fs-sm); }
@@ -409,6 +424,13 @@
 @media (max-width: 760px) {
   .v3-ci.v3o-wd { min-width: 92px; }
 }
+/* 표 옆 점검 문장: 주의는 주의 색 */
+.v3o-note.wn { color: var(--v3-warn); }
+.v3o-note + .v3-h3 { margin-top: 20px; }
+/* 가정 표 머리의 이전 연도 펴기 */
+.v3o-hb { padding: 0; border: 0; background: none; font: inherit; font-size: var(--fs-sm); font-weight: 500; color: var(--primary); white-space: nowrap; cursor: pointer; }
+.v3o-hb:hover { text-decoration: underline; }
+.v3o-hb:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; border-radius: var(--r-xs); }
 
 /* 입력 탭 7～10단계: 자기자본비용, 타인자본비용, 할인율 확정, 성장 단계와 종료가치 (24_steps_wacc.js) */
 /* 카드 안 세로 쌓기: 선택 줄, 표, 메모 사이 간격을 한 값으로 */
@@ -479,6 +501,23 @@
   .va .v3w-pt .st { min-width: 96px; }
   .va .v3w-rt th, .va .v3w-pt th { white-space: normal; word-break: keep-all; line-height: 18px; vertical-align: bottom; }
   .v3w-ft th.tx, .v3w-ft td.tx { min-width: 148px; }
+}
+/* 3차: 값이 없는데 사례가 고른 선택지(눌린 채 흐리게), 계산에 안 들어가는 칸, 접어 두는 참고 표 */
+.v3w-seg button.on.na { color: var(--text3); }
+.v3w-seg button[title] { cursor: help; }
+.v3-f.v3w-na > span:first-child { color: var(--text4); }
+.v3w-fold { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; min-width: 0; }
+.v3w-fold > .mk-scroll, .v3w-fold > .v3w-note { align-self: stretch; }
+.va .v3w-kr th.c, .v3w-kr td.c { color: var(--ink); font-weight: 600; }
+.va .v3w-kr th:not(.st), .va .v3w-kr td:not(.st) { min-width: 64px; }
+.v3w-cap2 { margin: 0; font-size: var(--fs-sm); line-height: 18px; color: var(--text3); }
+@container (max-width: 620px) {
+  .va .v3w-kr th, .va .v3w-kr td { padding-left: 3px; padding-right: 5px; }
+  .va .v3w-kr th:not(.st), .va .v3w-kr td:not(.st) { min-width: 0; }
+  .va .v3w-kr th { white-space: normal; word-break: keep-all; line-height: 18px; vertical-align: bottom; }
+}
+@media (max-width: 760px) {
+  .v3w-fold > .btn { min-height: 44px; }
 }
 
 /* 입력 탭 11～15단계 (26_steps_bridge.js, v3b-*). 11～13단계는 항목 표(.v3b-it) + 계산표(.v3b-calc) 같은 틀 */
@@ -600,6 +639,45 @@
   .v3b-rule .mk-seg { flex-wrap: wrap; max-width: 100%; }
 }
 .v3b-calc td { white-space: nowrap; }
+/* 11, 12 다리 잔액 기준: 점검 문장, 결산 말 잔액 열이 붙은 항목 표 */
+.v3b-note { margin: 0; font-size: var(--fs-md); line-height: 22px; color: var(--text2); word-break: keep-all; }
+.v3b-note + .v3b-note, .v3b-warn + .v3b-note { margin-top: 4px; }
+.v3b-bn:not(:empty), .v3-opt + [data-o]:not(:empty) { margin-top: 12px; }
+.v3b-bn .v3b-warn { margin-top: 0; }
+.v3b-bn + .mk-scroll, .v3b-bn + table { margin-top: 16px; }
+.v3b-nw.v3b-bsw { max-width: 760px; }
+.v3b-bs td.in, .v3b-bs td.ro { width: 124px; }
+.v3b-bs .v3-ci { width: 108px; }
+.v3b-bs td.ro { color: var(--text2); }
+.v3b-bs .put { width: 108px; }
+.v3b-bsn tr.wy td { padding-top: 0; white-space: normal; }
+.v3b-bsn td.put { width: auto; }
+/* 15 사업부별 합산 */
+.v3b-so th.c, .v3b-so td.c { color: var(--ink); }
+.v3b-so tr.key td.c { font-weight: 700; }
+.v3b-so tr.grp td { text-align: left; }
+.v3b-so td.st small { margin-left: 8px; }
+.v3b-so .why { min-width: 240px; max-width: 340px; white-space: normal; }
+.v3b-so th small { margin-left: 6px; font-size: var(--fs-sm); font-weight: 400; color: var(--text3); }
+.v3b-so th .v3-dot { display: inline-block; margin-right: 8px; vertical-align: 1px; }
+.v3b-sb { margin: 0; font-size: var(--fs-md); line-height: 20px; color: var(--text2); white-space: normal; word-break: keep-all; }
+.v3b-sb + .v3-why { margin-top: 2px; }
+.v3b-so tr.wy td { padding-top: 0; white-space: normal; }
+.v3b-sof { margin-bottom: 16px; }
+.v3b-sotp .v3b-two { margin-bottom: 4px; }
+.v3b-sotp [data-o="b15.so"] { margin-top: 16px; }
+.v3b-sotp .v3b-note { margin-top: 12px; }
+.v3b-sof { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.v3b-sof .v3-f > span:first-child { white-space: normal; overflow: visible; word-break: keep-all; }
+@container (max-width: 620px) {
+  .v3b-sof { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; }
+  .va .v3b-so th, .va .v3b-so td { padding-left: 6px; padding-right: 6px; }
+  .v3b-so td.st small { display: block; margin-left: 0; }
+}
+/* 15 사업부 가정 표, 좁은 폭: 이름 줄 아래 연도 칸 */
+.v3b-san .v3-ci input { padding-left: 4px; padding-right: 6px; }
+.va .v3b-san.v3-t { min-width: 0; }
+.va .mk-scroll > .v3b-san.v3-t { min-width: 640px; }
 
 /* 연도별 상세 탭: 큰 표 하나. 표 감싸개(.v3y-wrap)가 가로와 세로로 스크롤하고, 머리 행과 첫 열은 그 안에서 고정 */
 .v3y-sec .mk-body { padding: 0; }
@@ -728,6 +806,9 @@
   .va .v3y-t tr.l3 td.st { padding-left: 52px; }
   .v3y-g { padding-left: 16px; }
 }
+/* 계산표의 내역 줄(프리미엄 가산 내역, CAPM 참고) */
+.v3y-calc .va-calc tr.sub th { padding-left: 28px; color: var(--text3); }
+.v3y-calc .va-calc tr.sub td { color: var(--text2); }
 
 /* ---------- 보고서 탭: 요약, 상세, 시나리오 (50_rep_sum.js) ---------- */
 /* 카드 두 장 나란히(.v3p-grid), 카드 한 장 안 두 칸(.v3p-two). 본문 폭 1000px 아래에서는 한 칸 */
@@ -833,6 +914,27 @@
   .va .v3p-pt th, .va .v3p-pt td { padding-left: 3px; padding-right: 3px; }
 }
 
+/* 사업부별 합산 표(상세 화면): 줄 아래 계산 내용 줄, 가중평균, 가치 다리 잔액 기준 글 */
+.va .v3p-sot.v3-t { max-width: 760px; }
+.va .v3p-sot .st { min-width: 0; }
+.va .v3p-sot td.st { white-space: normal; word-break: keep-all; }
+.va .v3p-sot th:not(.st), .va .v3p-sot td:not(.st) { width: 18%; }
+.v3p-sot tr:has(+ tr.v3p-sb) td { padding-bottom: 2px; border-bottom: 0; }
+.va .v3p-sot tr.v3p-sb td { padding-top: 0; font-size: var(--fs-sm); line-height: 20px; font-weight: 400; color: var(--text3); box-shadow: none; }
+.v3p-sokv { margin-top: 16px; }
+.v3p-sokv dd small { margin-left: 6px; font-size: var(--fs-md); font-weight: 400; }
+.v3p-bb { margin: 8px 0 0; font-size: var(--fs-md); line-height: 20px; color: var(--text2); word-break: keep-all; }
+.v3p-bb.warn { color: var(--v3-warn); }
+@container (max-width: 620px) {
+  .va .v3p-sot th, .va .v3p-sot td { padding-left: 4px; padding-right: 4px; }
+  .va .v3p-sot th:not(.st), .va .v3p-sot td:not(.st) { width: 21%; }
+  .va .v3p-sot td.st small { display: block; margin: 0; }
+}
+
+/* 재무 요약: 연도 열 여백을 줄여 과거 5년과 명시 5년이 본문 폭(약 730px)에 들어오게 */
+.va .v3p-fin th:not(.st), .va .v3p-fin td:not(.st) { padding-left: 6px; padding-right: 6px; }
+.va .v3p-fin .st { min-width: 124px; }
+
 /* ---------- 보고서: 민감도, 리버스, 풋볼필드, 몬테카를로 (52_rep_more.js, v3q-) ---------- */
 .v3q-note { margin: 0 0 12px; font-size: var(--fs-md); line-height: 20px; color: var(--text2); }
 .v3q-note.warn { color: var(--v3-warn); }
@@ -916,6 +1018,10 @@
   .va .v3q-rt .st { min-width: 0; }
   .va .v3q-rt th, .va .v3q-rt td { padding-left: 4px; padding-right: 4px; }
 }
+
+/* 몬테카를로: 파이썬이 남긴 점검 문장 */
+.v3q-mck { margin-top: 16px; }
+.v3q-mck .v3q-note:last-child { margin-bottom: 0; }
 
 /* ---------- 보고서: 유형별 (54_typ.js, v3t-) ---------- */
 .v3t-note { margin: 12px 0 0; font-size: var(--fs-md); line-height: 20px; color: var(--text2); }
@@ -1030,6 +1136,14 @@
 @media (max-width: 760px) {
   .v3-f .v3t-ro { height: 44px; }
   .v3t-st .v3-ci, .v3t-it .v3-ci { width: 112px; }
+}
+
+/* 시나리오 표에서 세 시나리오 값이 같은 줄(한 칸), 지주 자회사 표의 과열 기준 초과 표시 */
+.va .v3t-sc td.v3t-all { text-align: center; }
+.v3t-sc td.v3t-all small { display: inline; margin-left: 8px; font-size: var(--fs-sm); color: var(--text3); }
+.va .v3t-st td.st small.v3t-hot { display: block; margin: 2px 0 0; color: var(--v3-warn); cursor: help; }
+@container (max-width: 620px) {
+  .va .v3t-st td.st small.v3t-hot { margin: 0 0 0 6px; }
 }
 
 /* ---------- 보고서: LBO (56_lbo.js, v3l-) ---------- */

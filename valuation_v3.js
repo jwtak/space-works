@@ -220,9 +220,19 @@ function v3PresetPick(c, x) {
 /* 결합 목표주가의 DCF 자리 이름. 회사 유형이 일반이 아니면 유형별 주당 가치(blend.dcf_src = 방법)가 그 자리에 들어감 */
 const V3_DSRC = { rim: 'RIM', ddm: 'DDM', dcf_p: '부도 가중 DCF', dcf: 'DCF', nav: 'NAV' };
 const v3DcfTyp = (x) => { const s = x.res.blend?.dcf_src; return !!s && s !== 'dcf'; };
-const v3DcfName = (x) => { const s = x.res.blend?.dcf_src; return !v3DcfTyp(x) ? 'DCF 가중평균' : s === 'blocked' ? '유형별 가치' : `유형별 가치(${V3_DSRC[s] || (x.res.typ?.type === 'private' ? '비상장 DCF' : s)})`; };
+/* 사업부별 합산을 목표주가에 쓰는 상태(sw.sotp = target이고 합산 결과가 있음). 이때 주당 가치와 가중평균이 합산 값 */
+const v3Sotp = (x) => x.res.sotp?.mode === 'target';
+const v3DcfName = (x) => { const s = x.res.blend?.dcf_src; return v3Sotp(x) && !v3DcfTyp(x) ? '사업부별 합산 가중평균' : !v3DcfTyp(x) ? 'DCF 가중평균' : s === 'blocked' ? '유형별 가치' : `유형별 가치(${V3_DSRC[s] || (x.res.typ?.type === 'private' ? '비상장 DCF' : s)})`; };
 
 // ---------- 머리 ----------
+/* 기본 정보 한 줄(target.founded 등). 수집한 문서(target.info_src가 있음)에서만 보이고, 수집했는데 못 찾은 값은 「확인 불가」. 출처는 툴팁 */
+function v3Binfo(t) {
+  const src = t.info_src; if (!src || typeof src !== 'object') return '';
+  const keys = [['founded', '설립'], ['listed', '상장'], ['employees', '임직원'], ['ceo', '대표이사'], ['hq', '본사']].filter(([k]) => k in t);
+  if (!keys.some(([k]) => t[k] != null && t[k] !== '')) return '';
+  const val = (k) => (t[k] == null || t[k] === '' ? '확인 불가' : k === 'employees' ? `${v3Num(t[k])}명${t.employees_date ? `(${esc(t.employees_date)})` : ''}` : esc(t[k]));
+  return `<p class="v3-binfo">${keys.map(([k, nm]) => `<span${k === 'hq' || k === 'ceo' ? ' class="w"' : ''}${src[k] ? ` title="${esc(src[k])}"` : ''}>${nm} ${val(k)}</span>`).join(', ')}</p>`;
+}
 function v3Head(c, x) {
   const t = x.t, cs = v3Cases(), r = x.res, bl = r.blend || {}, wv = r.wavg || {}, errs = (r.checks || []).filter((k) => k.level === 'err').length, n = v3Chg(x);
   const typ = v3DcfTyp(x), dv = typ ? bl.dcf : wv.ok === false ? null : wv.ps;
@@ -231,8 +241,8 @@ function v3Head(c, x) {
       <div><span>${esc(v3DcfName(x))}</span><b>${v3Won(dv)}</b><em>${v3Up(typ ? (v3Ok(dv) && t.close ? dv / t.close - 1 : null) : wv.up)}</em></div>
       <div><span>상대가치</span><b>${v3Won(bl.rel)}</b><em>${bl.rel_blocked ? '유형에 맞지 않아 뺌' : v3Up(v3Ok(bl.rel) && t.close ? bl.rel / t.close - 1 : null)}</em></div>
       <div><span>현재가</span><b>${v3Won(t.close)}</b><em>${esc(t.val_date || '')}</em></div></div>`;
-  return `<section class="card va-head v3-head"><div class="va-ttl"><div><h2>${esc(t.name)} <small>${esc(t.code || '')}</small></h2>
-      <p>기준일 ${esc(t.val_date || '')}${t.bs_date ? `, 재무상태표 ${esc(t.bs_date)}` : ''}${t.wics ? `, ${esc(t.wics)}` : ''}</p></div>
+  return `<section class="card va-head v3-head"><div class="va-ttl"><div><h2>${esc(t.name)} <small>${esc(t.code || '')}</small>${c.mock ? '<span class="chip v3-mock" title="화면 확인용으로 만든 합성 입력입니다. 숫자를 평가로 읽지 않습니다.">시험용 합성 값</span>' : ''}</h2>
+      <p>기준일 ${esc(t.val_date || '')}${t.bs_date ? `, 재무상태표 ${esc(t.bs_date)}` : ''}${t.wics ? `, ${esc(t.wics)}` : ''}</p>${v3Binfo(t)}</div>
       <div class="va-tools">${pick}${infoBtn('valuation_v3')}<button class="btn ghost" type="button" id="v3-json">입력 내려받기</button><button class="btn ghost" type="button" id="v3-xlsx">${ico('file', 'sm')}엑셀 받기</button></div></div>
     ${kpi}
     <div class="va-ctrl">${v3PresetPick(c, x)}<div><span>명시 기간</span>${v3Sw(x, 'sw.fc_years', [3, 5, 7, 10].map((y) => [y, `${y}년`]), x.sw.fc_years)}</div>
@@ -247,14 +257,15 @@ function v3Head(c, x) {
 /* 점검 id → 단계 번호. 엔진 맵(v3eMAP_CHECKS)이 단계 상태를 warn으로 주고, 화면은 이 표로 그 단계 머리에 주의와 오류 문장을 보여 줌(설계서 7-2).
    엔진 표에 없는 id도 주의나 오류면 그 단계를 「확인 필요」로 바꿈. ratio_jump는 묶음마다 한 줄씩 나와 판관비 단계에 모음 */
 const V3_CHK_STEP = { cons_gap: 1, rseg_checks: 1, basis_mix: 1, hist_tie: 1, fy1_stale: 1, rev_check: 1, assump_range: 1, rev_sanity: 1, cons_n: 1, pv_hist: 1,
-  gpm_range: 2, asp_vs_ucost: 2, seg_cost_hist: 2, ratio_jump: 3, labor_scope: 3, labor_ratio: 3, sga_spike: 3, share_le_1: 3, sga_resid: 3, tax_outlier: 4,
-  capex_da: 5, nwc_jump: 5, dep_rate_trend: 5, reinv_neg: 5, ppe_xfer_sum: 5, fcff_cross: 5, ppe_check: 5, ppe_roll_short: 5, capex_exp_unused: 5, nwc_avg_gap: 5, nwc_scope: 5, loan_dep: 5,
+  gpm_range: 2, asp_vs_ucost: 2, seg_cost_hist: 2, resid_no_cost: 2, cost_key_name: 2, ratio_jump: 3, labor_scope: 3, labor_ratio: 3, sga_spike: 3, share_le_1: 3, sga_resid: 3, tax_outlier: 4,
+  capex_da: 5, nwc_jump: 5, dep_rate_trend: 5, reinv_neg: 5, ppe_xfer_sum: 5, fcff_cross: 5, ppe_check: 5, ppe_roll_short: 5, capex_exp_unused: 5, nwc_avg_gap: 5, nwc_scope: 5, loan_dep: 5, rou_life: 5, capex_drv: 5,
   neg_cash: 6, bs_balance: 6, cash_roll: 6, re_roll: 6, rate_jump: 6, circ_converge: 6, cb_schedule: 6,
-  premium_evidence: 7, erp_fallback: 7, stable_beta: 7, beta_index: 7, manual_missing: 7, ke_model: 7, beta_px_tie: 7, peer_self: 7, kd_missing: 8, kd_consistency: 8,
+  premium_evidence: 7, erp_fallback: 7, stable_beta: 7, beta_index: 7, manual_missing: 7, ke_model: 7, beta_px_tie: 7, peer_self: 7, rf_fallback: 7, prem_overlap: 7, beta_px_basis: 7, kd_missing: 8, kd_consistency: 8,
   override: 9, model_rate_pair: 9, stable_vs_peer: 9, mcap_basis: 9, wacc_vs_broker: 9, g_vs_rate: 10, stable_rr: 10, tv_share: 10, dcf_fit: 10, g_fallback: 10, tv_avg: 10,
-  ev_def_align: 12, dilution: 13, shares_align: 13, double_count: 13, weights: 14, upside_big: 14, type_block: 15, dcf_rel_gap: 15, rel_scen_src: 15 };
-/* 끝값 하나만 준 가정 점검(to_no_fy0, to_unused)은 가정 키마다 단계가 다름. 엔진이 키별 단계(k.steps 또는 k.step: 번호나 맵 단계 이름, 목록이나 {키: 단계})를 주면 그것을,
-   없으면 점검 값(k.value)의 가정 키를 접두어로 봄. 어느 단계에도 안 맞는 키(물가상승률 등)는 점검 탭에만 나옴 */
+  nonop_loan_dup: 11, ev_def_align: 12, bridge_basis: 12, dilution: 13, dilution_src: 13, shares_align: 13, double_count: 13, weights: 14, upside_big: 14, type_block: 15, dcf_rel_gap: 15, rel_scen_src: 15,
+  sotp_input: 15, sotp_why: 15, sotp_cover: 15, sotp_margin: 15, sotp_double: 15, sotp_gap: 15 };
+/* 끝값 하나만 준 가정 점검(to_no_fy0, to_unused)은 가정 키마다 단계가 다름. 엔진이 k.value = [{key, step: 맵 단계 이름 또는 null}]로 줌(11-17 오후 판).
+   옛 문서(k.value가 가정 키 글자 목록)는 접두어로 봄. step이 null이거나 어느 단계에도 안 맞는 키(물가상승률 등)는 점검 탭에만 나옴 */
 const V3_KEY_STEP = [[/^rev\./, 1], [/^(cogs|ucost|gpm)/, 2], [/^(sga_|hc\.|wage_g|labor_|rev_per_hc|dep_sga_share|amort_sga_share)/, 3], [/^tax_/, 4],
   [/^(capex|dep_rate|rou_|int_|amort_rate|rnd_|dso$|dio$|dpo$|oca_pct|ocl_pct|cip_|ic_turnover|reinv|noncash)/, 5], [/^(debt_rate|cash_rate|payout|buyback|equity_iss|nci_share|lease_|cb_|st_fin_release)/, 6]];
 function v3ChkSteps(x, k) {
@@ -262,11 +273,15 @@ function v3ChkSteps(x, k) {
   if (k.id !== 'to_no_fy0' && k.id !== 'to_unused') return [];
   const names = (x.res.map || []).map((m) => m.step), num = (s) => (typeof s === 'number' ? s : names.indexOf(s) + 1), given = k.steps ?? k.step;
   const out = given != null ? (Array.isArray(given) ? given : typeof given === 'object' ? Object.values(given) : [given]).map(num)
-    : (Array.isArray(k.value) ? k.value : []).map((key) => (V3_KEY_STEP.find(([re]) => re.test(String(key))) || [])[1]);
+    : (Array.isArray(k.value) ? k.value : []).map((v) => (v && typeof v === 'object' ? (v.step == null ? 0 : num(v.step)) : (V3_KEY_STEP.find(([re]) => re.test(String(v))) || [])[1]));
   return [...new Set(out.filter((n) => n >= 1))];
 }
 /* n단계 머리에 보여 줄 점검(주의, 오류). 같은 문장은 한 번만 */
-const v3StepChk = (x, n) => [...new Set((x.res.checks || []).filter((k) => k.level !== 'info' && v3ChkSteps(x, k).includes(n)).map((k) => k.text))];
+function v3StepChk(x, n) {
+  const ck = (x.res.checks || []).filter((k) => k.level !== 'info'), own = ck.filter((k) => v3ChkSteps(x, k).includes(n));
+  const ids = !own.length && typeof v3eMAP_CHECKS !== 'undefined' ? v3eMAP_CHECKS[(x.res.map || [])[n - 1]?.step] : null; // 문장이 없을 때만 엔진 연결표로(같은 점검이 두 단계에 걸린 ratio_jump 등)
+  return [...new Set((own.length || !ids ? own : ck.filter((k) => ids.includes(k.id))).map((k) => k.text))];
+}
 function v3Stat(x) {
   if (x._stat) return x._stat;
   const st = (x.res.map || []).map((m) => m.status || 'todo');
@@ -282,13 +297,14 @@ function v3Flow(c, x) {
   const yrs = x.tl.fc.map((y, i) => card(1, `${y}E`, v3Eok(f[i]), `현가 ${v3Eok(pv[i])}`)).join('');
   const fd = M ? card(10, `${x.tl.fade[0]}～${x.tl.fade[M - 1]}E`, v3Eok(sum(f.slice(N, N + M))), `현가 ${v3Eok(sum(pv.slice(N, N + M)))}`, 'fd') : '';
   const tv = card(10, '종료가치', v3Eok(one('DCF.tv')), `현가 ${v3Eok(one('DCF.pv_tv'))}`, 'tv');
-  const ps = one('DCF.ps'), ok = v3Ok(ps);
+  const ps = one('DCF.ps'), ok = v3Ok(ps), sot = v3Sotp(x) && v3Ok(one('DCF.sotp.eq')) && v3Ok(one('DCF.sotp.ev'));
   const body = `<div data-o="flow"><div class="v3-fl-h"><span>연도별 FCFF와 현재가치</span><span>단위 억원</span></div>
     <div class="v3-fcf">${yrs}${fd}${tv}</div>
     <button type="button" class="v3-wacc" data-v3-go="9"><span>할인율</span><b>WACC ${v3Pct(one('WACC.wacc'), 2)}</b><span>안정기 ${v3Pct(one('WACC.wacc_s'), 2)}, 영구성장률 ${v3Pct(one('DCF.g_s'), 2)}, 종료가치 비중 ${v3Pct(one('DCF.tv_share'))}</span></button>
-    <div class="v3-eq">${card(10, '영업가치', v3Eok(one('DCF.ev')))}<i class="v3-op">+</i>${card(11, '비영업자산', v3Eok(nonop), '', '', '+')}<i class="v3-op">−</i>${card(12, '비주주청구권', v3Eok(claim), '', '', '−')}<i class="v3-op">=</i>${card(12, '주주가치', v3Eok(one('DCF.eq')), '', 'sum', '=')}</div>
+    <div class="v3-eq">${sot ? `${card(15, '합산 영업가치', v3Eok(one('DCF.sotp.ev')), '사업부 + 보유 자산 − 본사 비용')}<i class="v3-op">+</i>${card(12, '주주가치 다리', v3Eok(one('DCF.sotp.net')), '비영업자산 − 비주주청구권', '', '+')}<i class="v3-op">=</i>${card(15, '주주가치', v3Eok(one('DCF.sotp.eq')), '', 'sum', '=')}`
+      : `${card(10, '영업가치', v3Eok(one('DCF.ev')))}<i class="v3-op">+</i>${card(11, '비영업자산', v3Eok(nonop), '', '', '+')}<i class="v3-op">−</i>${card(12, '비주주청구권', v3Eok(claim), '', '', '−')}<i class="v3-op">=</i>${card(12, '주주가치', v3Eok(one('DCF.eq')), '', 'sum', '=')}`}</div>
     <div class="v3-eq r2"><i class="v3-op">÷</i>${card(13, '주식 수', `${v3Num(one('DCF.shares'))}주`, '', '', '÷')}<i class="v3-op">=</i>${card(14, `${x.sc} 내재 가치`, ok ? v3Won(ps) : '계산 불가', ok ? `현재가 대비 ${v3Up(one('DCF.up'))}` : '영구성장률이 할인율 이상', `res ${x.sc}`)}</div></div>`;
-  return v3Sec('가치 산정 흐름', `<span class="v3-dot ${x.sc}"></span><span class="meta">${x.sc}</span>`, body, 'v3-flow', 'v3-flow');
+  return v3Sec('가치 산정 흐름', `<span class="v3-dot ${x.sc}"></span><span class="meta">${x.sc}${sot ? ', 사업부별 합산 기준' : ''}</span>`, body, 'v3-flow', 'v3-flow');
 }
 
 const v3Try = (fn, x, c) => { try { return fn(x, c); } catch (e) { console.error(e); return `<div class="card"><div class="empty">이 화면을 그리지 못했습니다. ${esc(e.message)}</div></div>`; } };
@@ -917,6 +933,7 @@ function v3cLegend(items) {
 // 세 단계 모두 「연도 표 한 장 + 참고 데이터」. 표는 The Modellers 시트처럼 줄마다 금액 줄과 그 줄을 정하는 가정 줄을 붙여 놓고, 가정이 들어가는 칸만 입력 칸.
 // 줄, 묶음, 판관비 묶음, 연도 수는 사례에서 읽음(x.I.revbuild, x.R 의 OPX.sga.<묶음>.pct 행, x.tl). 펴 둔 근거는 x.st.v3r.open 에 기억.
 // 표 오른쪽 끝 두 열은 과거 CAGR, 추정 CAGR(엔진 행 <행>.cagr_h, .cagr_f 그대로. 엑셀 시트와 같은 자리). 그 두 열 몫만큼 폭이 모자라면 오래된 과거 연도부터 접고(v3rFit), 「이전 연도 펴기」로 다 봄(x.st.v3r.hall).
+// 가정 꼴 표시(끝값 지정, 과거 실적 규칙)는 엔진 글 notes.form, 「평균에 넣을 해」 카드는 엔진의 notes.avg 가정 키를 22_steps_ops.js 의 v3oExTbl 에 넘겨 그림.
 const V3R_DRV = { growth: '성장률', price_volume: '수량과 단가', market_share: '시장 점유율', units_x_per: '단위 수와 단위당 매출', capacity: '생산능력과 가동률', backlog: '수주 잔고', share_of: '기준 줄 대비', fixed: '고정', manual: '직접 입력' };
 const V3R_VAR = { g: ['성장률', 'pct'], val: ['직접 입력', 'amt'], g_vol: ['수량 증가율', 'pct'], g_price: ['단가 상승률', 'pct'], mkt: ['시장 규모', 'amt'], share: ['점유율', 'pct'], net_ratio: ['순매출 비율', 'pct'], fx: ['환율', 'num'], units: ['단위 수', 'num'], per_unit: ['단위당 매출', 'num'], cap: ['생산능력', 'num'], util: ['가동률', 'pct'], price: ['단가', 'num'], ratio: ['기준 줄 대비', 'pct'] };
 const V3R_SGA = { pct_sales: '매출 비례', cpi: '물가 연동', labor: '인원 방식', schedule: '스케줄', per_line: '특정 줄 대비', manual: '직접 입력' };
@@ -932,19 +949,21 @@ const v3rAsk = (list) => `<p class="v3r-ask"><span>살펴볼 것</span>${list.ma
 const v3rIsOpen = (x, id) => !!x.st.v3r?.open?.[id];
 /* 보일 과거 연도. 본문 폭에서 이름 열, 가운데 열(mid), 추정 열, CAGR 두 열을 뺀 자리에 들어가는 만큼만 최근 해부터(적어도 두 해). 좁은 화면(620 미만)은 두 해.
    열 폭은 표 글자 크기 기준 어림값(금액 자릿수에 따라 늘림). 「이전 연도 펴기」를 누르면 전부(표만 가로로 밀림) */
-function v3rFit(x, { mid = 0, cg = false } = {}) {
+function v3rFit(x, { mid = 0, cg = false, re = null } = {}) {
   const { H, N } = x.tl, all = x.tl.hist.map((_, i) => i), min = Math.min(2, H);
   let keep = min;
   if (x.w >= 620) {
     const mx = Math.max(0, ...['REV.total', 'OPX.sga'].flatMap((id) => (x.R[id] || []).filter(v3Ok).map((v) => Math.abs(v)))), t = v3Num(mx), dg = t.replace(/\D/g, '').length;
     const col = 10 + 8.3 * dg + 4.2 * (t.length - dg), hw = Math.max(47.4, col), fw = Math.max(51.4, col);
-    keep = Math.max(min, Math.min(H, Math.floor((x.w - 50 - v3rSide(x) - 124 - (mid ? Math.max(59, col) + fw : 0) - N * fw - (cg ? 92 : 0)) / hw)));
+    let wide = 0;   // 입력값이 일곱 자 이상인 추정 열은 칸이 넓어짐(v3rTr 의 w7. 여섯 자는 칸 여백을 줄여 같은 폭에 넣음)
+    if (re) for (let i = 0; i < N; i++) { let n = 0; for (const id of Object.keys(x.R)) if (re.test(id)) { const L = x.lab[id], fmt = L?.fmt; n = Math.max(n, v3Fi(x.R[id][i], fmt, fmt === 'pct' ? 2 : fmt === 'days' || fmt === 'amt' ? 1 : undefined).length); } wide += Math.max(0, (n >= 7 ? 62 : 0) - fw); }
+    keep = Math.max(min, Math.min(H, Math.floor((x.w - 50 - v3rSide(x) - 124 - (mid ? Math.max(59, col) + fw : 0) - N * fw - wide - (cg ? 92 : 0)) / hw)));
   }
   const fold = keep < H, hall = fold && !!x.st.v3r?.hall;
   return { hi: hall ? all : all.slice(H - keep), fold, hall };
 }
 /* 사례 스위치에 키가 없으면 엔진 기본값(JS 엔진에는 기본값 표가 따로 없어 여기서 맞춤) */
-const V3R_SWD = { adj_fc: false, scn_base_rule: 'avg4', ucost_interp: 'linear', hc_basis: 'eop', hc_rnd: 'exclude', share_years: 1 };
+const V3R_SWD = { adj_fc: false, scn_base_rule: 'avg4', ucost_interp: 'linear', hc_basis: 'eop', hc_rnd: 'exclude', share_years: 1, resid_cost: 'none', freight_class: 'sales' };
 const v3rSwV = (x, k) => x.sw[k] ?? V3R_SWD[k];
 const v3rAny = (x, id) => (x.R[id] || []).some(v3Ok);
 const V3R_TIP = {
@@ -954,7 +973,17 @@ const V3R_TIP = {
   hc_basis: '인당 인건비를 구할 때 전체 인건비를 나누는 직원 수',
   hc_rnd: '부서 표의 R&D 부서를 인원 합계에 넣을지 여부',
   share_years: '감가상각비, 무형자산상각비, 인건비의 판관비 몫 기본값에 쓰는 과거 기간',
+  resid_cost: '줄 합에 잡히지 않는 체계 차이 매출에 붙이는 원가. 기타 잔여 원가율이 없으면 전사 원가율을 씁니다.',
+  freight_class: '입력을 만들 때 정해지는 분류라 여기서는 바꿀 수 없습니다. 바꾸려면 파이썬에서 입력을 다시 받아야 합니다.',
 };
+/* 엔진이 낸 글(가정 꼴 form, 평균에 실제로 넣은 해 avg): 다시 계산한 결과가 먼저이고 엔진을 끈 화면은 사례의 notes */
+const v3rNotes = (x) => x.res.notes ?? x.c.notes ?? {};
+/* 「평균에 넣을 해」 카드: 엔진이 평균 창을 알려 준 가정 키(notes.avg) 가운데 이 단계 것만. 표와 체크는 22_steps_ops.js 의 v3oExTbl 이 그림(없거나 줄이 없으면 카드를 안 냄) */
+function v3rAvgSec(x, re, name) {
+  const items = Object.keys(v3rNotes(x).avg || {}).filter((k) => re.test(k)).map((k) => ({ key: k, name: name(k) }));
+  const body = items.length && typeof v3oExTbl === 'function' ? v3oExTbl(x, items) : '';
+  return body ? v3Sec('평균에 넣을 해', '', body, 'v3o') : '';
+}
 
 /* v3Sw 에 「이 사례에서 쓸 수 없는 값」을 더한 것. opts [[값, 이름, 쓸 수 없는 까닭]]. 까닭이 있는 단추는 눌리지 않음 */
 function v3rSw(x, key, opts, cur) {
@@ -981,7 +1010,8 @@ function v3rCg(x, T, id) {
 }
 /* 표 한 줄. h 과거 칸(H개), m 가운데 칸, f 추정 칸. 칸 안에 입력 칸이 있으면 td.in. o 를 주면 줄 전체가 계산 결과 */
 function v3rTr(T, { cls = '', st = '', h = [], m = [], f = [], o = '', cg = null }) {
-  const td = (s, c) => { const t = s == null ? '' : String(s); return `<td class="${c}${t.includes('class="v3-ci"') ? ' in' : ''}">${t}</td>`; };
+  const td = (s, c) => { const t = s == null ? '' : String(s), inp = t.includes('class="v3-ci"'), n = inp ? (/ value="([^"]*)"/.exec(t)?.[1] || '').length : 0; // 입력값이 길면 칸 여백을 줄이고(여섯 자, 예 -16.95) 일곱 자부터는 칸을 넓힘
+    return `<td class="${c}${inp ? ' in' : ''}${n >= 7 ? ' w7' : n === 6 ? ' w6' : ''}">${t}</td>`; };
   return `<tr class="${cls}"${o ? ` data-o="${esc(o)}"` : ''}><td class="st">${st}</td>${T.hi.map((i) => td(h[i], 'h')).join('')}${T.mid.map((_, j) => td(m[j], j ? '' : 'bl')).join('')}${T.fs.map((_, i) => td(f[i], i === 0 && !T.mid.length && T.hi.length ? 'bl' : '')).join('')}${T.cg ? `<td class="cg bl">${cg?.[0] || ''}</td><td class="cg">${cg?.[1] || ''}</td>` : ''}</tr>`;
 }
 /* 계산 행 한 줄(hist+fc 또는 fc 행). pct 비율, sign 부호, dash 없는 값을 - 로 */
@@ -991,7 +1021,7 @@ function v3rRow(x, T, id, { name = '', cls = '', pct = false, d, sign = false, d
   const f = (v) => (v3Ok(v) && !(nz && Math.abs(v) < 0.05) ? `${sign && v > 0 ? '+' : ''}${pct ? v3Num(v * 100, d ?? 1) : v3Num(v, d ?? 0)}` : dash ? '-' : '');
   return v3rTr(T, { cls, o: `r.${id}`, st: name, h: off ? a.slice(0, T.H).map((v) => f(v)) : [], f: T.fs.map((_, i) => f(a[off + i])), cg: v3rCg(x, T, id) });
 }
-const v3rSub = (name, unit = '%', d = 0, fm = null) => `<div class="v3r-c sub d${d}">${esc(name)}${unit ? `<small>${unit}</small>` : ''}${v3rFm(fm)}</div>`;
+const v3rSub = (name, unit = '%', d = 0, tail = '') => `<div class="v3r-c sub d${d}">${esc(name)}${unit ? `<small>${unit}</small>` : ''}${tail || ''}</div>`;
 /* 이름 칸: 근거가 있으면 눌러서 펴는 단추 */
 function v3rName(x, id, name, why, kind = '', d = 0, tail = '', tip = '') {
   const nm = why ? `<button type="button" class="v3r-nm" data-v3r-open="${esc(id)}" aria-expanded="${v3rIsOpen(x, id)}">${esc(name)}</button>` : `<b>${esc(name)}</b>`;
@@ -1023,28 +1053,16 @@ function v3rStack(R, nodes, n) {
 }
 /* 엔진 행 이름 끝의 「과거 CAGR(4년)」, 「명시 기간 CAGR(5년)」(CAGR 열 머리 툴팁과 연수 견주기) */
 const v3rCgTail = (x, id) => /(?:과거|명시 기간) CAGR\(\d+년\)$/.exec(x.lab[id]?.name || '')?.[0] || '';
-/* 가정이 어떤 꼴로 정해졌는지: 과거 실적 규칙({rule}, 수량과 단가 성장률을 안 넣어 기본 규칙으로 채운 줄)과 끝값 하나({to}).
-   엔진과 같은 순서(가정 표의 고른 시나리오, Base, 줄의 a)로 지금 input(x.I. 덮기 반영)을 읽음. 칸을 고치면 연도별 값이 되어 표시가 사라짐.
-   규칙 이름은 화면 설명 조각의 V3I_SW.scn_base_rule(엔진이 결과에 사람이 읽는 이름을 실으면 여기만 바꾸면 됨). {txt, tip} 또는 null */
-function v3rForm(x, key, ln, k) {
-  const A = x.I.assump || {}, isO = (o) => o != null && typeof o === 'object' && !Array.isArray(o);
-  let one = A[x.sc]?.[key] ?? A.Base?.[key];
-  if (one == null && ln) {
-    one = v3rPick(ln.a?.[k], x.sc);
-    if (one == null && ln.type === 'price_volume' && (k === 'g_vol' || k === 'g_price')) one = { rule: v3rSwV(x, 'scn_base_rule'), auto: true };
-  }
-  if (!isO(one) || 'by_year' in one || 'start' in one) return null;
-  if (one.to != null) {
-    const miss = (x.res.checks || []).find((c) => c.id === 'to_no_fy0' && Array.isArray(c.value) && c.value.includes(key));
-    return { txt: '끝값 지정', tip: miss ? miss.text : '직전 실적에서 끝값까지 이어 채운 가정' };
-  }
-  if ('rule' in one) {
-    const nm = (typeof V3I_SW !== 'undefined' && V3I_SW.scn_base_rule?.[one.rule]) || String(one.rule);
-    return { txt: nm.replace(/\(CAGR\)$/, ''), tip: `${one.auto ? '성장률 가정이 없어 기본 규칙으로 채움' : '과거 실적 규칙으로 채움'}: ${nm}` };
-  }
-  return null;
+/* 가정이 어떤 꼴로 정해졌는지(끝값 하나, 과거 실적 규칙): 엔진이 만든 글 notes.form[<가정 키>].text 그대로(화면이 입력을 보고 추정하지 않음).
+   표에는 짧은 표시(끝값 지정, 규칙 이름)만 두고 전문은 title. 칸을 고쳐 연도별 값이 되면 엔진 글이 없어져 표시도 사라짐. {txt, tip} 또는 null */
+function v3rForm(x, key) {
+  const fm = v3rNotes(x).form?.[key]; if (!fm || !fm.text) return null;
+  const t = String(fm.text), i = t.lastIndexOf(': ');
+  return { txt: fm.kind === 'to' ? '끝값 지정' : i >= 0 ? t.slice(i + 2) : t, tip: t };
 }
 const v3rFm = (fm) => (fm ? `<small class="v3r-fm" title="${esc(fm.tip)}">${esc(fm.txt)}</small>` : '');
+/* 이름 옆 표시. 입력하는 동안에도 바뀌게 data-o 로 감쌈(글이 없어도 자리는 둠) */
+const v3rFmW = (x, key) => `<span data-o="fm.${esc(key)}">${v3rFm(v3rForm(x, key))}</span>`;
 /* 과거 성장률 표: REV.hist_g.<지표>.<방법>(산술평균, 기하평균, 로그 회귀). 시작값이 0 이하라 못 구한 칸은 NM */
 const V3R_HG = { rev: '매출', ebit: '영업이익', ni: '지배순이익', eps: 'EPS' };
 const V3R_HGM = { arith: '산술평균', geo: '기하평균', reg: '로그 회귀' };
@@ -1071,7 +1089,7 @@ function v3rRevTable(x) {
   const hasMid = N > 0 && lines.some((l) => ytd(l.id) != null), q = +x.tl.fy1_ytd_quarters || 0, y1 = x.tl.fc[0];
   const mid = hasMid ? [{ label: q > 1 && q < 4 ? `1～${q}분기` : q === 1 ? '1분기' : '누적', tip: `${y1}년 누적 실적` }, { label: q === 3 ? '4분기E' : q > 0 && q < 3 ? `${q + 1}～4분기E` : '남은 기간E', tip: `${y1}년 남은 기간 추정` }] : [];
   const cgId = R['REV.total.cagr_h'] || R['REV.total.cagr_f'] ? 'REV.total' : '';
-  const T = v3rT(x, { fit: v3rFit(x, { mid: mid.length, cg: !!cgId }), mid, cg: cgId });
+  const T = v3rT(x, { fit: v3rFit(x, { mid: mid.length, cg: !!cgId, re: /^CTL\.a\.rev\./ }), mid, cg: cgId });
   const gids = new Set(groups.map((g) => g.id));
   const aK = {}, vo = Object.keys(V3R_VAR), vi = (k) => { const i = vo.indexOf(k); return i < 0 ? vo.length : i; };   // 줄 id → 가정 변수(엔진이 만든 가정 행 기준)
   for (const k of Object.keys(R)) { const m = /^CTL\.a\.rev\.(.+)\.([^.]+)$/.exec(k); if (m) (aK[m[1]] ||= []).push(m[2]); }
@@ -1081,6 +1099,7 @@ function v3rRevTable(x) {
   const pos = (g) => Math.min(lines.length, ...own(g.id).map((l) => lines.indexOf(l)), ...kids(g.id).map(pos));
   const ordered = (ls, gs, d) => [...ls.map((l) => ({ i: lines.indexOf(l), l })), ...gs.map((g) => ({ i: pos(g), g }))].sort((a, b) => a.i - b.i).map((n) => (n.l ? lineRows(n.l, d) : groupRows(n.g, d))).join('');
 
+  const baseNm = (ln) => { const b = 'a_base' in ln ? ln.a_base : ln.a?.base_line, bl = typeof b === 'string' ? lines.find((l) => l.id === b) : null; return bl ? bl.name || bl.id : typeof b === 'string' ? b : ''; };
   function lineRows(ln, d) {
     const id = ln.id, idx = lines.indexOf(ln), rid = `REV.l.${id}`, v = R[`${rid}.val`] || [], g = R[`${rid}.g`] || [], oid = `rev.${id}`;
     const A = (k) => R[`CTL.a.rev.${id}.${k}`] || [], keys = (aK[id] || []).slice().sort((a, b) => vi(a) - vi(b));
@@ -1091,20 +1110,20 @@ function v3rRevTable(x) {
     const ap = (k, res, inp, pct) => v3rO(k, v3Ok(res) && v3Ok(inp) && Math.abs(res - inp) > (pct ? 0.00005 : 0.05) ? `<small>${pct ? v3rP(res) : v3rN(res)}</small>` : '');
     const why = ln.why || v3Note(x, `rev.${id}`);
     const rowA = v3rTr(T, { cls: 'v3r-a',
-      st: v3rName(x, oid, ln.name || id, why, inG ? '' : V3R_DRV[ln.type] || ln.type, d, '', ln.type === 'backlog' ? V3R_TIP.backlog : ''),
+      st: v3rName(x, oid, ln.name || id, why, inG ? '' : V3R_DRV[ln.type] || ln.type, d, '', ln.type === 'backlog' ? V3R_TIP.backlog : ln.type === 'share_of' && baseNm(ln) ? `기준 줄 ${baseNm(ln)}` : ''),
       h: v.slice(0, H).map((a, i) => (est && i === H - 1 ? `<i class="v3r-est" title="${esc(ln.fy0_why || '추정 출발')}">${v3rO(`r1.${id}.h0`, v3rN(a))}</i>` : v3rN(a))),
       m: [v3rN(y), fix ? v3rLineIn(x, idx, 'fy1_override', `${ln.name} ${mid[1]?.label || ''}`, true) : y != null && ytdOn ? v3rO(`r1.${id}.q`, v3rN(v[H] - y)) : ''],
       f: T.fs.map((_, i) => (inV && !(fix && i === 0) ? v3ACell(x, `rev.${id}.val`, i, 'amt', S, ln.name) + ap(`r1.${id}.av${i}`, v[H + i], A('val')[i]) : v3rO(`r1.${id}.v${i}`, v3rN(v[H + i])))), cg: v3rCg(x, T, `${rid}.val`) });
     const vars = keys.filter((k) => !(inV && k === 'val') && !(inG && k === 'g')).map((k) => {
       const fmt = x.lab[`CTL.a.rev.${id}.${k}`]?.fmt || V3R_VAR[k]?.[1] || 'num', nm = V3R_VAR[k]?.[0] || k;
       const lv = LV[k] && R[`${rid}.${LV[k][0]}`] ? v3rRow(x, T, `${rid}.${LV[k][0]}`, { name: v3rSub(LV[k][1], LV[k][2], d), cls: 'v3r-b' }) : '';
-      const fm = v3rForm(x, `rev.${id}.${k}`, ln, k), hq = [];   // 가정 꼴 표시는 비어 있는 과거 칸 끝에(추정 첫 칸 바로 앞)
-      if (fm && T.hi.length) hq[H - 1] = `<span class="v3r-tagw"><span class="v3r-tag n" title="${esc(fm.tip)}">${esc(fm.txt)}</span></span>`;
-      return lv + v3rTr(T, { cls: 'v3r-b', st: v3rSub(nm, fmt === 'pct' ? '%' : '', d, fm && !T.hi.length ? fm : null), h: hq, f: T.fs.map((_, i) => v3ACell(x, `rev.${id}.${k}`, i, fmt, S, `${ln.name} ${nm}`)) });
+      const fk = `rev.${id}.${k}`, fm = v3rForm(x, fk), hq = [];   // 가정 꼴 표시는 비어 있는 과거 칸 끝에(추정 첫 칸 바로 앞)
+      if (T.hi.length) hq[H - 1] = `<span data-o="fmh.${esc(fk)}">${fm ? `<span class="v3r-tagw"><span class="v3r-tag n" title="${esc(fm.tip)}">${esc(fm.txt)}</span></span>` : ''}</span>`;
+      return lv + v3rTr(T, { cls: 'v3r-b', st: v3rSub(nm, fmt === 'pct' ? '%' : '', d, T.hi.length ? '' : v3rFmW(x, fk)), h: hq, f: T.fs.map((_, i) => v3ACell(x, `rev.${id}.${k}`, i, fmt, S, `${ln.name} ${nm}`)) });
     }).join('');
     const extra = est ? `<div class="v3r-x"><label class="v3-f"><span>${x.tl.hist[H - 1]}년 출발값</span>${v3rLineIn(x, idx, 'fy0', `${ln.name} 출발값`, false)}</label>${ln.fy0_why ? `<p>${esc(ln.fy0_why)}</p>` : ''}</div>` : '';
     const note = v3rNote(x, T, oid, why, extra);
-    const rowB = v3rTr(T, { cls: `v3r-b${note ? '' : ' end'}`, st: v3rSub(inG ? '성장률' : '전년 대비', '%', d, inG ? v3rForm(x, `rev.${id}.g`, ln, 'g') : null), h: g.slice(0, H).map((a, i) => (est && i === H - 1 ? '<span class="v3r-tagw"><span class="v3r-tag">추정 출발</span></span>' : v3rP(a))),
+    const rowB = v3rTr(T, { cls: `v3r-b${note ? '' : ' end'}`, st: v3rSub(inG ? '성장률' : '전년 대비', '%', d, inG ? v3rFmW(x, `rev.${id}.g`) : ''), h: g.slice(0, H).map((a, i) => (est && i === H - 1 ? '<span class="v3r-tagw"><span class="v3r-tag">추정 출발</span></span>' : v3rP(a))),
       f: T.fs.map((_, i) => (inG && !(fix && i === 0) ? v3ACell(x, `rev.${id}.g`, i, 'pct', S, `${ln.name} 성장률`) + ap(`r1.${id}.ag${i}`, g[H + i], A('g')[i], 1) : v3rO(`r1.${id}.g${i}`, v3rP(g[H + i])))) });
     return rowA + vars + rowB + note;
   }
@@ -1174,7 +1193,7 @@ function v3rRev(x) {
 // ---------- 2단계 매출원가 ----------
 function v3rCogs(x) {
   const R = x.R, S = x.sc, { H } = x.tl, mode = x.sw.cogs_mode, lines = x.I.revbuild?.lines || [], groups = x.I.revbuild?.groups || [];
-  const cgId = R['OPX.gp.cagr_h'] || R['OPX.gp.cagr_f'] ? 'OPX.gp' : '', T = v3rT(x, { fit: v3rFit(x, { cg: !!cgId }), cg: cgId });
+  const cgId = R['OPX.gp.cagr_h'] || R['OPX.gp.cagr_f'] ? 'OPX.gp' : '', T = v3rT(x, { fit: v3rFit(x, { cg: !!cgId, re: /^CTL\.a\.(cogs|ucost|gpm)/ }), cg: cgId });
   const find = (re) => Object.keys(R).filter((k) => re.test(k)).map((k) => k.slice(6));
   const segK = find(/^CTL\.a\.cogs_r\../), ucK = find(/^CTL\.a\.ucost\../), lname = (id) => lines.find((l) => l.id === id)?.name || id;
   const keys = ({ ratio: ['cogs_r'], seg_ratio: [...segK, 'cogs_r'], gpm_step: ['gpm_step'], unit_cost: [...ucK, ...segK, 'cogs_r'], components: ['cogs_mat_pct', 'cogs_other_pct'] }[mode] || ['cogs_r']).filter((k) => R[`CTL.a.${k}`]);
@@ -1183,7 +1202,7 @@ function v3rCogs(x) {
     if (k === 'gpm_step') return { name: '매출총이익률 증가폭', fmt: 'pct', unit: '%p' };
     if (k === 'cogs_mat_pct') return { name: '재료비 매출 대비', fmt: 'pct' };
     if (k === 'cogs_other_pct') return { name: '기타 원가 매출 대비', fmt: 'pct' };
-    if (k.startsWith('ucost.')) { const fmt = x.lab[`CTL.a.${k}`]?.fmt || 'num'; return { name: `${lname(k.slice(6))} 단위원가`, fmt, unit: fmt === 'won' ? '원' : '', hist: `OPX.${k}` }; }
+    if (k.startsWith('ucost.')) { const fmt = x.lab[`CTL.a.${k}`]?.fmt || 'won'; /* 화면에서 방식을 바꿔 새로 생긴 행은 사례 labels 에 없음. 단위원가는 원 */ return { name: `${lname(k.slice(6))} 단위원가`, fmt, unit: fmt === 'won' ? '원' : '', hist: `OPX.${k}` }; }
     return { name: `${ckName(k.slice(7))} 원가율`, fmt: 'pct', hist: `OPX.cogs_r.${k.slice(7)}` };
   };
   /* 원가 키 이름: 줄 하나면 그 줄, 같은 묶음의 줄들이면 묶음 이름. etc는 전사 원가에서 사업부 원가를 뺀 나머지 */
@@ -1198,7 +1217,7 @@ function v3rCogs(x) {
   const segRows = (ck, k) => {
     const nm = ckName(ck), amt = R[`OPX.cogs.${ck}`] || [], cr = R[`OPX.cogs_r.${ck}`] || [], why = k ? v3Note(x, k) : '', oid = `cogs.${k || ck}`, note = k ? v3rNote(x, T, oid, why) : '';
     return v3rTr(T, { cls: 'v3r-a', st: v3rName(x, oid, `${nm} 원가`, why, ck === 'etc' ? '잔여' : '', 0, '', ck === 'etc' ? '전사 매출원가에서 사업부 원가 합을 뺀 금액' : ''), h: amt.slice(0, H).map((v) => v3rN(v)), f: T.fs.map((_, i) => v3rO(`r2.${ck}.v${i}`, v3rN(amt[H + i]))) })
-      + v3rTr(T, { cls: `v3r-b${note ? '' : ' end'}`, st: v3rSub('원가율', '%', 0, k ? v3rForm(x, k) : null), h: cr.slice(0, H).map((v) => v3rP(v)), f: T.fs.map((_, i) => (k ? v3ACell(x, k, i, 'pct', S, `${nm} 원가율`) : v3rO(`r2.${ck}.r${i}`, v3rP(cr[H + i])))) }) + note;
+      + v3rTr(T, { cls: `v3r-b${note ? '' : ' end'}`, st: v3rSub('원가율', '%', 0, k ? v3rFmW(x, k) : ''), h: cr.slice(0, H).map((v) => v3rP(v)), f: T.fs.map((_, i) => (k ? v3ACell(x, k, i, 'pct', S, `${nm} 원가율`) : v3rO(`r2.${ck}.r${i}`, v3rP(cr[H + i])))) }) + note;
   };
   const segDone = new Set();
   let rows = v3rRow(x, T, 'REV.total', { name: '매출액', cls: 'end' });
@@ -1206,7 +1225,7 @@ function v3rCogs(x) {
     const sm = /^cogs_r\.(.+)$/.exec(k);
     if (sm && v3rAny(x, `OPX.cogs.${sm[1]}`)) { rows += segRows(sm[1], k); segDone.add(sm[1]); return; }
     const it = item(k), why = v3Note(x, k), oid = `cogs.${k}`, note = v3rNote(x, T, oid, why), hr = it.hist ? R[it.hist] : null;
-    rows += v3rTr(T, { cls: `v3r-a${note ? '' : ' end'}`, st: v3rName(x, oid, it.name, why, it.unit ?? '%', 0, v3rFm(v3rForm(x, k))), h: hr ? hr.slice(0, H).map((v) => (it.fmt === 'pct' ? v3rP(v) : v3rN(v, it.fmt === 'won' ? 0 : 1))) : [],
+    rows += v3rTr(T, { cls: `v3r-a${note ? '' : ' end'}`, st: v3rName(x, oid, it.name, why, it.unit ?? '%', 0, v3rFmW(x, k)), h: hr ? hr.slice(0, H).map((v) => (it.fmt === 'pct' ? v3rP(v) : v3rN(v, it.fmt === 'won' ? 0 : 1))) : [],
       f: T.fs.map((_, i) => v3ACell(x, k, i, it.fmt, S, it.name)), cg: it.hist ? v3rCg(x, T, it.hist) : null }) + note;
   });
   for (const id of Object.keys(R)) { const m = /^OPX\.cogs_r\.([^.]+)$/.exec(id); if (m && !segDone.has(m[1]) && v3rAny(x, `OPX.cogs.${m[1]}`)) rows += segRows(m[1], ''); }   // 가정이 아닌 사업부 원가(과거 실적과 계산값)
@@ -1220,8 +1239,11 @@ function v3rCogs(x) {
     ['components', '성격별 구성', hasMat && x.sw.labor_mode === 'headcount' ? '' : '성격별 원가 자료와 인원 방식 인건비가 있어야 하는 방식']];
   // 끝값만 준 단위원가 가정(보간 방식을 따로 적지 않은 것)이 있을 때만 보간 단추
   const toU = mode === 'unit_cost' && Object.values(x.I.assump || {}).some((a) => a && Object.entries(a).some(([k, v]) => k.startsWith('ucost.') && v && typeof v === 'object' && !Array.isArray(v) && !('by_year' in v) && 'to' in v && !v.interp));
+  // 체계 차이 매출의 원가: 사업부 원가율이나 단위원가 방식이고 추정 연도에 체계 차이 매출이 있을 때만 뜻이 있음
+  const rsOn = (mode === 'seg_ratio' || mode === 'unit_cost') && (R['REV.resid'] || []).slice(H).some((v) => v3Ok(v) && Math.abs(v) > 1e-9);
+  const resid = rsOn ? `<div title="${esc(V3R_TIP.resid_cost)}"><span>체계 차이 매출의 원가</span>${v3Sw(x, 'sw.resid_cost', [['none', '없음'], ['etc', '기타 잔여 원가율']], v3rSwV(x, 'resid_cost') === 'etc' ? 'etc' : 'none')}</div>` : '';
   const interp = toU ? `<div title="${esc(V3R_TIP.ucost_interp)}"><span>단위원가 끝값 보간</span>${v3Sw(x, 'sw.ucost_interp', [['linear', '직선'], ['cagr', '정률']], v3rSwV(x, 'ucost_interp'))}</div>` : '';
-  const main = `<div class="v3-opt v3r-opt top"><div><span>원가 방식</span>${v3rSw(x, 'sw.cogs_mode', modes, mode)}</div>${interp}</div>${v3rAsk(['TTM', '최근 3～5년 평균', '산업 평균', '환율과 원자재 가격', '규모의 경제', '고정비 비중'])}${v3rTable(T, rows)}`;
+  const main = `<div class="v3-opt v3r-opt top"><div><span>원가 방식</span>${v3rSw(x, 'sw.cogs_mode', modes, mode)}</div>${interp}${resid}</div>${v3rAsk(['TTM', '최근 3～5년 평균', '산업 평균', '환율과 원자재 가격', '규모의 경제', '고정비 비중'])}${v3rTable(T, rows)}`;
 
   // 참고: 과거 원가율과 평균선, 세 시나리오 추정
   const cr = R['OPX.cogs_r'] || [];
@@ -1230,18 +1252,19 @@ function v3rCogs(x) {
   const ch = v3cLines({ w: w2, h: 220, labels, lines: ls, fmt: (v) => v3Pct(v), title: '매출원가율 실적과 시나리오별 추정' });
   const leg = v3cLegend([{ label: '실적', cls: 's5', kind: 'line' }, ...V3_SCEN.map((s) => ({ label: s, cls: s.toLowerCase(), kind: 'line' }))]);
   const ref = `<div class="v3-two"><div><h3 class="v3-h3">매출원가율 추이</h3>${leg}<div data-o="r2.c1">${ch}</div></div><div><h3 class="v3-h3">시나리오별 매출원가율</h3>${v3rScen(x, 'OPX.cogs_r', 'r2.s1')}<h3 class="v3-h3">시나리오별 매출총이익<small>억원</small></h3>${v3rScen(x, 'OPX.gp', 'r2.s2', { pct: false })}</div></div>`;
-  return v3Sec('원가율 가정', v3rMeta(x), main, 'v3r') + v3Sec('참고 데이터', '', ref, 'v3r');
+  const avg = v3rAvgSec(x, /^cogs_r(\.|$)/, (k) => item(k).name);
+  return v3Sec('원가율 가정', v3rMeta(x), main, 'v3r') + avg + v3Sec('참고 데이터', '', ref, 'v3r');
 }
 
 // ---------- 3단계 판관비 ----------
 /* 인원과 인건비(인원 방식일 때): 부서별 인원과 인당 매출, 인원 합계, 인당 인건비, 전체 인건비, 판관비 몫.
    부서는 x.I.opex.hc_depts. 변동 부서(V)는 인당 매출 증가분, 고정 부서(F)는 증가 인원이 가정 칸이고 고정 부서의 인당 매출은 참고 행.
    rnd 부서는 sw.hc_rnd 가 include 가 아니면 인원 합계에서 빠지고 추정 열이 빔 */
-function v3rHc(x) {
+function v3rHc(x, fit) {
   const R = x.R, S = x.sc, { H } = x.tl;
   if (x.sw.labor_mode !== 'headcount' || !v3rAny(x, 'OPX.hc')) return '';
-  const T = v3rT(x, { fit: v3rFit(x) }), depts = (x.I.opex?.hc_depts || []).filter((d) => d && R[`OPX.hc.${d.id}`]), incl = v3rSwV(x, 'hc_rnd') === 'include';
-  const aRow = (K, name, unit, lab, cls = 'v3r-b end') => { const fmt = x.lab[`CTL.a.${K}`]?.fmt || 'num'; return R[`CTL.a.${K}`] ? v3rTr(T, { cls, st: v3rSub(name, unit, 0, v3rForm(x, K)), f: T.fs.map((_, i) => v3ACell(x, K, i, fmt, S, lab)) }) : ''; };
+  const T = v3rT(x, { fit: fit || v3rFit(x) }), depts = (x.I.opex?.hc_depts || []).filter((d) => d && R[`OPX.hc.${d.id}`]), incl = v3rSwV(x, 'hc_rnd') === 'include';
+  const aRow = (K, name, unit, lab, cls = 'v3r-b end') => { const fmt = x.lab[`CTL.a.${K}`]?.fmt || 'num'; return R[`CTL.a.${K}`] ? v3rTr(T, { cls, st: v3rSub(name, unit, 0, v3rFmW(x, K)), f: T.fs.map((_, i) => v3ACell(x, K, i, fmt, S, lab)) }) : ''; };
   let rows = '';
   for (const d of depts) {
     const id = d.id, name = d.name || id, vr = d.kind === 'V', out = !!d.rnd && !incl, hc = R[`OPX.hc.${id}`], rid = `OPX.rev_per_hc.${id}`, K = `hc.${id}.add`, hasK = !out && !!R[`CTL.a.${K}`];
@@ -1265,9 +1288,20 @@ function v3rHc(x) {
   if ((x.I.opex?.hc_depts || []).some((d) => d && d.rnd)) opt.push(`<div title="${esc(V3R_TIP.hc_rnd)}"><span>R&amp;D 부서 인원</span>${v3Sw(x, 'sw.hc_rnd', [['exclude', '빼기'], ['include', '넣기']], incl ? 'include' : 'exclude')}</div>`);
   return `${v3rTable(T, rows)}<div data-o="r3.hc.ck">${ck}</div><div class="v3-opt v3r-opt">${opt.join('')}</div>`;
 }
+/* 인원 방식이 아닌 사례의 참고: 입력에 든 부서별 인원 실적과 총원(값 그대로), 부서 합 점검 문장(hc_dept_sum) */
+function v3rHcRef(x) {
+  if (x.sw.labor_mode === 'headcount') return '';
+  const hs = x.tl.hist, Hh = x.I.hist || {}, depts = (x.I.opex?.hc_depts || []).filter((d) => d && (Hh[`OPX.hc.${d.id}`] || []).some(v3Ok)), tot = x.R['OPX.hc'] || Hh['OPX.hc'] || [];
+  if (!depts.length) return '';
+  const row = (name, a, cls = '') => `<tr class="${cls}"><td class="st">${name}</td>${hs.map((_, i) => `<td class="h">${v3rN(a[i])}</td>`).join('')}</tr>`;
+  const ck = (x.res.checks || []).filter((k) => k.id === 'hc_dept_sum').map((k) => `<p class="v3r-ck">${esc(k.text)}</p>`).join('');
+  const body = `<h3 class="v3-h3">부서별 인원<small>명</small></h3><div class="mk-scroll"><table class="mk-tbl v3-t v3r-t v3r-cmp v3r-cg"><thead><tr><th class="st"></th>${hs.map((y) => `<th>${y}</th>`).join('')}</tr></thead>
+    <tbody>${depts.map((d) => row(esc(d.name || d.id), Hh[`OPX.hc.${d.id}`])).join('')}${tot.some(v3Ok) ? row('<b>총원</b>', tot, 'sum') : ''}</tbody></table></div><div data-o="r3.hcr.ck">${ck}</div>`;
+  return hs.length <= 5 ? `<div class="v3-two v3r-two"><div>${body}</div></div>` : `<div class="v3r-two">${body}</div>`;   // 과거 성장률 표처럼 반 폭(연도가 많으면 온 폭)
+}
 function v3rSga(x) {
   const R = x.R, S = x.sc, { H, N } = x.tl, cfg = x.I.opex?.groups || {}, lines = x.I.revbuild?.lines || [];
-  const cgId = R['OPX.sga.cagr_h'] || R['OPX.sga.cagr_f'] ? 'OPX.sga' : '', T = v3rT(x, { fit: v3rFit(x, { cg: !!cgId }), cg: cgId });
+  const cgId = R['OPX.sga.cagr_h'] || R['OPX.sga.cagr_f'] ? 'OPX.sga' : '', fit = v3rFit(x, { cg: !!cgId, re: /^CTL\.a\.sga_/ }), T = v3rT(x, { fit, cg: cgId });
   const gs = Object.keys(R).map((k) => /^OPX\.sga\.(.+)\.pct$/.exec(k)?.[1]).filter((g) => g && R[`OPX.sga.${g}`]);
   const go = (x.res.map || []).findIndex((m) => m.step === '재투자') + 1 || 5, lname = (id) => lines.find((l) => l.id === id)?.name || id;
   const gname = (g) => { const nm = x.lab[`OPX.sga.${g}`]?.name; return nm && !nm.startsWith('custom.') ? nm : cfg[g]?.name || (cfg[g]?.line ? `${lname(cfg[g].line)} 연동 비용` : g.replace(/^custom\./, '')); };
@@ -1284,7 +1318,7 @@ function v3rSga(x) {
     if (K === 'pct') f = T.fs.map((_, i) => v3ACell(x, key, i, 'pct', S, `${name} 매출 대비`));
     else if (K === 'g') { lab = '증가율'; h = amt.slice(0, H).map((v, i) => (i && v3Ok(v) && v3Ok(amt[i - 1]) && amt[i - 1] ? v3rP(v / amt[i - 1] - 1) : '')); f = T.fs.map((_, i) => v3ACell(x, key, i, 'pct', S, `${name} 증가율`)); }
     else if (K === 'ratio') { const lv = R[`REV.l.${cfg[g]?.line}.val`] || []; lab = `${lname(cfg[g]?.line)} 매출 대비`; h = amt.slice(0, H).map((v, i) => (v3Ok(v) && v3Ok(lv[i]) && lv[i] ? v3rP(v / lv[i]) : '')); f = T.fs.map((_, i) => v3ACell(x, key, i, 'pct', S, `${name} ${lab}`)); }
-    rows += v3rTr(T, { cls: `v3r-b${note ? '' : ' end'}`, st: v3rSub(lab, '%', 0, key && K !== 'val' ? v3rForm(x, key) : null), h, f }) + note;
+    rows += v3rTr(T, { cls: `v3r-b${note ? '' : ' end'}`, st: v3rSub(lab, '%', 0, key && K !== 'val' ? v3rFmW(x, key) : ''), h, f }) + note;
   }
   rows += v3rRow(x, T, 'OPX.sga', { name: '<b>판관비 합계</b>', cls: 'sum' }) + v3rRow(x, T, 'OPX.sga_r', { name: v3rSub('판관비율'), cls: 'v3r-b end', pct: true });
   if ((R['OPX.sga.resid'] || []).some((v) => v3Ok(v) && Math.abs(v) >= 0.5)) rows += v3rRow(x, T, 'OPX.sga.resid', { name: '주석과 본문 차이', cls: 'end', d: 1, nz: true });
@@ -1296,9 +1330,11 @@ function v3rSga(x) {
 
   const scope = (x.res.checks || []).find((k) => k.id === 'labor_scope'), hcOk = v3Ok((x.I.hist?.['OPX.hc'] || [])[H - 1]) && v3Ok((x.I.hist?.['OPX.labor_total'] || [])[H - 1]);
   const yrs = [...new Set([3, 5, +x.sw.avg_years].filter((y) => y > 0 && (y <= H || y === +x.sw.avg_years)))].sort((a, b) => a - b);
+  // 운반비 묶음은 입력을 만들 때 정해지는 분류라 지금 값만 보여 줌(운반비 묶음이 있거나 기타관리비로 옮긴 사례)
+  const fc = v3rSwV(x, 'freight_class'), frt = gs.includes('freight') || fc === 'other' ? `<div title="${esc(V3R_TIP.freight_class)}"><span>운반비 묶음</span><span class="v3r-res">${fc === 'other' ? '기타관리비(물가 연동)' : '매출 비례'}</span></div>` : '';
   const opt = `<div class="v3-opt v3r-opt"><div><span>인건비 방식</span>${v3rSw(x, 'sw.labor_mode', [['pct_sales', '매출 비례'], ['headcount', '인원 방식', scope ? scope.text : hcOk ? '' : '직원 수와 전체 인건비 자료가 없는 사례']], x.sw.labor_mode)}</div>
     <div title="가정을 따로 정하지 않은 항목의 기본값에 쓰는 기간"><span>과거 평균 기간</span>${v3Sw(x, 'sw.avg_years', yrs.map((y) => [y, `${y}년`]), +x.sw.avg_years)}</div>
-    <div title="${esc(V3R_TIP.share_years)}"><span>판관비 몫 평균 연수</span>${v3Sw(x, 'sw.share_years', [[1, '직전 결산'], [2, '2년'], [3, '3년'], [5, '5년']], Math.trunc(+v3rSwV(x, 'share_years')) || 1)}</div></div>`;
+    <div title="${esc(V3R_TIP.share_years)}"><span>판관비 몫 평균 연수</span>${v3Sw(x, 'sw.share_years', [[1, '직전 결산'], [2, '2년'], [3, '3년'], [5, '5년']], Math.trunc(+v3rSwV(x, 'share_years')) || 1)}</div>${frt}</div>`;
   const main = `${v3rAsk(['TTM', '최근 3～5년 평균', '산업 평균', '마케팅 비용', 'R&D 투자', '규모의 경제'])}${v3rTable(T, rows)}${opt}`;
 
   const n = H + N, labels = v3Years(x, 'hist+fc').map((y) => y.label);
@@ -1306,9 +1342,10 @@ function v3rSga(x) {
   const ch = v3cBars({ w: v3Wd(x, 1, v3rSide(x)), h: 260, labels, bars: ser, stack: true, fc: H, vals: false, fmt: (v) => v3Num(v), lines: [{ name: '판관비율', values: (R['OPX.sga_r'] || []).slice(0, n), cls: 's3' }], title: '판관비 구성과 판관비율' });
   const leg = v3cLegend([...ser.map((s) => ({ label: s.name, cls: s.cls })), { label: '추정', cls: 's2', kind: 'fc' }, { label: '판관비율', cls: 's3', kind: 'line' }]);
   const ref = `<h3 class="v3-h3">판관비 구성과 판관비율</h3>${leg}<div data-o="r3.c1">${ch}</div>
-    <div class="v3-two v3r-two"><div><h3 class="v3-h3">시나리오별 판관비율</h3>${v3rScen(x, 'OPX.sga_r', 'r3.s1')}</div><div><h3 class="v3-h3">시나리오별 영업이익률</h3>${v3rScen(x, 'OPX.ebit_m', 'r3.s2')}</div></div>`;
-  const hc = v3rHc(x);
-  return v3Sec('판관비 묶음', v3rMeta(x), main, 'v3r') + (hc ? v3Sec('인원과 인건비', `<span class="v3-dot ${x.sc}"></span><span class="meta">${x.sc} 가정, 인원 명, 금액 억원</span>`, hc, 'v3r') : '') + v3Sec('참고 데이터', '<span class="meta">단위 억원</span>', ref, 'v3r');
+    <div class="v3-two v3r-two"><div><h3 class="v3-h3">시나리오별 판관비율</h3>${v3rScen(x, 'OPX.sga_r', 'r3.s1')}</div><div><h3 class="v3-h3">시나리오별 영업이익률</h3>${v3rScen(x, 'OPX.ebit_m', 'r3.s2')}</div></div>${v3rHcRef(x)}`;
+  const hc = v3rHc(x, fit);
+  const avg = v3rAvgSec(x, /^(sga_|labor_sga_share$|dep_sga_share$|amort_sga_share$|wage_g$|hc\.|rev_per_hc)/, (k) => { const m = /^sga_(.+)_(pct|g|ratio|val)$/.exec(k); return m ? `${gname(m[1])} ${m[2] === 'pct' ? '매출 대비' : m[2] === 'g' ? '증가율' : ''}`.trim() : v3Lab(x, `CTL.a.${k}`).name; });
+  return v3Sec('판관비 묶음', v3rMeta(x), main, 'v3r') + (hc ? v3Sec('인원과 인건비', `<span class="v3-dot ${x.sc}"></span><span class="meta">${x.sc} 가정, 인원 명, 금액 억원</span>`, hc, 'v3r') : '') + avg + v3Sec('참고 데이터', '<span class="meta">단위 억원</span>', ref, 'v3r');
 }
 
 v3Step(1, v3rRev);
@@ -1331,13 +1368,28 @@ function v3oSw(x, key, opts, cur) {
   const j = JSON.stringify(cur ?? null);
   return `<div class="mk-seg">${opts.map(([v, l, off, tip]) => { const on = JSON.stringify(v ?? null) === j; return `<button type="button" data-v3-ov="${esc(key)}" data-v="${esc(JSON.stringify(v ?? null))}" class="${on ? 'on' : ''}" aria-pressed="${on}"${off ? ` disabled title="${esc(off)}"` : tip ? ` title="${esc(tip)}"` : ''}>${esc(l)}</button>`; }).join('')}</div>`;
 }
+v3On('click', '[data-v3o-hall]', (el, x) => { const o = (x.st.v3o ||= {}); if (o.hall) delete o.hall; else o.hall = 1; return true; });
 const v3oOpt = (...items) => { const its = items.filter(Boolean); return its.length ? `<div class="v3-opt">${its.map((h) => (h.startsWith('<div') ? h : `<div>${h}</div>`)).join('')}</div>` : ''; };
 /* 아주 작은 비율(토지 취득 ÷ 매출 0.00009% 등)이 0.00으로 보이지 않게 그 줄의 입력 칸만 자릿수를 늘려 다시 그림. 값은 가정 행 그대로 */
 const v3oDig = (v) => (v3Ok(v) && v !== 0 && Math.abs(v * 100) < 0.005 ? Math.min(7, Math.ceil(-Math.log10(Math.abs(v * 100))) + 1) : 2);
+/* 가정 표의 과거 열을 최근 keep 해만 남김(v3ATable 이 만든 표에서 오래된 해의 머리 칸과 과거 값 칸을 뺌) */
+function v3oTrimH(x, h, keep) {
+  const drop = x.tl.H - keep;
+  if (drop <= 0) return h;
+  let out = h;
+  x.tl.hist.slice(0, drop).forEach((y) => { out = out.replace(`<th>${y}</th>`, ''); });
+  return out.replace(/((?:<td class="h">[^<]*<\/td>)+)/g, (m) => m.split('</td>').filter(Boolean).slice(drop).map((t) => `${t}</td>`).join(''));
+}
+/* 가정 표. 좁은 폭(620 이하)은 과거 열 없이 입력 칸만. 그보다 넓어도 과거 열까지 다 놓으면 추정 연도 입력 칸이 가로 스크롤 뒤로 밀리는 폭이면
+   오래된 과거 연도부터 접고 머리 칸의 「이전 연도 펴기」로 다 봄(x.st.v3o.hall. 1～3단계 표와 같은 방식). 열 폭은 이름 184, 과거 64, 입력 88 어림 */
 function v3oAT(x, items, opt) {
   const its = items.filter((it) => it && x.R[`CTL.a.${it.key}`]);
   if (!its.length) return '';
-  let h = v3ATable(x, its, x.w <= 620 ? { ...(opt || {}), hist: false } : opt);
+  const { H, N } = x.tl, narrow = x.w <= 620, anyH = !narrow && opt?.hist !== false && its.some((it) => it.hist && x.R[it.hist]);
+  const keep = anyH ? Math.max(0, Math.min(H, Math.floor((x.w - 50 - v3oSide(x) - 184 - N * 88) / 64))) : H, fold = keep < H, hall = fold && !!x.st.v3o?.hall;
+  const first = fold ? `<button type="button" class="v3o-hb" data-v3o-hall aria-pressed="${hall}">${hall ? '이전 연도 접기' : '이전 연도 펴기'}</button>` : '';
+  let h = v3ATable(x, its, { ...(opt || {}), ...(narrow || (fold && !hall && !keep) ? { hist: false } : {}), ...(first ? { first } : {}) });
+  if (fold && !hall && keep) h = v3oTrimH(x, h, keep);
   const s = opt?.S || x.sc;
   for (const it of its) {
     const id = `CTL.a.${it.key}`, L = v3Lab(x, id), fmt = it.fmt || L.fmt, nm = it.name || L.name, b0 = x.rows0?.[s]?.[id] || [];
@@ -1389,39 +1441,68 @@ function v3oTbl(x, key, cols, specs, { first = '항목', pre = [], hx = null } =
   if (!out.some((o) => o.row)) return '';
   return `<div class="mk-scroll" data-o="v3o-${key}"><table class="mk-tbl v3-t v3o-t"><thead><tr><th class="st">${first}</th>${pre.map((p) => `<th>${p}</th>`).join('')}${ys.map((y, i) => `<th class="${bl(i) ? 'bl' : ''}">${y.label}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
 }
-/* 평균에서 뺄 해(input.avg_exclude): 목록이면 모든 평균에서, {all: [...], <가정 키>: [...]}면 all은 모든 평균, 가정 키는 그 가정의 평균에서만 뺌(엔진 v3eAvgExclude) */
-const v3oEx = (I) => { const e = I?.avg_exclude; return Array.isArray(e) ? { all: e } : e && typeof e === 'object' ? e : {}; };
-const v3oExOf = (x, key) => { const e = v3oEx(x.I); return [...(e.all || []), ...(e[key] || [])]; };
-const V3O_EX_ALL = '모든 평균에서 빼 둔 해라 다시 넣으면 다른 가정 평균에도 들어갑니다.';
-const v3oExCk = (key, y, on, off, tip) => `<label class="v3-ck v3o-ck"${off || tip ? ` title="${esc(off || tip)}"` : ''}><input type="checkbox" data-v3o-ex="${esc(key)}" data-y="${y}" aria-label="${y}년"${on ? ' checked' : ''}${off ? ' disabled' : ''}></label>`;
-/* 체크하면 그 가정의 평균에 넣고(모든 평균에서 빼 둔 해였으면 그 목록에서도 뺌), 끄면 그 가정의 평균에서만 뺌. 처음 값과 같은 꼴로 돌아오면 덮기가 지워지게 빈 목록은 정리 */
+/* 표 옆에 띄울 점검 문장(엔진 문장 그대로). 주의와 오류 가운데 단계 머리 경고 줄(00_core V3_CHK_STEP)에 나오는 것은 빼 두 번 보이지 않게 */
+const v3oNotes = (x, ids) => (x.res.checks || []).filter((k) => ids.includes(k.id) && k.text && (k.level === 'info' || !V3_CHK_STEP[k.id])).map((k) => `<p class="v3o-note${k.level === 'info' ? '' : ' wn'}">${esc(k.text)}</p>`).join('');
+/* 평균에 넣을 해(input.avg_exclude). 엔진(v3eAvgExclude)이 읽는 꼴: 목록이면 모든 평균에서 뺌. dict면 all은 모든 평균에서,
+   <가정 키>: {exclude: [...], include: [...]}는 그 가정 평균에서만 더 빼거나(exclude) all에서 빼 둔 해를 다시 넣음(include). 가정 키에 목록을 준 예전 꼴은 exclude.
+   화면은 가정마다 「그 가정 평균에서 빠지는 해」 집합으로 읽어 다루고, 보낼 때 all과 견줘 exclude와 include로 다시 나눔(뜻이 같으면 늘 같은 글자라 처음 값으로 돌아오면 덮기가 지워짐).
+   어느 가정이 평균을 쓰는지, 평균 창이 어느 해인지, 지금 어느 해가 들어갔는지는 엔진이 낸 notes.avg[가정 키] = {win, used}를 그대로 씀(없는 옛 문서에서는 표를 내지 않음) */
+const v3oSortU = (a) => [...new Set(a)].sort((p, q) => p - q);
+function v3oExRead(e) {
+  const all = v3oSortU(Array.isArray(e) ? e : e && Array.isArray(e.all) ? e.all : []), by = {};
+  if (e && typeof e === 'object' && !Array.isArray(e)) for (const [k, v] of Object.entries(e)) {
+    if (k === 'all' || v == null || typeof v !== 'object') continue;
+    const ex = Array.isArray(v) ? v : v.exclude || [], inc = Array.isArray(v) ? [] : v.include || [];
+    by[k] = v3oSortU([...all, ...ex].filter((y) => !inc.includes(y)));
+  }
+  return { all, by };
+}
+function v3oExWrite({ all, by }) {
+  const out = { all };
+  for (const k of Object.keys(by).sort()) {
+    const ex = by[k].filter((y) => !all.includes(y)), inc = all.filter((y) => !by[k].includes(y));
+    if (ex.length || inc.length) out[k] = { ...(ex.length ? { exclude: ex } : {}), ...(inc.length ? { include: inc } : {}) };
+  }
+  return out;
+}
+const v3oAvg = (x) => (x.live ? x.res.notes?.avg : x.c.notes?.avg) || null;
+/* 가정 하나의 평균 창과 체크 상태. ign: 창의 모든 해를 빼 엔진이 빼기를 무시한 상태(체크는 설정대로 모두 꺼진 것으로 보여 주고 점검 문장을 붙임) */
+function v3oExRow(x, key) {
+  const a = v3oAvg(x)?.[key];
+  if (!a || !Array.isArray(a.win) || !a.win.length) return null;
+  const E = v3oExRead(x.I.avg_exclude), off = E.by[key] || E.all, ign = a.win.every((y) => off.includes(y));
+  return { win: a.win, on: ign ? [] : a.used || [], used: a.used || [], ign };
+}
+const v3oExCk = (x, key, y, on, off) => `<label class="v3-ck v3o-ck"${off ? ` title="${esc(off)}"` : ''}><input type="checkbox" data-v3o-ex="${esc(key)}" data-y="${y}" aria-label="${y}년"${on ? ' checked' : ''}${off || !x.live ? ' disabled' : ''}></label>`;
+/* 체크하면 그 가정의 평균에 넣고 끄면 그 가정의 평균에서만 뺌. 다른 가정과 all은 그대로 */
 v3On('change', '[data-v3o-ex]', (el, x) => {
-  const c = x.c, key = el.dataset.v3oEx, y = +el.dataset.y, b = c.input?.avg_exclude, cur = v3oEx(x.I), e = {};
-  Object.keys(cur).forEach((k) => { e[k] = [...(cur[k] || [])]; });
-  if (el.checked) { for (const k of ['all', key]) if (e[k]) e[k] = e[k].filter((v) => v !== y); } else e[key] = [...new Set([...(e[key] || []), y])].sort();
-  Object.keys(e).forEach((k) => { if (!e[k].length && !(k === 'all' && b && !Array.isArray(b) && b.all)) delete e[k]; });
-  v3SetOv(c, 'i.avg_exclude', (b == null || Array.isArray(b)) && Object.keys(e).every((k) => k === 'all') ? e.all || [] : e);
+  const c = x.c, key = el.dataset.v3oEx, y = +el.dataset.y, cur = v3oExRead(x.I.avg_exclude), set = new Set(cur.by[key] || cur.all);
+  if (el.checked) set.delete(y); else set.add(y);
+  cur.by[key] = v3oSortU([...set]);
+  const nx = v3oExWrite(cur), st = v3St(c);
+  if (JSON.stringify(nx) === JSON.stringify(v3oExWrite(v3oExRead(c.input?.avg_exclude)))) delete st.ov['i.avg_exclude']; else st.ov['i.avg_exclude'] = { t: '', v: nx };
   return true;
 });
-/* 가정별 「평균에 넣을 해」 표. items [{key, name, n: 평균 창 연수(없으면 avg_years)}]. 사례 입력에 값이 지정된 가정은 평균을 쓰지 않아 줄에서 뺌 */
+/* 가정별 「평균에 넣을 해」 표. items [{key, name}] 가운데 엔진이 평균을 낸 가정(notes.avg에 있는 키)만 줄로 그림. 줄이 없으면 빈 글자.
+   사례 입력에 값이 지정된 가정은 평균을 쓰지 않아 뺌(끝값만 주고 직전 실적을 몰라 평균에서 출발한 가정은 둠). 다른 조각(2, 3단계)도 이 함수를 부름 */
 function v3oExTbl(x, items) {
-  const hist = x.tl.hist, H = hist.length, nd = Math.max(1, Math.trunc(+x.sw.avg_years || 3));
-  const its = items.filter((it) => it && x.R[`CTL.a.${it.key}`] && !v3oGiven(x, it.key));
+  const form = (x.live ? x.res.notes?.form : x.c.notes?.form) || {};
+  const its = (items || []).filter(Boolean).map((it) => ({ ...it, a: v3oExRow(x, it.key) })).filter((it) => it.a && (!v3oGiven(x, it.key) || form[it.key]?.miss));
   if (!its.length) return '';
-  const nmax = Math.min(H, Math.max(...its.map((it) => it.n || nd))), ys = hist.slice(H - nmax), E = v3oEx(x.I);
-  const rows = its.map((it) => { const n = Math.min(H, it.n || nd), ex = [...(E.all || []), ...(E[it.key] || [])], nm = it.name || v3Lab(x, `CTL.a.${it.key}`).name;
-    return `<tr><td class="st">${esc(nm)}</td>${ys.map((y) => `<td>${hist.indexOf(y) >= H - n ? v3oExCk(it.key, y, !ex.includes(y), '', (E.all || []).includes(y) ? V3O_EX_ALL : '') : ''}</td>`).join('')}</tr>`; }).join('');
-  return `<div class="mk-scroll"><table class="mk-tbl v3-t v3o-t v3o-ext"><thead><tr><th class="st">가정</th>${ys.map((y) => `<th>${y}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  const ys = v3oSortU(its.flatMap((it) => it.a.win));
+  const rows = its.map((it) => `<tr><td class="st">${esc(it.name || v3Lab(x, `CTL.a.${it.key}`).name)}</td>${ys.map((y) => `<td>${it.a.win.includes(y) ? v3oExCk(x, it.key, y, it.a.on.includes(y)) : ''}</td>`).join('')}</tr>`).join('');
+  return `<div class="mk-scroll"><table class="mk-tbl v3-t v3o-t v3o-ext"><thead><tr><th class="st">가정</th>${ys.map((y) => `<th>${y}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>${its.some((it) => it.a.ign) ? v3oNotes(x, ['avg_exclude_all']) : ''}`;
 }
 const v3oChart = (key, title, unit, legend, svg) => `<div class="v3o-ch"><h3 class="v3-h3">${title}${unit ? `<small>${unit}</small>` : ''}</h3>${legend || ''}<div data-o="v3o-${key}">${svg}</div></div>`;
 
 // ---------- 4단계 법인세 ----------
-/* 유효세율 평균에 들어가는 해를 엔진(E04 hist)과 같은 규칙으로 가림: 최근 avg_years 개 해에서 뺀 해(avg_exclude의 all과 tax_eff)를 뺌(창을 과거로 늘리지 않음),
-   그 가운데 세전 손실인 해와 유효세율이 법정 세율의 0.5배 미만, 1.5배 초과인 해는 엔진이 스스로 뺌.
-   state: used 평균에 들어감, ex 사용자가 뺌, old 최근 기간 밖, auto 법정 대비 범위 밖, loss 세전 손실 */
+/* 유효세율 평균에 들어가는 해. 평균 창과 사용자가 뺀 해는 엔진의 notes.avg.tax_eff, 엔진이 스스로 뺀 해(법정 세율 대비 0.5배 미만, 1.5배 초과)는 점검 tax_outlier의 값,
+   세전 손실인 해는 엔진도 평균에 넣지 않음. state: used 평균에 들어감, ex 사용자가 뺌, old 평균 기간 밖, auto 법정 대비 범위 밖, loss 세전 손실.
+   notes.avg가 없는 옛 문서는 state 없이 과거 값만 보여 줌 */
 function v3oTaxYears(x) {
-  const hist = x.tl.hist, ex = v3oExOf(x, 'tax_eff'), T = x.I.market?.tax, n = Math.max(1, Math.trunc(+x.sw.avg_years || 3));
-  const ebt = x.R['IS.ebt'] || [], tax = x.R['IS.tax'] || [], win = hist.slice(-n);
+  const hist = x.tl.hist, a = v3oExRow(x, 'tax_eff'), T = x.I.market?.tax;
+  const ebt = x.R['IS.ebt'] || [], tax = x.R['IS.tax'] || [];
+  const drop = (x.res.checks || []).filter((k) => k.id === 'tax_outlier').flatMap((k) => (Array.isArray(k.value) ? k.value : []));
   const stat = (b) => {
     if (!T?.brackets || !(b > 0)) return null;
     let t = 0, lo = 0;
@@ -1430,25 +1511,25 @@ function v3oTaxYears(x) {
   };
   const rows = hist.map((y, i) => {
     const eff = v3Ok(ebt[i]) && v3Ok(tax[i]) && ebt[i] !== 0 ? tax[i] / ebt[i] : null, s = stat(ebt[i]), ratio = eff != null && s ? eff / s : null;
-    const state = !win.includes(y) ? 'old' : ex.includes(y) ? 'ex' : eff == null || ebt[i] <= 0 ? 'loss' : ratio != null && (ratio < 0.5 || ratio > 1.5) ? 'auto' : 'used';
-    return { y, i, eff, ratio, state };
+    const bad = eff == null || ebt[i] <= 0 ? 'loss' : drop.includes(y) ? 'auto' : '';
+    const state = !a ? '' : !a.win.includes(y) ? 'old' : !a.on.includes(y) ? 'ex' : bad || 'used';
+    return { y, i, eff, ratio, state, inavg: !!a && a.used.includes(y) && !bad };
   });
-  const used = rows.filter((r) => r.state === 'used');
-  return { rows, n, avg: used.length ? used.reduce((s, r) => s + r.eff, 0) / used.length : null };
+  const used = rows.filter((r) => r.inavg);
+  return { rows, a, avg: used.length ? used.reduce((s, r) => s + r.eff, 0) / used.length : null };
 }
 function v3oStepTax(x, c) {
   const R = x.R, T = x.I.market?.tax, ty = v3oTaxYears(x), given = v3oGiven(x, 'tax_eff');
   const mode = ['statutory', 'marginal'].includes(x.sw.tax_mode) ? x.sw.tax_mode : 'eff_avg';
   // 과거 유효세율과 평균에 넣을 해
-  const tip = { old: `최근 ${ty.n}년 밖`, auto: '법정 세율 대비 0.5배 미만이거나 1.5배 초과', loss: '세전 손실' };
-  const exAll = v3oEx(x.I).all || [];
-  const ck = (r) => v3oExCk('tax_eff', r.y, r.state === 'used', tip[r.state], r.state === 'ex' && exAll.includes(r.y) ? V3O_EX_ALL : '');
-  const tr = (name, f, cls = '', last = '<td class="bl"></td>') => `<tr class="${cls}"><td class="st">${name}</td>${ty.rows.map((r) => `<td>${f(r)}</td>`).join('')}${last}</tr>`;
-  const hist = `<div class="mk-scroll"><table class="mk-tbl v3-t v3o-t"><thead><tr><th class="st">항목</th>${ty.rows.map((r) => `<th>${r.y}</th>`).join('')}<th class="bl">평균</th></tr></thead><tbody>
+  const tip = { old: '평균 기간 밖', auto: '법정 세율 대비 0.5배 미만이거나 1.5배 초과', loss: '세전 손실' };
+  const ck = (r) => v3oExCk(x, 'tax_eff', r.y, r.state === 'used', tip[r.state]);
+  const tr = (name, f, cls = '', last = ty.a ? '<td class="bl"></td>' : '') => `<tr class="${cls}"><td class="st">${name}</td>${ty.rows.map((r) => `<td>${f(r)}</td>`).join('')}${last}</tr>`;
+  const hist = `<div class="mk-scroll"><table class="mk-tbl v3-t v3o-t"><thead><tr><th class="st">항목</th>${ty.rows.map((r) => `<th>${r.y}</th>`).join('')}${ty.a ? '<th class="bl">평균</th>' : ''}</tr></thead><tbody>
     ${tr('세전이익', (r) => v3oFmt((R['IS.ebt'] || [])[r.i] ?? null, 'amt'))}${tr('법인세', (r) => v3oFmt((R['IS.tax'] || [])[r.i] ?? null, 'amt'))}
-    ${tr('유효세율<small>%</small>', (r) => v3oFmt(r.eff, 'pct'), 'sum', `<td class="bl" data-o="v3o-taxavg">${v3oFmt(ty.avg, 'pct')}</td>`)}
+    ${tr('유효세율<small>%</small>', (r) => v3oFmt(r.eff, 'pct'), 'sum', ty.a ? `<td class="bl" data-o="v3o-taxavg">${v3oFmt(ty.avg, 'pct')}</td>` : '')}
     ${T ? tr('법정 세율 대비<small>배</small>', (r) => `<span class="${r.state === 'auto' ? 'v3o-out' : ''}">${v3oFmt(r.ratio, 'x')}</span>`) : ''}
-    ${given ? '' : tr('평균에 넣을 해', ck)}</tbody></table></div>`;
+    ${given || !ty.a ? '' : tr('평균에 넣을 해', ck)}</tbody></table></div>${ty.a?.ign && !given ? v3oNotes(x, ['avg_exclude_all']) : ''}`;
   // 손익 법인세 가정
   const mwhy = (x.res.map || []).find((m) => m.step === '법인세')?.why;
   const opt = v3oOpt(`<span>세율 방식</span>${v3oSw(x, 'sw.tax_mode', [['eff_avg', '평균 유효세율'], ['statutory', '법정 누진'], ['marginal', '한계세율']], mode)}`,
@@ -1492,7 +1573,8 @@ function v3oWf(x) {
     roll.push({ grp: nm });
     Object.keys(V3O_PPE).forEach((k) => { const id = p + k; if (R[id] && (k === 'bop' || k === 'eop' || v3oNz(x, id))) roll.push({ id, name: V3O_PPE[k], nb: true, ho: k === 'oth', cls: k === 'eop' ? 'sum' : '' }); });
     if (!R[`${p}dep_exist`]) continue;
-    dep.push({ grp: nm }, { id: `${p}dep_exist`, name: '기존 자산', pre: [v3Ok(life) ? `${v3Num(life, Number.isInteger(life) ? 0 : 1)}년` : ''] });
+    const lt = v3Ok(life) ? `${v3Num(life, Number.isInteger(life) ? 0 : 1)}년` : '';
+    dep.push({ grp: nm }, { id: `${p}dep_exist`, name: '기존 자산', pre: [cl.life_src && lt ? `<span class="v3o-res" title="${esc(cl.life_src)}">${lt}</span>` : lt] });
     Object.keys(R).filter((id) => id.startsWith(`${p}dep_v.`) && v3oNz(x, id)).sort().forEach((id) => dep.push({ id, name: `${id.slice(p.length + 6)}년 취득분` }));
     dep.push({ id: `${p}dep`, name: '상각 합계', cls: 'sum' });
   }
@@ -1513,17 +1595,29 @@ function v3oStepReinv(x, c) {
     pm === 'waterfall' && `<span>신규 자산 상각 시작</span>${v3oSw(x, 'sw.vintage_start', VS, vs)}`,
     `<span>내용연수</span>${v3oSw(x, 'sw.life_pick', [['lower', '하한', wfOff], ['mid', '평균', wfOff], ['upper', '상한', wfOff]], ['mid', 'upper'].includes(x.sw.life_pick) ? x.sw.life_pick : 'lower')}`);
   const cwhy = v3Note(x, 'capex_exp') || v3Note(x, 'capex');
+  // 확장 CAPEX 드라이버(증설 물량 × 단위 투자비, 출점 수 × 점포당 투자비). 가정 행이 있는 사례만. 드라이버가 있으면 확장 CAPEX = 직접 입력 + 드라이버라 직접 입력 줄 이름을 밝힘
+  const drv = pm === 'simple' ? [] : [['capex_capa_add', '설비 능력 증설 물량', x.I.capex?.capa?.unit], ['capex_capa_unit', '증설 물량 1단위 투자비'], ['capex_store_open', '출점 수'], ['capex_store_unit', '점포당 투자비']]
+    .filter(([k]) => R[`CTL.a.${k}`]).map(([key, name, sub]) => ({ key, name, sub: sub || '' }));
+  const hasDrv = pm !== 'simple' && !!(R['PPE.capex_capa'] || R['PPE.capex_store']), expNm = hasDrv ? '확장 CAPEX 직접 입력' : '확장 CAPEX';
   const cmn = `${pm === 'simple' ? '' : '유지 '}CAPEX ÷ ${bp ? '기초 유형자산' : '매출'}`;
   const wkeys = wcls.filter((cl) => cl.id !== 'rou').map((cl) => ({ key: `capex_${cl.id}_pct`, name: `${cl.name || cl.id} 취득 ÷ 매출` }));
-  const pat = v3oAT(x, pm === 'waterfall' ? [{ key: 'capex_exp', name: '확장 CAPEX', why: cwhy }, ...wkeys,
+  const pat = v3oAT(x, pm === 'waterfall' ? [{ key: 'capex_exp', name: expNm, why: cwhy }, ...drv, ...wkeys,
     { key: 'cip_xfer_rate', name: '건설중인자산 대체 비율' }, { key: 'cip_to_bldg', name: '대체분 건물 몫' },
     hasRou && { key: 'rou_add_pct', name: '사용권자산 신규 ÷ 매출' }, hasRou && { key: 'rou_add_abs', name: '사용권자산 신규 금액' }] : [
     { key: 'capex_maint_pct', hist: bp ? '' : 'PPE.capex_pct', name: cmn },
-    pm !== 'simple' && { key: 'capex_exp', name: '확장 CAPEX', why: cwhy }, { key: 'rou_add_pct', name: '사용권자산 신규 ÷ 매출' }, { key: 'rou_add_abs', name: '사용권자산 신규 금액' },
+    pm !== 'simple' && { key: 'capex_exp', name: expNm, why: cwhy }, ...drv, { key: 'rou_add_pct', name: '사용권자산 신규 ÷ 매출' }, { key: 'rou_add_abs', name: '사용권자산 신규 금액' },
     { key: 'dep_rate', name: '감가상각률' }]);
   // 내용연수: 묶음에 연수가 숫자 하나로 들어 있을 때만 입력 칸(범위로 들어 있으면 위 「내용연수」 단추로 고름)
-  const lifeIn = wcls.map((cl, n) => { const b = x.c.input.ppe_roll?.classes?.[n]?.life; return R[`PPE.${cl.id}.life`] && typeof b === 'number' ? v3F(esc(cl.name || cl.id), v3In(x, `i.ppe_roll.classes.${n}.life`, b, { fmt: 'cnt', u: '년', lab: `${cl.name || cl.id} 내용연수` })) : ''; }).join('');
+  // 사용권자산처럼 기존 잔액의 남은 연수(remain_life)를 따로 준 묶음은 그 칸도 같이. 내용연수 근거(life_src)는 이름 툴팁
+  const lifeIn = wcls.map((cl, n) => {
+    const b0 = x.c.input.ppe_roll?.classes?.[n] || {}, nm = cl.name || cl.id, lab = cl.life_src ? `<span title="${esc(cl.life_src)}">${esc(nm)}</span>` : esc(nm);
+    if (!R[`PPE.${cl.id}.life`]) return '';
+    return (typeof b0.life === 'number' ? v3F(lab, v3In(x, `i.ppe_roll.classes.${n}.life`, b0.life, { fmt: 'cnt', u: '년', lab: `${nm} 내용연수` })) : '')
+      + (typeof b0.remain_life === 'number' ? v3F(`${esc(nm)} 기존 잔액`, v3In(x, `i.ppe_roll.classes.${n}.remain_life`, b0.remain_life, { fmt: 'num', d: 1, u: '년', lab: `${nm} 기존 잔액 남은 연수` })) : '');
+  }).join('');
   const ptb = v3oTbl(x, 'ppe', 'hist+fc', [{ id: 'PPE.bop' }, { id: 'PPE.capex', name: '유형 CAPEX' }, pm !== 'simple' && { id: 'PPE.capex_maint', sub: true },
+    hasDrv && { id: 'CTL.a.capex_exp', name: '확장 CAPEX 직접 입력', sub: true }, hasDrv && { id: 'PPE.capex_capa', name: '설비 증설 CAPEX', sub: true }, hasDrv && { id: 'PPE.capex_store', name: '출점 CAPEX', sub: true },
+    hasDrv && { id: 'PPE.capex_exp', name: '확장 CAPEX', sub: true },
     v3oNz(x, 'PPE.rou_add') && { id: 'PPE.rou_add', name: '사용권자산 신규' }, { id: 'PPE.dep', name: '감가상각비' },
     v3oNz(x, 'PPE.disp') && { id: 'PPE.disp', name: '처분과 대체' }, { id: 'PPE.eop', cls: 'sum' }, { id: 'PPE.capex_da' }]);
   const [wft, wfd] = pm === 'waterfall' ? v3oWf(x) : ['', ''];
@@ -1561,10 +1655,11 @@ function v3oStepReinv(x, c) {
   const rtb = v3oTbl(x, 'reinv', 'dcf', [sch && { id: 'DCF.capex', name: 'CAPEX', hist: 'DCF.hist.capex', nb: true }, sch && { id: 'DCF.da', name: '유무형자산 상각비', hist: 'DCF.hist.da', nb: true },
     sch && { id: 'DCF.dnwc', hist: 'DCF.hist.dnwc', nb: true }, { id: 'DCF.reinv', cls: 'sum', hist: 'DCF.hist.reinv', nb: true }, { id: 'DCF.rr' }, { id: 'DCF.ic' }, { id: 'DCF.roic' }], { hx: v3oDcfHx(x) });
   // 가정별 평균에 넣을 해. 운전자본은 3년, 5년 평균이나 5년 중앙값일 때만 평균을 씀
+  // 엔진이 평균을 낸 가정(notes.avg)만 줄이 됨. 지금 방식에서 가정 칸을 보여 주지 않는 가정은 여기서도 뺌
   const ext = v3oExTbl(x, [pm !== 'waterfall' && { key: 'capex_maint_pct', name: cmn }, (pm !== 'waterfall' || hasRou) && { key: 'rou_add_pct', name: '사용권자산 신규 ÷ 매출' }, pm !== 'waterfall' && { key: 'dep_rate', name: '감가상각률' },
     ...(wfHist ? [...wkeys, { key: 'cip_xfer_rate', name: '건설중인자산 대체 비율' }, { key: 'cip_to_bldg', name: '대체분 건물 몫' }] : []),
     x.sw.rnd_mode !== 'linear_to' && { key: 'rnd_pct', name: '연구개발비 ÷ 매출' }, { key: 'rnd_cap_share', name: '연구개발비 자산화 비중' }, { key: 'int_capex_other_pct', name: '기타 무형자산 취득 ÷ 매출' }, { key: 'amort_rate', name: '무형자산 상각률' },
-    ...(na === 'last' ? [] : nk.map((k) => ({ key: k, n: na === 'avg3' ? 3 : 5 }))), rm === 'sales_pct' && { key: 'reinv_pct', name: '재투자 ÷ 매출' }]);
+    ...nk.map((k) => ({ key: k })), rm === 'sales_pct' && { key: 'reinv_pct', name: '재투자 ÷ 매출' }]);
   // 참고 차트
   const hf = v3Years(x, 'hist+fc'), labs = hf.map((y) => y.label), dy = v3Years(x, 'dcf'), two = x.w <= 620 ? 1 : 2;
   const hsum = (...ids) => Array.from({ length: H }, (_, i) => { let s = null; ids.forEach((id) => { const v = (R[id] || [])[i]; if (v3Ok(v)) s = (s || 0) + v; }); return s; });
@@ -1582,7 +1677,7 @@ function v3oStepReinv(x, c) {
     + `<div class="v3-two">${v3oChart('ch-roic', 'ROIC', '', v3cLegend([{ label: 'ROIC', cls: 's1', kind: 'line' }, { label: 'WACC', cls: 's3', kind: 'dash' }]), roic)}
       ${v3oChart('ch-capex', '유형 CAPEX 비율', '', v3cLegend([{ label: 'CAPEX ÷ 매출', cls: 's2' }, { label: 'CAPEX ÷ 감가상각', cls: 's3', kind: 'line' }]), ratio)}</div>`;
   const h3 = (t) => `<h3 class="v3-h3">${t}</h3>`;
-  return v3Sec('유형자산', V3O_UNIT, popt + pat + (lifeIn ? h3('내용연수') + `<div class="v3-fs">${lifeIn}</div>` : '') + (ptb ? h3('유형자산 변동') + ptb : '') + (wft ? h3('자산별 변동') + wft : '') + (wfd ? h3('감가상각 내역') + wfd : ''), 'v3o')
+  return v3Sec('유형자산', V3O_UNIT, popt + pat + (lifeIn ? h3('내용연수') + `<div class="v3-fs">${lifeIn}</div>` : '') + (ptb ? h3('유형자산 변동') + ptb : '') + `<div data-o="v3o-capexdrv">${hasDrv ? v3oNotes(x, ['capex_drv']) : ''}</div>` + (wft ? h3('자산별 변동') + wft : '') + (wfd ? h3('감가상각 내역') + wfd + v3oNotes(x, ['rou_life']) : ''), 'v3o')
     + v3Sec('무형자산과 연구개발', V3O_UNIT, iopt + iat + (itb ? h3('연구개발비와 무형자산 변동') + itb : ''), 'v3o')
     + v3Sec('운전자본', V3O_UNIT, nopt + nat + (ntb ? h3('순운전자본') + ntb : ''), 'v3o')
     + v3Sec('FCFF 재투자', V3O_UNIT, ropt + rat + rtb, 'v3o')
@@ -1662,7 +1757,12 @@ const V3W_WIN = { '2y_w': '2년 주간', '3y_w': '3년 주간', '5y_m': '5년 �
 const V3W_STAT = { median: '중앙값', mean: '평균', high: '최고', low: '최저' };
 const V3W_BETA = { regression: '회귀 베타', bottom_up: '바텀업 베타', manual: '직접 입력', accounting: '회계 베타' };
 const V3W_KD = { synthetic: '합성 등급', rating: '실제 등급', effective: '실효이자율', market_yield: '회사채 수익률', manual: '직접 입력', recent_issue: '최근 발행 금리', peer_avg: '비교기업 평균', extra_spread: '합성 등급과 추가 스프레드' };
-const V3W_RF = { avg_3m: '3개월 평균', spot: '기준일', avg_1y: '1년 평균', avg_2y: '2년 평균' };
+const V3W_RF = { avg_3m: '3개월 평균', spot: '기준일', avg_1y: '1년 평균', avg_2y: '2년 평균', manual: '직접 입력' };
+const V3W_RF_ORD = ['avg_3m', 'spot', 'avg_1y', 'avg_2y', 'manual']; // 고른 선택지 값이 없을 때 엔진(step_macro)이 대신 쓰는 순서
+const V3W_IDX = { KQ11: 'KOSDAQ', KS11: 'KOSPI' };
+const V3W_IMP = { earnings_yield: '이익수익률', dividend_growth: '배당 성장', two_stage: '지수 DCF' };
+const V3W_KE = { capm: ['CAPM', ''], bond_rp: ['타인자본비용 + 가산', '세전 타인자본비용에 가산을 더합니다.'], ff3: ['3요인', '3요인(CAPM + SMB, HML 가산)'], firm_prem: ['기업 고유 프리미엄', 'CAPM + 기업 고유 프리미엄 + ESG 가산'] };
+const v3wTenor = (t) => { const m = /^(?:(\d+)y)?(?:(\d+)m)?$/.exec(String(t)); return m && (m[1] || m[2]) ? [m[1] ? `${m[1]}년` : '', m[2] ? `${m[2]}개월` : ''].filter(Boolean).join(' ') : String(t); };
 const V3W_ERP = { damodaran: 'Damodaran 국가 등급', damodaran_cds: 'Damodaran CDS', implied_kospi: 'KOSPI 내재', historical: '과거 평균', manual: '사례 입력' };
 const V3W_ERP_K = { damodaran: 'total', damodaran_cds: 'total_cds', implied_kospi: 'implied', historical: 'historical', manual: 'manual' };
 const V3W_MCAP = { spot: '기준일', avg1y: '1년 평균', avg2y: '2년 평균' };
@@ -1685,16 +1785,19 @@ const v3wChkS = (x, id) => v3wChk(x, id).filter((k) => k.level === 'info' || !V3
 const v3wPeers = (x) => x.I.beta?.peers || [];
 const v3wSide = (x) => (x.w >= 1000 ? 316 : 0);
 
-/* 선택 단추 묶음(v3Sw와 같은 마크업). opts [[값, 이름, 못 쓰는지]].
+/* 선택 단추 묶음(v3Sw와 같은 마크업). opts [[값, 이름, 못 쓰는지, 툴팁]]. 못 쓰는 선택지를 사례가 이미 골랐으면 눌린 채 흐리게(na).
    man {key, val, fmt, d, on = 'manual'}: on 값 단추를 누르면 val을 key에 채우고, 다른 단추를 누르면 key 덮기를 지움 */
 function v3wSw(x, key, opts, cur, man) {
   const j = v3wJ(cur);
-  return `<div class="mk-seg v3w-seg">${opts.filter(Boolean).map(([v, l, off]) => {
+  return `<div class="mk-seg v3w-seg">${opts.filter(Boolean).map(([v, l, off, tip]) => {
     const on = v3wJ(v) === j, mo = man && v === (man.on || 'manual');
     const a = man ? `data-v3w-pick="${esc(key)}" data-mk="${esc(man.key)}"${mo ? ' data-mo' : ''}${mo && v3Ok(man.val) ? ` data-mt="${esc(v3Fi(man.val, man.fmt, man.d))}" data-sc="${man.fmt === 'pct' ? 100 : 1}"` : ''}` : `data-v3-ov="${esc(key)}"`;
-    return `<button type="button" ${a} data-v="${esc(v3wJ(v))}" class="${on ? 'on' : ''}" aria-pressed="${on}"${off && !on ? ' disabled' : ''}>${esc(l)}</button>`;
+    return `<button type="button" ${a} data-v="${esc(v3wJ(v))}" class="${on ? 'on' : ''}${on && off ? ' na' : ''}" aria-pressed="${on}"${off && !on ? ' disabled' : ''}${tip ? ` title="${esc(tip)}"` : ''}>${esc(l)}</button>`;
   }).join('')}</div>`;
 }
+/* 접어 두는 참고 표: 단추를 누르면 x.st.wf[키]가 바뀌고 다시 그림 */
+const v3wFoldOn = (x, k) => !!x.st.wf?.[k];
+const v3wFold = (x, k, name, html) => `<div class="v3w-fold"><button class="btn ghost sm" type="button" data-v3w-fold="${esc(k)}" aria-expanded="${v3wFoldOn(x, k)}">${esc(name)} ${v3wFoldOn(x, k) ? '접기' : '펴기'}</button>${v3wFoldOn(x, k) ? html : ''}</div>`;
 function v3wSel(x, key, opts, cur, lab) {
   const j = v3wJ(cur);
   return `<select class="select v3w-sel ${x.st.ov[key] ? 'chg' : ''}" data-v3w-sel="${esc(key)}" aria-label="${esc(lab)}">${opts.map(([v, l, off]) => `<option value="${esc(v3wJ(v))}"${v3wJ(v) === j ? ' selected' : ''}${off && v3wJ(v) !== j ? ' disabled' : ''}>${esc(l)}</option>`).join('')}</select>`;
@@ -1714,6 +1817,7 @@ v3On('click', '[data-v3w-pick]', (el, x) => {
   else if (mt != null && !x.st.ov[mk] && v3Base(x.c, mk) == null) v3SetOv(x.c, mk, +mt / (+el.dataset.sc || 1), mt);
   return true;
 });
+v3On('click', '[data-v3w-fold]', (el, x) => { const k = el.dataset.v3wFold; x.st.wf = { ...(x.st.wf || {}), [k]: x.st.wf?.[k] ? 0 : 1 }; return true; });
 v3On('change', '[data-v3w-sel]', (el, x) => {
   const k = el.dataset.v3wSel, v = JSON.parse(el.value);
   if (v == null && v3Base(x.c, k) == null) delete x.st.ov[k]; else v3SetOv(x.c, k, v);
@@ -1728,10 +1832,11 @@ v3On('change', '[data-v3w-floor]', (el, x) => {
 // ---------- 7단계 자기자본비용 ----------
 function v3wRfSec(x) {
   const m = x.I.market || {}, rf = m.rf || {}, k = x.sw.rf, asof = typeof m.as_of === 'object' ? m.as_of?.rf : m.as_of;
-  const opts = Object.entries(V3W_RF).map(([v, l]) => [v, v3Ok(rf[v]) ? `${l} ${v3wP2(rf[v])}` : l, !v3Ok(rf[v])]);
-  const b0 = v3Ok(rf[k]) ? rf[k] - (x.sw.rf_cds ? +m.cds || 0 : 0) : null;
+  const opts = Object.entries(V3W_RF).filter(([v]) => v !== 'manual' || k === 'manual' || v3Ok(rf.manual)).map(([v, l]) => [v, v3Ok(rf[v]) ? `${l} ${v3wP2(rf[v])}` : l, !v3Ok(rf[v])]);
+  const kk = v3Ok(rf[k]) ? k : V3W_RF_ORD.find((q) => v3Ok(rf[q]));
+  const b0 = kk ? rf[kk] - (x.sw.rf_cds ? +m.cds || 0 : 0) : null;
   return v3Sec('무위험이자율', `<span class="meta">국고채 10년${asof ? `, ${esc(String(asof).slice(0, 10))} 기준` : ''}</span>`,
-    v3wOpt([['기간', v3wSw(x, 'sw.rf', opts, k)], ['적용 값', v3In(x, 'm.rf', b0, { fmt: 'pct', d: 2, lab: '무위험이자율' })]]));
+    `<div class="v3w-st">${v3wOpt([['기간', v3wSw(x, 'sw.rf', opts, k)], ['적용 값', v3In(x, 'm.rf', b0, { fmt: 'pct', d: 2, lab: '무위험이자율' })]])}${v3wNotes('w7rn', v3wChkS(x, 'rf_fallback').map((c) => [c.text, c.level === 'err' ? 'err' : 'warn']))}</div>`);
 }
 /* 자동일 때 엔진이 고르는 쪽(step_wacc와 같은 규칙: 상장 2년 이상이고 자본구조 변경이 없으면 회귀) */
 function v3wBetaUsed(x) {
@@ -1781,41 +1886,60 @@ function v3wBetaSec(x) {
     ['적용 베타', v3wB(beta), [sw.beta_mode === 'auto' ? `${V3W_BETA[used] || used} 자동 선택` : V3W_BETA[used] || used, flText].filter(Boolean).join(', '), 'sum']]);
   const adj = v3wOpt([['조정 비중', v3In(x, 'sw.beta_adj_w', x.c.switches.beta_adj_w, { fmt: 'pct', d: 2, lab: '조정 비중' })],
     ['하한', `${v3In(x, 'sw.beta_floor', x.c.switches.beta_floor ?? null, { fmt: 'num', d: 2, lab: '베타 하한', dis: fl == null })}<label class="v3-ck"><input type="checkbox" data-v3w-floor${fl == null ? ' checked' : ''}><span>하한 없음</span></label>`]]);
-  /* 가격 표(input.beta.px)가 있으면 엔진이 수익률과 기울기를 다시 계산해 둠(WACC.ret.n, WACC.ret.slope) */
-  const px = B.px || null, rn = V('WACC.ret.n'), rs = V('WACC.ret.slope');
-  const pxNote = v3wNotes('w7px', [px && v3Ok(rn) && v3Ok(rs) ? [`주가와 지수 표본점 ${v3Num(rn)}개(${[v3wWin(px.window), px.index].filter(Boolean).join(', ')}), 다시 계산한 원 베타 ${v3wB(rs)}`, ''] : null,
-    ...['beta_px_tie', 'beta_index'].flatMap((id) => v3wChkS(x, id).map((k) => [k.text, k.level === 'info' ? '' : 'warn']))]);
+  /* 가격 표가 있으면 엔진이 고른 베타 기간과 지수의 표로 수익률과 기울기를 다시 계산해 둠(WACC.ret.n, WACC.ret.slope). 어느 표로 계산했는지는 결과의 wacc_matrix.px.
+     표가 하나뿐인 옛 문서는 스위치를 못 따라가고(px.follow = false) 엔진이 beta_px_basis 문장을 냄 */
+  const pxm = x.res.wacc_matrix?.px || null, rn = V('WACC.ret.n'), rs = V('WACC.ret.slope');
+  const pxBase = pxm ? [pxm.window ? v3wWin(pxm.window) : '', pxm.index ? V3W_IDX[pxm.index] || pxm.index : ''].filter(Boolean).join(', ') : '';
+  const pxNote = v3wNotes('w7px', [v3Ok(rn) && v3Ok(rs) ? [`주가와 지수 표본점 ${v3Num(rn)}개, 다시 계산한 원 베타 ${v3wB(rs)}${pxBase ? `(${pxBase} 기준)` : ''}`, ''] : null,
+    ...['beta_px_basis', 'beta_px_tie', 'beta_index'].flatMap((id) => v3wChkS(x, id).map((k) => [k.text, k.level === 'info' ? '' : 'warn']))]);
   const utaxOpt = [['input', '입력 세율'], ['own', '회사별 구간 세율'], ['target', '대상 한계세율']];
   return v3Sec('베타', '', `<div class="v3w-st">${top}
     <h3 class="v3-h3">회귀 베타<small>${esc(x.t.name || '')}</small></h3>${regTbl}${pxNote}
-    <div class="v3w-hd"><h3 class="v3-h3">바텀업 비교기업</h3>${v3wOpt([['대표값', v3wSw(x, 'sw.beta_stat', Object.entries(V3W_STAT), sw.beta_stat)], ['무차입 세율', v3wSw(x, 'sw.beta_u_tax', utaxOpt, utax)]])}</div>${peerTbl}
+    <div class="v3w-hd"><h3 class="v3-h3">바텀업 비교기업</h3>${v3wOpt([['대표값', v3wSw(x, 'sw.beta_stat', Object.entries(V3W_STAT), sw.beta_stat)], ['무차입 세율', v3wSw(x, 'sw.beta_u_tax', utaxOpt, utax)]])}</div>${peerTbl}${v3wNotes('w7ps', v3wChkS(x, 'peer_self').map((k) => [k.text, k.level === 'info' ? '' : 'warn']))}
     <div class="v3w-hd"><h3 class="v3-h3">적용 베타</h3>${adj}</div>${ft}</div>`);
 }
 function v3wErpSec(x) {
   const m = x.I.market || {}, e = m.erp || {}, k = x.sw.erp, EK = V3W_ERP_K;
-  const opts = Object.entries(V3W_ERP).filter(([v]) => v !== 'manual' || k === 'manual' || v3Ok(e.manual)).map(([v, l]) => [v, v3Ok(e[EK[v]]) ? `${l} ${v3wP2(e[EK[v]])}` : l, !v3Ok(e[EK[v]])]);
+  const is = e.implied_src || null, it = e.implied_table || null;
+  const itip = is ? [[is.as_of ? `${is.as_of} 기준` : '', v3Ok(is.kospi) ? `KOSPI ${v3Num(is.kospi, 2)}` : '', v3Ok(is.per) ? `PER ${v3Num(is.per, 2)}배` : '', v3Ok(is.rf) ? `국고채 10년 ${v3wP2(is.rf)}` : ''].filter(Boolean).join(', '), is.note || ''].filter(Boolean).join('. ') : '';
+  const opts = Object.entries(V3W_ERP).filter(([v]) => v !== 'manual' || k === 'manual' || v3Ok(e.manual)).map(([v, l]) => [v, v3Ok(e[EK[v]]) ? `${l} ${v3wP2(e[EK[v]])}` : l, !v3Ok(e[EK[v]]), v === 'implied_kospi' ? itip : '']);
+  const itRows = it ? Object.keys(V3W_IMP).filter((q) => it[q] && v3Ok(it[q].erp)) : [];
+  const itTbl = itRows.length ? v3wFold(x, 'erpi', '방법별 내재 프리미엄', `<div class="mk-scroll"><table class="mk-tbl v3-t v3w-t v3w-wt"><thead><tr><th class="st">방법</th><th>기대수익률</th><th>내재 프리미엄</th></tr></thead><tbody>${itRows.map((q) => `<tr class="${is?.pick === q ? 'v3w-on' : ''}"><td class="st">${V3W_IMP[q]}</td><td>${v3wP2(it[q].r)}</td><td>${v3wP2(it[q].erp)}</td></tr>`).join('')}</tbody></table></div>${is?.note ? `<p class="v3w-note">${esc(is.note)}</p>` : ''}`) : '';
   const b0 = v3Ok(e[EK[k]]) ? e[EK[k]] : null, erp = v3V(x, 'WACC.erp'), asof = typeof m.as_of === 'object' ? m.as_of?.erp : '';
   const dam = x.ov['m.erp'] == null && (k === 'damodaran' || k === 'damodaran_cds') && v3Ok(e.mature) && v3Ok(erp);
   const ft = dam ? v3wFt('', [['성숙시장 프리미엄', v3wP2(e.mature), 'Damodaran 성숙시장'], ['국가위험 프리미엄', v3wP2(erp - e.mature), k === 'damodaran' ? '한국 국가 등급 기준' : '한국 CDS 기준'],
     ['주식위험프리미엄', v3wP2(erp), '성숙시장 프리미엄 + 국가위험 프리미엄', 'sum']]) : '';
   return v3Sec('주식위험프리미엄', /^\d{4}-\d{2}-\d{2}/.test(asof || '') ? `<span class="meta">${esc(asof.slice(0, 10))} 기준</span>` : '',
-    `<div class="v3w-st">${v3wOpt([['출처', v3wSw(x, 'sw.erp', opts, k)], ['적용 값', v3In(x, 'm.erp', b0, { fmt: 'pct', d: 2, lab: '주식위험프리미엄' })]])}${v3wNotes('w7en', v3wChkS(x, 'erp_fallback').map((c) => [c.text, 'warn']))}<div data-o="w7e">${ft}</div></div>`);
+    `<div class="v3w-st">${v3wOpt([['출처', v3wSw(x, 'sw.erp', opts, k)], ['적용 값', v3In(x, 'm.erp', b0, { fmt: 'pct', d: 2, lab: '주식위험프리미엄' })]])}${v3wNotes('w7en', v3wChkS(x, 'erp_fallback').map((c) => [c.text, 'warn']))}<div data-o="w7e">${ft}</div>${itTbl}</div>`);
 }
 function v3wPremSec(x) {
   const s = x.c.switches, ck = v3wChk(x, 'premium_evidence')[0];
-  const ins = [['규모', 'prem_size'], ['개별', 'prem_spec'], ['국가', 'prem_country']].map(([l, k]) => v3F(l, v3In(x, `sw.${k}`, s[k] ?? 0, { fmt: 'pct', d: 2, lab: `${l} 프리미엄` }))).join('');
-  return v3Sec('추가 위험', `<span class="meta" data-o="w7pm">합계 ${v3wP2(v3V(x, 'WACC.prem'))}</span>`, `<div class="v3w-st"><div class="v3-fs">${ins}</div>${v3wNotes('w7pn', [ck ? [ck.text, 'warn'] : null])}</div>`);
+  const firm = x.sw.ke_model === 'firm_prem', po = v3wChkS(x, 'prem_overlap').map((c) => [c.text, 'warn']);
+  const ins = [['규모', 'prem_size'], ['개별', 'prem_spec'], ['국가', 'prem_country']].map(([l, k]) => { const off = firm && k !== 'prem_country'; return v3F(l, v3In(x, `sw.${k}`, s[k] ?? 0, { fmt: 'pct', d: 2, lab: `${l} 프리미엄`, dis: off }), off ? 'v3w-na' : ''); }).join('');
+  return v3Sec('추가 위험', `<span class="meta" data-o="w7pm">${firm || v3Ok(v3V(x, 'WACC.ff3.smb')) ? '적용 합계' : '합계'} ${v3wP2(v3V(x, 'WACC.prem'))}</span>`, `<div class="v3w-st"><div class="v3-fs">${ins}</div>${v3wNotes('w7pn', [ck ? [ck.text, 'warn'] : null, ...po, firm && !v3wChk(x, 'prem_overlap').length ? ['규모, 개별 프리미엄은 기업 고유 프리미엄에 담겨 더하지 않습니다.', ''] : null])}</div>`);
 }
 function v3wKeSec(x) {
-  const V = (id) => v3V(x, id), rf = v3wP2(V('WACC.rf')), erp = v3wP2(V('WACC.erp')), pr = v3wP2(V('WACC.prem')), brp = x.sw.ke_model === 'bond_rp', rp = x.sw.ke_bond_rp ?? 0.04;
-  const capm = `무위험이자율 ${rf} + 베타 ${v3wB(V('WACC.beta'), 2)} × 주식위험프리미엄 ${erp} + 추가 위험 ${pr}`;
-  const top = v3wOpt([['모형', v3wSw(x, 'sw.ke_model', [['capm', 'CAPM'], ['bond_rp', '타인자본비용 + 가산']], brp ? 'bond_rp' : 'capm')],
-    brp ? ['가산', v3In(x, 'sw.ke_bond_rp', x.c.switches.ke_bond_rp ?? 0.04, { fmt: 'pct', d: 2, lab: '타인자본비용에 더하는 가산' })] : null]);
+  const V = (id) => v3V(x, id), rf = v3wP2(V('WACC.rf')), erp = v3wP2(V('WACC.erp')), pr = v3wP2(V('WACC.prem')), km = x.sw.ke_model || 'capm', brp = km === 'bond_rp', rp = x.sw.ke_bond_rp ?? 0.04;
+  const mk = x.I.market?.ff3 || {}, fb = x.I.beta?.ff3 || {}, ffOk = [mk.smb, mk.hml, fb.smb, fb.hml].every((v) => v3Ok(v));
+  const smb = V('WACC.ff3.smb'), hml = V('WACC.ff3.hml'), firm = V('WACC.firm_prem'), kc = V('WACC.ke_capm'), ff = km === 'ff3' && v3Ok(smb) && v3Ok(hml), fp = km === 'firm_prem' && v3Ok(firm);
+  /* 식은 엔진과 같이 무위험이자율 + 베타 × 주식위험프리미엄 + 가산 합(WACC.prem: 3요인은 요인 가산 포함, 기업 고유 프리미엄 모형은 국가 + 기업 고유 + ESG) */
+  const capm = `무위험이자율 ${rf} + 베타 ${v3wB(V('WACC.beta'), 2)} × 주식위험프리미엄 ${erp} + ${ff ? '추가 위험과 요인 가산' : fp ? '국가, 기업 고유 프리미엄' : '추가 위험'} ${pr}`;
+  const mo = Object.entries(V3W_KE).map(([k, [l, tip]]) => [k, l, k === 'ff3' && !ffOk, k === 'ff3' && !ffOk ? `${tip}. 요인 프리미엄과 대상 요인 베타 입력이 없습니다.` : tip]);
+  if (!V3W_KE[km]) mo.push([km, km, true]);
+  const top = v3wOpt([['모형', v3wSw(x, 'sw.ke_model', mo, km)],
+    brp ? ['가산', v3In(x, 'sw.ke_bond_rp', x.c.switches.ke_bond_rp ?? 0.04, { fmt: 'pct', d: 2, lab: '타인자본비용에 더하는 가산' })] : null,
+    km === 'firm_prem' ? ['기업 고유', v3In(x, 'sw.ke_firm_prem', x.c.switches.ke_firm_prem ?? 0, { fmt: 'pct', d: 2, lab: '기업 고유 프리미엄' })] : null,
+    km === 'firm_prem' ? ['ESG 가산', v3In(x, 'sw.ke_esg_prem', x.c.switches.ke_esg_prem ?? 0, { fmt: 'pct', d: 2, lab: 'ESG 가산' })] : null]);
+  const ref = v3Ok(kc) ? ['CAPM 참고', v3wP2(kc), ff ? '요인 가산을 더하기 전' : fp ? '규모, 개별, 국가 프리미엄을 더한 CAPM' : `무위험이자율 ${rf} + 베타 ${v3wB(V('WACC.beta'), 2)} × 주식위험프리미엄 ${erp} + 추가 위험 ${pr}`] : null;
   const ft = v3wFt('w7k', brp ? [
     ['자기자본비용', v3wP2(V('WACC.ke')), `세전 타인자본비용 ${v3wP2(V('WACC.kd_pre'))} + 가산 ${v3wP2(rp)}`, 'key'],
-    v3Ok(V('WACC.ke_capm')) ? ['CAPM 참고', v3wP2(V('WACC.ke_capm')), capm] : null,
+    ref,
     ['안정기 자기자본비용', v3wP2(V('WACC.ke_s')), '명시 기간과 같음']] : [
     ['자기자본비용', v3wP2(V('WACC.ke')), capm, 'key'],
+    ff ? ['규모 요인 가산', v3wP2(smb), `SMB 요인 베타 ${v3wB(fb.smb, 2)} × 요인 프리미엄 ${v3wP2(mk.smb)}`] : null,
+    ff ? ['가치 요인 가산', v3wP2(hml), `HML 요인 베타 ${v3wB(fb.hml, 2)} × 요인 프리미엄 ${v3wP2(mk.hml)}`] : null,
+    fp ? ['기업 고유 프리미엄', v3wP2(firm), `기업 고유 ${v3wP2(x.sw.ke_firm_prem ?? 0)} + ESG 가산 ${v3wP2(x.sw.ke_esg_prem ?? 0)}`] : null,
+    ff || fp ? ref : null,
     ['안정기 자기자본비용', v3wP2(V('WACC.ke_s')), `같은 식에 안정기 베타 ${v3wB(V('WACC.beta_s'), 2)}`]]);
   return v3Sec('자기자본비용', '', `<div class="v3w-st">${top}${v3wNotes('w7kn', v3wChkS(x, 'ke_model').map((c) => [c.text, 'warn']))}${ft}</div>`);
 }
@@ -1835,20 +1959,32 @@ function v3wKdSec(x) {
   const eff = V('CTL.a.debt_rate'), kdp = V('WACC.kd_pre'), rf = V('WACC.rf'), auto = sw.kd === 'auto';
   let path = auto ? (x.res.map || [])[7]?.why : sw.kd;
   if (!V3W_KD[path]) path = 'synthetic';
-  const opts = [['auto', '자동'], ['synthetic', '합성 등급'], ['rating', '실제 등급', !hasR], ['effective', '실효이자율', !v3Ok(eff)], ['market_yield', '회사채 수익률', m.kd_market_yield == null], ['recent_issue', '최근 발행 금리', m.kd_recent_issue == null], ['peer_avg', '비교기업 평균', m.kd_peer_avg == null], ['manual', '직접 입력']];
+  const ri = m.kd_recent_issue_src || null, riText = ri ? [ri.date ? `${ri.date} 발행` : '', v3Ok(ri.amount) ? v3Eok(ri.amount) : '', v3Ok(ri.n) && ri.n > 1 ? `${v3Num(ri.n)}건` : '', ri.grade ? `${ri.grade} 등급` : ''].filter(Boolean).join(', ') : '';
+  const opts = [['auto', '자동'], ['synthetic', '합성 등급'], ['rating', '실제 등급', !hasR], ['effective', '실효이자율', !v3Ok(eff)], ['market_yield', v3Ok(m.kd_market_yield) ? `회사채 수익률 ${v3wP2(m.kd_market_yield)}` : '회사채 수익률', m.kd_market_yield == null],
+    ['recent_issue', v3Ok(m.kd_recent_issue) ? `최근 발행 금리 ${v3wP2(m.kd_recent_issue)}` : '최근 발행 금리', m.kd_recent_issue == null, riText], ['peer_avg', v3Ok(m.kd_peer_avg) ? `비교기업 평균 ${v3wP2(m.kd_peer_avg)}` : '비교기업 평균', m.kd_peer_avg == null], ['manual', '직접 입력']];
   const ibd = V('WACC.ibd'), mcap = V('WACC.mcap'), exl = v3Ok(ibd) ? ibd - (+x.I.bridge?.debt?.lease || 0) : null, low = v3Ok(exl) && v3Ok(mcap) && exl < 0.05 * mcap;
   const why = !auto ? '' : { market_yield: '회사채 시장 수익률이 있어 자동 선택', recent_issue: '최근 발행 금리가 있어 자동 선택', rating: '실제 신용등급이 있어 자동 선택', effective: '리스를 뺀 차입금이 시가총액의 5% 이상이라 자동 선택',
     synthetic: low ? '리스를 뺀 차입금이 시가총액의 5% 미만이라 자동 선택' : '자동 선택' }[path] || '자동 선택';
   const pre = { synthetic: [['무위험이자율', v3wP2(rf), ''], ['신용 스프레드', v3wP2(V('WACC.spread')), `합성 등급 ${v3wSyn(x).rating}`], ['세전 타인자본비용', v3wP2(kdp), '무위험이자율 + 신용 스프레드']],
     rating: [['무위험이자율', v3wP2(rf), ''], ['신용 스프레드', v3wP2(kr[cr]), `실제 등급 ${cr || ''} 국내 스프레드`], ['세전 타인자본비용', v3wP2(kdp), '무위험이자율 + 신용 스프레드']],
-    effective: [['세전 타인자본비용', v3wP2(kdp), '직전 결산 차입 실효이자율']], market_yield: [['세전 타인자본비용', v3wP2(kdp), '회사채 시장 수익률']],
+    effective: [['세전 타인자본비용', v3wP2(kdp), '직전 결산 차입 실효이자율']], market_yield: [['세전 타인자본비용', v3wP2(kdp), cr ? `${cr} 등급 회사채 시장 수익률` : '회사채 시장 수익률']],
+    recent_issue: [['세전 타인자본비용', v3wP2(kdp), riText ? `최근 발행 금리(${riText})` : '최근 발행 금리']], peer_avg: [['세전 타인자본비용', v3wP2(kdp), '비교기업 타인자본비용 평균']],
     manual: [['세전 타인자본비용', v3wP2(kdp), '직접 입력']] }[path] || [['세전 타인자본비용', v3wP2(kdp), V3W_KD[path]]];
   const ft = v3wFt('w8k', [['적용 방식', esc(V3W_KD[path]), why], ...pre, ['한계세율', v3wP1(V('WACC.t_m')), ''], ['세후 타인자본비용', v3wP2(V('WACC.kd')), '세전 타인자본비용 × (1 − 한계세율)', 'key']]);
   const krs = Object.keys(kr);
   const top = v3wOpt([['방식', v3wSw(x, 'sw.kd', opts, sw.kd, { key: 'i.market.kd_manual', val: kdp, fmt: 'pct', d: 2 })],
     sw.kd === 'manual' ? ['세전 타인자본비용', v3wMan(x, 'i.market.kd_manual', 'pct', 2, '세전 타인자본비용 직접 입력')] : null,
     krs.length ? ['실제 등급', v3wSel(x, 'i.beta.credit_rating', [[null, '없음'], ...krs.map((r) => [r, `${r} ${v3wP2(kr[r])}`])], cr ?? null, '실제 신용등급')] : null]);
-  return v3Sec('타인자본비용', '', `<div class="v3w-st">${top}${ft}</div>`);
+  /* 근거 글(notes.why.kd)은 문서를 만든 때의 경로 기준이라, 방식 스위치와 경로가 그때와 같을 때만 보여 줌 */
+  const kwhy = sw.kd === x.c.switches.kd && path === ((x.c.map || [])[7]?.why || path) ? x.c.notes?.why?.kd || '' : '';
+  const kr2 = m.kd_by_rating || null, tn = kr2 && Array.isArray(kr2.tenors) ? kr2.tenors : [], mx = kr2?.matrix || null;
+  let grid = '';
+  if (mx && tn.length) {
+    const cols = tn.map((t, j) => [t, j]).filter(([t]) => x.w > 620 || ['1y', '2y', '3y', '5y', kr2.tenor].includes(t)); // 좁은 폭은 1년 이상 주요 만기만
+    grid = v3wFold(x, 'kdr', '등급별 회사채 수익률', `<div class="mk-scroll"><table class="mk-tbl v3-t v3w-t v3w-kr"><thead><tr><th class="st">등급</th>${cols.map(([t]) => `<th class="${t === kr2.tenor ? 'c' : ''}">${esc(v3wTenor(t))}</th>`).join('')}</tr></thead>
+      <tbody>${Object.keys(mx).map((g) => `<tr class="${g === cr ? 'v3w-on' : ''}"><td class="st">${esc(g)}</td>${cols.map(([t, j]) => `<td class="${t === kr2.tenor ? 'c' : ''}">${v3Ok(mx[g]?.[j]) ? v3wP2(mx[g][j]) : ''}</td>`).join('')}</tr>`).join('')}</tbody></table></div>${kr2.as_of ? `<p class="v3w-cap2">${esc(kr2.as_of)} 기준${v3Ok(kr2.ktb) ? `, 국고채 ${esc(v3wTenor(kr2.tenor || ''))} ${v3wP2(kr2.ktb)}` : ''}</p>` : ''}`);
+  }
+  return v3Sec('타인자본비용', '', `<div class="v3w-st">${top}${kwhy ? v3Why(kwhy) : ''}${ft}${grid}</div>`);
 }
 function v3wSynSec(x) {
   const W = x.I.wacc_in || {}, sw = x.sw, s = v3wSyn(x), cov = v3V(x, 'WACC.cov'), mcap = v3V(x, 'WACC.mcap');
@@ -2015,6 +2151,8 @@ v3Step(10, (x) => v3wFadeSec(x) + v3wTvSec(x) + v3wDiscSec(x));
 // 11～13단계는 같은 틀: 항목 표(v3bItems: 항목, 입력, 넣는 금액, 근거) + 계산표(v3bCalc: table.va-calc).
 // 다리 항목은 시나리오 공통이고 영업가치, 주주가치, 주당 가치만 고른 시나리오 값.
 // 엔진이 읽지 않아 입력으로 만들지 않은 것: bridge.date, shares.date(읽기 전용으로만 보여 줌)
+// 다리 잔액 기준(sw.bridge_basis)이 fy0, avg2면 11, 12단계 표에 결산 말 잔액(input.bridge.bal) 열이 붙고 그 칸을 고침. 줄별 넣는 금액은 엔진 v3eBridgeOf 값
+// 15단계 「사업부별 합산」 카드는 사업부 입력(input.sotp.units)이 있는 사례에서만 보임. 값은 x.res.sotp 그대로
 const V3B_DEBT = { st: '단기차입금', lt: '장기차입금', bond: '사채', cb: '전환사채', lease: '리스부채', deriv: '파생상품부채', fvpl: 'FVPL 금융부채' };
 const V3B_DEBT_HIDE = ['deriv', 'fvpl']; // 금액이 0이면 줄을 숨기는 부채 키
 const V3B_REVV = { g: '성장률', val: '매출', qty: '수량', price: '단가', mkt: '시장 규모', share: '점유율', net_ratio: '순매출 비율', fx: '환율', g_vol: '수량 성장률', g_price: '단가 성장률' };
@@ -2022,6 +2160,17 @@ const V3B_REVV = { g: '성장률', val: '매출', qty: '수량', price: '단가'
 const V3B_RULE = [['research', '리서치 값 우선', 'Bull, Bear 값은 리서치가 준 것을 쓰고 없는 가정만 규칙으로 채웁니다.'], ['v2', '규칙만', '리서치의 Bull, Bear 값을 쓰지 않고 모든 가정을 규칙으로 채웁니다.'],
   ['modellers', '원형(The Modellers)', 'Bull은 Base + 5%p, Bear는 최근 3년 실적 최저를 명시 기간 내내 같은 값으로 둡니다.']];
 const V3B_ASSOC = { book: '장부가', market: '시가' };
+/* 주주가치 다리 잔액 기준(sw.bridge_basis): [값, 단추 이름, 툴팁에 쓸 전체 이름] */
+const V3B_BASIS = [['latest', '기준일', '재무상태표 기준일 잔액'], ['fy0', '직전 결산 말', '직전 결산 말 잔액'], ['avg2', '두 결산 말 평균', '직전 두 결산 말 평균']];
+/* 사업부별 합산(sw.sotp): [값, 단추 이름, 툴팁] */
+const V3B_SOTP = [['off', '끔'], ['show', '참고로만 표시', '사업부별 합산 값을 전사 DCF와 견주어 보기만 합니다.'],
+  ['target', '목표주가에 씀', '결합 목표주가의 DCF 자리에 사업부별 합산 가중평균을 씁니다. 시나리오 주당 가치와 민감도도 합산 값 기준이 됩니다.']];
+const V3B_SOTP_M = { multiple: '배수법', dcf: '사업부 DCF' };
+const V3B_SOTP_K = { sales: '매출', ebit: '영업이익', ebitda: 'EBITDA' };
+const V3B_SOTP_A = { listed: '상장', unlisted: '비상장' };
+const v3bSotpTg = (x) => x.res.sotp?.mode === 'target'; // 목표주가의 DCF 자리에 사업부별 합산을 쓰는 중
+const v3bDcfName = (x) => (v3bSotpTg(x) ? '사업부별 합산 가중평균' : v3DcfName(x));
+const v3bNote = (x, ids, lv) => (x.res.checks || []).filter((k) => ids.includes(k.id) && (!lv || lv.includes(k.level))).map((k) => `<p class="${k.level === 'info' ? 'v3b-note' : 'v3b-warn'}">${esc(k.text)}</p>`).join('');
 /* 상대가치 「모델 실적 기준」의 실적 이름(평가 배수별. 엔진 rel_model과 같은 대응) */
 const V3B_RELM = { PER: '지배순이익', PBR: '지배주주 자본', PSR: '매출', 'EV/EBITDA': 'EBITDA', 'EV/EBIT': '영업이익', 'EV/Sales': '매출' };
 const V3B_EPS_TIP = { avg: '그해 기초와 기말 유통주식수의 평균으로 나눕니다. 자사주 매입 계획이 있을 때만 기준일 주식수와 달라지고, 그때는 공시 EPS와 조금 다른 것이 정상입니다.', spot: '모든 추정 연도를 기준일 유통주식수로 나눕니다.',
@@ -2038,34 +2187,64 @@ const v3bUp = (u) => v3Up(u) || '-';
 const v3bScDot = (x, extra = '') => `<span class="v3-dot ${x.sc}"></span><span class="meta">${x.sc}${extra ? `, ${extra}` : ''}</span>`;
 const v3bRo = (lab, val) => `<div><span>${lab}</span><b class="v3b-ro">${esc(val)}</b></div>`;
 
-/* 항목 표. cols {first, val: 입력 열 머리, put: 넣는 금액 열 머리(없으면 그 열 없음)}
-   rows [{grp: 묶음 제목} | {name, sub, inp: 입력 칸 html, put: 넣는 금액 html, o: data-o 키, off: 스위치가 꺼져 0으로 들어감, why}] */
+/* 항목 표. cols {first, val: 입력 열 머리, ex: 결산 말 잔액 열 머리 목록(다리 잔액 기준이 fy0, avg2일 때), put: 넣는 금액 열 머리(없으면 그 열 없음)}
+   rows [{grp: 묶음 제목} | {name, sub, inp: 입력 칸 html, ro: inp가 읽기만 하는 값, ex: 결산 말 잔액 칸 html 목록, put: 넣는 금액 html, o: data-o 키, off: 스위치가 꺼져 0으로 들어감, why}]
+   ex 열이 있으면 근거는 그 줄 아래로 내리고, 좁은 폭에서는 항목 이름 줄 아래에 값 칸을 나란히 둠 */
 const v3bNar = () => ($('#va-host')?.clientWidth || 1000) <= 620; // 좁은 폭(x.w와 같은 기준)
 function v3bItems(cols, rows) {
-  const nar = v3bNar(), anyWhy = rows.some((r) => r.why), hasWhy = anyWhy && !nar, n = 2 + (cols.put ? 1 : 0) + (hasWhy ? 1 : 0);
-  const head = `<tr><th class="st">${cols.first || '항목'}</th><th>${cols.val}</th>${cols.put ? `<th>${cols.put}</th>` : ''}${hasWhy ? '<th class="tx why">근거</th>' : ''}</tr>`;
+  const nar = v3bNar(), ex = cols.ex || [], anyWhy = rows.some((r) => r.why), under = nar || ex.length > 0, hasWhy = anyWhy && !under, n = 2 + ex.length + (cols.put ? 1 : 0) + (hasWhy ? 1 : 0);
+  const exTd = (r) => ex.map((_, i) => `<td class="${r.ex?.[i] ? 'in' : ''}">${r.ex?.[i] || ''}</td>`).join('');
+  if (nar && ex.length) { // 좁은 폭 + 결산 말 잔액 열: 이름 줄 아래에 기준일, 결산 말, 넣는 금액 칸
+    const m = 1 + ex.length + (cols.put ? 1 : 0), sh = (h) => String(h).replace(/^20(\d\d-\d\d-\d\d)$/, '$1');
+    const b = rows.map((r) => (r.grp ? `<tr class="grp"><td class="tx" colspan="${m}">${esc(r.grp)}</td></tr>`
+      : `<tr class="nm ${r.off ? 'off' : ''}"><td class="tx" colspan="${m}"><b>${esc(r.name)}</b>${r.sub ? `<small>${esc(r.sub)}</small>` : ''}</td></tr><tr class="vl ${r.off ? 'off' : ''}"><td class="${r.ro ? '' : 'in'}">${r.inp || ''}</td>${exTd(r)}${cols.put ? `<td class="put" data-o="${esc(r.o)}">${r.put}</td>` : ''}</tr>${r.why ? `<tr class="wy"><td class="tx" colspan="${m}">${v3Why(r.why)}</td></tr>` : ''}`)).join('');
+    return `<table class="mk-tbl v3-t v3b-it v3b-dl v3b-dln v3b-bsn"><thead><tr><th>${cols.val}</th>${ex.map((h) => `<th>${esc(sh(h))}</th>`).join('')}${cols.put ? `<th>${cols.put}</th>` : ''}</tr></thead><tbody>${b}</tbody></table>`;
+  }
+  const head = `<tr><th class="st">${cols.first || '항목'}</th><th>${cols.val}</th>${ex.map((h) => `<th>${esc(h)}</th>`).join('')}${cols.put ? `<th>${cols.put}</th>` : ''}${hasWhy ? '<th class="tx why">근거</th>' : ''}</tr>`;
   const body = rows.map((r) => (r.grp ? `<tr class="grp"><td class="tx" colspan="${n}">${esc(r.grp)}</td></tr>`
-    : `<tr class="${r.off ? 'off' : ''}"><td class="st">${esc(r.name)}${r.sub ? `<small>${esc(r.sub)}</small>` : ''}</td><td class="in">${r.inp || ''}</td>${cols.put ? `<td class="put" data-o="${esc(r.o)}">${r.put}</td>` : ''}${hasWhy ? `<td class="tx why">${v3Why(r.why)}</td>` : ''}</tr>${nar && r.why ? `<tr class="wy"><td class="tx" colspan="${n}">${v3Why(r.why)}</td></tr>` : ''}`)).join('');
-  return `<div class="mk-scroll${anyWhy ? '' : ' v3b-nw'}"><table class="mk-tbl v3-t v3b-it${nar && anyWhy ? ' v3b-itn' : ''}"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+    : `<tr class="${r.off ? 'off' : ''}"><td class="st">${esc(r.name)}${r.sub ? `<small>${esc(r.sub)}</small>` : ''}</td><td class="${r.ro ? 'ro' : 'in'}">${r.inp || ''}</td>${exTd(r)}${cols.put ? `<td class="put" data-o="${esc(r.o)}">${r.put}</td>` : ''}${hasWhy ? `<td class="tx why">${v3Why(r.why)}</td>` : ''}</tr>${under && r.why ? `<tr class="wy"><td class="tx" colspan="${n}">${v3Why(r.why)}</td></tr>` : ''}`)).join('');
+  return `<div class="mk-scroll${anyWhy && !ex.length ? '' : ' v3b-nw'}${ex.length ? ' v3b-bsw' : ''}"><table class="mk-tbl v3-t v3b-it${under && anyWhy ? ' v3b-itn' : ''}${ex.length ? ' v3b-bs' : ''}"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
 }
 /* 계산표. 줄 [연산 기호, 이름, 값 html, 클래스(sum, off, k, big), 이름 옆 작은 글]. res는 결과 묶음(파란 바탕) */
 const v3bRow = ([op, name, val, cls, sub]) => `<tr class="${cls || ''}"><th><i>${op || ''}</i>${esc(name)}${sub ? `<small>${esc(sub)}</small>` : ''}</th><td>${val}</td></tr>`;
 const v3bCalc = (o, rows, res) => `<div class="v3b-calc" data-o="${o}"><table class="va-calc"><tbody>${rows.map(v3bRow).join('')}</tbody>${res && res.length ? `<tbody class="res">${res.map(v3bRow).join('')}</tbody>` : ''}</table></div>`;
 
+// ---------- 다리 잔액 기준(11, 12단계 공통) ----------
+/* {cur 지금 기준, on 결산 말 잔액으로 계산 중, ks 보여 줄 결산 말 키(fy0, fy0p), heads 그 열 머리(날짜), eff 줄별 넣는 금액(엔진 v3eBridgeOf), opt 단추 줄 html, meta 카드 오른쪽 글, note 점검 문장} */
+function v3bBasis(x, c, step) {
+  const br = x.I.bridge || {}, bal = br.bal || {}, cur = x.sw.bridge_basis || 'latest', dt = (k) => bal[k]?.date || (k === 'fy0' ? '직전 결산 말' : '그 전 결산 말');
+  const can = { latest: true, fy0: !!bal.fy0, avg2: !!bal.fy0 && !!bal.fy0p }, on = cur !== 'latest' && can[cur], ks = !on ? [] : cur === 'avg2' ? ['fy0', 'fy0p'] : ['fy0'];
+  const eff = on && typeof v3eBridgeOf === 'function' ? v3eBridgeOf(x.I, x.sw) : br;
+  const tip = { latest: br.date ? `(${br.date})` : '', fy0: can.fy0 ? `(${dt('fy0')})` : '', avg2: can.avg2 ? `(${dt('fy0')}, ${dt('fy0p')})` : '' };
+  const sw = c.switches.bridge_basis != null || bal.fy0 ? `<div><span>주주가치 다리 잔액</span>${v3bSw(x, 'sw.bridge_basis', V3B_BASIS.map(([v, l, t]) => [v, l, can[v] ? `${t}${tip[v]}` : '결산 말 잔액 입력이 없는 사례입니다.', !can[v] && cur !== v]), cur)}</div>` : '';
+  const meta = `${on ? (cur === 'avg2' ? `${dt('fy0')}과 ${dt('fy0p')} 평균, ` : `${dt('fy0')} 잔액, `) : br.date ? `기준일 ${esc(br.date)}, ` : ''}단위 억원`;
+  /* 점검 bridge_basis: 주의는 12단계 머리 경고 줄에 나오므로 12단계에서는 참고만 */
+  const note = `<div class="v3b-bn" data-o="b${step}.bn">${v3bNote(x, ['bridge_basis'], step === 12 && V3_CHK_STEP.bridge_basis ? ['info'] : null)}</div>`;
+  return { cur, on, ks, heads: ks.map(dt), eff, bal0: c.input.bridge?.bal || {}, sw, meta, note };
+}
+
 // ---------- 11 비영업자산 ----------
 v3Step(11, (x, c) => {
   const br0 = c.input.bridge || {}, br = x.I.bridge || {}, sw = x.sw;
   const amt = (key, base, lab) => v3In(x, key, base, { fmt: 'amt', cell: true, lab });
-  const rows = [{ name: '현금 및 현금성자산', inp: amt('i.bridge.cash', br0.cash, '현금 및 현금성자산') },
-    { name: '단기금융상품', inp: amt('i.bridge.st_fin', br0.st_fin, '단기금융상품') }];
+  const B = v3bBasis(x, c, 11), E = B.eff || {};
+  /* 결산 말 잔액으로 계산 중이면 기준일 잔액은 읽기만 하고 결산 말 잔액 칸을 고침 */
+  const line = (name, k) => (B.on ? { name, inp: v3Num(br[k] || 0), ro: true, ex: B.ks.map((b) => amt(`i.bridge.bal.${b}.${k}`, B.bal0[b]?.[k], `${name} ${B.bal0[b]?.date || ''}`)), put: v3Num(E[k] || 0), o: `b11.p.${k}` } : { name, inp: amt(`i.bridge.${k}`, br0[k], name) });
+  const rows = [line('현금 및 현금성자산', 'cash'), line('단기금융상품', 'st_fin')];
   const mk = sw.assoc_value === 'market', hasMk = (br.nonop || []).some((it) => it && it.market != null); // 시가가 있는 항목(상장 관계기업)이 있을 때만 고를 수 있음
-  (br0.nonop || []).forEach((it, i) => { const cur = br.nonop?.[i] || it, nm = cur.name || `비영업자산 ${i + 1}`; rows.push({ name: nm, sub: cur.market != null ? `시가 ${v3Eok(cur.market)}${mk ? ' 적용' : ''}` : '', inp: amt(`i.bridge.nonop.${i}.amount`, it.amount, nm), why: cur.why }); });
-  const opt = hasMk ? `<div class="v3-opt"><div><span>관계기업 평가</span>${v3bSw(x, 'sw.assoc_value', [['book', '장부가'], ['market', '시가', '시가가 있는 상장 관계기업은 시가로 넣습니다.']], sw.assoc_value || 'book')}</div></div>`
-    : sw.assoc_value ? `<div class="v3-opt">${v3bRo('관계기업 평가', V3B_ASSOC[sw.assoc_value] || sw.assoc_value)}</div>` : '';
+  (br0.nonop || []).forEach((it, i) => {
+    const cur = br.nonop?.[i] || it, nm = cur.name || `비영업자산 ${i + 1}`, sub = cur.market != null ? `시가 ${v3Eok(cur.market)}${mk ? ' 적용' : ''}` : '';
+    const hb = B.on && it.bal && typeof it.bal === 'object', put = mk && cur.market != null ? cur.market : E.nonop?.[i]?.amount ?? cur.amount; // 결산 말 잔액(bal)이 있는 줄만 기준을 따름
+    rows.push(hb ? { name: nm, sub, inp: v3Num(cur.amount || 0), ro: true, ex: B.ks.map((b) => amt(`i.bridge.nonop.${i}.bal.${b}`, it.bal[b], `${nm} ${B.bal0[b]?.date || ''}`)), put: v3Num(put || 0), o: `b11.p.n${i}`, why: cur.why }
+      : { name: nm, sub, inp: amt(`i.bridge.nonop.${i}.amount`, it.amount, nm), put: B.on ? v3Num(put || 0) : '', o: `b11.p.n${i}`, why: cur.why });
+  });
+  const aopt = hasMk ? `<div><span>관계기업 평가</span>${v3bSw(x, 'sw.assoc_value', [['book', '장부가'], ['market', '시가', '시가가 있는 상장 관계기업은 시가로 넣습니다.']], sw.assoc_value || 'book')}</div>`
+    : sw.assoc_value ? v3bRo('관계기업 평가', V3B_ASSOC[sw.assoc_value] || sw.assoc_value) : '';
+  const opt = B.sw || aopt ? `<div class="v3-opt">${B.sw}${aopt}</div>` : '';
   const cash = v3V(x, 'DCF.cash'), nonop = v3V(x, 'DCF.nonop'), ev = v3V(x, 'DCF.ev'), tot = (cash || 0) + (nonop || 0);
   const calc = v3bCalc('b11', [['', '현금성자산', v3Eok(cash)], ['+', '비영업자산', v3Eok(nonop)]],
     [['=', '합계', v3Eok(tot), 'k big'], ['', '영업가치 대비 비중', v3Pct(v3Ok(ev) && ev ? tot / ev : null), '', `영업가치 ${v3Eok(ev)}`]]);
-  return v3Sec('항목', `<span class="meta">${br.date ? `기준일 ${esc(br.date)}, ` : ''}단위 억원</span>`, opt + v3bItems({ val: '금액' }, rows))
+  return v3Sec('항목', `<span class="meta" data-o="b11.meta">${B.meta}</span>`, opt + B.note + v3bItems(B.on ? { val: '기준일 잔액', ex: B.heads, put: '넣는 금액' } : { val: '금액' }, rows))
     + v3Sec('합계', v3bScDot(x), calc);
 });
 
@@ -2073,25 +2252,28 @@ v3Step(11, (x, c) => {
 v3Step(12, (x, c) => {
   const br0 = c.input.bridge || {}, br = x.I.bridge || {}, sw = x.sw, one = (id) => v3V(x, id), rows = [];
   const amt = (key, base, lab) => v3In(x, key, base, { fmt: 'amt', cell: true, lab });
-  const curD = br.debt || {}, dk = Object.keys(br0.debt || {}).filter((k) => !V3B_DEBT_HIDE.includes(k) || br0.debt[k] || curD[k]);
+  const B = v3bBasis(x, c, 12), E = B.eff || {}, effD = E.debt || {}; // effD: 잔액 기준을 반영한 줄별 금액(기준일이면 입력 그대로)
+  /* 결산 말 잔액으로 계산 중이면 기준일 잔액은 읽기만 하고 결산 말 잔액 칸을 고침 */
+  const bex = (path, get, nm) => B.ks.map((b) => amt(`i.bridge.bal.${b}.${path}`, get(B.bal0[b] || {}), `${nm} ${B.bal0[b]?.date || ''}`));
+  const curD = br.debt || {}, dk = Object.keys(br0.debt || {}).filter((k) => !V3B_DEBT_HIDE.includes(k) || br0.debt[k] || curD[k] || effD[k]);
   if (dk.length) rows.push({ grp: '이자부부채' });
-  dk.forEach((k) => { const nm = V3B_DEBT[k] || k; rows.push({ name: nm, inp: amt(`i.bridge.debt.${k}`, br0.debt[k], nm), put: v3Num(curD[k] || 0), o: `b12.d.${k}` }); });
-  const cbEq = v3Ok(one('DCF.debt')) ? v3bSum(Object.values(curD)) - one('DCF.debt') : 0; // 희석 주식으로 넣은 전환사채는 부채에서 빠짐
+  dk.forEach((k) => { const nm = V3B_DEBT[k] || k; rows.push(B.on ? { name: nm, inp: v3Num(curD[k] || 0), ro: true, ex: bex(`debt.${k}`, (o) => o.debt?.[k], nm), put: v3Num(effD[k] || 0), o: `b12.d.${k}` } : { name: nm, inp: amt(`i.bridge.debt.${k}`, br0.debt[k], nm), put: v3Num(curD[k] || 0), o: `b12.d.${k}` }); });
+  const cbEq = v3Ok(one('DCF.debt')) ? v3bSum(Object.values(effD)) - one('DCF.debt') : 0; // 희석 주식으로 넣은 전환사채는 부채에서 빠짐
   if (cbEq > 0.005) rows.push({ name: '주식으로 본 전환 증권', put: `−${v3Num(cbEq)}`, o: 'b12.cbeq' });
   rows.push({ grp: '그 밖의 청구권' });
   const pbr = sw.nci_value === 'book_x_pbr';
-  rows.push({ name: '비지배지분', sub: pbr ? `장부가 × ${v3X(sw.nci_pbr ?? 1)}` : '', inp: amt('i.bridge.nci', br0.nci, '비지배지분'), put: v3Num(one('DCF.nci') || 0), o: 'b12.nci' });
+  rows.push({ name: '비지배지분', sub: pbr ? `장부가 × ${v3X(sw.nci_pbr ?? 1)}` : '', ...(B.on ? { inp: v3Num(br.nci || 0), ro: true, ex: bex('nci', (o) => o.nci, '비지배지분') } : { inp: amt('i.bridge.nci', br0.nci, '비지배지분') }), put: v3Num(one('DCF.nci') || 0), o: 'b12.nci' });
   rows.push({ name: '우선주 시가', inp: amt('i.bridge.pref_mkt', br0.pref_mkt, '우선주 시가'), put: v3Num(one('DCF.pref') || 0), o: 'b12.pref', off: sw.pref !== 'market' });
-  rows.push({ name: '퇴직급여 과소적립', inp: amt('i.bridge.dbo', br0.dbo, '퇴직급여 과소적립'), put: v3Num(one('DCF.dbo') || 0), o: 'b12.dbo', off: !sw.dbo_claim });
+  rows.push({ name: '퇴직급여 과소적립', ...(B.on ? { inp: v3Num(br.dbo || 0), ro: true, ex: bex('dbo', (o) => o.dbo, '퇴직급여 과소적립') } : { inp: amt('i.bridge.dbo', br0.dbo, '퇴직급여 과소적립') }), put: v3Num(one('DCF.dbo') || 0), o: 'b12.dbo', off: !sw.dbo_claim });
   (br0.claims || []).forEach((it, i) => { const cur = br.claims?.[i] || it, nm = cur.name || `기타 청구권 ${i + 1}`; rows.push({ name: nm, inp: amt(`i.bridge.claims.${i}.amount`, it.amount, nm), put: v3Num(cur.amount || 0), o: `b12.c.${i}`, why: cur.why }); });
-  const opt = `<div class="v3-opt"><div><span>비지배지분</span>${v3Sw(x, 'sw.nci_value', [['book', '장부가'], ['book_x_pbr', '장부가 × PBR']], sw.nci_value)}${pbr ? `<span class="v3b-oi">${v3In(x, 'sw.nci_pbr', c.switches.nci_pbr ?? 1, { fmt: 'x', lab: '비지배지분 PBR' })}</span>` : ''}</div>
+  const opt = `<div class="v3-opt">${B.sw}<div><span>비지배지분</span>${v3Sw(x, 'sw.nci_value', [['book', '장부가'], ['book_x_pbr', '장부가 × PBR']], sw.nci_value)}${pbr ? `<span class="v3b-oi">${v3In(x, 'sw.nci_pbr', c.switches.nci_pbr ?? 1, { fmt: 'x', lab: '비지배지분 PBR' })}</span>` : ''}</div>
     <div><span>우선주</span>${v3Sw(x, 'sw.pref', [['as_common', '주식 수에 합산'], ['market', '시가로 차감']], sw.pref)}</div>
     <div><span>퇴직급여 과소적립</span>${v3Sw(x, 'sw.dbo_claim', [[false, '제외'], [true, '차감']], !!sw.dbo_claim)}</div></div>`;
   const calc = v3bCalc('b12', [['', '영업가치', v3Eok(one('DCF.ev'))], ['+', '현금성자산', v3Eok(one('DCF.cash'))], ['+', '비영업자산', v3Eok(one('DCF.nonop'))],
     ['−', '이자부부채', v3Eok(one('DCF.debt'))], ['−', '비지배지분', v3Eok(one('DCF.nci'))], ['−', '우선주', v3Eok(one('DCF.pref')), sw.pref !== 'market' ? 'off' : ''],
     ['−', '퇴직급여 과소적립', v3Eok(one('DCF.dbo')), sw.dbo_claim ? '' : 'off'], ['−', '기타 청구권', v3Eok(one('DCF.other_claim')), (br0.claims || []).length ? '' : 'off']],
-  [['=', '주주가치', v3Eok(one('DCF.eq')), 'k big']]);
-  return v3Sec('항목', `<span class="meta">${br.date ? `기준일 ${esc(br.date)}, ` : ''}단위 억원</span>`, opt + v3bItems({ val: '금액', put: '넣는 금액' }, rows))
+  [['=', '주주가치', v3Eok(one('DCF.eq')), 'k big', v3bSotpTg(x) ? '전사 DCF' : '']]);
+  return v3Sec('항목', `<span class="meta" data-o="b12.meta">${B.meta}</span>`, opt + B.note + v3bItems(B.on ? { val: '기준일 잔액', ex: B.heads, put: '넣는 금액' } : { val: '금액', put: '넣는 금액' }, rows))
     + v3Sec('주주가치 계산', v3bScDot(x), calc);
 });
 
@@ -2176,13 +2358,13 @@ v3Step(13, (x, c) => {
     ['+', '우선주', v3bSh(asC ? one('SHR.pref') : 0), asC ? '' : 'off'], ['+', '자기주식법 순증', v3bSh(one('SHR.so_tsm')), '', v3Ok(one('SHR.so_itm')) && one('SHR.so_itm') ? `내가격 수량 ${v3bSh(one('SHR.so_itm'))}` : ''],
     ['+', '미가득 RSU', v3bSh(one('SHR.rsu'))], ['+', '전환 가산 주식', v3bSh(one('SHR.cb_add'))], ['=', '희석 주식수', v3bSh(one('SHR.diluted')), 'sum'],
     ...(v3Ok(one('SHR.diluted_iter')) ? [['', '다시 판정한 주식 수', v3bSh(one('SHR.diluted_iter')), '', '모델 주당 가치 기준']] : [])],
-  [['', '주주가치', v3Eok(one('DCF.eq'))], ['÷', '주식 수', v3bSh(one('DCF.shares')), '', basis], ['=', '주당 가치', v3Won(one('DCF.ps')), 'k big', v3Ok(one('DCF.ps_raw')) ? `반올림 전 ${v3Won(one('DCF.ps_raw'))}` : ''],
+  [v3bSotpTg(x) && v3Ok(one('DCF.sotp.eq')) ? ['', '주주가치', v3Eok(one('DCF.sotp.eq')), '', '사업부별 합산'] : ['', '주주가치', v3Eok(one('DCF.eq'))], ['÷', '주식 수', v3bSh(one('DCF.shares')), '', basis], ['=', '주당 가치', v3Won(one('DCF.ps')), 'k big', v3Ok(one('DCF.ps_raw')) ? `반올림 전 ${v3Won(one('DCF.ps_raw'))}` : ''],
     ['', '상승여력', v3bUp(one('DCF.up')), '', `현재가 ${v3Won(x.t.close)}`]]);
   const copt = `<div class="v3-opt"><div><span>주식 수 기준</span>${v3Sw(x, 'sw.share_basis', [['diluted', '희석'], ['basic', '유통'], ['issued', '발행']], sw.share_basis)}</div>
     <div><span>반올림 단위</span>${v3Sw(x, 'sw.round', [[1, '1원'], [10, '10원'], [100, '100원'], [1000, '1,000원']], sw.round)}</div>
     ${v3Row(x, 'SHR.eps') ? `<div><span>EPS 주식 수</span>${v3bSw(x, 'sw.eps_basis', [['avg', '기초, 기말 평균', V3B_EPS_TIP.avg], ['spot', '기준일', V3B_EPS_TIP.spot]], sw.eps_basis || 'avg')}</div>` : ''}</div>`;
   return v3Sec('항목', `<span class="meta">${sh.date ? `기준일 ${esc(sh.date)}, ` : ''}단위 주</span>`,
-    `${opt}${v3bItems({ val: '주식 수' }, rows)}<h3 class="v3-h3">희석 증권<small>판정 기준가 ${v3Won(x.t.close)}</small></h3>${dtbl}`)
+    `${opt}${v3bItems({ val: '주식 수' }, rows)}<h3 class="v3-h3">희석 증권<small>판정 기준가 ${v3Won(x.t.close)}</small></h3>${dtbl}<div data-o="b13.dn">${v3bNote(x, ['dilution_src'], ['info'])}</div>`)
     + v3Sec('주당 가치 계산', v3bScDot(x), `${copt}${calc}<div data-o="b13.eps">${v3bEps(x)}</div>`);
 });
 
@@ -2254,7 +2436,7 @@ v3Step(14, (x, c) => {
   const tbl = `<div class="mk-scroll"><table class="mk-tbl v3-t v3b-sct"><thead><tr><th class="tx">시나리오</th><th>내재 가치</th><th>상승여력</th><th>가중치</th><th></th></tr></thead><tbody>${blocks}</tbody><tbody data-o="b14.sum">${sum}</tbody></table></div>`;
   const rule = `<div class="v3-opt v3b-rule"><div><span>시나리오 규칙</span>${v3bSw(x, 'sw.scn_rule', V3B_RULE, x.sw.scn_rule || 'research')}</div></div>`;
   const res = v3bScnRes(x);
-  return v3Sec('근거와 가중치', '', tbl)
+  return v3Sec('근거와 가중치', v3bSotpTg(x) ? '<span class="meta">사업부별 합산 기준</span>' : '', tbl)
     + v3Sec('시나리오별로 다른 가정', '', `${rule}<div data-o="b14.as" class="v3b-asw">${v3bAssump(x, c)}</div>`)
     + (res ? v3Sec('시나리오별 결과', '', `<div data-o="b14.res">${res}</div>`) : '');
 });
@@ -2268,6 +2450,50 @@ v3On('input', '.v3b-sct input[data-k]', (el, x) => {
   rows.forEach((r) => { if (r.same) delete ov[r.i.dataset.k]; else ov[r.i.dataset.k] = { t: r.i.value, v: r.v }; r.i.classList.toggle('chg', !r.same); });
   v3Later();
 });
+
+// ---------- 15 사업부별 합산 ----------
+/* 값 하나짜리 가정(배수, WACC, 영구성장률) 칸. 머리의 입력 적용을 따르는 가정 칸과 같은 키(a.<키>.<시나리오 또는 *>#0) */
+function v3bAOne(x, K, fmt, lab) {
+  const s = x.sc, base = x.rows0?.[s]?.[`CTL.a.${K}`]?.[0], key = v3AKey(x, K, 0);
+  const cur = v3All(x) ? x.st.ov[`a.${K}.${s}#0`] || x.st.ov[key] : undefined;
+  return v3In(x, key, base, { fmt, lab, d: fmt === 'pct' ? 2 : fmt === 'x' ? 1 : undefined, cur });
+}
+function v3bSotp(x, c) {
+  const sp = x.I.sotp || {}, units = sp.units || [];
+  if (!units.length) return ''; // 사업부 입력이 없는 사례는 카드 없음
+  const mode = ['show', 'target'].includes(x.sw.sotp) ? x.sw.sotp : 'off', on = mode !== 'off', P = on ? x.res.sotp : null, nar = x.w <= 620, as0 = sp.assets || [];
+  const disc = (k, lab, tip) => (on && as0.some((a) => (a.kind === 'listed') === (k === 'listed') && a.disc == null)
+    ? `<div><span title="${tip}">${lab}</span><span class="v3b-oi">${v3In(x, `sw.sotp_disc_${k}`, c.switches[`sotp_disc_${k}`] ?? (k === 'listed' ? 0.5 : 0.3), { fmt: 'pct', d: 0, lab })}</span></div>` : '');
+  const opt = `<div class="v3-opt"><div><span>사업부별 합산 평가</span>${v3bSw(x, 'sw.sotp', V3B_SOTP, mode)}</div>${disc('listed', '상장 자산 기본 할인', '할인을 따로 정하지 않은 상장 보유 자산에 씁니다.')}${disc('unlisted', '비상장 자산 기본 할인', '할인을 따로 정하지 않은 비상장 보유 자산에 씁니다.')}</div>`;
+  if (!on) return v3Sec('사업부별 합산', '', opt, 'v3b-sotp');
+  const note = `<div data-o="b15.sn">${v3bNote(x, ['sotp_target', 'sotp_input', 'sotp_why', 'sotp_cover', 'sotp_margin', 'sotp_double'], ['info'])}</div>`;
+  if (!P || !P.scen) return v3Sec('사업부별 합산', v3bScDot(x, '단위 억원'), `${opt}${note}<div class="empty">합산 결과가 없습니다.</div>`, 'v3b-sotp');
+  /* 결과 표: 세 시나리오 값, 계산 내용과 근거는 고른 시나리오 것 */
+  const nc = 4 + (nar ? 0 : 1), tx = (basis, why) => `${basis ? `<p class="v3b-sb">${esc(basis)}</p>` : ''}${v3Why(why)}`;
+  const vals = (f) => V3_SCEN.map((S) => `<td class="${S === x.sc ? 'c' : ''}">${f(S)}</td>`).join('');
+  const tr = (cls, name, sub, f, t = '') => `<tr class="${cls}"><td class="st">${name}${sub ? `<small>${esc(sub)}</small>` : ''}</td>${vals(f)}${nar ? '' : `<td class="tx why">${t}</td>`}</tr>${nar && t ? `<tr class="wy"><td class="tx" colspan="${nc}">${t}</td></tr>` : ''}`;
+  const grp = (g) => `<tr class="grp"><td class="tx" colspan="${nc}">${g}</td></tr>`, sc = (S) => P.scen[S] || {};
+  const pc = (v) => (v3Ok(v) ? v3Pct(v, Math.abs(v * 100 - Math.round(v * 100)) > 1e-6 ? 1 : 0) : '-');
+  const urows = (P.units || []).map((u) => tr('', esc(u.name || u.id), `${V3B_SOTP_M[u.method] || u.method || ''}${u.method === 'multiple' && u.metric ? ` ${V3B_SOTP_K[u.metric] || u.metric}` : ''}`, (S) => v3Num(u.ev?.[S]), tx(u.basis?.[x.sc], u.why))).join('');
+  const arows = (P.assets || []).map((a, i) => tr('', esc(a.name || a.id), V3B_SOTP_A[a.kind] || '', () => v3Num(a.value), tx(`${a.kind === 'listed' ? '시가총액' : '평가액'} ${v3Eok(a.base)} × 지분율 ${pc(a.stake)} × (1 − 할인 ${pc(a.disc)})`, as0[i]?.why))).join('');
+  const hqT = tx('', sp.hq?.why);
+  const body = `${grp('사업부')}${urows}${tr('sum', '사업부 가치 합', '', (S) => v3Num(sc(S).units))}${arows ? `${grp('보유 자산')}${arows}${tr('sum', '보유 자산 가치 합', '', (S) => v3Num(sc(S).assets))}` : ''}
+    ${grp('합산')}${v3Ok(sc(x.sc).hq) && (sc('Base').hq || sc('Bull').hq || sc('Bear').hq) ? tr('', '본사 비용', '차감', (S) => v3Num(sc(S).hq), hqT) : ''}${tr('sum', '합산 영업가치', '', (S) => v3Num(sc(S).ev))}
+    ${tr('', '주주가치 다리 합', P.nonop === 'exclude' ? '비영업자산 제외' : '', (S) => v3Num(sc(S).net), '<p class="v3b-sb">현금성자산과 비영업자산에서 비주주청구권을 뺀 값. 전사 DCF와 같음</p>')}${tr('sum', '주주가치', '', (S) => v3Num(sc(S).eq))}
+    ${tr('key', '주당 가치', '원', (S) => v3Num(sc(S).ps))}${tr('', '상승여력', '', (S) => v3bUp(sc(S).up))}${tr('', '전사 DCF 주당 가치', '원', (S) => v3Num(sc(S).dcf_ps))}${tr('', '전사 DCF 대비', '', (S) => v3bUp(sc(S).gap))}`;
+  const tbl = `<div class="mk-scroll"><table class="mk-tbl v3-t v3b-so${nar ? ' v3b-itn' : ''}"><thead><tr><th class="st">구분</th>${V3_SCEN.map((S) => `<th class="${S === x.sc ? 'c' : ''}"><span class="v3-dot ${S}"></span>${S}</th>`).join('')}${nar ? '' : `<th class="tx why">계산 내용과 근거<small>${x.sc}</small></th>`}</tr></thead><tbody>${body}</tbody></table></div>`;
+  const tg = mode === 'target', wv = P.wavg || {}, dw = P.dcf_wavg || {};
+  const wcalc = v3bCalc('b15.sw', [['', '사업부별 합산 가중평균', v3Won(wv.ps), tg ? 'sum' : '', tg ? '목표주가에 씀' : ''], ['', '전사 DCF 가중평균', v3Won(dw.ps)]], [['', '전사 DCF 대비', v3bUp(P.gap)], ['', '상승여력', v3bUp(wv.up), '', `현재가 ${v3Won(x.t.close)}`]]);
+  /* 사업부 가정: 값 하나짜리(배수, WACC, 영구성장률)는 칸으로, 연도별 가정은 가정 표로 */
+  const ks = Object.keys(x.R).filter((id) => id.startsWith('CTL.a.sotp.')).map((id) => id.slice(6)), L = (K) => v3Lab(x, `CTL.a.${K}`);
+  const ones = ks.filter((K) => L(K).cols === 'one'), fcs = ks.filter((K) => L(K).cols !== 'one');
+  const fs = ones.length ? `<div class="v3-fs v3b-sof">${ones.map((K) => v3F(esc(L(K).name), v3bAOne(x, K, L(K).fmt, L(K).name))).join('')}</div>` : '';
+  const its = fcs.map((K) => ({ key: K, name: L(K).name.replace(/\(배부하지 않은 판관비\)$/, '') }));
+  /* 좁은 폭: 가정 이름 줄 아래에 연도 칸(명시 기간이 5년 이하면 가로 스크롤 없음) */
+  const atN = () => { const t = `<table class="mk-tbl v3-t v3-at v3b-dl v3b-dln v3b-san"><thead><tr>${x.tl.fc.map((y) => `<th>${y}E</th>`).join('')}</tr></thead><tbody>${its.map((it) => `<tr class="nm"><td class="tx" colspan="${x.tl.N}"><b>${esc(it.name)}</b>${L(it.key).fmt === 'pct' ? '<small>%</small>' : ''}</td></tr><tr class="vl">${x.tl.fc.map((_, k) => `<td class="in">${v3ACell(x, it.key, k, L(it.key).fmt, null, it.name)}</td>`).join('')}</tr>`).join('')}</tbody></table>`; return x.tl.N > 5 ? `<div class="mk-scroll">${t}</div>` : t; };
+  const at = !fcs.length ? '' : nar ? atN() : v3ATable(x, its, { hist: false, why: false, first: '가정' });
+  return v3Sec('사업부별 합산', v3bScDot(x, '단위 억원'), `${opt}${note}<div data-o="b15.so">${tbl}</div><div class="v3-two v3b-two"><div><h3 class="v3-h3">가중평균</h3>${wcalc}</div><div></div></div>${fs || at ? `<h3 class="v3-h3">사업부 가정</h3>${fs}${at}` : ''}`, 'v3b-sotp');
+}
 
 // ---------- 15 상대가치 결합 ----------
 v3Step(15, (x, c) => {
@@ -2290,18 +2516,18 @@ v3Step(15, (x, c) => {
     ${sp.map(([k, v]) => `<tr><td class="st">${esc(k)}</td><td>${v3Num(v.n)}</td><td>${v3Fmt(v.median, 'x', 1)}</td><td>${v3Num(v.per_share)}</td><td>${v3Ok(v.per_share) && close ? upOf(v.per_share) : v3bUp(v.upside)}</td></tr>`).join('')}</tbody></table></div>` : '';
   const facts = `<div class="v3-opt">${rel.method ? v3bRo('평가 배수', rel.method) : ''}${per ? v3bRo('기준 기간', per) : ''}${v3Ok(rel.multiple) ? v3bRo('배수 중앙값', v3X(rel.multiple, 1)) : ''}${srcOpt}</div>`;
   const relCard = has || rel0.ps ? v3Sec('상대가치 결과', '', `${facts}<div class="v3-two v3b-two v3b-rt${rmC ? ' rm' : ''}"><div>${dist}</div><div>${split}</div></div>`)
-    : v3Sec('상대가치 결과', '', `<div class="empty">상대가치 결과가 없어 ${v3DcfName(x)}을 목표주가로 씁니다.</div>`);
+    : v3Sec('상대가치 결과', '', `<div class="empty">상대가치 결과가 없어 ${v3bDcfName(x)}을 목표주가로 씁니다.</div>`);
   const w = Number(x.sw.blend_w), wp = Math.round(w * 100), w0 = c.switches.blend_w;
-  const slider = `<div class="v3b-bw"><div class="v3b-bw-s"><div class="v3b-bw-l" data-o="b15.wl"><span>상대가치 ${v3Pct(1 - w, 0)}</span><span>${v3DcfName(x)} ${v3Pct(w, 0)}</span></div>
+  const slider = `<div class="v3b-bw"><div class="v3b-bw-s"><div class="v3b-bw-l" data-o="b15.wl"><span>상대가치 ${v3Pct(1 - w, 0)}</span><span>${v3bDcfName(x)} ${v3Pct(w, 0)}</span></div>
       <input type="range" min="0" max="100" step="5" value="${v3Ok(wp) ? wp : 50}" data-v3b-bw aria-label="DCF 비중"${has ? '' : ' disabled'}></div>
     ${v3F('DCF 비중', v3In(x, 'sw.blend_w', w0, { fmt: 'pct', d: 0, lab: 'DCF 비중', dis: !has }))}</div>`;
   const wd = v3Ok(bl.w_dcf) ? bl.w_dcf : w, bad = wv.ok === false, one = (id) => v3V(x, id);
-  const calc = v3bCalc('b15', [['', v3DcfName(x), bad && !v3DcfTyp(x) ? '-' : v3Won(bl.dcf ?? wv.ps), '', `× ${v3Pct(wd, 0)}`], ['+', '상대가치', v3Won(bl.rel), has ? '' : 'off', `× ${v3Pct(1 - wd, 0)}`]],
+  const calc = v3bCalc('b15', [['', v3bDcfName(x), bad && !v3DcfTyp(x) ? '-' : v3Won(bl.dcf ?? wv.ps), '', `× ${v3Pct(wd, 0)}`], ['+', '상대가치', v3Won(bl.rel), has ? '' : 'off', `× ${v3Pct(1 - wd, 0)}`]],
     [['=', '목표주가', v3Won(bl.target), 'k big'], ['', '상승여력', v3bUp(bl.up), '', `현재가 ${v3Won(close)}`]]);
   const fy = (n) => (x.tl.fc[n] ? `${x.tl.fc[n]}E` : ''), im = [['SUM.implied_pe', `PER ${fy(0)}`], ['SUM.implied_pe_fy2', `PER ${fy(1)}`], ['SUM.implied_ev_ebitda', `EV/EBITDA ${fy(0)}`]].filter(([id]) => v3Ok(one(id)));
   const imp = im.length ? `<div data-o="b15.im"><h3 class="v3-h3">목표주가 기준 배수</h3><div class="v3b-calc"><table class="va-calc"><tbody>${im.map(([id, nm]) => v3bRow(['', nm, v3X(one(id), 1)])).join('')}</tbody></table></div></div>` : '';
   const warn = `<div data-o="b15.msg">${bad ? '<p class="v3b-warn">시나리오 가중치 합이 100%가 아니라 목표주가를 계산하지 않습니다.</p>' : ''}</div>`;
-  return relCard + v3Sec('결합', '', `${slider}${warn}<div class="v3-two v3b-two"><div><h3 class="v3-h3">목표주가</h3>${calc}</div><div>${imp}</div></div>`);
+  return relCard + v3bSotp(x, c) + v3Sec('결합', '', `${slider}${warn}<div class="v3-two v3b-two"><div><h3 class="v3-h3">목표주가</h3>${calc}</div><div>${imp}</div></div>`);
 });
 /* 결합 가중치 슬라이더: 끄는 동안 결과 구역만 다시 계산. 숫자 칸과 서로 맞춤(0～100%로 자름) */
 v3On('input', '[data-v3b-bw]', (el, x) => {
@@ -2333,7 +2559,8 @@ v3On('change', '.v3b-bw input[data-k]', (el) => {
    상태: x.st.yo 편 묶음 키 배열, x.st.yh 과거 연도 보이기(0이면 추정만).
    묶음을 누르면 화면을 통째로 다시 그리지 않고 그 tbody만 바꾼다(표 안 스크롤 위치를 지키려고). */
 
-/* 묶음 표. sheets: labels[id].sheet, sum: 접혔을 때 보일 합계 줄. DCF 시트는 FCFF 행까지(cut 0)와 그 뒤(cut 1)로 나눔 */
+/* 묶음 표. sheets: labels[id].sheet, sum: 접혔을 때 보일 합계 줄(sumRe: 줄 ID 규칙으로). DCF 시트는 FCFF 행까지(cut 0)와 그 뒤(cut 1)로 나누고,
+   사업부별 합산 행(DCF.sotp.*)은 그 둘에 섞지 않고 「사업부별 합산」 묶음에 그 사업부 가정(CTL.a.sotp.*)과 함께 둠 */
 const V3Y_G = [
   { k: 'rev', name: '매출', sheets: ['REV'], sum: ['REV.total', 'REV.growth'] },
   { k: 'opx', name: '비용', sheets: ['OPX'], sum: ['OPX.cogs', 'OPX.sga', 'OPX.ebit', 'OPX.ebitda'] },
@@ -2350,6 +2577,7 @@ const V3Y_G = [
   { k: 'fcff', name: 'FCFF', sheets: ['DCF'], cut: 0, sum: ['DCF.nopat', 'DCF.reinv', 'DCF.fcff'],
     tip: 'FCFF = 세후영업이익 + 상각비 − CAPEX − 순운전자본 증가(이자 지급 전). 현금흐름표로 구한 FCF나 Bloomberg 같은 데이터 서비스의 FCF는 정의가 달라 값이 다를 수 있습니다.' },
   { k: 'val', name: '할인과 가치', sheets: ['DCF'], cut: 1, sum: ['DCF.wacc_t', 'DCF.df', 'DCF.pv'] },
+  { k: 'sotp', name: '사업부별 합산', sheets: ['DCF'], sum: ['DCF.sotp.hq_cost'], sumRe: /^DCF\.sotp\.u\.[^.]+\.(rev|ebit)$/ },
   { k: 'adj', name: '정상화 실적', sheets: ['ADJ'], sum: ['ADJ.rev_norm', 'ADJ.ebit_norm'] },
   { k: 'etc', name: '그 밖의 가정', sheets: [], sum: [] },
 ];
@@ -2362,6 +2590,8 @@ const V3Y_RATIO = { pct: 1, x: 1, days: 1 };
 /* 유형자산 워터폴 묶음 줄(PPE.<묶음>.<꼬리>) 이름의 꼬리를 엑셀 워터폴 시트와 같은 우리말로 */
 const V3Y_PPE = { bop: '기초', capex: '취득', xfer: '대체', dep: '상각', oth: '처분, 손상, 기타', eop: '기말' };
 
+/* 사업부별 합산 계산표의 줄 이름(labels 이름에 붙은 풀이를 덜어 냄) */
+const V3Y_SOTP = { 'DCF.sotp.ev': '합산 영업가치', 'DCF.sotp.net': '주주가치 다리 합', 'DCF.sotp.dcf_ps': '전사 DCF 주당 가치', 'DCF.sotp.gap': '전사 DCF 대비', 'DCF.sotp.hq': '본사 비용 가치' };
 const v3yOpen = (x) => (Array.isArray(x.st.yo) ? x.st.yo : []);
 /* 보일 과거 연도 수(x.st.yn). 처음은 사례의 과거 연도 전부(예전 상태 yh = 0이면 0) */
 const v3yNH = (x) => { const H = x.tl.H, v = x.st.yn; if (v == null || v === '') return +x.st.yh === 0 && x.st.yh != null ? 0 : H; return Math.max(0, Math.min(H, Math.trunc(+v) || 0)); };
@@ -2376,6 +2606,7 @@ function v3yName(x, id) {
   });
   const pm = /^PPE\.[^.]+\.(bop|capex|xfer|dep|oth|eop)$/.exec(id);
   if (pm && n.endsWith(` ${pm[1]}`)) n = `${n.slice(0, -pm[1].length)}${V3Y_PPE[pm[1]]}`;
+  if (V3Y_SOTP[id]) n = V3Y_SOTP[id];
   return n.replace(/ g$/, ' 성장률').replace(/ val$/, '').replace(/\(차이\)$/, '');
 }
 /* 줄 이름 칸 툴팁. 기타비유동부채: 운전자본에서 뺀 당기법인세부채, 미지급배당금이 여기 들어 있음(input.nwc_excl, 분류가 nonop일 때) */
@@ -2413,17 +2644,19 @@ function v3yView(x) {
     if (L.kind === 'check' && L.fmt === 'amt' && (/\(차이\)$/.test(L.name) || /\.check(_[a-z]+)?$/.test(id))) (chk[L.sheet] ||= []).push(id); else (sheet[L.sheet] ||= []).push(id);
     tail[id.slice(id.indexOf('.') + 1)] ??= id;
   }
-  const pair = {}, A = {}, rest = [];
+  const pair = {}, A = {}, rest = [], sotpA = [];
+  const drv = !!(x.R['PPE.capex_capa'] || x.R['PPE.capex_store']); // 설비 능력, 점포 수 드라이버가 있으면 확장 CAPEX 행은 직접 입력 + 드라이버라 가정과 짝이 아님
   for (const K of keys) {
+    if (K.startsWith('sotp.')) { A[K] = x.R[`CTL.a.${K}`]; pair[`CTL.a.${K}`] = K; sotpA.push(`CTL.a.${K}`); continue; }
     const a = x.R[`CTL.a.${K}`], fmt = x.lab[`CTL.a.${K}`].fmt;
     let rid = V3Y_PAIR[K], m;
     if (!rid) rid = (m = /^rev\.(.+)\.([^.]+)$/.exec(K)) ? `REV.l.${m[1]}.${m[2]}` : (m = /^sga_(.+)_pct$/.exec(K)) ? `OPX.sga.${m[1]}.pct` : (m = /^sga_(.+)_val$/.exec(K)) ? `OPX.sga.${m[1]}` : tail[K];
     const RL = rid && x.lab[rid], r = rid && x.R[rid], off = RL && RL.cols === 'hist+fc' ? H : 0;
     A[K] = a;
-    if (RL && r && RL.fmt === fmt && RL.cols !== 'one' && !pair[rid] && a.some((v, i) => v3yNear(r[off + i], v))) pair[rid] = K;
+    if (RL && r && RL.fmt === fmt && RL.cols !== 'one' && !pair[rid] && !(drv && K === 'capex_exp') && a.some((v, i) => v3yNear(r[off + i], v))) pair[rid] = K;
     else { pair[`CTL.a.${K}`] = K; rest.push(`CTL.a.${K}`); }
   }
-  return { cols, sheet, chk, pair, A, rest, dh, showH, H, N, M };
+  return { cols, sheet, chk, pair, A, rest, sotpA, dh, showH, H, N, M };
 }
 
 /* 표 한 줄. o: {lv 들여쓰기 단계, name 바꿔 쓸 이름, sum 합계 줄} */
@@ -2480,18 +2713,25 @@ function v3yRows(x, V, g) {
   if (g.k === 'etc') return V.rest.map((id) => ({ id }));
   if (g.k === 'rev') return v3yRevRows(x, V);
   let ids = g.sheets.flatMap((s) => V.sheet[s] || []);
+  const isSum = (id) => g.sum.includes(id) || !!(g.sumRe && g.sumRe.test(id));
+  if (g.k === 'sotp') { // 사업부마다 가정 줄 다음에 계산 줄, 끝에 본사 비용
+    const d = ids.filter((id) => id.startsWith('DCF.sotp.')), all = [...V.sotpA, ...d], pre = (id) => { const m = /^(?:CTL\.a|DCF)\.sotp\.(u\.[^.]+|hq)/.exec(id); return m ? m[1] : 'z'; };
+    const ord = [...new Set(all.map(pre))].sort((a, b) => (a === 'hq' || a === 'z') - (b === 'hq' || b === 'z'));
+    return ord.flatMap((p) => all.filter((id) => pre(id) === p)).map((id) => ({ id, sum: isSum(id) }));
+  }
+  if (g.sheets.includes('DCF')) ids = ids.filter((id) => !id.startsWith('DCF.sotp.'));
   if (g.cut != null) { const i = ids.indexOf('DCF.fcff'); ids = i < 0 ? (g.cut ? [] : ids) : g.cut ? ids.slice(i + 1) : ids.slice(0, i + 1); }
   if (g.k === 'debt') {
     const live = {};
     for (const id of ids) { const m = /^DEBT\.([^.]+)\.([^.]+)$/.exec(id); if (m && m[2] !== 'rate' && x.R[id].some((v) => v)) live[m[1]] = 1; } // 이자율 줄은 늘 값이 있어 판정에서 뺌
     ids = ids.filter((id) => { const m = /^DEBT\.([^.]+)\.[^.]+$/.exec(id); return !m || live[m[1]]; });
   }
-  return ids.map((id) => ({ id, sum: g.sum.includes(id) }));
+  return ids.map((id) => ({ id, sum: isSum(id) }));
 }
 function v3yBody(x, V, g) {
-  const open = v3yOpen(x).includes(g.k), rows = v3yRows(x, V, g), chk = g.sheets.flatMap((s) => V.chk[s] || []);
+  const open = v3yOpen(x).includes(g.k), rows = v3yRows(x, V, g), chk = g.k === 'sotp' ? [] : g.sheets.flatMap((s) => V.chk[s] || []);
   if (!rows.length && !chk.length) return '';
-  const shown = open ? rows : rows.filter((r) => g.sum.includes(r.id)).map((r) => ({ id: r.id, sum: true }));
+  const shown = open ? rows : rows.filter((r) => g.sum.includes(r.id) || (g.sumRe && g.sumRe.test(r.id))).map((r) => ({ id: r.id, sum: true }));
   let h = `<tbody data-v3y-b="${g.k}"><tr class="grp"><td class="st"><button type="button" class="v3y-g" data-v3y-g="${g.k}" aria-expanded="${open}"${g.tip ? ` title="${esc(g.tip)}"` : ''}>${esc(g.name)}</button></td><td colspan="${V.cols.length + 2}"></td></tr>`;
   for (const r of shown) h += v3yTr(x, V, r.id, r);
   for (const id of chk) h += v3yChkTr(x, V, id);
@@ -2504,12 +2744,13 @@ function v3yCalc(x) {
   const row = (id, { op = '', zero = true, cnt = '', cls = '' } = {}) => {
     const L = x.lab[id], v = v3V(x, id);
     if (!L || !x.R[id] || (!zero && !v)) return '';
-    return `<tr${cls ? ` class="${cls}"` : ''}><th>${op ? `${op} ` : ''}${esc(v3yName(x, id))}</th><td>${id === 'DCF.up' ? v3Up(v) || '-' : v3yOne(v, L.fmt, cnt)}</td></tr>`;
+    return `<tr${cls ? ` class="${cls}"` : ''}><th>${op ? `${op} ` : ''}${esc(v3yName(x, id))}</th><td>${/^DCF\.(up|sotp\.up|sotp\.gap)$/.test(id) ? v3Up(v) || '-' : v3yOne(v, L.fmt, cnt)}</td></tr>`;
   };
+  const keC = v3V(x, 'WACC.ke_capm'), keD = v3Ok(keC) && Math.abs(keC - (v3V(x, 'WACC.ke') || 0)) > 1e-9; // CAPM 참고 줄은 자기자본비용과 다를 때만
   const tbl = (title, parts) => { const b = parts.map(([cls, rows]) => (rows ? `<tbody${cls ? ` class="${cls}"` : ''}>${rows}</tbody>` : '')).join(''); return b ? `<div><h3 class="v3-h3">${title}</h3><table class="va-calc">${b}</table></div>` : ''; };
   const wacc = tbl('WACC', [
-    ['', row('WACC.rf') + row('WACC.beta', { op: '+' }) + row('WACC.erp', { op: '×' }) + row('WACC.prem', { op: '+', zero: false })],
-    ['', row('WACC.ke', { op: '=' }) + row('WACC.we')],
+    ['', row('WACC.rf') + row('WACC.beta', { op: '+' }) + row('WACC.erp', { op: '×' }) + row('WACC.prem', { op: '+', zero: false }) + row('WACC.ff3.smb', { zero: false, cls: 'sub' }) + row('WACC.ff3.hml', { zero: false, cls: 'sub' }) + row('WACC.firm_prem', { zero: false, cls: 'sub' })],
+    ['', row('WACC.ke', { op: '=' }) + (keD ? row('WACC.ke_capm', { cls: 'sub' }) : '') + row('WACC.we')],
     ['', row('WACC.kd_pre') + row('WACC.t_m') + row('WACC.kd', { op: '=' }) + row('WACC.wd')],
     ['res', row('WACC.wacc', { cls: 'k' }) + row('WACC.wacc_s') + row('DCF.g_s')],
   ]);
@@ -2525,7 +2766,18 @@ function v3yCalc(x) {
     ['res', row('DCF.ps', { cls: 'k' })],
     ['', row('CTL.price') + row('DCF.up')],
   ]);
-  return wacc + eq + ps;
+  /* 사업부별 합산(켰고 사업부 입력이 있을 때만 행이 있음): 값 하나짜리 가정, 사업부와 보유 자산 가치, 합계 */
+  const so = (re) => Object.keys(x.lab).filter((id) => re.test(id) && x.lab[id].cols === 'one' && x.R[id]);
+  const sotp = x.R['DCF.sotp.ev'] ? tbl('사업부별 합산', [
+    ['', so(/^CTL\.a\.sotp\./).map((id) => row(id)).join('')],
+    ['', so(/^DCF\.sotp\.u\.[^.]+\.ev$/).map((id, i) => row(id, { op: i ? '+' : '' })).join('') + row('DCF.sotp.units', { op: '=' })],
+    ['', so(/^DCF\.sotp\.h\./).map((id) => row(id, { op: '+' })).join('') + row('DCF.sotp.hq', { op: '−', zero: false })],
+    ['res', row('DCF.sotp.ev', { op: '=' })],
+    ['', row('DCF.sotp.net', { op: '+' })],
+    ['res', row('DCF.sotp.eq', { op: '=' }) + row('DCF.sotp.ps', { cls: 'k' })],
+    ['', row('DCF.sotp.up') + row('DCF.sotp.dcf_ps') + row('DCF.sotp.gap')],
+  ]) : '';
+  return wacc + eq + ps + sotp;
 }
 
 v3Tab('yr', (x) => {
@@ -2574,12 +2826,14 @@ const V3Y_SW = {
   alt_models: '다른 모형 계산', adj_fc: '진행 연도 매출 보정 반영', eps_basis: 'EPS 주식 수', beta_u_tax: '무차입 베타 세율', ucost_interp: '단위원가 보간', loan_class: '대여금, 보증금 분류',
   scn_base_rule: '가정 없는 수량, 단가 성장률 기본값', hc_basis: '인당 인건비 직원 수 기준', hc_rnd: 'R&D 부서 인원', share_years: '판관비 몫 평균 연수', taxpay_class: '당기법인세부채, 미지급배당금',
   fade_g_manual: '전환 기간 성장률 직접 입력', ke_bond_rp: '타인자본비용 가산', rel_scen_src: '상대가치 Bull, Bear', nci_pbr: '비지배지분 PBR', beta_adj_on: '베타 조정 대상', reinv_end: '재투자율 끝값', ty_reinv: '종료연도 재투자',
+  sotp: '사업부별 합산 평가', sotp_disc_listed: '상장 보유 자산 기본 할인', sotp_disc_unlisted: '비상장 보유 자산 기본 할인', bridge_basis: '주주가치 다리 잔액', ke_firm_prem: '기업 고유 프리미엄', ke_esg_prem: 'ESG 가산',
+  resid_cost: '체계 차이 매출의 원가', freight_class: '운반비 묶음', xl_calc: '엑셀 계산 방식',
   rim_fade_years: 'RIM 전환 기간', rim_blend_w: 'RIM 종료가치 혼합 비중', holding_hot_per: '지주사 과열 PER 기준', holding_hot_pbr: '지주사 과열 PBR 기준',
   rel_fund_basis: '펀더멘털 배수 이익 기준', rel_payout_basis: '펀더멘털 배수 배당성향', rel_roe_basis: '펀더멘털 배수 ROE', rel_matrix_line: '매트릭스 기준선', rel_reg_cut: '회귀 표본 PER 범위 규칙', rel_adj_on: '차이 조정 대상',
   rel_hist_n: '과거 평균 배수 연수', rel_th_spread: '배수별 가치 차이 기준', rel_th_ev_mcap: 'EV와 시가총액 차이 기준', rel_th_price_spike: '비교기업 주가 급등 기준', rel_th_cap_gap: '자본구조 차이 기준',
 };
 const V3Y_SW_SUB = { wacc: 'WACC', g: '영구성장률', margin: '영업이익률', growth: '성장률' };
-const V3Y_SW_PCT = new Set(['min_cash', 'blend_w', 'beta_adj_w', 'prem_size', 'prem_spec', 'prem_country', 'wacc_override', 'ty_margin', 'fade_margin_target', 'dlom', 'control_prem', 'key_person', 'holding_disc', 'mc_wacc_sd', 'mc_g_sd', 'mc_min_spread', 'mc_up_th', 'weights', 'sens_step', 'fade_g_manual', 'ke_bond_rp',
+const V3Y_SW_PCT = new Set(['min_cash', 'blend_w', 'beta_adj_w', 'prem_size', 'prem_spec', 'prem_country', 'wacc_override', 'ty_margin', 'fade_margin_target', 'dlom', 'control_prem', 'key_person', 'holding_disc', 'mc_wacc_sd', 'mc_g_sd', 'mc_min_spread', 'mc_up_th', 'weights', 'sens_step', 'fade_g_manual', 'ke_bond_rp', 'ke_firm_prem', 'ke_esg_prem', 'sotp_disc_listed', 'sotp_disc_unlisted',
   'rel_th_spread', 'rel_th_ev_mcap', 'rel_th_price_spike', 'rel_th_cap_gap']);
 /* 시장 값(m.)과 한 값 덮기(o.): [이름, 처음 값] */
 const V3Y_MO = {
@@ -2601,6 +2855,8 @@ const V3Y_IN = {
   ltm: '최근 12개월', ebitda: 'EBITDA', ni: '순이익', old_terms: '승계 차입', rate: '금리', spread: '가산금리', floor: '금리 하한', mand_pct: '연 의무 상환', term: '만기 연수',
   ppa: '인수가격 배분', items: '항목', pct: '초과 인수가 대비', dtl_rate: '이연법인세 세율', tax_deductible: '세무상 상각 인정', tranches: '차입 구성', rcf: '리볼버', tla: 'Term Loan A', tlb: 'Term Loan B', sub: '후순위채',
   mult: 'EBITDA 배수', pik_rate: 'PIK 금리', sweep_pct: '임의 상환 비율', max_iter: '이자 순환 반복 한도', party_fee_to_lender: '금융 수수료 대주 수입', entry_basis: '진입 기준', min_cash: '최소 현금', base_rate: '기준금리',
+  bal: '결산 말 잔액', fy0: '직전 결산 말', fy0p: '그 전 결산 말', sotp: '사업부별 합산',
+  remain_life: '기존 잔액 남은 연수',
   lbo: 'LBO', close_gap: '종결일 간격', entry_net_debt: '종결일 순차입금', premium: '인수 프리미엄', stake: '인수 지분율', tx_fee_pct: '거래 수수료율', exit_year: '회수 연도', equity_value: '지분가치',
   options: '스톡옵션', bw: '신주인수권', rsu: 'RSU', rcps: '상환전환우선주', qty: '수량', strike: '행사가', conv_price: '전환가', basic_hist: '연도별 유통주식수', scen: '시나리오',
 };
@@ -2633,10 +2889,16 @@ const v3ySwVal = (n, v, pct) => {
 /* input 값 가운데 글자로 된 선택지 이름(경로의 마지막 낱말 기준) */
 const V3Y_INV = { close_gap: { none: '조정 없음', stub: '첫해 기간 반영' }, entry_basis: { fy0: '직전 결산', ltm: '최근 12개월' } };
 const V3Y_INP = new Set(['g_peer_mature', 'g_manual', 'kd_market_yield', 'kd_recent_issue', 'kd_peer_avg', 'kd_manual', 'historical', 'implied', 'premium', 'stake', 'tx_fee_pct', 'rate', 'spread', 'floor', 'mand_pct', 'pik_rate', 'sweep_pct', 'dtl_rate', 'pct', 'base_rate']); // 비율로 보여 줄 input 값
-/* 평균에서 뺀 연도가 {all: [연도], <가정 키>: [연도]} 꼴일 때 「가정 이름 연도」로 */
+/* 평균에서 뺀 연도가 {all: [연도], <가정 키>: [연도] 또는 {exclude: [연도], include: [연도]}} 꼴일 때 「가정 이름 연도 뺌」, 「가정 이름 연도 다시 넣음」으로.
+   include는 모든 평균에서 빼 둔 해(all)를 그 가정 평균에만 다시 넣은 것 */
 function v3yExVal(x, v) {
   if (!v || typeof v !== 'object' || Array.isArray(v)) return v3yVal(v);
-  const out = Object.entries(v).filter(([, ys]) => Array.isArray(ys) && ys.length).map(([k, ys]) => `${k === 'all' ? '모든 평균' : x.lab[`CTL.a.${k}`] ? v3yName(x, `CTL.a.${k}`) : k} ${ys.join(', ')}`);
+  const nm = (k) => (k === 'all' ? '모든 평균' : x.lab[`CTL.a.${k}`] ? v3yName(x, `CTL.a.${k}`) : k), ys = (a) => (Array.isArray(a) && a.length ? a.join(', ') : ''), out = [];
+  for (const [k, o] of Object.entries(v)) {
+    const ex = ys(Array.isArray(o) ? o : o?.exclude), inc = Array.isArray(o) ? '' : ys(o?.include);
+    if (ex) out.push(`${nm(k)} ${ex} 뺌`);
+    if (inc) out.push(`${nm(k)} ${inc} 다시 넣음`);
+  }
   return out.length ? out.join('; ') : '없음';
 }
 /* 덮기 키 하나를 [이름, 처음 값, 바꾼 값]으로 */
@@ -2648,7 +2910,7 @@ function v3yOv(x, k, e) {
       const tr = /^debt_rate\.(.+)$/.exec(K), nm = x.lab[id] ? v3yName(x, id) : tr && x.lab[`DEBT.${tr[1]}.rate`] ? v3yName(x, `DEBT.${tr[1]}.rate`) : K;
       return [`${nm} ${S === '*' ? '세 시나리오' : S}`, '', typeof e.v === 'number' ? v3yOne(e.v, x.lab[id] ? L.fmt : tr ? 'pct' : 'num') : '연도별 값'];
     }
-    return [`${v3yName(x, id)} ${S === '*' ? '세 시나리오' : S} ${x.tl.fc[+sub] ? `${x.tl.fc[+sub]}년` : `${+sub + 1}번째 해`}`, v3yOne(r0?.[+sub], L.fmt), v3yOne(e.v, L.fmt)];
+    return [`${v3yName(x, id)} ${S === '*' ? '세 시나리오' : S}${L.cols === 'one' ? '' : ` ${x.tl.fc[+sub] ? `${x.tl.fc[+sub]}년` : `${+sub + 1}번째 해`}`}`, v3yOne(r0?.[+sub], L.fmt), v3yOne(e.v, L.fmt)];
   }
   if (b.startsWith('sw.')) {
     const n = b.slice(3), base = c.switches[n], pct = V3Y_SW_PCT.has(n);
@@ -2735,9 +2997,9 @@ v3On('click', '[data-v3y-undo]', (el, x) => { delete v3St(x.c).ov[el.dataset.v3y
 // 요약은 SK오션플랜트 IM 35쪽 구성(결론, 근거 숫자, 그림, 부록 순), 상세는 Valley 상세 보고서(실적 추정 차트와 단계별 근거), 시나리오는 세 값 비교와 가중치.
 // 입력은 시나리오 가중치(sw.weights#<S>)뿐이고 나머지는 x.res 를 읽기만 함. 판단 메모는 x.st.memo
 const V3P_SC = { Bull: 'bull', Base: 'base', Bear: 'bear' };
-const V3P_KD = { synthetic: '이자보상배율로 정한 합성 등급', rating: '신용등급 스프레드', effective: '실효이자율', market_yield: '회사채 시장 수익률', manual: '직접 입력', input: '직접 입력' };
-const V3P_NOTE = { 매출원가: ['cogs_r'], 법인세: ['tax_eff'], 재투자: ['capex', 'capex_maint_pct', 'dep_rate', 'amort_rate', 'int_capex_other_pct', 'dso', 'dio', 'dpo', 'oca_pct', 'ocl_pct'], '재무 구조': ['debt', 'debt_rate', 'cash_rate', 'payout', 'nci_share', 'lease_repay_rate'] };
-const V3P_NOTE_NM = { capex: 'CAPEX', debt: '차입' };
+const V3P_KD = { synthetic: '이자보상배율로 정한 합성 등급', rating: '신용등급 스프레드', effective: '실효이자율', market_yield: '회사채 시장 수익률', recent_issue: '최근 발행 금리', peer_avg: '비교기업 평균', extra_spread: '합성 등급과 추가 스프레드', manual: '직접 입력', input: '직접 입력' };
+const V3P_NOTE = { 매출원가: ['cogs_r'], 법인세: ['tax_eff'], 타인자본비용: ['kd'], 재투자: ['capex', 'capex_maint_pct', 'dep_rate', 'amort_rate', 'int_capex_other_pct', 'dso', 'dio', 'dpo', 'oca_pct', 'ocl_pct'], '재무 구조': ['debt', 'debt_rate', 'cash_rate', 'payout', 'nci_share', 'lease_repay_rate'] };
+const V3P_NOTE_NM = { capex: 'CAPEX', debt: '차입', kd: '타인자본비용' };
 const v3pAdd = (a) => (a || []).reduce((s, v) => s + (v3Ok(v) ? +v : 0), 0);
 const v3pDot = (S) => `<i class="v3-dot v3p-dot ${S}"></i>`;
 const v3pHead = (x, unit) => `<span class="v3-dot ${x.sc}"></span><span class="meta">${x.sc}</span>${unit ? `<span class="meta act">단위 ${unit}</span>` : ''}`;
@@ -2745,6 +3007,9 @@ const v3pAxPct = (v) => v3Pct(v, Math.abs(v * 100 - Math.round(v * 100)) < 1e-6 
 const v3pSumPct = (v) => (v3Ok(v) ? `${+(v * 100).toFixed(2)}%` : '-');
 const v3pW2 = (x) => (x.w > 1000 ? v3Wd(x, 2) : v3Wd(x)); // 카드 한 장 안 두 칸(.v3p-two)의 한 칸 폭
 const v3pWg = (x) => (x.w > 1000 ? Math.max(280, Math.floor((x.w - 16) / 2) - 48) : v3Wd(x)); // 카드 두 장을 나란히(.v3p-grid) 놓을 때 한 장 안쪽 폭
+/* 사업부별 합산(x.res.sotp)이 목표주가의 DCF 자리에 들어간 사례(mode = target)는 시나리오 주당 가치, 가중평균, 민감도가 합산 값. 그 화면 머리에 표시 */
+const v3pSotpOn = (x) => x.res.sotp?.mode === 'target';
+const v3pSotpTag = (x) => (v3pSotpOn(x) ? '<span class="meta act">사업부별 합산 기준</span>' : '');
 const v3pWhyNot = (wv) => (Math.abs((wv.sum ?? 1) - 1) > 1e-6 ? `가중치 합 ${v3pSumPct(wv.sum)}라 계산하지 않음` : '계산되지 않은 시나리오가 있어 가중평균을 내지 않음');
 
 // ===== 요약 =====
@@ -2775,7 +3040,7 @@ function v3pTop(x) {
     return `<button type="button" class="v3p-sc ${on ? 'on' : ''}" data-v3-seg="sc" data-v="${S}" aria-pressed="${on}"><span>${v3pDot(S)}${S}</span><small>가중치 ${v3Pct(wt[S])}</small><b>${v3Ok(y.ps) ? v3Won(y.ps) : '계산 불가'}</b><em>${v3Up(y.up)}</em></button>`;
   }).join('');
   const rng = v3pRange(x, v3Wd(x)), cov = typeof v3qCover === 'function' ? v3qCover(x) : null;
-  return v3Sec('평가 결과', '', `<div data-o="p-top"><p class="v3p-say">${say}</p><div class="v3p-scs">${cells}</div>${rng ? `<div class="v3p-rng"${cov ? ` title="${esc(`${cov.text} ${cov.tip}`)}"` : ''}>${rng}</div>` : ''}</div>`, 'v3p-top');
+  return v3Sec('평가 결과', v3pSotpTag(x), `<div data-o="p-top"><p class="v3p-say">${say}</p><div class="v3p-scs">${cells}</div>${rng ? `<div class="v3p-rng"${cov ? ` title="${esc(`${cov.text} ${cov.tip}`)}"` : ''}>${rng}</div>` : ''}</div>`, 'v3p-top');
 }
 function v3pKey(x) {
   const { H, N, M, fc } = x.tl;
@@ -2797,9 +3062,10 @@ function v3pBridge(x, w) {
   const items = [{ label: '명시 기간 현재가치', value: v3pAdd(pv.slice(0, N)), kind: 'start' }, M ? { label: '전환 기간 현재가치', value: v3pAdd(pv.slice(N, N + M)), kind: 'add' } : null,
     { label: '종료가치 현재가치', value: one('DCF.pv_tv'), kind: 'add' }, { label: '영업가치', value: one('DCF.ev'), kind: 'total' },
     { label: '현금성자산과 비영업자산', value: (one('DCF.cash') || 0) + (one('DCF.nonop') || 0), kind: 'add' }, { label: '비주주청구권', value: claim, kind: 'sub' }, { label: '주주가치', value: one('DCF.eq'), kind: 'total' }];
-  const ps = one('DCF.ps');
+  const ps = one('DCF.ps'), tg = v3pSotpOn(x), dps = tg ? one('DCF.sotp.dcf_ps') : ps, won = (v) => (v3Ok(v) ? v3Won(v) : '계산 불가');
+  const bb = x.sw.bridge_basis && x.sw.bridge_basis !== 'latest' ? (x.res.checks || []).filter((k) => k.id === 'bridge_basis').map((k) => `<p class="v3p-bb${k.level === 'info' ? '' : ' warn'}">${esc(k.text)}</p>`).join('') : '';
   return v3Sec('가치 다리', v3pHead(x, '억원'), `<div data-o="p-br">${v3cWaterfall({ w, h: x.w > 1000 ? 440 : 280, items, fmt: (v) => v3Num(v), title: '영업가치에서 주주가치까지' })}
-    <p class="v3p-cap"><span>주식 수 <b>${v3Num(one('DCF.shares'))}주</b></span><span>주당 가치 <b>${v3Ok(ps) ? v3Won(ps) : '계산 불가'}</b></span></p></div>`);
+    <p class="v3p-cap"><span>주식 수 <b>${v3Num(one('DCF.shares'))}주</b></span><span>${tg ? '전사 DCF 주당 가치' : '주당 가치'} <b>${won(dps)}</b></span>${tg ? `<span>사업부별 합산 주당 가치 <b>${won(ps)}</b></span>` : ''}</p>${bb}</div>`);
 }
 function v3pFin(x) {
   const ys = v3Years(x, 'hist+fc'), H = x.tl.H;
@@ -2933,9 +3199,37 @@ function v3pStory(x) {
   const groups = [...new Set(map.map((m) => m.group))];
   return v3Sec('단계별 근거', v3pHead(x), `<div data-o="p-story">${groups.map((g) => `<div class="v3p-grp"><h3 class="v3-h3">${esc(g)}</h3>${map.map((m, i) => (m.group === g ? step(m, i) : '')).join('')}</div>`).join('')}</div>`, 'v3p-story');
 }
+/* 사업부별 합산(x.res.sotp, 스위치 sotp가 show나 target이고 사업부 입력이 있을 때만). 읽기 전용이고 입력과 가정 칸은 입력 15단계.
+   사업부 줄 아래 작은 글은 고른 시나리오의 계산 내용(엔진 문장), 보유 자산 줄 아래는 금액, 지분율, 할인. 금액은 억원 */
+const V3P_SOTP_M = { sales: 'EV/Sales', ebit: 'EV/EBIT', ebitda: 'EV/EBITDA' };
+function v3pSotp(x) {
+  const sp = x.res.sotp, sc = sp?.scen;
+  if (!sp || !sc || !V3_SCEN.every((S) => sc[S])) return '';
+  const tr = (name, f, cls = '', sub = '') => `<tr class="${cls}"><td class="st">${name}</td>${V3_SCEN.map((S) => `<td class="${S === x.sc ? 'on' : ''}">${f(S)}</td>`).join('')}</tr>${sub ? `<tr class="v3p-sb"><td class="st" colspan="4">${sub}</td></tr>` : ''}`;
+  const grp = (g) => `<tr class="grp"><th class="st">${g}</th><td colspan="3"></td></tr>`, sm = (t) => (t ? `<small>${esc(t)}</small>` : ''), amt = (v) => v3Num(v);
+  const units = (sp.units || []).filter(Boolean), assets = (sp.assets || []).filter(Boolean), hq = sp.hq || {}, hasHq = V3_SCEN.some((S) => v3Ok(hq[S]) && Math.abs(hq[S]) > 1e-9);
+  let body = units.length ? grp('사업부') : '';
+  for (const u of units) body += tr(`<span${u.why ? ` class="v3p-tip" title="${esc(u.why)}"` : ''}>${esc(u.name || u.id)}</span>${sm(u.method === 'dcf' ? '사업부 DCF' : `배수법${V3P_SOTP_M[u.metric] ? ` ${V3P_SOTP_M[u.metric]}` : ''}`)}`, (S) => amt(u.ev?.[S]), '', esc(u.basis?.[x.sc] || ''));
+  if (units.length > 1) body += tr('사업부 가치 합', (S) => amt(sc[S].units), 'sum');
+  if (assets.length) {
+    body += grp('보유 자산');
+    for (const a of assets) body += tr(`${esc(a.name || a.id)}${sm(a.kind === 'listed' ? '상장' : a.kind === 'unlisted' ? '비상장' : '')}`, () => amt(a.value), '',
+      [v3Ok(a.base) ? `금액 ${v3Eok(a.base)}` : '', v3Ok(a.stake) ? `지분율 ${v3Pct(a.stake, 1)}` : '', v3Ok(a.disc) ? `할인 ${v3Pct(a.disc, 1)}` : ''].filter(Boolean).join(', '));
+    if (assets.length > 1) body += tr('보유 자산 가치 합', (S) => amt(sc[S].assets), 'sum');
+  }
+  body += grp('합계') + (hasHq ? tr('본사 비용<small>차감</small>', (S) => amt(hq[S])) : '') + tr('합산 영업가치', (S) => amt(sc[S].ev), 'sum')
+    + tr(`<span class="v3p-tip" title="전사 DCF와 같은 값">주주가치 다리 합</span>${sp.nonop === 'exclude' ? sm('비영업자산 제외') : ''}`, (S) => amt(sc[S].net)) + tr('주주가치', (S) => amt(sc[S].eq), 'sum')
+    + tr('주당 가치<small>원</small>', (S) => `<span${v3Ok(sc[S].ps_raw) ? ` title="반올림 전 ${esc(v3Won(sc[S].ps_raw))}"` : ''}>${v3Ok(sc[S].ps) ? amt(sc[S].ps) : '계산 불가'}</span>`, 'key') + tr('상승여력', (S) => v3Up(sc[S].up) || '-')
+    + tr('전사 DCF 주당 가치<small>원</small>', (S) => amt(sc[S].dcf_ps)) + tr('전사 DCF 대비', (S) => v3Up(sc[S].gap) || '-');
+  const kv = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`, wv = sp.wavg || {}, dw = sp.dcf_wavg || {};
+  const avg = v3Ok(wv.ps) || v3Ok(dw.ps) ? `<dl class="va-kv v3p-sokv">${kv('합산 가중평균', `${v3Won(wv.ps)}${v3Ok(wv.up) ? `<small>${v3Up(wv.up)}</small>` : ''}`)}${kv('전사 DCF 가중평균', v3Won(dw.ps))}${kv('전사 DCF 대비', v3Up(sp.gap) || '-')}</dl>` : '';
+  const th = V3_SCEN.map((S) => `<th class="${S === x.sc ? 'on' : ''}">${v3pDot(S)}${S}</th>`).join('');
+  return v3Sec('사업부별 합산', `<span class="meta">${sp.mode === 'target' ? '목표주가에 반영' : '참고'}</span><span class="meta act">단위 억원</span>`,
+    `<div data-o="p-sotp"><div class="mk-scroll"><table class="mk-tbl v3-t v3p-kt v3p-sot"><thead><tr><th class="st">구분</th>${th}</tr></thead><tbody>${body}</tbody></table></div>${avg}</div>`, 'v3p-sotp');
+}
 function v3pDetScreen(x) {
   const wg = v3pWg(x);
-  return `${v3pPerf(x)}<div class="v3p-grid">${v3pRevPath(x, wg)}${v3pFcff(x, wg)}</div>${v3pStory(x)}`;
+  return `${v3pPerf(x)}<div class="v3p-grid">${v3pRevPath(x, wg)}${v3pFcff(x, wg)}</div>${v3pSotp(x)}${v3pStory(x)}`;
 }
 
 // ===== 시나리오 =====
@@ -2970,7 +3264,7 @@ function v3pScenMain(x) {
     <div data-o="p-sc-msg">${ok ? '' : `<p class="v3p-warn">${v3pWhyNot(wv)}</p>`}</div></div>`;
   const cw = x.w > 1000 ? Math.max(280, Math.floor((x.w - 80) / 2.5)) : v3Wd(x);
   const why = x.I.notes_in?.scenario_why || {}, notes = V3_SCEN.map((S) => ({ S, text: why[S] || v3Note(x, `scenario.${S}`) })).filter((n) => n.text);
-  return v3Sec('시나리오와 가중평균', '', `<div class="v3p-scg">${tbl}<div data-o="p-sc-bars">${v3pScenBars(x, cw, x.w > 1000 ? 420 : 250)}</div></div>
+  return v3Sec('시나리오와 가중평균', v3pSotpTag(x), `<div class="v3p-scg">${tbl}<div data-o="p-sc-bars">${v3pScenBars(x, cw, x.w > 1000 ? 420 : 250)}</div></div>
     ${notes.length ? `<h3 class="v3-h3">시나리오 근거</h3><dl class="v3p-notes">${notes.map((n) => `<div><dt>${v3pDot(n.S)}${n.S}</dt><dd>${esc(n.text)}</dd></div>`).join('')}</dl>` : ''}`);
 }
 function v3pScenPath(x) {
@@ -3084,10 +3378,10 @@ function v3qSens(x, c) {
   const amOpen = x.st.qam != null ? !!x.st.qam : x.sw.company_type === 'financial' || ['ddm', 'rim'].includes(x.sw.dcf_model);
   const amBtn = am.length ? `<div class="v3q-amb"><button class="btn ghost sm" type="button" data-v3q-am="${amOpen ? 0 : 1}" aria-expanded="${amOpen}">다른 모형 민감도 ${amOpen ? '접기' : '펴기'}</button></div>` : '';
   const amT = am.length && amOpen ? `<div class="v3q-sg v3q-am">${am.map(([k, nm, xn, xf]) => `<div data-o="q-s-${k}"><h3 class="v3-h3">${nm}<small>주당 가치</small></h3>${v3qSensTbl(s[k], xn, xf, close, { yName: 'Ke', yTip: '자기자본비용' })}</div>`).join('')}</div>` : '';
-  const two = v3Sec('이중 변수', `<span class="meta">Base, 현재가 ${v3Won(close)}, 단위 원</span>`, `<div class="v3q-sg">${steps}
+  const two = v3Sec('이중 변수', `<span class="meta">Base, 현재가 ${v3Won(close)}, 단위 원</span>${v3pSotpTag(x)}`, `<div class="v3q-sg">${steps}
     ${tb('wacc_g', '영구성장률', (v) => v3Pct(v, 2), { yTip: V3Q_TIP.wacc, xTip: V3Q_TIP.g + (x.sw.roc_s === 'wacc' ? V3Q_TIP.gRoc : '') })}${tb('wacc_margin', '종료연도 영업이익률', (v) => v3Pct(v, dm))}${tb('wacc_fade', fName, (v) => v3qPp(v, df), fo)}</div>${amBtn}${amT}`);
   const rows = v3qTorRows(x, nar);
-  const tor = v3Sec(v3qTip('변수별 영향', V3Q_TIP.tor), '<span class="meta">Base, 단위 원</span>', `<div data-o="q-tor">${rows.length && v3Ok(b.ps)
+  const tor = v3Sec(v3qTip('변수별 영향', V3Q_TIP.tor), `<span class="meta">Base, 단위 원</span>${v3pSotpTag(x)}`, `<div data-o="q-tor">${rows.length && v3Ok(b.ps)
     ? `${v3cLegend([{ label: 'Base보다 높음', cls: 'up' }, { label: 'Base보다 낮음', cls: 'dn' }])}${v3cTornado({ w: v3Wd(x), base: b.ps, baseLabel: 'Base', rows, fmt: (v) => v3Num(v) })}`
     : '<div class="empty">Base 내재 가치를 계산하지 못해 그리지 않았습니다.</div>'}</div>`);
   let one = '';
@@ -3204,7 +3498,7 @@ function v3qRev(x, c) {
 }
 
 // ===== 풋볼필드 =====
-const V3Q_FF = { market: ['s5', '52주'], broker: ['s5', '증권사'], dcf: ['s1', 'DCF'], mc: ['s2', '몬테카를로'], typ: ['s3', '유형별'], rel: ['s4', '상대가치'] };
+const V3Q_FF = { market: ['s5', '52주'], broker: ['s5', '증권사'], dcf: ['s1', 'DCF'], sotp: ['s3', '사업부 합산'], mc: ['s2', '몬테카를로'], typ: ['s3', '유형별'], rel: ['s4', '상대가치'] };
 /* 현재가에 걸친 범위 수(요약 주가 범위 툴팁과 풋볼필드 표 아래 한 줄). 값 하나짜리 줄(최저 = 최고)은 범위로 세지 않음 */
 function v3qCover(x) {
   const close = x.t.close, rs = (x.res.ff || []).filter((r) => r && v3Ok(r.lo) && v3Ok(r.hi) && r.lo < r.hi);
@@ -3212,11 +3506,13 @@ function v3qCover(x) {
   return { text: `범위 ${rs.length}개 가운데 ${rs.filter((r) => r.lo <= close && close <= r.hi).length}개가 현재가에 걸쳐 있습니다.`, tip: V3Q_TIP.cover };
 }
 function v3qFf(x) {
-  const ff = (x.res.ff || []).filter((r) => r && v3Ok(r.lo) && v3Ok(r.hi)), close = x.t.close, tgt = x.res.blend?.target, base = x.res.scen?.Base?.ps;
+  const ff = (x.res.ff || []).filter((r) => r && v3Ok(r.lo) && v3Ok(r.hi)), close = x.t.close, tgt = x.res.blend?.target, sb = x.res.sotp?.scen?.Base;
+  /* 줄 가운데 표시(Base): DCF 줄은 전사 DCF 값(사업부별 합산이 목표주가 자리에 들어간 사례는 scen.Base.ps가 합산 값이라 sotp의 dcf_ps), 사업부별 합산 줄은 합산 값 */
+  const base = x.res.sotp?.mode === 'target' ? sb?.dcf_ps : x.res.scen?.Base?.ps, mids = { dcf: base, sotp: sb?.ps };
   if (!ff.length) return v3qEmpty('풋볼필드', '비교할 가치 범위가 없습니다.');
   const w = v3Wd(x), nar = w < 560, nb = (x.t.broker_targets || []).filter((b) => v3Ok(b?.goal)).length;
-  const rows = ff.map((r) => { const [cls, short] = V3Q_FF[r.kind] || ['s5', r.label]; return { label: nar ? short : r.label, lo: r.lo, hi: r.hi, cls, mid: r.kind === 'dcf' && v3Ok(base) ? base : undefined,
-    note: r.kind === 'dcf' && v3Ok(base) ? `Base ${v3Num(base)}` : r.kind === 'broker' && nb ? `${nb}곳` : r.kind === 'typ' ? (/\((.+)\)$/.exec(v3DcfName(x)) || [])[1] || '' : '' }; });
+  const rows = ff.map((r) => { const [cls, short] = V3Q_FF[r.kind] || ['s5', r.label]; return { label: nar ? short : r.label, lo: r.lo, hi: r.hi, cls, mid: v3Ok(mids[r.kind]) ? mids[r.kind] : undefined,
+    note: v3Ok(mids[r.kind]) ? `Base ${v3Num(mids[r.kind])}` : r.kind === 'broker' && nb ? `${nb}곳` : r.kind === 'typ' ? (/\((.+)\)$/.exec(v3DcfName(x)) || [])[1] || '' : '' }; });
   const cov = v3qCover(x);
   const marks = [v3Ok(close) ? { x: close, label: `현재가 ${v3Num(close)}`, cls: 's5', dash: true } : null, v3Ok(tgt) ? { x: tgt, label: `목표주가 ${v3Num(tgt)}`, cls: 's1', dash: true } : null];
   const tbl = `<div class="mk-scroll"><table class="mk-tbl v3-t v3q-ft"><thead><tr><th class="st">구분</th><th>최저</th><th>최고</th><th>현재가 대비</th></tr></thead>
@@ -3225,9 +3521,14 @@ function v3qFf(x) {
 }
 
 // ===== 몬테카를로 =====
+function v3qMcChk(x) {
+  const own = (x.res.mc?.checks || []).filter((k) => k && k.text), ck = own.length ? own : (x.res.checks || []).filter((k) => k && k.text && String(k.id || '').startsWith('MC.'));
+  const ord = ['err', 'warn', 'info'], seen = new Set();
+  return ck.filter((k) => !seen.has(k.text) && seen.add(k.text)).sort((a, b) => ord.indexOf(a.level) - ord.indexOf(b.level)).map((k) => `<p class="v3q-note${k.level === 'info' ? '' : ' warn'}">${esc(k.text)}</p>`).join('');
+}
 function v3qMc(x) {
   const m = x.res.mc, close = x.t.close;
-  if (!m || m.error || !m.hist || !Array.isArray(m.hist.counts) || !m.hist.counts.length) return v3qEmpty('몬테카를로', '몬테카를로 결과가 없습니다.');
+  if (!m || m.error || !m.hist || !Array.isArray(m.hist.counts) || !m.hist.counts.length) return v3Sec('몬테카를로', '', `<div class="empty">몬테카를로 결과가 없습니다.</div>${v3qMcChk(x) ? `<div class="v3q-mck">${v3qMcChk(x)}</div>` : ''}`);
   const wide = x.w >= 1100, w = wide ? Math.floor((x.w - 48 - 32) * 0.6) : v3Wd(x), won = (v) => v3Num(v), th = v3Ok(m.up_th) ? m.up_th : 0.15;
   const chart = `${v3cLegend([{ label: '25～75% 구간', cls: 's1' }, { label: '그 밖', cls: 's2' }])}${v3cHist({ w, h: wide ? 340 : 260, edges: m.hist.edges, counts: m.hist.counts, band: [m.p25, m.p75], fmt: won, title: '주당 가치 분포',
     marks: [v3Ok(close) ? { x: close, label: `현재가 ${won(close)}`, cls: 's5', dash: true } : null, { x: m.mean, label: `평균 ${won(m.mean)}`, cls: 's3' }, { x: m.median, label: `중앙값 ${won(m.median)}`, cls: 's4', dash: true }] })}`;
@@ -3236,7 +3537,8 @@ function v3qMc(x) {
     ['현재가보다 높을 확률', v3Pct(m.p_up0), ''], [`${v3Num(th * 100)}% 넘게 오를 확률`, v3Pct(m.p_up15), ''], ['시행 횟수', v3Ok(m.n) ? `${v3Num(m.n)}회` : '-', ''], ['시드', v3Ok(m.seed) ? String(m.seed) : '-', '']];
   const tbl = `<div class="mk-scroll"><table class="mk-tbl v3-t v3q-mt"><thead><tr><th class="st">항목</th><th>값</th><th>현재가 대비</th></tr></thead><tbody>${rows.map(([k, v, u]) => `<tr><td class="st">${k}</td><td>${v}</td><td>${u}</td></tr>`).join('')}</tbody></table></div>`;
   const note = Object.keys(x.st.ov).length > 0 ? '<p class="v3q-note warn">처음 값으로 계산한 분포입니다. 바꾼 입력은 파이썬에서 다시 계산해야 반영됩니다.</p>' : '';
-  return v3Sec('주당 가치 분포', '<span class="meta">Base, 단위 원</span>', `${note}<div class="v3q-mc"><div>${chart}</div>${tbl}</div>`);
+  const ck = v3qMcChk(x);
+  return v3Sec('주당 가치 분포', '<span class="meta">Base, 단위 원</span>', `${note}<div class="v3q-mc"><div>${chart}</div>${tbl}</div>${ck ? `<div class="v3q-mck">${ck}</div>` : ''}`);
 }
 
 v3Rep('sens', '민감도', v3qSens);
@@ -3576,9 +3878,10 @@ function v3tLossScen(x, k) {
   if (!sc) return '';
   const A = (id) => v3tArr(g(id)), has = (id) => A(id).some(v3Ok), tg = A('sc.target_margin').length ? A('sc.target_margin') : V3_SCEN.map((S) => sc.targets?.[S]);
   const tr = (nm, a, f, cls = '', tip) => `<tr class="${cls}"><td class="st">${nm}</td>${V3_SCEN.map((_, i) => `<td${tip ? ` title="${esc(tip(i))}"` : ''}>${f(a[i])}</td>`).join('')}</tr>`;
+  const same = (a) => V3_SCEN.every((_, i) => v3Ok(a[i]) && a[i] === a[0]), tr1 = (nm, a, f) => (same(a) ? `<tr><td class="st">${nm}</td><td class="v3t-all" colspan="${V3_SCEN.length}">${f(a[0])}<small>세 시나리오 같음</small></td></tr>` : tr(nm, a, f));
   const amt = (v) => v3Num(v), raw = A('sc.ps_raw');
   let body = tr('목표 영업이익률', tg, (v) => v3Pct(v, 1));
-  if (has('sc.v_dcf')) body += tr('DCF 주주가치<small>억원</small>', A('sc.v_dcf'), amt) + tr('부도 가중 주주가치<small>억원</small>', A('sc.v_w'), amt) + (has('sc.shares') ? tr('주식수<small>주</small>', A('sc.shares'), amt) : '')
+  if (has('sc.v_dcf')) body += tr('DCF 주주가치<small>억원</small>', A('sc.v_dcf'), amt) + tr('부도 가중 주주가치<small>억원</small>', A('sc.v_w'), amt) + (has('sc.shares') ? tr1('주식수<small>주</small>', A('sc.shares'), amt) : '')
     + tr('주당 가치<small>원</small>', A('sc.ps'), amt, 'sum', raw.some(v3Ok) ? (i) => `반올림 전 ${v3Won(raw[i])}` : null) + tr('현재가 대비', A('sc.up'), (v) => v3Up(v) || '-');
   if (has('sc.vc_pe')) body += tr('목표연도 순이익<small>억원</small>', A('sc.vc_ni'), amt) + tr('VC 현재가치<small>이익 × PER, 억원</small>', A('sc.vc_pe'), amt) + tr('VC 주당 가치<small>이익 × PER, 원</small>', A('sc.vc_pe_ps'), amt, 'sum');
   if (has('sc.vc_psr')) body += tr('목표연도 매출<small>억원</small>', A('sc.vc_rev'), amt) + tr('VC 현재가치<small>매출 × PSR, 억원</small>', A('sc.vc_psr'), amt) + tr('VC 주당 가치<small>매출 × PSR, 원</small>', A('sc.vc_psr_ps'), amt, 'sum');
@@ -3642,9 +3945,10 @@ function v3tHold(x, c, k) {
   const subs = hi0.subs || [], hs = k.sub, py = {}; (hs.subs || []).forEach((y) => { if (y) py[String(y.id)] = y; });
   /* 자동 초안(DART 타법인 출자 현황)으로 채운 줄과 종목코드, 과열 기준을 넘은 자회사. 모두 파이썬 결과를 읽기만 함 */
   const autoOf = (s, id) => !!(s.auto ?? py[id]?.auto), nAuto = subs.filter((s, i) => autoOf(s, String(s.id || `s${i + 1}`))).length, hot = (hs.hot?.subs || []).filter(Boolean);
+  const hotOf = (s) => hot.find((h) => s.name && String(h).startsWith(String(s.name))), hotRest = hot.filter((h) => !subs.some((s) => hotOf(s) === h));
   const rows = subs.map((s, i) => {
     const id = String(s.id || `s${i + 1}`), a = v3tArr(g(`sub.${id}`)), key = s.listed && s.mcap != null ? 'mcap' : s.value != null ? 'value' : s.book != null ? 'book' : 'value';
-    const code = s.code ?? py[id]?.code, tag = `${code ? `<small>${esc(String(code))}</small>` : ''}${autoOf(s, id) && nAuto < subs.length ? '<small>자동 초안</small>' : ''}`;
+    const code = s.code ?? py[id]?.code, tag = `${code ? `<small>${esc(String(code))}</small>` : ''}${autoOf(s, id) && nAuto < subs.length ? '<small>자동 초안</small>' : ''}${hotOf(s) ? `<small class="v3t-hot" title="${esc(String(hotOf(s)))}">과열 기준 초과</small>` : ''}`;
     const whole = v3In(x, `i.typ.holding.subs.${i}.${key}`, s[key], { fmt: 'amt', cell: true, lab: `${s.name || id} ${key === 'book' ? '지분 장부가' : '전체 가치'}`, dis });
     const stake = key === 'book' ? '<span class="v3t-ro">-</span>' : v3In(x, `i.typ.holding.subs.${i}.stake`, s.stake, { fmt: 'pct', d: 1, cell: true, lab: `${s.name || id} 지분율`, dis });
     return `<tr><td class="st">${esc(s.name || id)}${tag}</td><td class="tx" data-l="구분">${s.listed ? '상장' : '비상장'}</td><td class="in" data-l="지분율">${stake}</td><td class="in" data-l="${key === 'book' ? '지분 장부가' : '전체 가치'}">${whole}</td>
@@ -3656,7 +3960,7 @@ function v3tHold(x, c, k) {
   const tbl = subs.length ? `<div class="mk-scroll"><table class="mk-tbl v3-t v3t-st"><thead><tr><th class="st">자회사</th><th class="tx">구분</th><th>지분율</th><th>전체 가치</th><th>지분가치</th><th>할인율</th><th>할인 뒤</th></tr></thead><tbody>${rows}${sum}</tbody></table></div>` : '<div class="empty">자회사 표가 없습니다.</div>';
   const am = hs.subs_auto, amT = am ? ['DART 타법인 출자 현황 자동 초안', am.report ? `보고서 ${am.report}` : '', am.stlm_dt ? `결산일 ${am.stlm_dt}` : '', am.rcept_no ? `접수번호 ${am.rcept_no}` : ''].filter(Boolean).join(', ') : '';
   const hp = n('hot_per') ?? v3tNum(hs.hot?.per), hb = n('hot_pbr') ?? v3tNum(hs.hot?.pbr), hotT = [v3Ok(hp) ? `PER ${v3Num(hp, hp % 1 ? 1 : 0)}배` : '', v3Ok(hb) ? `PBR ${v3Num(hb, hb % 1 ? 1 : 0)}배` : ''].filter(Boolean).join(', ');
-  const notes = `${amT ? `<p class="v3t-note">${esc(amT)}</p>` : ''}${hs.subs_auto_err ? v3tWarn(`DART 자동 초안 실패: ${esc(String(hs.subs_auto_err))}`) : ''}${hot.length ? v3tWarn(`과열 기준(${hotT})을 넘는 자회사: ${esc(hot.join(', '))}`) : hotT && subs.length ? `<p class="v3t-note">자회사 과열 기준 ${hotT}</p>` : ''}`;
+  const notes = `${amT ? `<p class="v3t-note">${esc(amT)}</p>` : ''}${hs.subs_auto_err ? v3tWarn(`DART 자동 초안 실패: ${esc(String(hs.subs_auto_err))}`) : ''}${hotT && subs.length ? `<p class="v3t-note">자회사 과열 기준 ${hotT}</p>` : ''}${hotRest.length ? v3tWarn(`과열 기준을 넘는 자회사: ${esc(hotRest.join(', '))}`) : ''}`;
   out.push(v3Sec('자회사 지분가치', '<span class="meta">단위 억원</span>', opt + tbl + notes));
   // NAV
   const ov = hi0.own_value || {}, mode = ov.mode || (v3tNum(ov.amount) != null ? 'input' : 'none'), it = [];
@@ -3917,9 +4221,9 @@ function v3lDeal(x, L) {
   const picked = od ? Object.keys(od.items || {}).filter((k) => od.pick?.[k] && Math.abs(od.items[k] || 0) > 1e-9).map((k) => V3L_OLD[k] || k) : [];
   const orow = od ? `<tr><td class="st">승계 차입${picked.length ? `<small>${esc(picked.join(', '))}</small>` : ''}</td>${na('EBITDA 배수')}${td('금액', v3lF(od.amt, 'amt'))}${od.float ? oc('spread', od.spread, 'pct', '가산금리', 2) : na('가산금리')}${od.float ? na('고정금리') : oc('rate', od.rate_fix, 'pct', '고정금리', 2)}
       ${FL ? (od.float ? oc('floor', od.floor, 'pct', '금리 하한', 2) : na('금리 하한')) : ''}${td('첫해 금리', v3lF(v3lRow(L, 'old.rate')?.[1], 'pct2'))}${pik ? na('PIK 금리') : ''}${oc('mand_pct', od.mand_pct, 'pct', '연 의무 상환', 2)}${oc('term', od.term, 'num', '만기 연수', 0)}</tr>` : '';
-  const sumA = ks.reduce((s, k) => s + (+amt[V3L_TR.indexOf(k)] || 0), 0);
+  const sumA = L.su?.sources?.debt, sumX = v3Ok(sumA) ? (L.fin_scen || []).find((r) => r && v3Ok(r.debt) && Math.abs(r.debt - sumA) <= 1e-6 * Math.max(1, Math.abs(sumA)))?.lev_x : null;
   const tt = ks.length ? `<h3 class="v3-h3">${v3lTip(L, '차입 구성', 'tranches')}</h3><div class="mk-scroll"><table class="mk-tbl v3-t v3l-tt${FL ? ' w10' : ''}"><thead><tr><th class="st">트랜치</th><th>EBITDA 배수</th><th>금액</th><th>가산금리</th><th>고정금리</th>${FL ? '<th>금리 하한</th>' : ''}<th>첫해 금리</th>${pik ? '<th>PIK 금리</th>' : ''}<th>연 의무 상환</th><th>만기 연수</th></tr></thead>
-    <tbody>${rows}<tr class="sum"><td class="st">${od ? '신규 합계' : '합계'}</td>${td('EBITDA 배수', e.ebitda ? v3Num(sumA / e.ebitda, 2) : '-')}${td('금액', v3Num(sumA))}<td></td><td></td>${FL ? '<td></td>' : ''}<td></td>${pik ? '<td></td>' : ''}<td></td><td></td></tr>${orow}</tbody></table></div>` : '';
+    <tbody>${rows}<tr class="sum"><td class="st">${od ? '신규 합계' : '합계'}</td>${td('EBITDA 배수', v3Ok(sumX) ? v3Num(sumX, 2) : '')}${td('금액', v3Ok(sumA) ? v3Num(sumA) : '')}<td></td><td></td>${FL ? '<td></td>' : ''}<td></td>${pik ? '<td></td>' : ''}<td></td><td></td></tr>${orow}</tbody></table></div>` : '';
   return v3Sec('거래 가정', L.preset === 'modellers' ? '<span class="meta">원형 재현</span>' : '', `<div class="v3-fs">${fs}</div>${tt}${v3lWhyList(x, L)}`, 'v3l-deal');
 }
 
@@ -4099,7 +4403,7 @@ const V3I_SW = {
   beta_index: { listing: '상장 시장 지수', kospi: 'KOSPI' },
   beta_u_tax: { input: '입력 세율', own: '회사별 구간 세율', target: '대상 한계세율' },
   mcap_basis: { spot: '기준일', avg1y: '1년 평균', avg2y: '2년 평균' },
-  ke_model: { capm: 'CAPM', bond_rp: '타인자본비용 + 가산' },
+  ke_model: { capm: 'CAPM', bond_rp: '타인자본비용 + 가산', ff3: '3요인(CAPM + SMB, HML 가산)', firm_prem: 'CAPM + 기업 고유 프리미엄 + ESG 가산' },
   fade_growth: { linear: '영구성장률까지 직선', avg_const: '평균으로 고정', manual: '직접 입력' },
   eps_basis: { avg: '기초, 기말 평균', spot: '기준일' },
   rel_scen_src: { external: '외부 값', model: '모델 연동' },
@@ -4108,6 +4412,12 @@ const V3I_SW = {
   fcfe_debt: { schedule: '차입 스케줄', target_ratio: '목표 부채 비중', current_ed: '지금 부채 비중' },
   ddm_stage: { two: '2단계', gordon: '1단계', three: '3단계', h: 'H 모형' },
   rim_tv: { persist: '지속계수', gordon: '영구성장', pbr: '목표 PBR', blend: '혼합' },
+  /* 2026-11-17 오후 엔진 변경 */
+  sotp: { off: '끔', show: '참고로만 표시', target: '목표주가에 씀' },
+  bridge_basis: { latest: '재무상태표 기준일 잔액', fy0: '직전 결산 말 잔액', avg2: '직전 두 결산 말 평균' },
+  resid_cost: { none: '없음', etc: '기타 잔여 원가율' },
+  freight_class: { sales: '매출 비례', other: '기타관리비(물가 연동)' },
+  xl_calc: { auto: '자동', auto_no_table: '데이터 표 제외 자동', manual: '수동' },
 };
 function v3Info(c) {
   const ov = (c && v3S.st[c.id]?.ov) || {}, sw = (k) => (ov[`sw.${k}`] ? ov[`sw.${k}`].v : c?.switches?.[k]);
@@ -4124,7 +4434,7 @@ function v3Info(c) {
     ['매출원가 방식', nm('cogs_mode')], ['인건비 방식', nm('labor_mode')], ['유형자산 방식', nm('ppe_mode')], ['운전자본 기준', nm('nwc_avg')], ['차입 계획', nm('debt_plan')],
     ['법인세 방식', nm('tax_mode')], ['FCFF 세율', nm('fcff_tax')], ['종료연도 세율', nm('ty_tax')],
     ['자기자본비용 모형', nm('ke_model')], ['베타 방식', nm('beta_mode')], ['베타 하한', sw('beta_floor') != null ? v3Num(sw('beta_floor'), 2) : '없음'], ['무위험이자율', nm('rf')], ['주식위험프리미엄', nm('erp')], ['타인자본비용', nm('kd')],
-    ['영구성장률 기준', nm('g')], ['종료가치 방식', nm('tv')], ['할인 시점', nm('discount')], ['주식 수 기준', nm('share_basis')],
+    ['영구성장률 기준', nm('g')], ['종료가치 방식', nm('tv')], ['할인 시점', nm('discount')], ['주식 수 기준', nm('share_basis')], ['주주가치 다리 잔액', sw('bridge_basis') && sw('bridge_basis') !== 'latest' ? nm('bridge_basis') : null], ['사업부별 합산', sw('sotp') && sw('sotp') !== 'off' ? nm('sotp') : null],
     ['EPS 주식 수', nm('eps_basis')], ['시나리오 규칙', nm('scn_rule')], ['시나리오 가중치', ws], ['DCF 결합 비중', pct(sw('blend_w'), 0)], ['주당 가치 반올림', sw('round') != null ? `${v3Num(sw('round'))}원 단위` : null],
   ].filter((r) => r[1] != null && r[1] !== '').map((r) => r.map(String)) : null;
   const srcs = (c?.notes?.sources || []).map((s) => (typeof s === 'string' ? s : [s.title || s.name || s.id, s.date, s.url].filter(Boolean).join(', '))).filter(Boolean);
@@ -4144,7 +4454,7 @@ function v3Info(c) {
   const rows = [
     ['이 화면', '매출을 사업부와 지역 줄마다 따로 추정하고, 비용과 재투자, 차입과 세금을 스케줄로 이어 손익계산서, 재무상태표, 현금흐름표를 함께 만든 뒤 FCFF를 WACC로 할인해 주당 내재 가치를 구합니다. Valley AI 「DCF 실전형」의 단계별 입력 흐름에 The Modellers 엑셀 모델의 시트 구조를 얹었습니다. 파이썬 엔진, 엑셀 수식, 이 화면이 같은 식으로 계산하며, 처음 값은 화면이 다시 계산한 결과를 파이썬 결과와 칸마다 대조합니다.'],
     ['화면 구성', { table: [['영역', '내용'],
-      ['머리', '목표주가, DCF 가중평균(유형별 기업은 유형별 가치), 상대가치, 현재가. 프리셋, 명시 기간, 전환 기간, 시나리오, 입력 적용 단추와 처음 값으로 단추'],
+      ['머리', '회사 이름 아래에 기준일과 기본 정보(설립, 상장, 임직원, 대표이사, 본사. 마우스를 올리면 출처, 수집하지 못한 값은 확인 불가). 목표주가, DCF 가중평균(유형별 기업은 유형별 가치, 사업부별 합산을 목표주가에 쓰면 합산 가중평균), 상대가치, 현재가. 프리셋, 명시 기간, 전환 기간, 시나리오, 입력 적용 단추와 처음 값으로 단추'],
       ['가치 산정 흐름', '연도별 FCFF와 현재가치, 종료가치, 할인율, 영업가치에서 주당 내재 가치까지. 카드를 누르면 그 값을 정하는 입력 단계로 이동'],
       ['입력', 'DCF 맵 15단계. 단계마다 가정 입력 칸, 근거, 참고 차트'],
       ['연도별 상세', '과거와 추정 연도를 한 표로. 매출, 비용, 3대 재무제표, 스케줄, FCFF, 할인을 묶음별로 접고 폄'],
@@ -4174,7 +4484,7 @@ function v3Info(c) {
       '「처음 값으로」 단추는 바꾼 입력을 모두 되돌림. 점검 탭의 바꾼 입력 목록에서는 한 줄씩 되돌림',
       '입력하는 동안 화면이 바로 다시 계산함. 몬테카를로, 다른 가정 표, LBO, 유형별 가치 가운데 화면에서 다시 낼 수 없는 값은 파이썬에서만 계산해 처음 값 그대로이며 그 화면에 안내가 뜸',
       '「입력 내려받기」는 바꾼 입력을 case_v3_override.json 파일로 저장함. 05. 딜소싱 > _자동화 > 가치평가 폴더에서 python -m v3.run run <사례> --override case_v3_override.json 을 돌리면 엑셀까지 다시 만듦',
-      '「엑셀 받기」는 파이썬이 만든 모델 엑셀. 화면에서 바꾼 값은 들어 있지 않음. 요약 시트에 평가 방법(DCF와 상대가치 비중), 기본 정보, 차트 3개가 있고 매출, 비용, 재무제표 시트 오른쪽에 과거와 추정 CAGR, 가정 시트 시나리오 표 메모 열에 가정 근거가 있음']],
+      '「엑셀 받기」는 파이썬이 만든 모델 엑셀. 화면에서 바꾼 값은 들어 있지 않음. 요약 시트에 평가 방법(DCF와 상대가치 비중), 기본 정보(설립일, 본사, 임직원 수, 대표이사, 결산월, 상장일, 홈페이지), 차트 3개가 있고 매출, 비용, 재무제표 시트 오른쪽에 과거와 추정 CAGR, 가정 시트 시나리오 표 메모 열에 가정 근거가 있음']],
     ...(set ? [['이 사례의 설정', { table: set }]] : []),
     ['매출 추정', [
       '매출 합계 = 줄별 매출의 합. 줄을 어떻게 나누고 어떤 드라이버를 쓸지는 회사마다 리서치가 정함',
@@ -4184,12 +4494,15 @@ function v3Info(c) {
       '수량 × 단가 줄은 수량, 단가와 각각의 성장률을 함께 보여 줌. 성장률 가정을 주지 않은 줄은 과거 실적 규칙(최근 4년 평균 또는 최근 5년 연평균)으로 채움',
       '과거 줄 합과 공시 매출의 차이는 「체계 차이 조정」 줄 하나로만 흡수함. 진행 연도 매출 보정을 계산에 반영하면 그 금액이 이 줄에 더해짐',
       '표 오른쪽 끝의 과거 CAGR과 추정 CAGR은 모델이 계산한 값. 화면 폭이 모자라면 오래된 과거 연도부터 접히고 「이전 연도 펴기」로 모두 봄. 매출원가, 판관비 단계 표도 같음',
-      '성장률 줄의 「최근 4년 평균」, 「최근 5년 연평균」 표시는 과거 실적 규칙으로 채운 가정, 「끝값 지정」은 직전 실적에서 끝값까지 이어 채운 가정이라는 뜻. 칸을 고치면 연도별 값으로 바뀌어 표시가 사라짐',
+      '성장률 줄의 「끝값 지정」, 「최근 5년 연평균」 같은 표시는 엔진이 적은 가정 꼴. 마우스를 올리면 출발값과 끝값, 규칙이 보임. 칸을 고치면 연도별 값으로 바뀌어 표시가 사라짐',
       '참고 데이터의 과거 성장률(산술평균, 기하평균, 로그 회귀)은 모델이 계산한 값. NM은 시작 값이 0 이하라 구할 수 없다는 뜻',
       '컨센서스 매출은 참고 줄. 합계가 컨센서스와 10% 넘게 다르면 점검에 주의로 표시']],
     ['비용', [
       '매출원가 방식: 전사 원가율, 사업부 원가율, 단위원가, 매출총이익률 단계, 성격별 구성 가운데 하나',
       '사업부 원가 자료가 있으면 사업부별 원가와 원가율의 과거 값을 함께 보여 줌. 끝값만 정한 단위원가는 직전 실적에서 끝값까지 직선 또는 정률로 이음',
+      '체계 차이 매출의 원가를 기타 잔여 원가율로 두면 줄 합에 잡히지 않는 추정 매출에도 원가를 붙임(사업부 원가율, 단위원가 방식)',
+      '매출원가, 판관비 단계의 「평균에 넣을 해」에서 가정별로 평균에 넣을 해를 고름. 운반비 묶음 분류는 입력을 만들 때 정해져 지금 값만 보임',
+      '인원 방식이 아닌 사례는 참고 데이터에 부서별 인원 실적과 총원을 보여 줌',
       '판관비는 주석의 계정을 묶음(인건비, 주식보상비용, 감가상각비, 연구개발비, 광고판촉, 지급수수료, 운반비, 대손상각비, 기타관리비)으로 모으고 묶음마다 드라이버를 정함',
       '묶음 드라이버: 매출 비례, 물가 연동, 스케줄 연결, 특정 매출 줄 비례, 직접 입력',
       '감가상각비 묶음 = 감가상각 합계 × 판관비 몫, 연구개발비 묶음 = R&D 가운데 비용 처리분. 둘 다 유무형자산 스케줄에서 넘어옴',
@@ -4204,7 +4517,10 @@ function v3Info(c) {
       '운전자본: 매출채권 = 매출 × 회전일수 ÷ 365, 재고자산과 매입채무 = 매출원가 × 회전일수 ÷ 365, 기타 영업 유동자산과 부채 = 매출 × 비율',
       '유지 CAPEX 기준은 매출 또는 기초 유형자산. 자산별 변동표 방식에서는 기존 자산 상각(정액 또는 해마다 줄임), 신규 자산 상각 시작(다음 해, 취득한 해, 취득한 해 반년), 내용연수(자산별 범위의 하한, 평균, 상한)를 고름. 계약관계 같은 일회성 무형자산의 상각 시작도 같은 스위치를 씀',
       '자산별 변동표 방식의 표: 묶음별 기초, 취득, 대체, 상각, 처분과 손상, 기말. 취득 비율, 건설중인자산 대체 비율과 건물 몫, 내용연수를 바꾸면 감가상각 내역(기존 자산, 연도별 취득분)이 따라 바뀜. 검증 줄은 묶음 합과 재무상태표 유형자산의 차이이며 「일치」가 정상',
-      '「평균에 넣을 해」에서 체크를 끄면 그 가정의 평균에서만 그 해가 빠짐. 평균 창은 최근 평균 연수 안에서만 줄고 과거로 늘어나지 않음',
+      '「평균에 넣을 해」에서 체크를 끄면 그 가정의 평균에서만 그 해가 빠짐. 평균 창은 최근 평균 연수 안에서만 줄고 과거로 늘어나지 않음. 모든 평균에서 빼 둔 해도 한 가정에만 다시 넣을 수 있고, 창의 모든 해를 빼면 빼기를 무시하고 평균을 냄',
+      '설비 능력 증설 물량 × 단위 투자비, 출점 수 × 점포당 투자비를 넣은 사례는 확장 CAPEX = 직접 입력 + 설비 증설 CAPEX + 출점 CAPEX',
+      '자산별 변동표의 사용권자산은 새 리스는 내용연수, 기존 잔액은 남은 연수로 상각. 내용연수 이름에 마우스를 올리면 근거가 보임',
+      '가정 표는 화면 폭이 모자라면 오래된 과거 연도부터 접히고 「이전 연도 펴기」로 모두 봄',
       '현금, 단기금융자산, 차입금, 리스부채는 운전자본에 넣지 않음. 당기법인세부채와 미지급배당금, 대여금과 보증금을 운전자본에 둘지는 입력을 만들 때 정해져 화면에서는 지금 분류만 보임',
       '재투자 = CAPEX − 감가상각비 + 순운전자본 증가. ROIC = 세후영업이익 ÷ 기초 투하자본']],
     ['3대 재무제표와 순환 계산', [
@@ -4223,12 +4539,16 @@ function v3Info(c) {
       'FCFF 세율은 그해 손익 유효세율, 종료연도 세율은 EBIT 기준 법정 유효세율이 기본. 전환 기간은 둘 사이를 직선으로 이음']],
     ['WACC와 베타', [
       'WACC = 자기자본 비중 × 자기자본비용 + 부채 비중 × 세전 타인자본비용 × (1 − 한계세율)',
-      '자기자본비용 = 무위험이자율 + 베타 × 주식위험프리미엄 + 추가 프리미엄. 모형을 「타인자본비용 + 가산」으로 바꾸면 세전 타인자본비용에 가산(기본 4%p)을 더한 값을 쓰고 CAPM 값은 참고로 남음',
+      '자기자본비용 = 무위험이자율 + 베타 × 주식위험프리미엄 + 추가 프리미엄. 모형은 CAPM, 타인자본비용 + 가산(세전 타인자본비용에 기본 4%p), 3요인(규모, 가치 요인 가산), 기업 고유 프리미엄(기업 고유 + ESG 가산. 규모, 개별 프리미엄은 더하지 않음) 가운데 고르고 CAPM 값은 참고로 남음',
+      'KOSPI 내재 프리미엄은 지수 이익수익률에서 국고채 10년을 뺀 값. 방법별 값은 접힌 표에 있음',
+      '값이 없는 선택지를 사례가 골랐으면 그 단추가 흐리게 눌려 있고 엔진이 대신 쓴 값이 단계 머리에 나옴',
       '무위험이자율은 국고채 10년 최근 3개월 평균, 주식위험프리미엄은 Damodaran 성숙 시장 프리미엄 + 한국 국가위험이 기본',
       '베타 자동 선택: 상장 2년 이상이고 자본구조가 크게 바뀌지 않았으면 회귀 베타, 아니면 비교기업 바텀업 베타',
+      '회귀 표 아래 대조 줄은 주가와 지수 표로 다시 계산한 원 베타. 베타 기간과 기준 지수를 바꾸면 같이 바뀌고, 가격 표가 한 벌뿐인 옛 문서는 표 기준 값 그대로',
       '회귀 베타: 2년 주간 수익률을 상장 시장 지수(바꾸면 KOSPI)에 회귀한 값. 조정 베타 = 원 베타 × 2/3 + 1 × 1/3. 표준오차, R², 관측수를 점검에 함께 표시',
       '바텀업 베타: 비교기업 조정 베타를 회사마다 무차입화한 값의 중앙값을 목표 D/E로 재차입. 무차입 베타 = 조정 베타 ÷ (1 + (1 − 세율) × D/E). 세율은 입력 세율, 회사별 구간 세율, 대상 한계세율 가운데 고름',
       `베타 하한${sw('beta_floor') != null ? ` ${v3Num(sw('beta_floor'), 2)}` : ' 0.8'}: 계산한 베타가 이보다 낮으면 하한을 쓰고 점검에 참고로 남김`,
+      '타인자본비용 단계의 「등급별 회사채 수익률 펴기」에서 대상 등급과 만기별 수익률을 봄. 최근 발행 금리에는 발행일과 금액이 붙음',
       '세전 타인자본비용 자동 순서: 회사채 시장 수익률, 실제 신용등급 스프레드, 실효이자율(리스를 뺀 차입금이 시가총액의 5% 이상일 때), 이자보상배율로 정한 합성 등급 스프레드',
       '자본 비중은 시가총액과 이자부부채(리스 포함)의 지금 비율. 시가총액은 기준일 값 대신 1년, 2년 일평균으로 바꿀 수 있음',
       '선택지별 WACC 표: 베타 기간과 방식, 무위험이자율, 주식위험프리미엄을 하나씩 바꿨을 때의 WACC. 굵은 칸이 지금 조합이고 칸에 마우스를 올리면 적용 베타와 계산 베타가 보임',
@@ -4253,7 +4573,7 @@ function v3Info(c) {
       '영업가치 = 명시와 전환 기간 FCFF 현재가치 합 + 종료가치 현재가치',
       '주주가치 = 영업가치 + 현금성자산 + 비영업자산 − 이자부부채 − 비지배지분 − 우선주 − 퇴직급여 과소적립 − 기타 청구권',
       '현금성자산 = 현금 + 단기금융상품 + 유동 금융자산. 비영업자산 = 관계기업투자, 장기금융자산, 투자부동산과 사례에서 정한 항목',
-      '다리의 잔액은 재무상태표 기준일 값',
+      '다리의 잔액은 재무상태표 기준일 값이 기본. 직전 결산 말이나 두 결산 말 평균으로 바꾸면 비영업자산, 비주주청구권 표에 그 결산 말 잔액 열이 붙고 그 칸을 고침(기준일 잔액은 읽기만). 우선주 시가, 기타 청구권처럼 결산 말 잔액이 없는 줄은 기준을 바꿔도 그대로',
       '유통주식수 = 발행주식 − 자기주식. 희석 주식수 = 유통주식수 + 우선주 + 스톡옵션 순증(자기주식법) + 미가득 RSU + 전환 가산 주식',
       '전환사채를 주식으로 본 경우 이자부부채에서 그 잔액을 뺌',
       '희석 판정 주가를 모델 주당 가치로 바꾸면 계산된 주당 가치로 희석을 다시 판정함',
@@ -4286,6 +4606,11 @@ function v3Info(c) {
       '모델 실적 기준: 평가 배수 중앙값에 모델의 시나리오별 실적을 넣은 주당 가치. Bull, Bear 기준을 모델 연동으로 바꾸면 풋볼필드의 상대가치 범위만 바뀌고 목표주가는 그대로',
       '회사 유형이 일반이 아니면 DCF 자리에 유형별 주당 가치(Base)가 들어가고 머리 이름도 「유형별 가치」로 바뀜. 그 유형에 맞지 않는 상대가치 배수(적자 기업의 PER 등)는 결합에서 빼고 DCF 비중을 100%로 둠',
       '점검에 오류가 있으면 목표주가 옆에 「점검 오류」가 붙음']],
+    ['사업부별 합산', [
+      '사업부 입력이 있는 사례에서만 상대가치 결합 단계에 카드가 보임. 사업부 가치(배수법 또는 사업부 DCF)와 보유 자산을 더하고 본사 비용을 뺀 뒤 전사 DCF와 같은 다리를 더함',
+      '「참고로만 표시」면 전사 DCF와 견주기만 하고, 「목표주가에 씀」이면 결합의 DCF 자리에 합산 가중평균이 들어감. 이때 시나리오 주당 가치, 가중평균, 민감도가 합산 값이고 그 화면 머리에 「사업부별 합산 기준」이 붙음. 풋볼필드의 DCF 줄과 요약 가치 다리 그림은 전사 DCF 값',
+      '보고서 상세 화면 아래 표는 사업부, 보유 자산, 본사 비용을 더한 주당 가치와 전사 DCF 대비 차이. 줄 아래 작은 글은 고른 시나리오의 계산 내용',
+      '연도별 상세의 사업부별 합산 묶음은 사업부 가정과 계산 줄, 표 아래 계산표는 사업부와 보유 자산 가치의 합']],
     ['유형별', [
       '회사 유형이 금융, 적자, 지주, 비상장이면 보고서에 유형별 화면이 생김. 맨 위는 그 유형 방법으로 낸 주당 가치와 엔진 DCF Base의 비교',
       '금융: 장부가와 ROE 경로로 초과이익모형(RIM)이나 배당할인모형(DDM)을 계산. 연결 FCFF는 쓰지 않음',
@@ -4313,6 +4638,7 @@ function v3Info(c) {
       '매출 줄별 시작 성장률과 종료연도 이익률은 Bear, Base, Bull을 꼭짓점으로 한 삼각분포, WACC와 영구성장률은 정규분포에서 뽑아 주당 가치를 반복 계산함',
       `시행 ${v3Ok(sw('mc_n')) ? v3Num(sw('mc_n')) : '10,000'}회, WACC 표준편차 ${pct(sw('mc_wacc_sd'), 1) || '1.0%'}p, 영구성장률 표준편차 ${pct(sw('mc_g_sd'), 1) || '0.5%'}p. WACC와 영구성장률 차이가 1%p 미만인 표본은 다시 뽑음`,
       '결과: 평균, 중앙값, 25%에서 75% 구간, 5%에서 95% 구간, 현재가보다 15% 넘게 오를 확률',
+      '화면 아래 글은 파이썬이 분포를 만들 때 남긴 점검',
       '파이썬에서만 계산함. 화면에서 가정을 바꿔도 분포는 처음 값 그대로이며, 입력 내려받기 파일로 파이썬을 다시 돌려야 바뀜']],
     ['연도별 상세 읽는 법', [
       '열은 과거 연도, 명시 기간, 전환 기간, 종료연도, 과거 CAGR, 추정 CAGR 순서. CAGR은 모델이 계산한 줄만 보이며 과거는 직전 실적까지 최대 5년, 추정은 직전 실적에서 명시 마지막 해까지',
