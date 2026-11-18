@@ -771,7 +771,7 @@ function vaPickList() {
   const rows = done.map((o) => {
     let tp = null, up = null, close = null, day = '', ref = '';
     if (o.v3?.py?.blend) {
-      const b = o.v3.py.blend, t = o.v3.target; tp = b.target; day = t.val_date || '';
+      const b = o.v3.py.blend, t = o.v3.target; tp = typeof v3TgtOf === 'function' ? v3TgtOf(o.v3).ps : b.target; day = t.val_date || ''; // 비상장은 지금 가치(소수지분)
       if (t.listed === false) { close = t.ref?.price ?? null; up = vaRefUp(tp, t); ref = t.ref?.label || ''; } else { up = b.up; close = t.close; }
     }
     else if (o.rel) { const t = vaTarget(o.rel, vaCalc(o.rel)); tp = t ? Math.round(t.ps / 100) * 100 : null; up = t?.up; close = o.rel.target.close; day = o.rel.day; }
@@ -795,8 +795,17 @@ function vaBrief() {
   const close = x ? x.px : c.target.close, day = x ? (x.t.listed === false ? x.t.ref?.date : x.t.val_date) : c.day;
   const relPs = x ? x.res.blend?.rel : round(tp?.ps), relUp = relPs && close ? relPs / close - 1 : null;
   const cell = (lab, val, sub, cls = '') => `<div class="${cls}"><span>${lab}</span><b>${val}</b><em>${sub || ''}</em></div>`;
+  const unl = x?.t.listed === false, off = unl && typeof v3Off === 'function' ? v3Off(x) : null; // 비상장: 상대가치 칸과 문구를 빼고, 엔진 밖 계산이 있으면 지금 가치(소수지분)가 목표값
+  const upL = (u) => `${vaUp(u)}${unl && u != null ? `<small class="v3-ref">${esc(x.pxL)} 대비</small>` : ''}`, upOf = (v) => (v != null && close ? v / close - 1 : null);
   let kpi;
-  if (x) {
+  if (off) {
+    const tg = v3TgtOf(vc), by = Object.fromEntries(v3uRows(x).map((y) => [y.k, y]));
+    kpi = cell(esc(tg.lab), vaWon(tg.ps), upL(upOf(tg.ps)), 'tp') + cell('IPO 기준 DCF', vaWon(by.ipo?.w), upL(upOf(by.ipo?.w))) + cell('VC 방식', vaWon(by.vc?.w), upL(upOf(by.vc?.w)))
+      + (close == null ? '' : cell(esc(x.pxL), vaWon(close), esc(day || '')));
+  } else if (unl) {
+    const bl = x.res.blend || {}, typ = v3DcfTyp(x), dv = typ ? bl.dcf : x.res.wavg?.ok === false ? null : x.res.wavg?.ps;
+    kpi = cell('목표주가', vaWon(bl.target), upL(bl.up), 'tp') + cell(esc(v3DcfName(x)), vaWon(dv), upL(upOf(dv))) + (close == null ? '' : cell(esc(x.pxL), vaWon(close), esc(day || '')));
+  } else if (x) {
     const bl = x.res.blend || {}, wd = bl.w_dcf, typ = v3DcfTyp(x), dv = typ ? bl.dcf : x.res.wavg?.ok === false ? null : x.res.wavg?.ps;
     const wt = (w) => (w > 0 && w < 1 ? ` <small>비중 ${vaNum(w * 100)}%</small>` : '');
     kpi = cell('목표주가', vaWon(bl.target), vaUp(bl.up), 'tp') + cell(`${esc(v3DcfName(x))}${wt(wd)}`, vaWon(dv), vaUp(dv && close ? dv / close - 1 : null))
@@ -809,8 +818,9 @@ function vaBrief() {
   const head = `<section class="card va-brief"><div class="v3-kpi">${kpi}</div></section>`;
   const ff = x ? v3Try(v3qFf, x, vc) : vaSec('풋볼필드', '', vaFootball(c, r));
   // 상대가치평가 한 장
-  let rel;
-  if (c) {
+  let rel = '';
+  if (unl) rel = '';
+  else if (c) {
     const s = r.s, lead = tp?.parts.map((p) => p.nm) || c.primary.slice(0, 1), nm = lead[0], st = r.st[s.base][nm], item = VA_MULT[nm]?.[1], m = c.target.metrics[s.base] || {};
     const peers = vaUse(c, s).map((p) => p.name);
     rel = vaSec('상대가치평가', vaGoTab('rel', '자세히'), `<div class="va-bv"><span>주당 가치</span><b>${vaWon(round(tp?.ps))}</b>${vaUp(tp?.up)}</div>
@@ -820,7 +830,10 @@ function vaBrief() {
   } else rel = vaSec('상대가치평가', '', `<div class="va-bv"><span>주당 가치</span><b>${vaWon(relPs)}</b>${vaUp(relUp)}</div><p class="va-note">상대가치평가 사례 없이 절대가치평가 입력의 값</p>`);
   // 절대가치평가 한 장
   let abs = '';
-  if (x) {
+  if (off) { // 비상장 엔진 밖 계산이 있으면 할인 전 엔진 값 대신 가정만
+    const V = (id, S = 'Base') => v3V(x, id, 0, S);
+    abs = vaSec('절대가치평가', vaGoTab('dcf', '자세히'), `<dl class="va-asm"><div><dt>WACC</dt><dd>${v3Pct(V('WACC.wacc'), 2)}</dd></div><div><dt>영구성장률</dt><dd>${v3Pct(V('DCF.g_s'), 2)}</dd></div><div><dt>추정 기간</dt><dd>명시 ${x.tl.N}년${x.tl.M ? `, 전환 ${x.tl.M}년` : ''}</dd></div><div><dt>종료가치 비중</dt><dd>${v3Pct(V('DCF.tv_share'), 1)}</dd></div><div><dt>비유동성 할인</dt><dd>${v3Pct(off.minority_now?.dlom, 0)}</dd></div></dl>`);
+  } else if (x) {
     const sc = x.res.scen || {}, wt = x.sw.weights || {}, V = (id, S = 'Base') => v3V(x, id, 0, S), wv = x.res.wavg || {};
     const rows = V3_SCEN.map((S) => `<tr><td class="st">${v3pDot(S)}${S}</td><td>${vaWon(sc[S]?.ps)}</td><td>${vaUp(sc[S]?.up) || '-'}</td><td>${v3Pct(wt[S])}</td></tr>`).join('');
     abs = vaSec('절대가치평가', vaGoTab('dcf', '자세히'), `<div class="va-bv"><span>${esc(v3DcfName(x))}</span><b>${vaWon(wv.ps)}</b>${vaUp(wv.up)}</div>
@@ -828,7 +841,7 @@ function vaBrief() {
       <dl class="va-asm"><div><dt>WACC</dt><dd>${v3Pct(V('WACC.wacc'), 2)}</dd></div><div><dt>영구성장률</dt><dd>${v3Pct(V('DCF.g_s'), 2)}</dd></div><div><dt>추정 기간</dt><dd>명시 ${x.tl.N}년${x.tl.M ? `, 전환 ${x.tl.M}년` : ''}</dd></div><div><dt>종료가치 비중</dt><dd>${v3Pct(V('DCF.tv_share'), 1)}</dd></div></dl>`);
   }
   const memo = c?.conclusion ? vaSec('판단 메모', '', `<p class="va-prof">${vaTx(c.conclusion)}</p>`) : '';
-  return `${head}${ff}<div class="va-two">${rel}${abs}</div>${memo}`;
+  return `${head}${ff}${off ? v3uSec(x) : ''}${unl ? abs : `<div class="va-two">${rel}${abs}</div>`}${memo}`;
 }
 
 // ---------- 그리기 ----------

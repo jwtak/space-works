@@ -1316,3 +1316,10 @@
   .v3l-wb .btn { height: 44px; }
   .v3l-deal .v3-f .mk-seg button, .v3l-pf .mk-seg button, .v3l-po .mk-seg button { height: 44px; min-height: 44px; }
 }
+/* 비상장(2026-11-18): 상승여력 옆 「시리즈 C 대비」, 비상장 가치 표(이름 칸만 고정 폭, 나머지 같은 폭, 전부 왼쪽 정렬, 폰에서는 옆으로 밀어 봄) */
+.v3-ref { margin-left: 4px; font-size: var(--fs-sm); color: var(--text3); white-space: nowrap; }
+.v3u-t { min-width: 720px; }
+.v3u-t th:first-child { width: 200px; }
+.v3u-t th, .v3u-t td { text-align: left; }
+.v3u-t td b { color: var(--ink); font-weight: 600; }
+.v3u-t tr.grp td { padding-top: 20px; font-weight: 600; color: var(--ink); }
