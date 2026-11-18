@@ -292,7 +292,8 @@ function secDealTr(x, i) {
 
 // 라운드 참여 후보 행 아래: 투자 라운드 탭에서 그 회사를 펼치거나 파이프라인에 바로 올린다(ref = rounds.json id)
 function secRnActs(x) {
-  const ref = secRnRef(x), has = typeof pipeHas === 'function' && pipeHas(ref);
+  const e = secRnFind(x), refs = e ? [e.key, ...(e.aliases || [])] : [secRnRef(x)]; // 합친 회사는 예전 id(aliases)로 올린 딜도 '있음'
+  const ref = (typeof pipeHas === 'function' && refs.find((r) => pipeHas(r))) || refs[0], has = typeof pipeHas === 'function' && pipeHas(ref);
   return `<div class="sec-rnacts"><a class="ipo-a" href="#deals/round" data-sec-rn="${esc(x.id)}">투자 라운드에서 보기${ico('right', 'sm')}</a>${typeof pipeAdd !== 'function' ? ''
     : has ? `<a class="ipo-a" href="#deals/pipeline" data-pp-ref="${esc(ref)}">${ico('done', 'sm')}파이프라인에 있음</a>` : `<button type="button" class="btn sm" data-sec-pp="${esc(x.id)}">${ico('plus', 'sm')}파이프라인에 올리기</button>`}</div>`;
 }
@@ -300,7 +301,7 @@ function secRnActs(x) {
 function secRnFind(x) {
   if (typeof rnS !== 'object' || !rnS.data) return null;
   const k = rnCo(x.target);
-  return rnS.data.items.find((e) => rnCo(e.name) === k || (e.brand && rnCo(e.brand) === k)) || null;
+  return rnS.data.items.find((e) => rnCo(e.name) === k || (e.brand && rnCo(e.brand) === k) || (e.aliases || []).some((a) => rnCo(a.slice(6)) === k)) || null;
 }
 const secRnRef = (x) => secRnFind(x)?.key || `round:${x.target}`;
 async function secRnReady() {

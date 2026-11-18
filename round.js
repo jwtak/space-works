@@ -3,7 +3,8 @@
    2026-11-18 업종 무관 전체로(사용자: "후보 기준을 좁히지 말고, 라운드 도는 애들 다 리스트업한 뒤 필터로 거르면 된다", 캐치테이블이 들어올 길이 없었던 일. 딜레이더 노트 17.2).
    자료: data/rounds.json(딜레이더, 형식은 CONTRACT.md 「11/18 변경」 rounds.json). 파일이 아직 없으면 예전처럼 딥테크·소비재 자료(tgt.js tgS)에서 모은다.
    딥테크·소비재 보기는 빠른 보기 버튼(from에 '딥테크'·'소비재'가 든 회사)으로 남긴다.
-   컨택 상태·메모는 다른 딜소싱 화면과 같은 data/radar_marks.json(키 = round:<이름> 또는 예전 자료면 deep:…·cons:…). 저장은 tgt.js 의 tgS.marks·tgSaveMarks를 같이 쓴다.
+   컨택 상태·메모는 다른 딜소싱 화면과 같은 data/radar_marks.json(키 = round:<이름> 또는 예전 자료면 deep:…·cons:…). 합친 회사는 aliases(예전 id)의 표시·파이프라인 ref도 이 행으로 본다(11/18).
+   dt는 YYYY-MM-DD 또는 연월만(YYYY-MM, 딥테크·소비재 웹 조사). 연월만이면 목록에 yy.mm, 최근순 정렬은 같은 달 일자 있는 행 뒤(rnDk). 저장은 tgt.js 의 tgS.marks·tgSaveMarks를 같이 쓴다.
    펼친 칸 머리에는 fsq.js fqHead(같은 키라 팩트시트·관심 기업·파이프라인이 같은 회사로 본다), 파이프라인은 pipeline.js pipeAdd·pipeHas.
    홈 카드 '이번 주 새로 걸린 후보'(prenew.json)도 여기서 그린다: prenewHomeBlock().
    진입: renderRound(host) — host 안에만 그린다. 목록·펼친 행은 ipo.css, 좁은 폭 배치·묶음 제목은 radar.css(.rd-page·.rd-grp), 여기 것만 round.css. */
@@ -39,6 +40,9 @@ const rnDay = (v) => { const s = rnStr(v); return /^\d{4}-\d{2}(-\d{2})?/.exec(s
 const rnHttp = (v) => { const s = rnStr(v); return /^https?:\/\/\S+$/i.test(s) ? s : ''; };
 const RN_P0 = { rev: null, op: null, gr: null, turn: false, black: false, fin: null, years: [] };
 const rnPerf = (v) => (typeof rdPerfN === 'function' ? rdPerfN(v) : null) || RN_P0;
+// 날짜 정렬 키: 딥테크·소비재 웹 조사에서 온 라운드는 연월만(YYYY-MM)이라 그 달 1일보다 앞(00일)으로 본다. 최근순이면 같은 달 안에서 일자 있는 행 뒤에 온다
+const rnDk = (d) => (d && d.length === 7 ? `${d}-00` : d || '');
+const rnDesc = (a, b) => { const x = rnDk(a), y = rnDk(b); return x === y ? 0 : x < y ? 1 : -1; };
 const rnCo = (s) => rnStr(s).replace(/\(주\)|㈜|주식회사/g, '').replace(/[\s·.,\-()[\]]/g, '').toLowerCase();
 
 function rnNorm(raw) {
@@ -47,21 +51,28 @@ function rnNorm(raw) {
     const id = rnStr(x.id), name = rnStr(x.name);
     if (!id || !name || seen.has(id)) return null;
     seen.add(id);
-    const news = rnArr(x.news).filter((n) => rnStr(n.title)).map((n) => ({ dt: rnDay(n.dt), src: rnStr(n.src), title: rnStr(n.title), url: rnHttp(n.url) })).sort((a, b) => b.dt.localeCompare(a.dt));
+    // 같은 회사를 합친 행: 대표 id 하나에 예전 id(aliases). 예전 id로 남은 컨택 상태·메모·파이프라인 ref·이동 주소도 이 행으로 본다
+    const aliases = [...new Set((Array.isArray(x.aliases) ? x.aliases : []).map(rnStr).filter(Boolean).map((a) => (a.startsWith('round:') ? a : `round:${a}`)))].filter((a) => a !== id);
+    const news = rnArr(x.news).filter((n) => rnStr(n.title)).map((n) => ({ dt: rnDay(n.dt), src: rnStr(n.src), title: rnStr(n.title), url: rnHttp(n.url) })).sort((a, b) => rnDesc(a.dt, b.dt));
     const rounds = rnArr(x.rounds).map((r) => ({ dt: rnDay(r.dt), round: rnStr(r.round), status: rnStr(r.status), amount: rnNum(r.amount), val: rnNum(r.val), investors: rnStr(r.investors), src: rnStr(r.src), title: rnStr(r.title), url: rnHttp(r.url) }))
-      .filter((r) => r.dt || r.round || r.amount != null).sort((a, b) => b.dt.localeCompare(a.dt));
+      .filter((r) => r.dt || r.round || r.amount != null).sort((a, b) => rnDesc(a.dt, b.dt));
     const e = {
       id, key: id, name, brand: rnStr(x.brand), cc: rnStr(x.cc), listed: x.listed === true, sector: rnStr(x.sector), line: rnStr(x.line),
       round: rnStr(x.round), n: rnNum(x.stageN), status: rnStr(x.status), dt: rnDay(x.dt), amount: rnNum(x.amount), amountTxt: rnStr(x.amountTxt), goal: rnNum(x.goal),
       val: rnNum(x.val), valTxt: rnStr(x.valTxt), investors: rnStr(x.investors), pe: x.pe === true, target: rnStr(x.target), broker: rnStr(x.broker),
       p: rnPerf(x.perf), inv: rnNum(x.inv), rounds, news, from: (Array.isArray(x.from) ? x.from : []).map(rnStr).filter(Boolean),
-      isNew: x.isNew === true, newAt: rnDay(x.newAt), src: 'rounds',
+      isNew: x.isNew === true, newAt: rnDay(x.newAt), src: 'rounds', aliases,
     };
-    e.q = [name, e.brand, e.sector, e.line, e.round, e.status, e.investors, e.target, e.broker, ...e.from, ...rounds.map((r) => r.investors)].join(' ').toLowerCase();
+    e.q = [name, ...aliases.map((a) => a.slice(6)), e.brand, e.sector, e.line, e.round, e.status, e.investors, e.target, e.broker, ...e.from, ...rounds.map((r) => r.investors)].join(' ').toLowerCase();
     return e;
   }).filter(Boolean).filter((e) => !e.listed);
-  return { generated: rnStr(raw.generated), sources: raw.sources && typeof raw.sources === 'object' ? raw.sources : {}, items };
+  const alias = new Map();
+  items.forEach((e) => e.aliases.forEach((a) => { if (!seen.has(a) && !alias.has(a)) alias.set(a, e.id); }));
+  return { generated: rnStr(raw.generated), sources: raw.sources && typeof raw.sources === 'object' ? raw.sources : {}, items, alias };
 }
+const rnId = (id) => rnS.data?.alias?.get(id) || id;
+// 컨택 상태·메모를 읽고 쓸 키: 대표 id에 표시가 없고 예전 id에 있으면 그 키를 그대로 쓴다(같은 회사가 두 줄로 갈리지 않게)
+const rnMk = (e) => (e.aliases?.length && typeof tgMark === 'function' && !tgMark(e.key) ? e.aliases.find((a) => tgMark(a)) || e.key : e.key);
 
 // rounds.json이 아직 없을 때: 딥테크·소비재 자료에서 시리즈 B 이상 비상장(11/16 방식)
 function rnLastTg(x) {
@@ -122,7 +133,7 @@ function rnOk(e, s, skipQuick) {
 function rnAll() { return rnS.data ? rnS.data.items : rnFromTg(); }
 function rnRows(all) {
   const s = rnS, q = s.q.trim().toLowerCase();
-  const dt = (a, b) => (b.dt || '').localeCompare(a.dt || '');
+  const dt = (a, b) => rnDesc(a.dt, b.dt);
   const v = { amt: (e) => e.amount, val: (e) => e.val, rev: (e) => e.p.rev, op: (e) => e.p.op, gr: (e) => e.p.gr }[s.sort];
   const by = v ? (a, b) => (v(b) ?? -Infinity) - (v(a) ?? -Infinity) || dt(a, b) : dt;
   return all.filter((e) => rnOk(e, s) && (!q || e.q.includes(q))).sort((a, b) => by(a, b) || a.name.localeCompare(b.name, 'ko'));
@@ -136,8 +147,8 @@ const rnYmd = (d) => (/^\d{4}-\d{2}-\d{2}$/.test(d) ? yymd(d) : /^\d{4}-\d{2}$/.
 const rnKv = (k, v) => (v ? `<div class="ipo-kv"><div class="k">${k}</div><div class="v">${v}</div></div>` : '');
 const rnBox = (t, body, sub = '') => `<section class="ipo-box"><div class="ipo-box-h">${t}${sub ? `<span class="muted">${sub}</span>` : ''}</div><div class="ipo-box-b">${body}</div></section>`;
 const rnAmt = (e) => (e.amount != null ? rnEok(e.amount) : e.amountTxt ? esc(e.amountTxt) : '');
-const rnSt = (key) => (typeof tgSt === 'function' ? tgSt(key) : '미접촉');
-const rnChip = (key) => (typeof tgChip === 'function' ? tgChip(rnSt(key)) : '');
+const rnSt = (e) => (typeof tgSt === 'function' ? tgSt(rnMk(e)) : '미접촉');
+const rnChip = (e) => (typeof tgChip === 'function' ? tgChip(rnSt(e)) : '');
 const rnChev = () => `<span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span>`;
 const rnStChip = (st) => (st ? `<span class="pe-ds${st === '완료' ? '' : ' on'}">${esc(st)}</span>` : '');
 const RN_HEAD = '<div class="ipo-head ipo-cols"><div>날짜</div><div>회사</div><div>라운드</div><div>금액</div><div class="rd-c2">투자자</div><div>매출</div><div class="rd-h-st">컨택 상태</div></div>';
@@ -147,7 +158,7 @@ function rnRow(e) {
   const tags = `${e.isNew ? '<span class="rd-fs-tag">새로 걸림</span>' : ''}${e.pe ? '<span class="rd-fs-tag">PE 참여</span>' : ''}${e.val != null && e.val >= RN_BIG ? '<span class="rd-fs-tag rd-big">대형</span>' : ''}`;
   const sub = [e.sector, e.line || e.brand].filter(Boolean).join(', ');
   const p1 = [rnYmd(e.dt), e.round, rnAmt(e)].filter(Boolean).join(' ');
-  return `<div class="ipo-row${open ? ' open' : ''}${typeof tgDoneCls === 'function' ? tgDoneCls(rnSt(e.key)) : ''}" data-id="${esc(e.id)}">
+  return `<div class="ipo-row${open ? ' open' : ''}${typeof tgDoneCls === 'function' ? tgDoneCls(rnSt(e)) : ''}" data-id="${esc(e.id)}">
     <div class="ipo-line ipo-cols">
       <div class="rd-mh">${e.dt ? esc(rnYmd(e.dt)) : RN_NA}</div>
       <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${tgNm(e.name)}</button>${tags}${sub ? `<div class="ipo-sub">${esc(sub)}</div>` : ''}<div class="rn-pair"><span class="rn-p1">${p1 ? esc(p1) : '–'}</span><span>${e.status ? esc(e.status) : ''}</span></div></div>
@@ -155,7 +166,7 @@ function rnRow(e) {
       <div class="rd-mh">${rnAmt(e) || (e.goal != null ? `목표 ${rnEok(e.goal)}` : RN_NA)}${e.val != null ? `<div class="ipo-sub">기업가치 ${rnEok(e.val)}</div>` : ''}</div>
       <div class="rd-mh rd-c2">${e.investors ? `<div class="rd-clamp">${esc(e.investors)}</div>` : RN_NA}</div>
       <div class="rd-mh">${p.rev != null ? rnEok(p.rev) : RN_NA}${p.op != null ? `<div class="ipo-sub">영업이익 ${rnOp(p.op)}${p.turn ? ' <span class="rd-turn">흑자 전환</span>' : ''}</div>` : ''}</div>
-      <div class="ipo-c-st">${rnChip(e.key)}${rnChev()}</div>
+      <div class="ipo-c-st">${rnChip(e)}${rnChev()}</div>
     </div>${open ? rnDetail(e) : ''}</div>`;
 }
 
@@ -163,13 +174,13 @@ function rnRow(e) {
 // 머리: 요약 + 컨택 상태 + 메모 + 팩트시트 요청 + 파이프라인(+ 딥테크·소비재에서 보기)
 function rnPipe(e) {
   if (typeof pipeAdd !== 'function') return '';
-  let has = false;
-  try { has = typeof pipeHas === 'function' && !!pipeHas(e.key); } catch { /* 모르면 올리기 버튼 */ }
-  return has ? `<a class="ipo-a rd-pipe" href="#deals/pipeline" data-pp-ref="${esc(e.key)}">${ico('done', 'sm')}파이프라인에 있음</a>`
+  let has = '';
+  try { has = typeof pipeHas === 'function' ? [e.key, ...(e.aliases || [])].find((r) => pipeHas(r)) || '' : ''; } catch { /* 모르면 올리기 버튼 */ }
+  return has ? `<a class="ipo-a rd-pipe" href="#deals/pipeline" data-pp-ref="${esc(has)}">${ico('done', 'sm')}파이프라인에 있음</a>`
     : `<button type="button" class="btn sm rd-pipe" data-rn-pipe>${ico('plus', 'sm')}파이프라인에 올리기</button>`;
 }
 function rnHead(e) {
-  const st = rnSt(e.key), m = typeof tgMark === 'function' ? tgMark(e.key) : null, tg = rnTgOf(e);
+  const st = rnSt(e), m = typeof tgMark === 'function' ? tgMark(rnMk(e)) : null, tg = rnTgOf(e);
   const sum = [e.line, e.valTxt].filter(Boolean).join(', ') || e.tg?.why || '';
   const go = tg ? `<a class="ipo-a rd-pipe rn-go" href="#deals/${tg.id.split(':')[0]}" data-rn-go="${esc(tg.id)}">${esc(TG_CFG[tg.id.split(':')[0]].title)}에서 보기${ico('right', 'sm')}</a>` : '';
   return `<div class="ipo-dhead">${sum ? `<p class="ipo-sum1">${esc(sum)}</p>` : '<p></p>'}
@@ -224,7 +235,7 @@ function rnDetailTg(e) {
 /* ---------- 컨택 상태·메모: radar_marks.json(tgt.js 저장 줄을 같이 탄다) ---------- */
 function rnTouch(e, patch) {
   if (typeof tgSaveMarks !== 'function' || !tgS.marks) return false;
-  const key = e.key, tab = key.split(':')[0];
+  const key = rnMk(e), tab = key.split(':')[0];
   let m = tgMark(key);
   const prev = tgS.dirty.get(key), base = prev ? prev.base : (m ? { ...m } : null);
   if (!m) { m = { key, tab, name: e.name, status: '미접촉', note: '' }; tgS.marks.items.push(m); }
@@ -237,13 +248,13 @@ function rnTouch(e, patch) {
 function rnSetStatus(id, st) {
   const e = rnAll().find((y) => y.id === id); if (!e || !TG_STATUS.includes(st)) return;
   let v = st;
-  if (rnSt(e.key) === v) { if (v !== TG_STATUS[4]) return; v = TG_STATUS[0]; }
+  if (rnSt(e) === v) { if (v !== TG_STATUS[4]) return; v = TG_STATUS[0]; }
   if (rnTouch(e, { status: v })) rnRedrawRow(id);
 }
 function rnSetNote(id, val) {
   const e = rnAll().find((y) => y.id === id); if (!e) return;
   const note = String(val || '').trim().slice(0, 300);
-  if ((tgMark(e.key)?.note || '') === note) return;
+  if ((tgMark(rnMk(e))?.note || '') === note) return;
   rnTouch(e, { note });
 }
 
@@ -258,7 +269,7 @@ function rnSummary(all) {
     `<span><b>${all.length}</b>곳</span>`,
     d ? `<span>새로 걸림 <b>${all.filter((e) => e.isNew).length}</b></span>` : '',
     d ? `<span>PE 참여 <b>${all.filter((e) => e.pe).length}</b></span>` : '',
-    `<span>컨택 <b>${all.filter((e) => rnSt(e.key) !== '미접촉').length}</b></span>`, ...fails].join('');
+    `<span>컨택 <b>${all.filter((e) => rnSt(e) !== '미접촉').length}</b></span>`, ...fails].join('');
 }
 function rnQuickHtml(all) {
   return RN_QUICK.map(([k, l]) => { const n = all.filter((e) => rnOk(e, { ...rnS, k, st: '', sec: '', stg: '', amt: '', prof: '', ipo: '' })).length;
@@ -370,7 +381,7 @@ function rnBind(root) {
 async function rnLoad(force) {
   const host = rnS.host;
   if (force || !rnS.at || Date.now() - rnS.at > RN_TTL) {
-    if (!rnS.loading) rnS.loading = rnRead().then((d) => { rnS.data = d; rnS.at = Date.now(); }).finally(() => { rnS.loading = null; });
+    if (!rnS.loading) rnS.loading = rnRead().then((d) => { rnS.data = d; rnS.at = Date.now(); rnFixIds(); }).finally(() => { rnS.loading = null; });
   }
   // 딥테크·소비재 자료는 컨택 상태(radar_marks)와 '딥테크에서 보기' 연결에, rounds.json이 없으면 목록 자체에 쓴다
   const r = await Promise.allSettled([rnS.loading || Promise.resolve(), tgLoad('deep', force), tgLoad('cons', force)]);
@@ -398,9 +409,16 @@ async function renderRound(host) {
   await rnLoad(false);
 }
 
+// 펼친 행·이동할 행이 예전 id(합치기 전)로 남아 있으면 대표 id로
+function rnFixIds() {
+  if (!rnS.data?.alias?.size) return;
+  rnS.open = new Set([...rnS.open].map(rnId));
+  if (rnS.focus) rnS.focus = rnId(rnS.focus);
+}
+
 /* 다른 화면(파이프라인·홈 카드·섹터)에서 ref('round:<이름>')로 한 회사를 펼쳐 보여 줄 때: 필터를 풀고 펼친 뒤 돌려준 주소로 이동 */
 function roundFocus(ref) {
-  const id = String(ref || '').replace(/^round:(?=round:)/, ''); // 키가 round:<id>(id 자체도 round:…)로 와도 같은 행
+  const id = rnId(String(ref || '').replace(/^round:(?=round:)/, '')); // 키가 round:<id>(id 자체도 round:…)로 와도 같은 행. 예전 id면 대표 id로(자료를 아직 안 읽었으면 읽은 뒤 rnFixIds)
   if (!id) return '';
   Object.assign(rnS, { q: '', k: 'all', st: '', sec: '', stg: '', amt: '', prof: '', ipo: '' });
   rnS.open.add(id); rnS.focus = id;
@@ -419,7 +437,7 @@ async function prenewLoad() {
   if (!d.text) return null;
   let raw; try { raw = JSON.parse(d.text); } catch { return null; }
   const items = rnArr(raw?.items).map((x) => ({ tab: rnStr(x.tab), key: rnStr(x.key), name: rnStr(x.name), dt: rnDay(x.dt), why: rnStr(x.why) }))
-    .filter((x) => x.name && x.key && PN_TAB[x.tab]).sort((a, b) => b.dt.localeCompare(a.dt));
+    .filter((x) => x.name && x.key && PN_TAB[x.tab]).sort((a, b) => rnDesc(a.dt, b.dt));
   return { generated: rnStr(raw.generated), since: rnDay(raw.since), items };
 }
 function prenewGo(key) {
