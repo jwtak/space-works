@@ -95,7 +95,8 @@ async function rnRead() {
   if (!d.text) return null;
   let raw;
   try { raw = JSON.parse(d.text); } catch { throw new Error('투자 라운드 자료 형식이 올바르지 않습니다'); }
-  return raw && typeof raw === 'object' && !Array.isArray(raw) ? rnNorm(raw) : null;
+  const d2 = raw && typeof raw === 'object' && !Array.isArray(raw) ? rnNorm(raw) : null;
+  return d2 && d2.items.length ? d2 : null; // 빈 파일(첫 수집 전 자리)이면 딥테크·소비재 자료로
 }
 
 /* ---------- 거르기·정렬 ---------- */
