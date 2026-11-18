@@ -419,7 +419,8 @@ button.va-gr.me:hover { background: var(--primary-soft); }
 .va-grh span:nth-child(n+3) { text-align: right; }
 .va-gh { margin: 12px 0 2px; padding: 0 8px; font-size: var(--fs-sm); line-height: 20px; font-weight: 600; color: var(--ink); }
 .va-gh:first-child { margin-top: 4px; }
-.va-g4.two > .va-cmp + .card { position: sticky; top: 16px; align-self: start; } /* 업종 목록이 길어도 오른쪽 분포가 따라옴 */
+.va-gcol { display: flex; flex-direction: column; gap: 16px; min-width: 0; } /* 업종 안 분포와 업종 PER 추이 */
+.va-g4.two > .va-cmp + .va-gcol { position: sticky; top: 16px; align-self: start; } /* 업종 목록이 길어도 오른쪽 분포가 따라옴 */
 /* 가치평가 아래 하위 탭(요약, 상대가치평가, 절대가치평가): 위 탭(묶음형)과 안쪽 탭(작은 묶음형) 사이라 밑줄형 */
 .va-sub { display: flex; gap: 24px; margin: 0 0 20px; border-bottom: 1px solid var(--line); overflow-x: auto; }
 .va-sub button { position: relative; flex: none; height: 44px; padding: 0 2px; border: 0; background: none; font: inherit; font-size: var(--fs-lg); font-weight: 500; color: var(--text2); cursor: pointer; white-space: nowrap; }

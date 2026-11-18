@@ -464,7 +464,7 @@ function vaPeerQ(F, x) {
 }
 
 // ---------- 요약 탭: 전 상장사 PER 분포, PER 추이, 업종별 PER 비교, 업종 안 PER 분포 (SK오션플랜트 IM 99쪽 구성) ----------
-const VA_LV = [['sector', '대분류'], ['industryGroup', '중분류'], ['industry', '소분류']]; // FnGuide 분류 단계. 세부 업종(네이버 테마를 묶은 것, lv 'theme')은 데이터에 themes 가 있을 때만
+const VA_LV = [['industry', '소분류'], ['industryGroup', '중분류'], ['sector', '대분류']]; // FnGuide 분류 단계(잘게 나눈 것부터). 세부 업종(네이버 테마를 묶은 것, lv 'theme')은 데이터에 themes 가 있을 때만 맨 앞에, 처음엔 세부 업종(2026-11-18 사용자)
 /* 세부 업종: 네이버 테마를 2차전지 정도 크기로 묶음(2026-11-17 사용자 「2차전지(나트륨이온), 전고체가 나뉠 정도로 너무 세부적이지는 않게」).
    [묶음 이름, 테마 이름 정규식, 대분류]. 맞는 테마들의 종목을 합침(한 종목이 여러 묶음에 들 수 있음). 어느 묶음에도 안 맞는 테마(행사, 정책, 계절, 특정 회사, 지수 등)는 뺌. 새 테마가 생기면 여기에 넣음 */
 const VA_TH_GROUP = [ // [묶음 이름, 테마 이름 정규식, 대분류]. 이 순서가 「기본 순서」
@@ -491,7 +491,7 @@ function vaCw(full) { // 차트를 그릴 칸의 안쪽 폭(px). SVG를 실제 �
 
 function vaGrp(x) { // 업종별 비교에서 고른 분류 단계와 업종 안 분포로 볼 묶음. 줄을 눌러 고른 업종 > 보는 회사의 업종 > 종목이 가장 많은 업종
   const d = vaS.mk, th = x ? vaThOf(x) : [];
-  const lv = vaS.lv === 'theme' ? (d.thSet && (!x || th.length) ? 'theme' : 'sector') : VA_LV.some(([k]) => k === vaS.lv) ? vaS.lv : 'sector';
+  const want = vaS.lv || 'theme', lv = want === 'theme' ? (d.thSet && (!x || th.length) ? 'theme' : 'industry') : VA_LV.some(([k]) => k === want) ? want : 'industry';
   if (lv === 'theme') { // 회사를 골랐으면 그 회사가 든 세부 업종 가운데, 아니면 전체에서. 처음엔 종목이 가장 많은 것
     const cand = x ? th : d.themes.map((_, k) => k), big = [...cand].sort((a, b) => d.thSet[b].size - d.thSet[a].size);
     const i = cand.find((k) => d.themes[k][0] === vaS.thm) ?? big[0];
@@ -557,7 +557,7 @@ function vaHisto(vals, tv, name) { // 구간별 종목 수 막대. 중앙값(실
 
 function vaCmp(x, g, key) { // 업종별 PER 비교: 분류 단계와 순서를 골라 묶음마다 PER 중앙값, 25～75% 구간, 1개월 상승률. 줄을 누르면 업종 안 분포가 그 업종으로 바뀜
   const th = x ? vaThOf(x) : [], isTh = g.lv === 'theme', { rows, total, head } = vaGrpRows(x, g, key), ord = vaGord();
-  const seg = vaSeg('lv', [...VA_LV, ...(vaS.mk?.thSet && (!x || th.length) ? [['theme', '세부 업종']] : [])], g.lv);
+  const seg = vaSeg('lv', [...(vaS.mk?.thSet && (!x || th.length) ? [['theme', '세부 업종']] : []), ...VA_LV], g.lv);
   const oseg = vaS.mk?.cols?.includes('r1m') ? `<div class="va-mctl">${vaSeg('gord', [['base', '기본 순서'], ['r1m', '1개월 상승률'], ['tv', '거래대금']], ord)}</div>` : '';
   const ttl = '업종별 PER 비교';
   if (!rows.length) return vaSec(ttl, seg, `${oseg}<div class="empty">PER이 있는 회사가 없습니다.</div>`, 'va-cmp');
@@ -623,7 +623,7 @@ function vaMktTab() {
   const kpi = `<section class="card va-kpis"><dl style="grid-template-columns:repeat(${w >= 1000 ? 6 : w >= 520 ? 3 : 2}, minmax(0, 1fr))">${kv.map(([k, v, big]) => `<div class="${big ? 'k' : ''}"><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl></section>`;
   const dist = vaSec(`${{ ALL: '전 상장사', KOSPI: '코스피', KOSDAQ: '코스닥' }[mkm]} PER 분포 <span class="meta">${vaNum(all.length)}곳</span>`, '', `${vaHisto(all, x?.[key], x?.name || '')}`);
   const fold = F ? `${vaFold('pos', F.role === '대상' ? '대상과 비교기업 위치' : '선택한 회사와 Peer 위치', vaPos(F, key))}${vaFold('reg', 'PER 회귀', vaRegBody(F))}` : '';
-  return `${bar}${kpi}<div class="va-g4 ${w >= VA_G2 ? 'two' : ''}">${dist}${vaTrend(F)}${vaCmp(x, g, key)}${vaInGrp(x, g, key)}</div>${fold}`;
+  return `${bar}${kpi}<div class="va-g4 ${w >= VA_G2 ? 'two' : ''}">${dist}${vaTrend(F)}${vaCmp(x, g, key)}<div class="va-gcol">${vaInGrp(x, g, key)}${vaGrpTrend(g)}</div></div>${fold}`;
 }
 
 function vaRegBody(F) { // PER 회귀(요약 탭 접힌 구역)
@@ -678,21 +678,10 @@ function vaSmooth(pts) { // 손PB rollingAvg: 점이 200개 넘으면 10개, 아
   const w = pts.length > 200 ? 10 : 4;
   return pts.map((p, i) => { const xs = pts.slice(Math.max(0, i - w + 1), i + 1); return { d: p.d, v: xs.reduce((a, x) => a + x.v, 0) / xs.length }; });
 }
-function vaTrend(F) {
-  const h = vaS.hist;
-  if (!h) { if (!vaS.histErr) vaLoadHist(); return vaSec('PER 추이', '', `<div class="empty">${vaS.histErr ? 'PER 기록을 읽지 못했습니다.' : '불러오는 중…'}</div>`); }
-  const x = F ? vaS.mk?.by[F.code] : null, mkt = x?.market === 'KOSDAQ' ? 'KOSDAQ' : 'KOSPI', yrs = vaS.trd || '5';
-  const cut = yrs === 'all' ? '' : (() => { const d = new Date(); d.setFullYear(d.getFullYear() - +yrs); return d.toISOString().slice(0, 10); })();
-  const ds = h.dates, a = F ? h.per[F.code] : null;
-  const mPts = ds.map((d, i) => ({ d, v: h.mkt[mkt][i] })).filter((p) => p.v && p.d >= cut);
-  // 회사를 고르지 않으면 코스피(파랑)와 코스닥(회색) 중앙값을 같이 그림
-  const sPts = F ? (a ? a.slice(1).map((v, i) => ({ d: ds[a[0] + i], v })).filter((p) => p.v && p.d >= cut) : []) : ds.map((d, i) => ({ d, v: h.mkt.KOSDAQ?.[i] })).filter((p) => p.v && p.d >= cut);
-  const seg = vaSeg('trd', [['1', '1년'], ['3', '3년'], ['5', '5년'], ['all', '전체']], yrs);
-  if (mPts.length < 2) return vaSec('PER 추이', seg, '<div class="empty">기록이 쌓이는 중입니다.</div>');
-  const M = vaSmooth(mPts), S = vaSmooth(sPts);
+const vaTrCut = (yrs) => (yrs === 'all' ? '' : (() => { const d = new Date(); d.setFullYear(d.getFullYear() - +yrs); return d.toISOString().slice(0, 10); })());
+function vaTrSvg(M, S, mName, sName, label) { // 추이 선 두 개(M 회색, S 파랑)와 선 끝 이름표. PER 추이와 업종 PER 추이가 같이 씀
   // 선 끝 이름표: 넓으면 「코스피 8.9배」처럼 이름까지, 좁으면 값만(위 범례로)
   const W = vaCw(), H = W < 360 ? 210 : 260, named = W >= 360;
-  const mName = mkt === 'KOSDAQ' ? '코스닥' : '코스피', sName = F ? (F.name.length > 8 ? `${F.name.slice(0, 7)}…` : F.name) : '코스닥';
   const lm = M[M.length - 1], ls = S.length > 1 ? S[S.length - 1] : null;
   const etx = (p, nm) => `${named ? `${nm} ` : ''}${vaNum(p.v, 1)}배`, tw = (t) => [...t].reduce((a, ch) => a + (ch.codePointAt(0) >= 0x1100 ? 12 : 7), 0);
   const P = { l: 40, r: Math.max(56, 12 + Math.max(tw(etx(lm, mName)), ls ? tw(etx(ls, sName)) : 0)), t: 12, b: 30 };
@@ -704,7 +693,23 @@ function vaTrend(F) {
   const xt = [t0, (t0 + t1) / 2, t1].map((t, i) => { const d = new Date(t).toISOString().slice(0, 10); return `<text x="${X(d).toFixed(1)}" y="${H - 8}" class="xl" style="text-anchor:${['start', 'middle', 'end'][i]}">${d.slice(2, 7).replace('-', '.')}</text>`; }).join('');
   const gap = ls ? Y(ls.v) - Y(lm.v) : 99, nudge = Math.abs(gap) < 16 ? (16 - Math.abs(gap)) / 2 * (gap < 0 ? -1 : 1) : 0;
   const end = (p, cls, dy, nm) => `<text x="${(X(p.d) + 6).toFixed(1)}" y="${(Y(p.v) + 4 + dy).toFixed(1)}" class="${cls}">${esc(etx(p, nm))}</text>`;
-  const svg = `<svg viewBox="0 0 ${W} ${H}" class="va-sc va-tr" role="img" aria-label="PER 추이">${yt}${xt}<path d="${path(M)}" class="mk"/>${S.length > 1 ? `<path d="${path(S)}" class="me"/>` : ''}${end(lm, 'el mk', -nudge, mName)}${ls ? end(ls, 'el me', nudge, sName) : ''}</svg>`;
+  const svg = `<svg viewBox="0 0 ${W} ${H}" class="va-sc va-tr" role="img" aria-label="${esc(label)}">${yt}${xt}<path d="${path(M)}" class="mk"/>${S.length > 1 ? `<path d="${path(S)}" class="me"/>` : ''}${end(lm, 'el mk', -nudge, mName)}${ls ? end(ls, 'el me', nudge, sName) : ''}</svg>`;
+  return { svg, named };
+}
+function vaTrend(F) {
+  const h = vaS.hist;
+  if (!h) { if (!vaS.histErr) vaLoadHist(); return vaSec('PER 추이', '', `<div class="empty">${vaS.histErr ? 'PER 기록을 읽지 못했습니다.' : '불러오는 중…'}</div>`); }
+  const x = F ? vaS.mk?.by[F.code] : null, mkt = x?.market === 'KOSDAQ' ? 'KOSDAQ' : 'KOSPI', yrs = vaS.trd || '5';
+  const cut = vaTrCut(yrs);
+  const ds = h.dates, a = F ? h.per[F.code] : null;
+  const mPts = ds.map((d, i) => ({ d, v: h.mkt[mkt][i] })).filter((p) => p.v && p.d >= cut);
+  // 회사를 고르지 않으면 코스피(파랑)와 코스닥(회색) 중앙값을 같이 그림
+  const sPts = F ? (a ? a.slice(1).map((v, i) => ({ d: ds[a[0] + i], v })).filter((p) => p.v && p.d >= cut) : []) : ds.map((d, i) => ({ d, v: h.mkt.KOSDAQ?.[i] })).filter((p) => p.v && p.d >= cut);
+  const seg = vaSeg('trd', [['1', '1년'], ['3', '3년'], ['5', '5년'], ['all', '전체']], yrs);
+  if (mPts.length < 2) return vaSec('PER 추이', seg, '<div class="empty">기록이 쌓이는 중입니다.</div>');
+  const M = vaSmooth(mPts), S = vaSmooth(sPts);
+  const mName = mkt === 'KOSDAQ' ? '코스닥' : '코스피', sName = F ? (F.name.length > 8 ? `${F.name.slice(0, 7)}…` : F.name) : '코스닥';
+  const { svg, named } = vaTrSvg(M, S, mName, sName, 'PER 추이');
   const raw = sPts.map((p) => p.v), mr = mPts.map((p) => p.v), last = (xs) => xs[xs.length - 1];
   let kv, leg, note = '';
   const mTip = 'PER 2～500배, 금융 업종 제외한 중앙값(위 시장 중앙값과 기준이 다름)';
@@ -717,6 +722,31 @@ function vaTrend(F) {
     note = sPts.length < 2 ? `<p class="va-note">${esc(F.name)} 기록은 ${esc(sPts[0]?.d || ds[ds.length - 1])}부터 쌓는 중</p>` : '';
   }
   return vaSec('PER 추이', seg, `<dl class="va-mini">${kv.map(([k, v, t]) => `<div${t ? ` title="${t}"` : ''}><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>${named ? '' : leg}<div class="va-scw">${svg}</div>${note}`);
+}
+
+// ---------- 업종 PER 추이 (data/valuation_ind_hist.json, 가치평가 폴더 ind_hist.py 가 market.py 실행 끝에 계산. 업종별 비교에서 고른 묶음의 PER 중앙값과 전 종목 중앙값) ----------
+const VA_IND_FILE = 'data/valuation_ind_hist.json';
+function vaLoadInd() {
+  if (vaS.ind || vaS.indErr) return Promise.resolve();
+  vaS.indLoading ||= STORE.readText(VA_IND_FILE)
+    .then((r) => { vaS.ind = r.text ? JSON.parse(r.text) : null; if (!vaS.ind) vaS.indErr = true; })
+    .catch(() => { vaS.indErr = true; })
+    .finally(() => { vaS.indLoading = null; vaDraw(); });
+  return vaS.indLoading;
+}
+function vaGrpTrend(g) {
+  if (!g.name) return '';
+  const ttl = `업종 PER 추이 <span class="meta">${esc(g.name)}</span>`, h = vaS.ind;
+  if (!h) { if (!vaS.indErr) vaLoadInd(); return vaSec(ttl, '', `<div class="empty">${vaS.indErr ? '업종 PER 기록을 읽지 못했습니다.' : '불러오는 중…'}</div>`); }
+  const yrs = vaS.trd || '5', cut = vaTrCut(yrs), seg = vaSeg('trd', [['1', '1년'], ['3', '3년'], ['5', '5년'], ['all', '전체']], yrs);
+  const pts = (a) => (a ? h.dates.map((d, i) => ({ d, v: a[i] })).filter((p) => p.v && p.d >= cut) : []);
+  const gP = pts(h.g?.[g.lv]?.[g.name]), mP = pts(h.all);
+  if (gP.length < 2 || mP.length < 2) return vaSec(ttl, seg, '<div class="empty">이 업종은 PER 기록이 없습니다.</div>');
+  const sName = g.name.length > 8 ? `${g.name.slice(0, 7)}…` : g.name, { svg, named } = vaTrSvg(vaSmooth(mP), vaSmooth(gP), '전 종목', sName, '업종 PER 추이');
+  const raw = gP.map((p) => p.v), last = (xs) => xs[xs.length - 1];
+  const kv = [['지금', vaX(last(raw))], ['기간 중앙값', vaX(vaQuant(raw, 0.5))], ['전 종목 중앙값', vaX(last(mP).v), '코스피, 코스닥 전 종목 최근 4분기 PER 0～200배의 중앙값']];
+  const leg = `<div class="va-leg"><span class="ln">${esc(g.name)}</span><span class="cv">전 종목 중앙값</span></div>`;
+  return vaSec(ttl, seg, `<dl class="va-mini">${kv.map(([k, v, t]) => `<div${t ? ` title="${t}"` : ''}><dt>${k}</dt><dd>${v}</dd></div>`).join('')}</dl>${named ? '' : leg}<div class="va-scw">${svg}</div>`);
 }
 
 const vaNone = (code, what) => `<div class="card va-none"><div class="empty"><p>${what}</p>${vaReqBtn(code)}</div></div>`; // 평가가 없는 회사: 안내와 평가 요청
@@ -862,7 +892,7 @@ function vaBind(host) {
     const vt = e.target.closest('[data-va-vt]');
     if (vt) { location.hash = `#valuation/${vt.dataset.vaVt}`; return; }
     const gp = e.target.closest('[data-va-grp]');
-    if (gp) { vaS.gsel = { lv: vaS.lv || 'sector', name: gp.dataset.vaGrp }; vaDraw(); return; }
+    if (gp) { vaS.gsel = { lv: vaS.lv && vaS.lv !== 'theme' ? vaS.lv : 'industry', name: gp.dataset.vaGrp }; vaDraw(); return; }
     if (e.target.closest('[data-va-gall]')) { vaS.gAll = !vaS.gAll; vaDraw(); return; }
     const qc = vaCase() ? null : vaCode(); // 리서치한 평가가 없는 회사면 그 종목코드(Peer를 직접 고르는 회사)
     const pa = e.target.closest('[data-va-padd]');
@@ -957,7 +987,7 @@ TAB_INFO.valuation = { title: '가치평가', rows: [
   ['이 화면', '시장동향, 재무분석, 가치평가 세 탭이고, 가치평가 안에 요약, 상대가치평가, 절대가치평가가 있습니다. 회사는 탭 위 줄에서 한 번 고르면 모든 탭이 그 회사를 봅니다. 처음에는 고른 회사가 없고, 이름 옆 ×로 선택을 풉니다.'],
   ['평가 요청', '아직 평가하지 않은 회사를 고르면 시장동향과 재무분석에서는 회사 이름 옆에, 가치평가 탭에서는 본문에 「평가 요청」 단추가 나옵니다. 누르면 오른쪽 요청사항에 「[평가 요청] 회사 이름(종목코드)」 글이 남고, 반영 완료 전까지 「평가 요청함」으로 보입니다.'],
   ['탭', ['시장동향: 회사를 고르지 않으면 시장과 업종끼리 PER 비교(전 상장사 분포, 코스피와 코스닥 중앙값 추이, 업종별 비교, 업종 안 분포). 고르면 그 회사가 어디쯤인지와 접힌 구역 둘(비교기업 위치 표, PER 회귀)', '재무분석: 고른 회사의 재무제표 분석', '가치평가 › 요약: 결합 목표주가, 풋볼필드, 상대가치평가와 절대가치평가 핵심 값. 「자세히」로 각 탭에 감', '가치평가 › 상대가치평가: 리서치한 평가가 있으면 결과, 배수 상세, 검증, 선정 근거. 없으면 Peer 비교', '가치평가 › 절대가치평가: 고른 회사의 DCF 모델', '회사를 고르지 않은 재무분석과 가치평가는 평가한 회사 목록. 줄을 누르면 그 회사로 감']],
-  ['시장동향 읽는 법', ['업종별 PER 비교의 줄을 누르면 업종 안 PER 분포가 그 업종으로 바뀜. 고른 줄은 파란 바탕, 고른 회사의 업종은 이름 옆 파란 점', '회사를 고르지 않았을 때 위 숫자: 시장 중앙값, 평균, 25～75%, 코스피와 코스닥 중앙값, PER 있는 종목 수', '고른 회사가 있을 때 위 숫자: 최근 4분기 PER, 추정 PER, 시장 안에서 PER이 낮은 쪽부터 몇 %에 있는지, 시장 중앙값, 업종별 비교에서 고른 분류의 중앙값, 시가총액. 추정 이익이 적자면 「적자」', '전체, 코스피, 코스닥과 최근 4분기 PER, 추정 PER 선택은 분포 두 칸, 업종별 비교, 위 숫자에 같이 적용. PER 추이는 늘 최근 4분기 PER', 'PER 분포: 코스피, 코스닥 전 종목(우선주, 스팩 제외) 가운데 PER 0～200배 종목을 구간별로 센 막대. 구간은 0, 3, 5, 8, 10, 13, 15, 20, 25, 30, 40, 50, 75, 200배에서 끊음. 실선은 중앙값, 점선은 평균, 파란 점선은 고른 회사이고 선마다 위에 이름표. PER이 없거나 200배 이상이면 선 없이 그림 아래에 적음', '업종별 PER 비교: 분류 단계(FnGuide 대분류, 중분류, 소분류와 세부 업종)와 순서를 고름. 한 줄에 업종, PER 25～75% 구간 막대(세로선은 중앙값), 1개월 상승률, PER 중앙값, 종목 수.', '순서: 기본 순서는 늘 같은 자리(세부 업종은 IT, 2차전지와 자동차, 콘텐츠, 산업재, 에너지와 소재, 헬스케어, 소비재, 금융 머리 아래, FnGuide는 대분류 순서 안에서 종목 수 순)이고 전부 보임. 1개월 상승률은 묶음 안 종목의 21거래일 상승률 중앙값이 높은 순, 거래대금은 최근 20거래일 거래대금 합이 큰 순(셋째 칸은 전체 거래대금 가운데 비중)이고 위 10개, 나머지는 펼쳐 봄. 보고 있는 업종이 10위 밖이면 맨 아래에 붙음', '파란 바탕 줄은 업종 안 분포로 보는 업종, 파란 점은 고른 회사 PER, 고른 회사의 업종은 이름 옆 파란 점', 'FnGuide 분류는 PER 있는 종목이 5곳 이상인 업종만(고른 회사와 누른 업종은 1곳이어도)', '세부 업종: 2차전지, 반도체, 화장품처럼 FnGuide 소분류와 다르게 나눈 50여 개 묶음. 네이버 테마를 묶어 만듦(2차전지는 소재, 장비, 전고체 등을 합침). 행사, 정책, 계절, 특정 회사, 지수 테마는 뺌. 한 종목이 여러 묶음에 듦. 회사를 고르지 않으면 전체, 고르면 그 회사가 든 묶음만', '업종 안 PER 분포: 업종별 비교에서 누른 업종의 종목만 모은 분포. 누르지 않았으면 고른 회사의 업종, 회사도 없으면 종목이 가장 많은 업종. 10곳 미만이면 회사별 PER 막대, 세로선은 중앙값', 'PER 추이: 고른 회사의 최근 4분기 PER과 그 회사 시장(코스피, 코스닥) 중앙값. 회사를 고르지 않으면 코스피와 코스닥 중앙값. 선 끝에 이름과 이동평균 마지막 값(좁은 화면은 값만 적고 위에 범례). 손PB와 같이 점이 200개 넘으면 10개, 아니면 4개씩 이동평균. 시장 중앙값은 PER 2～500배, 금융 업종 제외. 평일 16:30에 쌓고, 그 전 기록은 손PB가 2016-05부터 모은 같은 네이버 PER(시장 중앙값과 리서치 사례 회사만, 2025년까지는 주 1회)', '추이 위 숫자: 고른 회사가 있으면 지금, 기간 중 PER 중앙값(이동평균 전 값), 시장 중앙값. 없으면 코스피와 코스닥 지금 중앙값', '위치 표: 리서치한 평가가 있으면 대상과 국내 비교기업, 없으면 고른 회사와 상대가치평가 탭에서 넣은 Peer. 이익 성장률은 최근 4분기 PER ÷ 추정 PER − 1, 괴리는 회귀 적정 PER ÷ 지금 PER − 1', 'PER 회귀: 이익 성장률이 같을 때 시장이 주는 PER을 보는 보조 지표. 손PB 상대가치 화면과 같은 식. log(PER) = 상수 + 성장률 계수 × 이익 성장률 + 베타 계수 × 베타 + 업종 더미. 표본은 최근 4분기 PER 2～500배, 추정 PER 0～200배, 성장률 0～500%, 베타 −1～4인 회사, 업종 5곳 미만은 기준 업종. 가로축은 200%에서 자름. 성장률이 0 이하인 회사는 직접 넣으면 단순 회귀 곡선으로 계산']],
+  ['시장동향 읽는 법', ['업종별 PER 비교의 줄을 누르면 업종 안 PER 분포가 그 업종으로 바뀜. 고른 줄은 파란 바탕, 고른 회사의 업종은 이름 옆 파란 점', '회사를 고르지 않았을 때 위 숫자: 시장 중앙값, 평균, 25～75%, 코스피와 코스닥 중앙값, PER 있는 종목 수', '고른 회사가 있을 때 위 숫자: 최근 4분기 PER, 추정 PER, 시장 안에서 PER이 낮은 쪽부터 몇 %에 있는지, 시장 중앙값, 업종별 비교에서 고른 분류의 중앙값, 시가총액. 추정 이익이 적자면 「적자」', '전체, 코스피, 코스닥과 최근 4분기 PER, 추정 PER 선택은 분포 두 칸, 업종별 비교, 위 숫자에 같이 적용. PER 추이는 늘 최근 4분기 PER', 'PER 분포: 코스피, 코스닥 전 종목(우선주, 스팩 제외) 가운데 PER 0～200배 종목을 구간별로 센 막대. 구간은 0, 3, 5, 8, 10, 13, 15, 20, 25, 30, 40, 50, 75, 200배에서 끊음. 실선은 중앙값, 점선은 평균, 파란 점선은 고른 회사이고 선마다 위에 이름표. PER이 없거나 200배 이상이면 선 없이 그림 아래에 적음', '업종별 PER 비교: 분류 단계(세부 업종과 FnGuide 소분류, 중분류, 대분류. 처음엔 세부 업종)와 순서를 고름. 한 줄에 업종, PER 25～75% 구간 막대(세로선은 중앙값), 1개월 상승률, PER 중앙값, 종목 수.', '순서: 기본 순서는 늘 같은 자리(세부 업종은 IT, 2차전지와 자동차, 콘텐츠, 산업재, 에너지와 소재, 헬스케어, 소비재, 금융 머리 아래, FnGuide는 대분류 순서 안에서 종목 수 순)이고 전부 보임. 1개월 상승률은 묶음 안 종목의 21거래일 상승률 중앙값이 높은 순, 거래대금은 최근 20거래일 거래대금 합이 큰 순(셋째 칸은 전체 거래대금 가운데 비중)이고 위 10개, 나머지는 펼쳐 봄. 보고 있는 업종이 10위 밖이면 맨 아래에 붙음', '파란 바탕 줄은 업종 안 분포로 보는 업종, 파란 점은 고른 회사 PER, 고른 회사의 업종은 이름 옆 파란 점', 'FnGuide 분류는 PER 있는 종목이 5곳 이상인 업종만(고른 회사와 누른 업종은 1곳이어도)', '세부 업종: 2차전지, 반도체, 화장품처럼 FnGuide 소분류와 다르게 나눈 50여 개 묶음. 네이버 테마를 묶어 만듦(2차전지는 소재, 장비, 전고체 등을 합침). 행사, 정책, 계절, 특정 회사, 지수 테마는 뺌. 한 종목이 여러 묶음에 듦. 회사를 고르지 않으면 전체, 고르면 그 회사가 든 묶음만', '업종 안 PER 분포: 업종별 비교에서 누른 업종의 종목만 모은 분포. 누르지 않았으면 고른 회사의 업종, 회사도 없으면 종목이 가장 많은 업종. 10곳 미만이면 회사별 PER 막대, 세로선은 중앙값', '업종 PER 추이: 업종 안 분포와 같은 업종의 최근 4분기 PER 중앙값(PER 0～200배, 그날 5곳 이상)과 전 종목 중앙값. 업종 구성은 지금 기준을 과거에도 그대로 씀(그 사이 상장, 업종 변경은 반영 안 됨). 과거는 손PB가 2016-05부터 모은 같은 네이버 PER(2025년까지 주 1회), 이동평균은 PER 추이와 같음', 'PER 추이: 고른 회사의 최근 4분기 PER과 그 회사 시장(코스피, 코스닥) 중앙값. 회사를 고르지 않으면 코스피와 코스닥 중앙값. 선 끝에 이름과 이동평균 마지막 값(좁은 화면은 값만 적고 위에 범례). 손PB와 같이 점이 200개 넘으면 10개, 아니면 4개씩 이동평균. 시장 중앙값은 PER 2～500배, 금융 업종 제외. 평일 16:30에 쌓고, 그 전 기록은 손PB가 2016-05부터 모은 같은 네이버 PER(시장 중앙값과 리서치 사례 회사만, 2025년까지는 주 1회)', '추이 위 숫자: 고른 회사가 있으면 지금, 기간 중 PER 중앙값(이동평균 전 값), 시장 중앙값. 없으면 코스피와 코스닥 지금 중앙값', '위치 표: 리서치한 평가가 있으면 대상과 국내 비교기업, 없으면 고른 회사와 상대가치평가 탭에서 넣은 Peer. 이익 성장률은 최근 4분기 PER ÷ 추정 PER − 1, 괴리는 회귀 적정 PER ÷ 지금 PER − 1', 'PER 회귀: 이익 성장률이 같을 때 시장이 주는 PER을 보는 보조 지표. 손PB 상대가치 화면과 같은 식. log(PER) = 상수 + 성장률 계수 × 이익 성장률 + 베타 계수 × 베타 + 업종 더미. 표본은 최근 4분기 PER 2～500배, 추정 PER 0～200배, 성장률 0～500%, 베타 −1～4인 회사, 업종 5곳 미만은 기준 업종. 가로축은 200%에서 자름. 성장률이 0 이하인 회사는 직접 넣으면 단순 회귀 곡선으로 계산']],
   ['상대가치평가', '비슷한 상장사들의 배수(PER, EV/EBITDA 등) 중앙값을 대상 회사 이익에 곱해 적정 주가를 봅니다. 비교기업 선정과 해외 배수, 시나리오 근거는 리서치로 채우고, 계산은 이 화면과 엑셀이 같은 식으로 합니다.'],
   ['바꿔 볼 수 있는 것', ['배수 표의 체크를 풀거나 켜면 그 회사를 빼거나 넣고 다시 계산', '비교기업 범위: 국내만, 해외만, 국내와 해외. 「국내와 해외 따로」 표는 범위와 상관없이 셋 다 보여 줌', '기준 기간: 최근 4분기, 올해 추정, 내년 추정', 'PER 10～50배만: 증권신고서 관행대로 PER이 10배 미만이거나 50배 초과인 비교기업을 PER 통계에서 뺌', '적용 결과 표의 조정(%): 할증은 +, 할인은 −', '처음 구성으로: 리서치에서 정한 구성으로 되돌림']],
   ['배수 정의', { table: [['배수', '분자', '분모'], ['PER', '시가총액', '지배주주 순이익'], ['PBR', '시가총액', '지배주주 자본'], ['EV/EBITDA', 'EV', 'EBITDA'], ['EV/EBIT', 'EV', '영업이익'], ['EV/Sales', 'EV', '매출']] }],
