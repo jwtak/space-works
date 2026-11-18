@@ -35,7 +35,6 @@
 .rd-pair > .rd-w3 { width: 76px; }  /* 만기(158일 지남) */
 .rd-pair > .rd-w4 { width: 64px; }  /* 결성액(1,360억) */
 .rd-lb { color: var(--text3); }
-.rd-alt-i { display: none; } /* 매각희망 날짜 보조 줄 앞 신호(카드가 좁아 신호 칸을 접었을 때만) */
 .rd-link { color: var(--ink); text-decoration: none; }
 .rd-link:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
 .rd-static > .ipo-line { cursor: default; }
@@ -48,6 +47,14 @@
 .rd-card2 { margin-top: 16px; }
 
 /* 자문사별 보기: 자문사 이름 줄 + 맡은 딜 */
+/* 구주 매물 빠른 보기(필터 조합, 2026-11-18): 카드 맨 위 한 줄, 알약 버튼 + 건수 */
+.rd-quick { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px 24px 0; }
+.rd-quick button { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border: 1px solid var(--line2); border-radius: var(--r-full); background: var(--card); font: inherit; font-size: var(--fs-base); color: var(--text2); cursor: pointer; white-space: nowrap; }
+.rd-quick button.on { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+.rd-qn { font-size: var(--fs-sm); color: var(--text3); font-weight: 500; }
+.rd-quick button.on .rd-qn { color: var(--primary); }
+.rd-turn { color: var(--primary); font-weight: 600; }
+.rd-fs-tag.rd-big { background: var(--fill); color: var(--text2); } /* 대형(매출·기업가치 3,000억+) 표시만 */
 .rd-grp { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; padding: 16px 24px 8px; border-top: 1px solid var(--line); } /* 묶음 설명 글이 붙으면(FI 회수) 폰에서 줄바꿈 */
 .rd-grp b { font-size: var(--fs-base); line-height: 22px; font-weight: 600; }
 .rd-grp span { font-size: var(--fs-sm); color: var(--text3); }
@@ -132,9 +139,10 @@
     .rd-page .ipo-cols { grid-template-columns: 80px repeat(3, minmax(0, 1fr)) 100px; }
     .rd-page .ipo-cols.rd-g6 { grid-template-columns: 80px repeat(3, minmax(0, 1fr)); }
     .rd-page .rd-c2 { display: none; }
+    /* 구주 매물: 매도 후보만 접고 매출·영업이익·성장률은 남긴다(2026-11-18) */
+    .rd-sell .ipo-cols:not(.rd-g6) { grid-template-columns: 80px repeat(4, minmax(0, 1fr)) 100px; }
     .rd-page .rd-alt { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow-wrap: anywhere; }
     .rd-page .rd-span3 { grid-column: span 2; }
-    .rd-page .rd-alt-i { display: inline; }
   }
   /* 765보다 좁으면 펼친 행 상자는 한 줄로(세 탭 공통 — 예심청구는 두 단이면 주주 칸이 155px 안팎으로 줄어 열세 글자 조합 이름 153.7px이 꺾이거나 빠듯하다) */
   @container (max-width: 764px) {
@@ -248,6 +256,7 @@
   #rd-root .rd-pair { display: flex; gap: 12px; margin-top: 4px; font-size: var(--fs-md); line-height: 20px; color: var(--text2); font-variant-numeric: tabular-nums; }
   .rd-page .rd-card2 { margin-top: 0; border-top: 8px solid var(--row); }
   .rd-grp { padding: 16px 16px 8px; }
+  .rd-quick { padding: 12px 16px 0; }
   .rd-page .ipo-dhead > .rd-pipe { height: 40px; justify-content: center; }
   /* 기사 표는 폰에서 제목 한 줄 + 날짜·매체 한 줄 목록으로 */
   .ipo-tbl.rd-tbl-n, .ipo-tbl.rd-tbl-n tbody { display: block; }

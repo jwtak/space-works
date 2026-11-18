@@ -100,3 +100,7 @@ a.sec-own:hover b { color: var(--primary); }
   .sec-page .ipo-dhead > .sec-go { align-self: stretch; height: 40px; }
   .sec-owns { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* 라운드 참여 후보(2026-11-18): 대상 칸 아래 '투자 라운드에서 보기'·'파이프라인에 올리기' 한 줄 */
+.sec-rnacts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 8px; }
+.sec-rnacts .btn.sm { height: 32px; }

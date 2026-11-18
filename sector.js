@@ -25,7 +25,7 @@ const SEC_NAMES = {
 // 새로 고친 뒤에도 보던 보기·검색어·필터·펼친 행을 이어 보게 창마다 기억한다(app.js viewGet·viewSet, 키 sec.view·sec.map·sec.deal)
 function secView(k, s) {
   const v = viewGet(`sec.${k}`, null) || {};
-  ['q', 'type', 'stage'].forEach((f) => { if (f in s && typeof v[f] === 'string') s[f] = v[f]; });
+  ['q', 'type', 'stage', 'rn'].forEach((f) => { if (f in s && typeof v[f] === 'string') s[f] = v[f]; });
   if ('type' in s && s.type && !SEC_TYPES.includes(s.type)) s.type = '';
   if ('stage' in s && s.stage && !SEC_STAGES.includes(s.stage)) s.stage = '';
   s.open = new Set(Array.isArray(v.open) ? v.open : []);
@@ -35,12 +35,12 @@ const secS = {
   map: null, pe: null, err: { map: '', pe: '' }, at: 0, loading: null, host: null, focus: null,
   view: viewGet('sec.view', 'map') === 'deal' ? 'deal' : 'map',
   m: secView('map', { q: '', open: new Set() }),
-  d: secView('deal', { q: '', type: '', stage: '', open: new Set() }),
+  d: secView('deal', { q: '', type: '', stage: '', rn: '', open: new Set() }),
 };
 function secViewSave() {
   viewSet('sec.view', secS.view);
   viewSet('sec.map', { q: secS.m.q, open: [...secS.m.open] });
-  viewSet('sec.deal', { q: secS.d.q, type: secS.d.type, stage: secS.d.stage, open: [...secS.d.open] });
+  viewSet('sec.deal', { q: secS.d.q, type: secS.d.type, stage: secS.d.stage, rn: secS.d.rn, open: [...secS.d.open] });
 }
 
 /* ---------- 데이터 ---------- */
@@ -87,6 +87,8 @@ function secNormPe(raw) {
     return {
       id, date: secDay(x.date), first: secDay(x.first), target, sector, sub: secStr(x.sub), buyer: secStr(x.buyer), seller: secStr(x.seller), sellerKind: secStr(x.seller_kind),
       type: secStr(x.type), stage: secStr(x.stage), size: secNum(x.size), sizeText: secStr(x.size_text), listed: x.listed === true, why: secStr(x.why), news,
+      // 라운드 참여 후보(2026-11-18): 소수지분 조달·유치·라운드 딜(round, rounds.json에도 들어감) 또는 비상장 소수지분 '추진'. 캐치테이블 사례(딜레이더 노트 17.2)
+      rn: x.round === true || (x.listed !== true && secStr(x.type) === '소수지분' && secStr(x.stage) === '추진'),
     };
   }).filter(Boolean).sort((a, b) => b.date.localeCompare(a.date));
   const by = secArr(raw.by_sector).filter((s) => secStr(s.sector)).map((s) => ({
@@ -242,8 +244,8 @@ function secAgg(deals, stage) {
 
 function secDealList() {
   const p = secS.pe; if (!p) return [];
-  const s = secS.d, q = s.q.trim().toLowerCase(), filt = !!(s.type || s.stage);
-  const ds = p.deals.filter((x) => (!s.type || x.type === s.type) && (!s.stage || x.stage === s.stage));
+  const s = secS.d, q = s.q.trim().toLowerCase(), filt = !!(s.type || s.stage || s.rn);
+  const ds = p.deals.filter((x) => (!s.type || x.type === s.type) && (!s.stage || x.stage === s.stage) && (!s.rn || x.rn));
   const by = new Map(p.by.map((b) => [b.sector, b]));
   p.deals.forEach((x) => { if (!by.has(x.sector)) by.set(x.sector, null); });
   return [...by].map(([k, b]) => {
@@ -283,9 +285,43 @@ function secDealTr(x, i) {
   const size = x.size != null ? secEok(x.size) : x.sizeText ? esc(x.sizeText) : SEC_NA;
   return `<tr${i >= SEC_DEAL_N ? ' class="sec-more"' : ''}>
     <td>${x.date ? yymd(x.date) : '–'}</td>
-    <td><b class="sec-tgt">${esc(x.target)}</b>${x.sub ? `<div class="ipo-sub">${esc(x.sub)}</div>` : ''}${x.why ? `<div class="sec-why">${esc(x.why)}</div>` : ''}</td>
+    <td><b class="sec-tgt">${esc(x.target)}</b>${x.rn ? '<span class="rd-fs-tag">라운드 참여 후보</span>' : ''}${x.sub ? `<div class="ipo-sub">${esc(x.sub)}</div>` : ''}${x.why ? `<div class="sec-why">${esc(x.why)}</div>` : ''}${x.rn ? secRnActs(x) : ''}</td>
     <td${x.buyer ? '' : ' class="sec-none"'}><span class="sec-tk">인수</span>${x.buyer ? esc(x.buyer) : SEC_NA}${x.seller ? `<div class="ipo-sub">매도 ${esc(x.seller)}</div>` : ''}</td>
     <td${x.type ? '' : ' class="sec-none"'}>${x.type ? esc(x.type) : SEC_NA}</td><td${x.stage ? '' : ' class="sec-none"'}>${secStageChip(x.stage)}</td><td${size === SEC_NA ? ' class="sec-none"' : ''}>${size}</td><td${x.news.length ? '' : ' class="sec-none"'}>${news}</td></tr>`;
+}
+
+// 라운드 참여 후보 행 아래: 투자 라운드 탭에서 그 회사를 펼치거나 파이프라인에 바로 올린다(ref = rounds.json id)
+function secRnActs(x) {
+  const ref = secRnRef(x), has = typeof pipeHas === 'function' && pipeHas(ref);
+  return `<div class="sec-rnacts"><a class="ipo-a" href="#deals/round" data-sec-rn="${esc(x.id)}">투자 라운드에서 보기${ico('right', 'sm')}</a>${typeof pipeAdd !== 'function' ? ''
+    : has ? `<a class="ipo-a" href="#deals/pipeline" data-pp-ref="${esc(ref)}">${ico('done', 'sm')}파이프라인에 있음</a>` : `<button type="button" class="btn sm" data-sec-pp="${esc(x.id)}">${ico('plus', 'sm')}파이프라인에 올리기</button>`}</div>`;
+}
+// 섹터 딜 → 투자 라운드 행: rounds.json(round.js rnS.data)에서 이름·브랜드가 같은 회사. 자료를 아직 안 읽었으면 null(round:<대상 이름>으로 올린다)
+function secRnFind(x) {
+  if (typeof rnS !== 'object' || !rnS.data) return null;
+  const k = rnCo(x.target);
+  return rnS.data.items.find((e) => rnCo(e.name) === k || (e.brand && rnCo(e.brand) === k)) || null;
+}
+const secRnRef = (x) => secRnFind(x)?.key || `round:${x.target}`;
+async function secRnReady() {
+  if (typeof rnS !== 'object' || rnS.data || typeof rnRead !== 'function') return;
+  try { rnS.data = await rnRead(); rnS.at = Date.now(); } catch { /* 못 읽으면 이름으로 */ }
+}
+async function secRnGo(id) {
+  const x = secS.pe?.deals.find((d) => d.id === id); if (!x) return;
+  await secRnReady();
+  const e = secRnFind(x);
+  if (e && typeof roundFocus === 'function') { location.hash = roundFocus(e.id); return; }
+  if (typeof rnS === 'object') { Object.assign(rnS, { q: x.target, k: 'all', st: '', sec: '', stg: '', amt: '', prof: '', ipo: '' }); rnSave(); }
+  location.hash = '#deals/round';
+}
+async function secRnPipe(btn) {
+  const x = secS.pe?.deals.find((d) => d.id === btn.dataset.secPp); if (!x || btn.disabled) return;
+  btn.disabled = true;
+  await secRnReady();
+  const e = secRnFind(x);
+  try { await pipeAdd({ src: '투자 라운드', ref: e?.key || `round:${x.target}`, name: e?.name || x.target, type: '프리IPO' }); } catch (er) { toast(er?.message || '파이프라인에 올리지 못했습니다.'); }
+  const row = btn.closest('.ipo-row[data-id]'); if (row) secRowRedraw(row);
 }
 
 function secDealDetail(r) {
@@ -311,7 +347,8 @@ function secSummary() {
   const old = d.checked && (Date.now() - new Date(`${d.checked}T00:00:00`)) / 864e5 > SEC_STALE;
   const parts = map
     ? SEC_LANES.map(([l]) => `<span>${l} <b>${d.chains.filter((c) => c.lane === l).length}</b></span>`)
-    : (() => { const l = secDealList(); return [`<span>최근 12개월 딜 <b>${l.reduce((a, r) => a + (r.n12 || 0), 0)}</b></span>`, `<span>업종 <b>${l.length}</b></span>`]; })();
+    : (() => { const l = secDealList(), rn = d.deals.filter((x) => x.rn).length;
+      return [`<span>최근 12개월 딜 <b>${l.reduce((a, r) => a + (r.n12 || 0), 0)}</b></span>`, `<span>업종 <b>${l.length}</b></span>`, rn ? `<span>라운드 참여 후보 <b>${rn}</b></span>` : '']; })();
   // ok로 시작하지 않는 출처만 이름으로(값은 마우스를 올리면) — pe.js·kmx.js와 같다
   const bad = Object.entries(d.sources).filter(([, v]) => !/^ok/i.test(secStr(v))).map(([k, v]) => `<span class="ipo-stale" title="${esc(secStr(v))}">${esc(k)} 확인 필요</span>`);
   return `${d.checked ? `<span class="${old ? 'ipo-stale' : ''}">기준일 ${yymd(d.checked)}</span>` : ''}${parts.join('')}${bad.join('')}`;
@@ -328,7 +365,8 @@ function secFilterHtml() {
   const search = `<div class="ipo-filter"><div class="ipo-search"><span class="ipo-sic">${ico('search', 'sm')}</span><input class="input" id="sec-q" type="search" placeholder="${map ? '업종 검색' : '업종·회사 검색'}" value="${esc(s.q)}" autocomplete="off" aria-label="검색"></div></div>`;
   if (map) return search;
   return `${search}<div class="ipo-filter sec-finf"><div class="rd-fing"><span class="rd-finl">유형</span>${secSeg('sec-type', SEC_TYPES, s.type)}</div>
-    <div class="rd-fing"><span class="rd-finl">단계</span>${secSeg('sec-stage', SEC_STAGES, s.stage)}</div></div>`;
+    <div class="rd-fing"><span class="rd-finl">단계</span>${secSeg('sec-stage', SEC_STAGES, s.stage)}</div>
+    <div class="rd-fing"><span class="rd-finl">라운드 참여</span><div class="seg">${[['', '전체'], ['1', '후보만']].map(([k, l]) => `<button type="button" data-sec-rnf="${k}" class="${s.rn === k ? 'on' : ''}" aria-pressed="${s.rn === k}">${l}</button>`).join('')}</div></div></div>`;
 }
 
 /* ---------- 그리기 ---------- */
@@ -367,6 +405,9 @@ function secBind(root) {
     const vb = t.closest('[data-sec-v]'); if (vb) { secViewSet(vb.dataset.secV); return; }
     const tb = t.closest('[data-sec-type]'); if (tb) { secS.d.type = tb.dataset.secType; segOn('[data-sec-type]', tb); secDraw(); return; }
     const sb = t.closest('[data-sec-stage]'); if (sb) { secS.d.stage = sb.dataset.secStage; segOn('[data-sec-stage]', sb); secDraw(); return; }
+    const rf = t.closest('[data-sec-rnf]'); if (rf) { secS.d.rn = rf.dataset.secRnf; segOn('[data-sec-rnf]', rf); secDraw(); return; }
+    const rl = t.closest('[data-sec-rn]'); if (rl) { ev.preventDefault(); secRnGo(rl.dataset.secRn); return; }
+    const rp = t.closest('[data-sec-pp]'); if (rp) { secRnPipe(rp); return; }
     if (t.closest('#sec-ref')) {
       secLoad(true).then(secDraw).catch((e) => toast(e.message));
       if (secPeOk() && typeof peLoad === 'function') peLoad(true).then(secDraw).catch(() => {});

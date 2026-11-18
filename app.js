@@ -501,6 +501,7 @@ function renderHome() {
             ${ms.map((m, i) => tile(i ? 'violet' : 'blue', esc(m.title.replace(/\s*\(.*\)$/, '')), `D-${diffDays(m.date, td)}`, mdw(m.date))).join('')}
           </div>
         </section>` : ''}
+        <div id="home-pn"></div>
         <div id="home-pp"></div>
         <div id="home-ev"></div>
         <div id="home-ipo"></div>
@@ -559,6 +560,12 @@ function renderHome() {
   if (typeof eventsHomeBlock === 'function') eventsHomeBlock().then((h) => { const box = $('#home-ev'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
   if (typeof newsHomeBlock === 'function') newsHomeBlock().then((h) => { const box = $('#home-news'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
   if (typeof pipeHomeBlock === 'function') pipeHomeBlock().then((h) => { const box = $('#home-pp'); if (box) { if (h) box.outerHTML = h; else box.remove(); } }).catch(() => {});
+  homePrenew();
+}
+// 이번 주 새로 걸린 후보(round.js prenewHomeBlock, 2026-11-18): PC 홈 왼쪽 위, 폰 홈 '오늘' 아래
+function homePrenew() {
+  if (typeof prenewHomeBlock !== 'function') { $('#home-pn')?.remove(); return; }
+  prenewHomeBlock().then((h) => { const box = $('#home-pn'); if (!box) return; if (h) { box.outerHTML = h; prenewBind($('#home-pn')); } else box.remove(); }).catch(() => { $('#home-pn')?.remove(); });
 }
 
 // ---------- 폰 첫 화면: 하이웍스 앱처럼 메뉴 모음 + 오늘 한 묶음 ----------
@@ -600,6 +607,7 @@ function renderHomeMobile() {
         <li><input type="checkbox" class="check" data-toggle="${esc(t.id)}" aria-label="완료"><span class="mh-tt">${esc(t.title)}${ttWho(t)}</span><span class="mh-due ${t.due < td ? 'red' : 'blue'}">${t.due < td ? `${diffDays(td, t.due)}일 지남` : '오늘'}</span></li>`).join('')}</ul>
         ${over.length + dueToday.length > 5 ? `<a class="mh-more" href="#todos">할 일 ${over.length + dueToday.length}건 모두 보기</a>` : ''}` : ''}
     </section>
+    <div id="home-pn"></div>
   </div>`;
   PAGE.querySelectorAll('[data-toggle]').forEach((el) => el.addEventListener('change', () => toggleTodo(el.dataset.toggle)));
   PAGE.querySelector('[data-brief]')?.addEventListener('click', (e) => {
@@ -618,6 +626,7 @@ function renderHomeMobile() {
     box.querySelectorAll('[data-go]').forEach((li) => li.addEventListener('click', () => { location.hash = li.dataset.go; }));
     box.querySelectorAll('[data-ev]').forEach((li) => li.addEventListener('click', () => openEventModal(li.dataset.ev, r.events, () => { delete CALC[`${ymd(s0)}|${ymd(addDays(s0, 1))}`]; renderHome(); })));
   }).catch((e) => { const box = $('#mh-ev'); if (box) box.innerHTML = `<li class="mh-empty">${esc(e.message)}</li>`; });
+  homePrenew();
   G.get('/me/mailFolders/inbox?$select=unreadItemCount').then((j) => { const n = $('#mh-mail'); if (n && j.unreadItemCount) { n.textContent = j.unreadItemCount > 99 ? '99+' : j.unreadItemCount; n.hidden = false; } }).catch(() => {});
 }
 // 폰↔PC 폭이 바뀌면 홈을 그 폭에 맞는 구성으로 다시 그린다

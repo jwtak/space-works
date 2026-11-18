@@ -2,19 +2,22 @@
    펼친 칸 칩·표는 tgt.css·pe.css를 그대로 쓰고 여기엔 칸 구성과 폰 둘째 줄만. radar.css·tgt.css 뒤에 읽어야 한다.
    표는 왼쪽 정렬·머리글과 값 시작선 일치. */
 
-/* 폰 둘째 줄(최근 라운드 | 누적 투자)과 상태 칩 옆 개수는 넓은 표에서 숨김 */
-.rn-pair, .rn-fc { display: none; }
+/* 폰 둘째 줄(날짜·라운드·금액 | 상태)은 넓은 표에서 숨김 */
+.rn-pair { display: none; }
 .rn-pair > span { flex: none; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rn-pair > .rn-p1 { width: 176px; }
 .rn-pair > span:last-child { flex: 1 1 auto; }
 .rn-go svg { width: 14px; height: 14px; }
 
 @media (min-width: 761px) {
-  /* 시기 | 회사 | 최근 라운드 | 누적 투자 | 컨택 상태 */
-  .rn-page .ipo-cols { grid-template-columns: 80px repeat(3, minmax(0, 1fr)) 100px; }
+  /* 날짜 | 회사 | 라운드 | 금액 | 투자자 | 매출 | 컨택 상태 = .rd-page 기본 일곱 칸(radar.css). 좁으면 투자자·매출(rd-c2)을 접는다 */
   /* 투자 라운드 표(tgt.js tgRoundsBox): 다섯 칸 같은 폭 */
   .rn-page .ipo-tbl.tgt-rounds { table-layout: fixed; width: 100%; }
   .rn-page .ipo-tbl.tgt-rounds th, .rn-page .ipo-tbl.tgt-rounds td { width: 20%; overflow-wrap: anywhere; }
+  /* 1000보다 좁으면 투자자만 접고 매출은 남긴다 */
+  @container (max-width: 999px) {
+    .rn-page .ipo-cols { grid-template-columns: 80px repeat(4, minmax(0, 1fr)) 100px; }
+  }
   /* 700보다 좁으면 폰처럼 한 건 = 이름(+ 컨택 상태) / 둘째 줄 */
   @container (max-width: 699px) {
     .rn-page .ipo-cols { grid-template-columns: minmax(0, 1fr) auto; }
@@ -29,7 +32,13 @@
 @media (max-width: 760px) {
   .rn-page .rn-pair { display: flex; gap: 12px; margin-top: 4px; font-size: var(--fs-md); line-height: 20px; color: var(--text2); font-variant-numeric: tabular-nums; }
   .rn-page .ipo-line > .ipo-c-st { grid-column: 2; grid-row: 1; align-self: start; }
-  #page .rn-page .ipo-filter .seg button .rn-fc { display: inline; margin-left: 6px; color: var(--text3); font-weight: 500; font-variant-numeric: tabular-nums; }
-  #page .rn-page .ipo-filter .seg button.on .rn-fc { color: var(--primary); }
   .rn-page .ipo-dhead > .rn-go { height: 44px; }
 }
+
+/* 라운드 이력 표: 시기 | 라운드 | 금액 | 투자자 네 칸 같은 폭 */
+@media (min-width: 761px) {
+  .rn-page .ipo-tbl.rn-tbl { table-layout: fixed; width: 100%; }
+  .rn-page .ipo-tbl.rn-tbl th, .rn-page .ipo-tbl.rn-tbl td { width: 25%; overflow-wrap: anywhere; }
+}
+/* 홈 카드 '이번 주 새로 걸린 후보': 탭 이름 칩 */
+.pn-home .pn-tab { margin-left: 8px; height: 20px; vertical-align: 1px; }
