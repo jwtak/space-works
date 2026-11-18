@@ -219,7 +219,7 @@ function fqListBody() {
 function fqRow(x) {
   const open = fqS.open.has(x.key), { st } = x, r = fqS.req.find((y) => y.key === x.key);
   const state = st.failed ? '<span class="fq-bad">만들지 못함</span>' : st.wait ? `<span class="fq-wait">${fqNext()} 처리</span>` : st.fs ? `작성 ${esc(yymd(st.fs.made || ''))}` : '–';
-  const tab = typeof PP_TABS === 'object' ? PP_TABS[x.key.split(':')[0]] : null;
+  const tab = typeof ppTabOf === 'function' ? ppTabOf(x.key) : null;
   const go = (tab ? `<a class="ipo-a" href="${tab[0]}" data-fq-go="${esc(x.key)}">${esc(x.src || tab[1])}에서 보기${ico('right', 'sm')}</a>` : '') + fqPipe(x);
   if (open && !fqS.ctx.has(x.key)) fqS.ctx.set(x.key, { name: x.name, label: x.src, legacy: null, hint: () => r?.hint || '' });
   return `<div class="ipo-row fq-row${open ? ' open' : ''}" data-fq-row="${esc(x.key)}">

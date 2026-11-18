@@ -1,12 +1,12 @@
 /* SPACE WORKS — 딜소싱 › 팩트시트: 행사 참가기업 등 따로 조사한 회사별 PE 딜소싱 Fact Sheet 보기
    데이터: 팀 파일함 '_웍스/팩트시트/factsheets.json'(+ img/<no>_<n>.jpg) — 팀원이면 누구나 읽는다(읽기 전용 화면).
-   만드는 곳: 스페이스인베\05. 딜소싱\K-Beauty Expo 2026\build_factsheets.py (엑셀과 같은 자료로 한 번에 만든다).
-   엑셀 원본: 팀 파일함 '04. 딜소싱/03. K-Beauty Expo 2026/<xlsx>'.
+   만드는 곳: 스페이스인베\05. 딜소싱\02. 행사·IR\K-Beauty Expo 2026\build_factsheets.py (엑셀과 같은 자료로 한 번에 만든다).
+   엑셀 원본: 팀 파일함 '05. 딜소싱/02. 행사·IR/K-Beauty Expo 2026/<xlsx>'(11/18 옮김).
    진입: renderFacts(host) — host 안에만 그린다. 다른 화면에서 한 회사를 펼칠 때: factsFocus(no).
    app.js 전역($, esc, pad, ico, toast, G, CFG, openSheet, TAB_INFO, infoBtn)과 ipo.css(목록·상자 클래스), pipeline.js 의 pipeAdd·pipeHas(있을 때만)를 쓴다. */
 
 const FS_DIR = '_웍스/팩트시트';
-const FS_XLSX_DIR = '04. 딜소싱/03. K-Beauty Expo 2026';
+const FS_XLSX_DIR = '05. 딜소싱/02. 행사·IR/K-Beauty Expo 2026';
 const FS_TTL = 10 * 60000;
 const FS_FILTERS = [['all', '전체'], ['inv', '투자 이력 있음'], ['big', '매출 500억+'], ['opm', 'OPM 15%+'], ['grow', '매출 성장 20%+']];
 const FS_SORTS = [['rev', '2025 매출순'], ['total', '누적 투자순'], ['op', '2025 영업이익순'], ['grow', '매출 성장률순'], ['opm', '영업이익률순'], ['no', '목록 번호순']];

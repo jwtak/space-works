@@ -14,8 +14,8 @@ const rdLowSt = (st) => st !== RD_STATUS[0] && st !== RD_DONE;
 const rdDoneCls = (st) => (st === RD_DONE ? ' ct-done' : '');
 const RD_TTL = 5 * 60000;
 const RD_TAB = {
-  yesim: { file: 'data/yesim.json', label: '예심청구', unit: '곳' },
-  sell: { file: 'data/sell.json', label: 'FI 회수', unit: '건' }, // 2026-11-17 '매각희망'에서 이름 바꿈(주소 #deals/sell·키 sell은 그대로)
+  yesim: { file: 'data/yesim.json', label: '상장 준비', unit: '곳' },
+  sell: { file: 'data/sell.json', label: '구주 매물', unit: '건' }, // 11/17 매각희망 → FI 회수, 11/18 구주 매물(주소 #deals/sell·키 sell은 그대로)
   bids: { file: 'data/bids.json', label: '입찰딜', unit: '건' },
 };
 const RD_YS_F = [['all', '전체'], ['mandate', '주관사 선정'], ['review', '심사 중'], ['ok', '승인'], ['drop', '철회·미승인'], ['new', '새 소식'], ['hidden', '가린 회사']];
@@ -45,7 +45,7 @@ const RD_BIDS_DONE = ['우선협상', '계약', '무산']; // 인수자가 정�
 
 // 머리줄 ⓘ 설명(app.js infoOpen)
 Object.assign(TAB_INFO, {
-  'deals/yesim': { title: '예심청구', asof: '기준 2026-11-09 · 규정 원문 대조: KRX 법무포털(rule.krx.co.kr) 현행 코스닥·유가증권 상장규정(2026.9.23 개정)·시행세칙(2026.10.2 개정), 금투협 인수업무규정(2025.9.3 시행). 실무 해석: 거래소 「2026 코스닥 상장심사 이해와 실무」(K26)·「2025 유가증권시장 상장심사 가이드북」(Y25). 통계는 언론·증권사 집계. \'판단\'이라고 쓴 곳은 자료가 아닌 해석입니다.', rows: [
+  'deals/yesim': { title: '상장 준비', asof: '기준 2026-11-09 · 규정 원문 대조: KRX 법무포털(rule.krx.co.kr) 현행 코스닥·유가증권 상장규정(2026.9.23 개정)·시행세칙(2026.10.2 개정), 금투협 인수업무규정(2025.9.3 시행). 실무 해석: 거래소 「2026 코스닥 상장심사 이해와 실무」(K26)·「2025 유가증권시장 상장심사 가이드북」(Y25). 통계는 언론·증권사 집계. \'판단\'이라고 쓴 곳은 자료가 아닌 해석입니다.', rows: [
     ['무엇인가', [
       '비상장 회사가 상장하려고 거래소에 상장예비심사를 신청한 것입니다. 청구 사실은 KIND에 공개되고, 청구서에 주주 구성과 재무가 들어 있습니다.',
       '청구하면 회사가 몇 달 안에 상장하겠다고 공식적으로 밝힌 것과 같습니다. 이 탭의 회사들은 상장 일정의 막바지에 있습니다.',
@@ -86,8 +86,8 @@ Object.assign(TAB_INFO, {
       '매일: \'새 소식\'으로 새로 청구·승인·철회된 회사를 훑습니다.',
       '주관사 선정이나 청구 전 신호가 새로 뜨면 우선순위 1번입니다. 회사나 주관사 쪽에 라운드가 열려 있는지 확인합니다.',
       '더 볼 회사는 펼친 칸 맨 위 \'팩트시트 요청\'을 누릅니다. 요청은 매일 11:00·16:00에 처리되고, 만든 팩트시트는 그 칸과 팩트시트 탭 \'요청한 회사\'에서 봅니다.',
-      '심사 중 회사: 주주 목록의 FI 조합을 보고, 그 조합이 매각희망 탭 \'만기\'에도 있으면 구주 매입을 제안합니다. 만기가 가까운 조합은 상장 뒤 락업과 블록딜 할인을 기다리기보다 지금 넘길 이유가 있습니다.',
-      '철회 회사: 밸류를 낮춘 라운드나 FI 지분 세컨더리를 봅니다. 같은 회사가 매각희망 탭에 \'철회\'로도 뜹니다.',
+      '심사 중 회사: 주주 목록의 FI 조합을 보고, 그 조합이 구주 매물 탭 \'만기\'에도 있으면 구주 매입을 제안합니다. 만기가 가까운 조합은 상장 뒤 락업과 블록딜 할인을 기다리기보다 지금 넘길 이유가 있습니다.',
+      '철회 회사: 밸류를 낮춘 라운드나 FI 지분 세컨더리를 봅니다. 같은 회사가 구주 매물 탭에 \'철회\'로도 뜹니다.',
       '승인 회사: 이 탭에서는 정리하고 신규상장 탭에서 공모·락업 관점으로 봅니다.',
       '연락하면 상태(연락함·미팅·보류)와 메모를 남기고, 진행할 딜은 \'파이프라인에 올리기\'로 넘깁니다. 대표님 두 분도 같은 기록을 봅니다.',
     ]],
@@ -165,7 +165,7 @@ Object.assign(TAB_INFO, {
       '규정은 매번 바뀔 수 있습니다. 딜 뉴스에 \'상장 규정\' 태그 기사가 뜨거나 실무서 새 판이 나오면 이 설명을 고칩니다.',
     ]],
   ] },
-  'deals/sell': { title: 'FI 회수', rows: [
+  'deals/sell': { title: '구주 매물', rows: [
     ['무엇인가', '다른 PE·VC가 비상장 지분(구주)을 팔아야 하거나 팔려는 신호를 모은 목록입니다. 상장 주식 블록은 사지 않으므로 지분 축소 공시, 락업 해제, 타법인 EB는 넣지 않습니다.'],
     ['왜 보나', '파는 쪽이 급할수록 구주·세컨더리를 할인된 값에 살 수 있습니다. 신생 GP가 딜을 얻는 현실적인 경로입니다.'],
     ['어떻게 보나', [
@@ -583,7 +583,7 @@ function rdDhead(tab, x, sum, extra = '') {
     </div>`;
 }
 
-const RD_PIPE_SRC = { yesim: '예심청구', sell: 'FI 회수', bids: '입찰딜' };
+const RD_PIPE_SRC = { yesim: '상장 준비', sell: '구주 매물', bids: '입찰딜' };
 // '있음' 링크의 data-pp-ref = 파이프라인 화면이 그 딜을 펼쳐 보여 줄 때 쓰는 ref. 분류 전 임시 카드는 올리기 버튼이 없다
 function rdPipe(tab, x) {
   if (typeof pipeAdd !== 'function') return '';
@@ -745,7 +745,7 @@ function rdYsDetail(x) {
   const flow = `${rdKv('상태', p.label ? rdDateDd(p.label, esc(p.sub)) : '')}${x.product && x.sector && x.product !== x.sector ? rdKv('업종', esc(x.sector)) : ''}${rdKv('주관사 선정', x.mnDay ? rdDateDd(x.mnDay, rdMnGap(x.mnDay, x.filed)) : '')}${rdKv('청구일', esc(x.filed))}${rdKv('결과일', esc(x.decided))}${rdKv('상장일', esc(x.listed))}${rdKv('종목코드', esc(x.code))}
       ${rdKv('상태 변경', esc(x.changedAt))}${rdKv('상장 유형', esc(x.type))}${rdKv('시장', esc(x.market))}${rdKv('기술특례', esc(x.techSpecial))}${toIpo}`;
   return `<div class="ipo-detail">${rdDhead('yesim', x, sum, rdHideBtn(x))}
-    <div class="ipo-pane"><div class="ipo-stack">${fqBox(rdKey('yesim', x.id), x, '예심청구')}
+    <div class="ipo-pane"><div class="ipo-stack">${fqBox(rdKey('yesim', x.id), x, '상장 준비')}
       <div class="ipo-two-col">
         <div class="ipo-stack">${rdBox('컨택 포인트', contact.trim() ? contact : RD_NONE)}${rdBox('진행', flow.trim() ? flow : RD_NONE)}</div>
         <div class="ipo-stack">${x.fin ? rdPnl(x.fin, x.years) : ''}${rdHoldersBox(x.holders)}</div>
@@ -856,7 +856,7 @@ function rdSignals() {
     ${list.length ? `<div class="ipo-head ipo-cols"><div>날짜</div><div>회사</div><div class="rd-c2">신호</div><div class="rd-span3">기사</div><div>매체</div></div>${list.map(row).join('')}` : '<div class="empty">조건에 맞는 신호가 없습니다.</div>'}</section>`;
 }
 
-/* ---------- FI 회수(옛 이름 매각희망) ---------- */
+/* ---------- 구주 매물(옛 이름 매각희망, FI 회수) ---------- */
 function rdSellList() {
   const s = rdS.sell, d = s.data; if (!d) return [];
   const q = s.q.trim().toLowerCase();
@@ -915,7 +915,7 @@ function rdSellDetail(x) {
   const fb = f ? `${rdKv('조합명', rdNm(f.name))}${rdKv('운용사', rdNm(f.gp))}${rdKv('결성일', esc(rdYmd(f.formed)))}${rdKv('만기일', f.expiry ? rdDateDd(rdYmd(f.expiry), fdd) : '')}${rdKv('결성액', esc(f.size))}` : '';
   const base = rdBox('근거', ev.trim() ? ev : RD_NONE);
   return `<div class="ipo-detail">${rdDhead('sell', x, x.detail)}
-    <div class="ipo-pane"><div class="ipo-stack">${fqBox(rdKey('sell', x.id), x, 'FI 회수')}
+    <div class="ipo-pane"><div class="ipo-stack">${fqBox(rdKey('sell', x.id), x, '구주 매물')}
       ${fb ? `<div class="ipo-two-col">${base}${rdBox('조합', fb)}</div>` : base}
       ${rdNewsBox(x.news)}
     </div></div>

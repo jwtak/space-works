@@ -10,7 +10,9 @@ const FL_APP = { doc: 'ms-word', docx: 'ms-word', xls: 'ms-excel', xlsx: 'ms-exc
 const FL_PREVIEW = { img: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'], pdf: ['pdf'], txt: ['txt', 'csv', 'md', 'json', 'log'] };
 
 // 같은 화면을 두 메뉴로 쓴다: 공용 폴더(파일함 전체, 주간회의 폴더는 뺌) · 주간회의(그 폴더만)
-const FL_MODES = { files: { base: '', root: FL_ROOT, title: '공용 폴더' }, weekly: { base: '주간회의', root: '주간회의', title: '주간회의' } };
+// 주간회의는 11/18 '09. 어드민/주간회의'로 옮김. 아직 옛 자리(맨 위 '주간회의')에 있으면 거기로(flLoad 404 처리)
+const FL_WEEKLY_OLD = '주간회의';
+const FL_MODES = { files: { base: '', root: FL_ROOT, title: '공용 폴더' }, weekly: { base: '09. 어드민/주간회의', root: '주간회의', title: '주간회의' } };
 let flM = FL_MODES.files, flRoute = 'files';
 const flRel = (p) => (flM.base ? (p === flM.base ? '' : p.slice(flM.base.length + 1)) : p); // 파일함 경로 → 메뉴 안 경로
 const flOnScreen = () => ['files', 'weekly'].includes(document.body.dataset.route);
@@ -116,6 +118,7 @@ async function flLoad(force) {
     const ids = new Set(out.map((x) => x.id)); [...flS.sel].forEach((id) => { if (!ids.has(id)) flS.sel.delete(id); });
   } catch (e) {
     if (path !== flS.path) return;
+    if (e.status === 404 && flRoute === 'weekly' && path === flM.base && flM.base !== FL_WEEKLY_OLD) { flM.base = FL_WEEKLY_OLD; flS.path = FL_WEEKLY_OLD; flLoad(true); return; }
     flS.items = [];
     toast(e.status === 404 ? '폴더를 찾을 수 없습니다' : e.status === 403 ? '이 폴더를 볼 권한이 없습니다' : e.message);
     if (e.status === 404 && path !== flM.base) { flGo(path.split('/').slice(0, -1).join('/')); return; }

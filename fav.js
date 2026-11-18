@@ -82,7 +82,7 @@ const fqNameOf = (ref) => (typeof fqS === 'object' && (fqS.ctx.get(ref)?.name ||
 /* ---------- 관심 기업 탭 ---------- */
 // 원래 화면 주소: 파이프라인과 같은 표(PP_TABS), 없으면 관심 표시한 화면
 function fvHref(x) {
-  const t = typeof PP_TABS === 'object' ? PP_TABS[x.key.split(':')[0]] : null;
+  const t = typeof ppTabOf === 'function' ? ppTabOf(x.key) : null;
   return t ? t[0] : x.tab && typeof DEAL_SCREENS === 'object' && DEAL_SCREENS[x.tab] ? `#deals/${x.tab}` : '';
 }
 const fvDay = (s) => (s && s.length >= 10 ? yymd(s) : '');

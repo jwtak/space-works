@@ -1,4 +1,4 @@
-/* SPACE WORKS — 딜소싱 › 파이프라인: 개인 소개 딜과 다른 탭(신규상장·예심청구·매각희망·입찰딜)에서 올린 딜을 단계별로 관리하는 보드
+/* SPACE WORKS — 딜소싱 › 파이프라인: 개인 소개 딜과 다른 탭(신규상장·상장 준비·구주 매물·입찰딜 등)에서 올린 딜을 단계별로 관리하는 보드
    데이터: 회사 OneDrive SPACE WORKS/data/pipeline.json — 탁지원·대표님 두 분, 세 사람이 같이 고친다.
    항목 형식은 05. 딜소싱\_자동화\딜레이더\CONTRACT.md 의 pipeline (매일 엑셀 통합 작업도 같은 파일을 읽는다).
    진입: renderPipeline(host) — host 안에만 그린다. 홈 카드: pipeHomeBlock(). 다른 탭 상세 버튼: pipeHas(ref)·pipeAdd({...}), '있음' 링크에 data-pp-ref="<ref>"를 달면 그 딜을 펼쳐 연다.
@@ -8,7 +8,7 @@
 const PP_STAGES = ['발굴', '검토', '미팅', '실사', '투자심의', '완료', '드롭'];
 const PP_END = ['완료', '드롭'];            // '진행 중'에서 빼는 단계
 const PP_HOT = ['미팅', '실사', '투자심의'];  // 목록 칩을 파랑으로
-const PP_SRCS = ['소개', '신규상장', '예심청구', 'FI 회수', '입찰딜', '행사·IR', '상폐 위험·CB', 'PE 앵글', '소비재', '딥테크', '기타'];
+const PP_SRCS = ['소개', '신규상장', '상장 준비', '구주 매물', '입찰딜', '행사·IR', '상폐 위험·CB', '오너기업', '중복상장', '소비재', '딥테크', '기타'];
 const PP_TYPES = ['메자닌', '구주', '프리IPO', '경영권', '기타'];
 const PP_SORTS = [['next', '다음 연락일순'], ['at', '최근 수정순'], ['created', '등록일순']];
 
@@ -22,7 +22,7 @@ TAB_INFO['deals/pipeline'] = { title: '파이프라인', rows: [
     '다음 할 일 날짜가 7일 안이거나 지난 딜은 대시보드 홈 카드에도 뜹니다.',
     '발굴, 검토 단계 딜은 하루 두 번 컨택 플랜이 자동으로 만들어집니다. 딜을 펼치면 키맨, 연락 루트, 메일 초안, 전화 순서가 보입니다.',
     '단계는 목록의 단계 칸을 눌러 바꿉니다.',
-    '딜을 펼치면 진행, 팩트시트, 검토 노트, 자료 탭이 있습니다. 검토 노트와 자료는 공용 폴더 04. 딜소싱/딜/<회사명> 폴더 하나에 모입니다.',
+    '딜을 펼치면 진행, 팩트시트, 검토 노트, 자료 탭이 있습니다. 검토 노트와 자료는 공용 폴더 05. 딜소싱/딜/(섹터) 회사명 폴더 하나에 모입니다.',
     '파이프라인에 올린 딜은 팩트시트를 자동으로 요청합니다. 오전 11시와 오후 4시에 만들어집니다.',
   ]],
   ['그래서 할 일', [
@@ -30,13 +30,15 @@ TAB_INFO['deals/pipeline'] = { title: '파이프라인', rows: [
     '미팅·실사가 끝날 때마다 단계와 다음 할 일 날짜를 고칩니다.',
     '메일을 보내거나 전화한 뒤에는 목록의 컨택 칸에서 골라 주세요. 메일과 전화는 다음 연락일과 다음 할 일이 채워지고, 남긴 메모는 메모 칸에 보입니다. 다음 할 일은 딜을 펼치면 있습니다.',
     '\'전화할 곳\'을 누르면 전화할 회사와 번호, 찾을 부서가 한 목록으로 나옵니다.',
-    '직접 만들고 싶으시면 \'프롬프트 복사\'를 눌러 Claude나 ChatGPT에 붙여 넣으세요. 회사 공용 프롬프트는 공용 폴더 04. 딜소싱의 \'컨택 플랜 프롬프트\'이고, 고치면 자동 작성에도 반영됩니다.',
+    '직접 만들고 싶으시면 \'프롬프트 복사\'를 눌러 Claude나 ChatGPT에 붙여 넣으세요. 회사 공용 프롬프트는 공용 폴더 05. 딜소싱의 \'컨택 플랜 프롬프트\'이고, 고치면 자동 작성에도 반영됩니다.',
     '검토를 시작한 딜은 자료 탭에서 \'폴더 만들기\'를 누르고, IR이나 재무 자료는 그 폴더에 올려 주세요. 검토 내용은 검토 노트 탭에서 바로 고칠 수 있습니다.',
     '그만 볼 딜은 지우지 말고 드롭으로 둡니다. 나중에 같은 딜이 다시 와도 이력이 남습니다.',
   ]],
 ] };
 // ref 앞부분 → 그 딜이 있는 탭
-const PP_TABS = { ipo: ['#deals/ipo', '신규상장'], yesim: ['#deals/yesim', '예심청구'], sell: ['#deals/sell', 'FI 회수'], bids: ['#deals/bids', '입찰딜'], events: ['#deals/events', '행사·IR'], facts: ['#deals/facts', '팩트시트'], delist: ['#deals/delist', '상폐 위험·CB'], pe: ['#deals/pe', 'PE 앵글'], cons: ['#deals/cons', '소비재'], deep: ['#deals/deep', '딥테크'] };
+const PP_TABS = { ipo: ['#deals/ipo', '신규상장'], yesim: ['#deals/yesim', '상장 준비'], sell: ['#deals/sell', '구주 매물'], bids: ['#deals/bids', '입찰딜'], events: ['#deals/events', '행사·IR'], facts: ['#deals/facts', '팩트시트'], delist: ['#deals/delist', '상폐 위험·CB'], heir: ['#deals/heir', '오너기업'], dup: ['#deals/dup', '중복상장'], cons: ['#deals/cons', '소비재'], deep: ['#deals/deep', '딥테크'] };
+// ref → 탭. PE 쪽 ref(pe:heir:… · pe:dup:…)는 오너기업·중복상장 탭으로
+const ppTabOf = (ref) => { const p = String(ref || '').split(':'); return PP_TABS[p[0] === 'pe' ? (p[1] === 'dup' ? 'dup' : 'heir') : p[0]]; };
 const PP_HASH = '#deals/pipeline';
 const PP_TTL = 5 * 60000;
 const PP_WD = '일월화수목금토';
@@ -56,8 +58,18 @@ const ppViewSave = () => viewSet('pp', { q: ppS.q, stage: ppS.stage, sort: ppS.s
 /* ---------- 데이터 ---------- */
 // 파일은 배열이어야 한다. 다른 모양이거나 깨졌으면 덮어쓰지 않도록 읽기부터 멈춘다
 const PP_BAD = '파이프라인 자료 형식이 올바르지 않습니다';
-// 출처 '매각희망'은 11/17 'FI 회수'로 이름이 바뀌었다. 읽을 때 새 이름으로(다음 저장 때 파일에도 반영)
-const ppArr = (v) => { if (!Array.isArray(v)) throw new Error(PP_BAD); v.forEach((x) => { if (x && x.src === '매각희망') x.src = 'FI 회수'; }); return v; };
+// 옛 출처·딜 폴더 이름은 읽을 때 새 이름으로(다음 저장 때 파일에도 반영).
+// 출처: 11/17 매각희망 → FI 회수, 11/18 FI 회수 → 구주 매물, 예심청구 → 상장 준비, PE 앵글 → 오너기업·중복상장. 폴더: 11/18 공용 04. 딜소싱 → 05. 딜소싱, 딜 폴더는 (섹터) 회사명
+const PP_SRC_OLD = { 매각희망: '구주 매물', 'FI 회수': '구주 매물', 예심청구: '상장 준비' };
+const PP_DIR_OLD = { '04. 딜소싱/딜/TCMS 티씨엠에스': '05. 딜소싱/딜/(2차전지) TCMS 티씨엠에스', '04. 딜소싱/딜/랩스피너(ETI)': '05. 딜소싱/딜/(바이오) 랩스피너(ETI)',
+  '04. 딜소싱/딜/여신티켓 패스트레인': '05. 딜소싱/딜/(플랫폼) 여신티켓 패스트레인', '04. 딜소싱/딜/(화장품) 아진플라텍, 은진': '05. 딜소싱/딜/(화장품) 아진플라텍' };
+function ppFixOld(x) {
+  if (!x) return;
+  if (PP_SRC_OLD[x.src]) x.src = PP_SRC_OLD[x.src];
+  else if (x.src === 'PE 앵글') x.src = String(x.ref || '').startsWith('pe:dup:') ? '중복상장' : '오너기업';
+  if (typeof x.folder === 'string') x.folder = PP_DIR_OLD[x.folder] || x.folder.replace(/^04\. 딜소싱\//, '05. 딜소싱/');
+}
+const ppArr = (v) => { if (!Array.isArray(v)) throw new Error(PP_BAD); v.forEach(ppFixOld); return v; };
 const ppRead = () => STORE.readJSON('pipeline').catch((e) => { throw e instanceof SyntaxError ? new Error(PP_BAD) : e; });
 
 function pipeLoad(force) {
@@ -324,7 +336,7 @@ function ppRow(x) {
 
 // 펼친 행: 글자마다 저장하지 않고 바꾼 칸을 벗어날 때(선택 상자·단계는 바로) 저장한다
 function ppDetail(x) {
-  const tab = PP_TABS[String(x.ref || '').split(':')[0]];
+  const tab = ppTabOf(x.ref);
   const dt = ppDtTab(x.id);
   if (dt !== 'run') setTimeout(() => ppDtEnsure(x.id), 0);
   else if (x.folder && !ppT.files.has(x.id)) setTimeout(() => ppFilesLoad(x.id), 0); // 탭의 자료 수
@@ -355,10 +367,11 @@ function ppRunInner(x) {
 }
 
 /* ---------- 딜 상세 탭: 진행 · 검토 노트 · 자료 (2026-11-16 사용자: 딜 자료를 어디서 볼지 애매) ----------
-   딜 폴더 = 팀 파일함 경로 x.folder(예 '04. 딜소싱/딜/TCMS 티씨엠에스'). 없으면 '폴더 만들기'로 PP_DEAL_DIR/<회사명>과 빈 검토 노트를 만든다.
-   검토 노트 = 그 폴더에서 이름이 '검토 노트.md'로 끝나는 파일. 웍스에서 읽고 고친다(eTag로 덮어쓰기 충돌 확인).
+   딜 폴더 = 팀 파일함 경로 x.folder(예 '05. 딜소싱/딜/(2차전지) TCMS 티씨엠에스'). 없으면 '폴더 만들기'로 PP_DEAL_DIR/<딜 이름>과 빈 검토 노트를 만든다.
+   폴더 이름 규칙(11/18)은 '(섹터) 회사명'이라 딜 이름을 그 꼴로 적으면 그대로 폴더 이름이 된다.
+   검토 노트 = 그 폴더 맨 위에서 이름이 '검토 노트.md'로 끝나는 파일('회사명 검토 노트.md', 앞의 (섹터)는 뺌). 웍스에서 읽고 고친다(eTag로 덮어쓰기 충돌 확인).
    Claude 세션은 PC 동기화 폴더의 같은 파일을 고친다. 노트 원본은 이 파일 하나 */
-const PP_DEAL_DIR = '04. 딜소싱/딜';
+const PP_DEAL_DIR = '05. 딜소싱/딜';
 const PP_NOTE_RE = /검토 노트\.md$/;
 const ppT = { tab: {}, files: new Map(), note: new Map(), edit: null };
 { const v = viewGet('pp.dt', {}); if (v && typeof v === 'object') ppT.tab = v; }
@@ -370,7 +383,7 @@ const ppDtInner = (x, t) => (t === 'run' ? ppRunInner(x) : t === 'fs' ? ppFsInne
    팩트시트도 요청도 없는 딜은 ppFsAuto가 요청 목록(fs_req.json)에 얹어 PC가 다음 처리(11:00·16:00)에 만든다 */
 const PP_FS_REFS = ['yesim:', 'ipo:', 'sell:', 'bids:', 'pe:heir:', 'pe:dup:', 'delist:', 'cons:', 'deep:']; // fs_req.py ANGLES와 같게
 const ppFsKey = (x) => (PP_FS_REFS.some((p) => String(x.ref || '').startsWith(p)) ? x.ref : `pp:${x.id}`);
-const ppFsLabel = (x) => (ppFsKey(x) === x.ref ? PP_TABS[String(x.ref).split(':')[0]]?.[1] || '파이프라인' : '파이프라인');
+const ppFsLabel = (x) => (ppFsKey(x) === x.ref ? ppTabOf(x.ref)?.[1] || '파이프라인' : '파이프라인');
 const ppFsHint = (x) => { try { return JSON.stringify({ 회사: x.name, 유형: x.type, 출처: x.src, 소개자: x.introducer, 다음할일: x.action, 메모: x.note }).slice(0, 3000); } catch { return ''; } };
 function ppFsInner(x) {
   if (typeof fqBox !== 'function') return '<div class="empty">팩트시트를 불러오지 못했습니다.</div>';
@@ -478,8 +491,9 @@ function ppFileOpen(id, i) {
 }
 async function ppMkdir(id) {
   const x = ppFind(id); if (!x) return;
-  const dir = x.folder || ppDealDir(x), name = `${dir.split('/').pop()} 검토 노트.md`;
-  const text = `# ${x.name} 검토 노트\n\n- 시작 ${today()}\n\n## 1. 회사\n\n## 2. 실적\n\n## 3. 투자 조건\n\n## 4. 위험 요인\n\n## 5. 판단\n`;
+  const dir = x.folder || ppDealDir(x), co = dir.split('/').pop().replace(/^\([^)]*\)\s*/, ''), name = `${co} 검토 노트.md`;
+  // 틀: 대표님 주간회의 틀(11/18 사용자)
+  const text = `# ${co} 검토 노트\n\n- 시작 ${today()}\n\n## 1. 사업\n\n## 2. 실적\n\n## 3. 구조\n\n## 4. 상황\n\n## 5. 다음 할 일\n`;
   try {
     // 경로로 올리면 없는 폴더(딜·회사명)까지 같이 만든다. 같은 이름 노트가 이미 있으면 409
     await G.put(`${ppFolderUrl(`${dir}/${name}`)}/content?@microsoft.graph.conflictBehavior=fail`, text, { headers: { 'Content-Type': 'text/markdown; charset=utf-8' } })
@@ -786,9 +800,9 @@ async function ppCpDraft(id, co) {
   finally { ppS.cpBusy.delete(key); ppCpPaint(id); }
 }
 
-/* 회사 공용 프롬프트(팀 파일함 04. 딜소싱/컨택 플랜 프롬프트.md)의 '프롬프트 시작' 아래를 회사 이름·보내는 사람·참고 자료를 채워 복사한다.
+/* 회사 공용 프롬프트(팀 파일함 05. 딜소싱/컨택 플랜 프롬프트.md)의 '프롬프트 시작' 아래를 회사 이름·보내는 사람·참고 자료를 채워 복사한다.
    회사는 보고 있는 회사 탭, 플랜이 없으면 딜 이름. 보내는 사람은 담당(없으면 나) */
-const PP_PROMPT = '팀/04. 딜소싱/컨택 플랜 프롬프트.md';
+const PP_PROMPT = '팀/05. 딜소싱/컨택 플랜 프롬프트.md';
 TAB_INFO['pp-cp-prompt'] = { title: '컨택 플랜 프롬프트', rows: [
   ['무엇인가', '컨택 플랜을 만들 때 쓰는 회사 공용 지침입니다. 연락 원칙, 조사 방법, 메일 양식, 우리 회사 소개가 들어 있습니다.'],
   ['왜 있나', [
@@ -799,7 +813,7 @@ TAB_INFO['pp-cp-prompt'] = { title: '컨택 플랜 프롬프트', rows: [
     '프롬프트 복사를 누르면 회사 이름과 보내는 사람(담당)이 채워진 채로 복사됩니다.',
     'Claude나 ChatGPT에서 웹 검색을 켜고 붙여 넣으시면 됩니다.',
   ]],
-  ['고칠 때', '공용 폴더 04. 딜소싱의 \'컨택 플랜 프롬프트\' 파일을 고치시면 다음 자동 작성부터 반영됩니다. \'## \'로 시작하는 제목 줄 이름은 그대로 두세요.'],
+  ['고칠 때', '공용 폴더 05. 딜소싱의 \'컨택 플랜 프롬프트\' 파일을 고치시면 다음 자동 작성부터 반영됩니다. \'## \'로 시작하는 제목 줄 이름은 그대로 두세요.'],
 ] };
 async function ppCpPrompt(id) {
   const x = ppFind(id); if (!x) return;

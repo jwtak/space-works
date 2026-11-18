@@ -610,7 +610,7 @@ function dcfInfo(c) {
     mk.spread?.source ? `합성등급 스프레드: ${mk.spread.source}` : '합성등급 스프레드: Valley AI 화면 값',
     `재무제표: ${c?.src_fs || '와이즈리포트 재무제표(연결)'}. 투하자본은 와이즈리포트 cF4002 IC`,
     '컨센서스와 베타: 와이즈리포트(네이버 기업정보). 52주 베타는 기간과 주기 표시 없음, 1년 베타는 참고',
-    '화면 구성과 기본값: Valley AI 「DCF 실전형」과 「리버스 DCF」(05. 딜소싱 > 가치평가 학습 노트 (Valley AI) 01, 02)',
+    '화면 구성과 기본값: Valley AI 「DCF 실전형」과 「리버스 DCF」(06. 투자 심사·실행 > 가치평가 학습 노트 (Valley AI) 01, 02)',
     '계산 원본과 사례 폴더: 05. 딜소싱 > _자동화 > 가치평가 > dcf.py, cases',
   ];
   return { title: 'DCF', rows: [

@@ -13,7 +13,7 @@ const PE_STATUS = ['미접촉', '연락함', '미팅', '보류', '검토 완료'
 const PE_DONE = PE_STATUS[4];
 const peLowSt = (st) => st !== PE_STATUS[0] && st !== PE_DONE;
 const peDoneCls = (st) => (st === PE_DONE ? ' ct-done' : '');
-const PE_PIPE_SRC = 'PE 앵글'; // pipeline.js 출처 목록(PP_SRCS)·PP_TABS.pe와 같은 이름
+const pePipeSrc = (key) => (String(key).startsWith('pe:dup:') ? '중복상장' : '오너기업'); // pipeline.js 출처 목록(PP_SRCS)과 같은 이름(11/18 'PE 앵글'에서 탭 이름으로)
 const PE_GRPS = [['heir', '오너기업'], ['dup', '중복상장']];
 const PE_HF = [['pass', '통과'], ['near', '근접'], ['all', '전체']];
 const PE_REV = [['', '전체'], ['200-700', '바이아웃 200~700억'], ['300-3000', '성장투자 300~3,000억'], ['3000-', '3,000억+']]; // 2026-11-12 사용자: 두 딜 다 보고 필터로 나눔
@@ -616,7 +616,7 @@ async function pePipeAdd(btn) {
   const x = peFind(btn.closest('.ipo-row')?.dataset.id);
   if (!x || btn.disabled || typeof pipeAdd !== 'function') return;
   btn.disabled = true;
-  try { await pipeAdd({ src: PE_PIPE_SRC, ref: x.key, name: x.name }); }
+  try { await pipeAdd({ src: pePipeSrc(x.key), ref: x.key, name: x.name }); }
   catch (e) { toast(e?.message || '파이프라인에 올리지 못했습니다.'); }
   pePipeDraw(x.id);
 }
@@ -731,7 +731,7 @@ function peInfo(d) {
   const r = d?.heir.rules, dr = d?.dup.rules, pd = d?.heir.progress.perDay;
   const v = (x, u, def) => (x != null ? `${peFmt(x)}${u}` : def);
   return {
-    title: 'PE 앵글',
+    title: '오너기업, 중복상장',
     asof: `${d?.heir.asof ? `기준일 ${d.heir.asof}` : '기준일 –'} · 출처 팀 엑셀 '0.PE(상속이슈기업)'·'0.PE(중복상장)' 시트, DART 감사보고서·타법인출자, KIND, 뉴스 · 업무 맥락은 딜소싱 실무 노트 7장`,
     rows: [
       ['무엇인가', [

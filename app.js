@@ -387,7 +387,7 @@ function infoOpen(k) {
 }
 const infoBtn = (k) => (TAB_INFO[k] ? `<button class="btn ghost info-btn" type="button" data-info="${esc(k)}" aria-label="화면 설명">${ico('info', 'sm')}<span class="info-txt">화면 설명</span></button>` : '');
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-info]'); if (b) infoOpen(b.dataset.info); });
-const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', news: '뉴스', deals: '딜소싱', pipeline: '파이프라인', market: '시장동향', valuation: '가치평가', weekly: '주간회의', files: '공용 폴더', corp: '법인설립', fss: '금감원 면담', notes: '업무일지·회의록', programs: '프로그램', homepage: '홈페이지' };
+const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', news: '딜 뉴스', deals: '딜소싱', pipeline: '파이프라인', market: '시장동향', valuation: '가치평가', weekly: '주간회의', files: '공용 폴더', corp: '운용사 설립', fss: '금감원 면담', notes: '업무일지·회의록', programs: '프로그램', homepage: '홈페이지' };
 function render() {
   if (!S) return; // 로그인·데이터 읽기 전 hashchange
   let r = route();
@@ -539,7 +539,7 @@ function renderHome() {
           </div>
         </section>
         <section class="card sec-notes">
-          <div class="card-head"><h2>최근 기록</h2><a class="btn sm act" href="#notes">기록</a></div>
+          <div class="card-head"><h2>업무일지·회의록</h2><a class="btn sm act" href="#notes">전체</a></div>
           <div class="card-body" style="padding-top:0"><ul class="list">${S.notes.slice(0, 4).map((n) => `
             <li class="click" data-note="${esc(n.name)}"><div class="t"><div class="ttl">${noteTag(n.name)}${esc(noteTitle(n.name))}</div><div class="meta">${relTime(n.mtime)} 수정</div></div></li>`).join('') || '<div class="empty">기록이 없습니다.</div>'}</ul></div>
         </section>
@@ -573,15 +573,15 @@ function renderHomeMobile() {
     ['#mail', 'mail', '메일', '<i class="mh-n" id="mh-mail" hidden></i>'],
     ['#calendar', 'cal', '일정', '<i class="mh-n" id="mh-cal" hidden></i>'],
     ['#todos', 'check', '할 일', over.length + dueToday.length ? `<i class="mh-n ${over.length ? 'red' : ''}">${over.length + dueToday.length}</i>` : ''],
-    ['#notes', 'file', '업무일지', ''],
-    ['#deals/news', 'news', '뉴스', ''],
+    ['#notes', 'file', '업무일지·회의록', ''],
+    ['#deals/news', 'news', '딜 뉴스', ''],
     ['#market', 'chart', '시장동향', ''],
     ...DEAL_GROUPS.map(([g, t, i]) => [`#deals/${g}`, i, t, '']),
     ['#deals/pipeline', 'inbox', '파이프라인', ''],
     ['#valuation', 'calc', '가치평가', ''],
     ['#weekly', 'week', '주간회의', ''],
     ['#files', 'folder', '공용 폴더', ''],
-    ['#corp', 'home', '법인설립', ''],
+    ['#corp', 'home', '운용사 설립', ''],
     ['#fss', 'flag', '금감원 면담', ''],
     ['#programs', 'box', '프로그램', prog ? `<i class="mh-n grey">${prog}</i>` : ''],
     ['', 'spark', 'AI 브리핑', ''],
@@ -625,7 +625,7 @@ matchMedia('(max-width: 760px)').addEventListener('change', () => { if (S && rou
 
 /* ---------- 딜소싱·뉴스·파이프라인 (2026-11-11 사용자 승인으로 11개 탭을 정리)
    뉴스(사이드바): 딜 뉴스 — 회사 목록이 아니라 매일 훑는 소식
-   딜소싱: 행사(행사·IR — 회사를 직접 만나는 자리, 11/11 사용자 '맨 앞으로') / 상장(상장 준비 | 신규상장) / 매물(입찰딜 | FI 회수(11/17 '매각희망'에서 이름 바꿈) | 매물장터) / 타깃(오너기업 | 중복상장 | 상폐 위험·CB | 섹터 | 소비재 | 딥테크, 소비재·딥테크는 11/16 사용자 요청)
+   딜소싱: 행사(행사·IR — 회사를 직접 만나는 자리, 11/11 사용자 '맨 앞으로') / 상장(상장 준비 | 신규상장) / 매물(입찰딜 | 구주 매물(11/17 매각희망 → FI 회수, 11/18 구주 매물) | 매물장터) / 타깃(오너기업 | 중복상장 | 상폐 위험·CB | 섹터 | 소비재 | 딥테크, 소비재·딥테크는 11/16 사용자 요청)
    파이프라인(사이드바): 팩트시트(관심 회사 모음, 11/16 사용자가 타깃에서 옮김, 왼쪽) | 파이프라인(모든 탭에서 올린 카드가 모이는 곳)
    주소는 예전 그대로 #deals/<화면>(다른 화면·홈 카드·파이프라인 '돌아가기'가 쓴다). #deals/<묶음>은 그 묶음에서 마지막으로 본 화면으로.
    PE 앵글은 오너기업(heir)·중복상장(dup) 두 화면으로 펼친다 — pe.js 안의 묶음 값(peS.grp)만 바꿔서 그리고 pe.js 자체 전환 줄은 숨긴다.
@@ -638,7 +638,7 @@ const DEAL_SCREENS = {
   yesim: ['상장 준비', 'flag', () => (typeof renderYesim === 'function' ? renderYesim : null)],
   ipo: ['신규상장', 'chart', () => (typeof renderIpo === 'function' ? renderIpo : null)],
   bids: ['입찰딜', 'send', () => (typeof renderBids === 'function' ? renderBids : null)],
-  sell: ['FI 회수', 'upload', () => (typeof renderSell === 'function' ? renderSell : null)],
+  sell: ['구주 매물', 'upload', () => (typeof renderSell === 'function' ? renderSell : null)],
   kmx: ['매물장터', 'clip', () => (typeof renderKmx === 'function' ? renderKmx : null)],
   heir: ['오너기업', 'link', () => dealPe('heir')],
   dup: ['중복상장', 'link', () => dealPe('dup')],
