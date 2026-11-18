@@ -248,6 +248,8 @@
 .va-tr .el { font-size: var(--fs-xs); font-weight: 700; }
 .va-tr .el.mk { fill: var(--text3); }
 .va-tr .el.me { fill: var(--primary); }
+.va-tr path.mq { stroke: var(--text3); stroke-width: 1.5; stroke-dasharray: 4 3; }
+.va-tr .el.mq { fill: var(--text3); }
 
 /* ---------- 2026-11-17 다섯 탭 개편(시장동향, 재무분석, 요약, 상대가치평가, 절대가치평가) ---------- */
 /* 위 탭: 폰에서는 아이콘을 빼고 이름 길이만큼 폭을 나눔 */
@@ -444,6 +446,7 @@ button.va-gr.me:hover { background: var(--primary-soft); }
 .va-g4 .va-hg-p { flex: 1; height: auto; min-height: 220px; }
 /* 선 차트 범례는 선 모양으로(점은 산점도만) */
 .va-leg .ln::before { width: 16px; height: 2px; border-radius: var(--r-full); background: var(--primary); vertical-align: 3px; }
+.va-leg .cq::before { width: 16px; height: 0; border-radius: 0; border-top: 2px dashed var(--text3); background: none; vertical-align: 3px; }
 .va-leg .mdb::before { width: 3px; height: 12px; border-radius: var(--r-full); background: var(--primary); vertical-align: -2px; }
 .va-leg .ct::before { width: 14px; height: 8px; border-radius: 2px; background: var(--line); vertical-align: 0; }
 .va-ff + .va-leg { margin-top: 8px; }
