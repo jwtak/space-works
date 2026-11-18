@@ -1,6 +1,6 @@
 /* 가치평가 › DCF 모델 v3 (valuation_v3.js). 표, 카드, 탭은 market.css(.mk-*)와 valuation.css(.va-*)를 같이 쓰고 여기엔 v3에만 있는 것만.
    글자 크기, 모서리, 색은 style.css 토큰으로. 오르면 빨강(.up) 내리면 파랑(.dn). 나란히 놓을지는 본문(#va-host) 폭으로 정함 */
-#va-host[data-v3] { container-type: inline-size; --v3-bull: var(--ok); --v3-base: var(--t-amber-c); --v3-bear: var(--danger); --v3-edit: color-mix(in srgb, var(--primary) 4%, var(--card)); --v3-warn: var(--t-amber-c); --v3-warn-soft: var(--t-amber); }
+#va-host[data-v3] { container-type: inline-size; --v3-bull: var(--danger); --v3-base: var(--text2); --v3-bear: color-mix(in srgb, var(--primary) 55%, var(--card)); --v3-edit: color-mix(in srgb, var(--primary) 4%, var(--card)); --v3-warn: var(--t-amber-c); --v3-warn-soft: var(--t-amber); }
 #va-host[data-v3] ::selection { background: var(--t-blue-i); }
 
 /* 머리: 결론 숫자 줄 */
@@ -208,9 +208,9 @@
 .v3c .s3.lt, .v3c-leg .s3.lt { --c: color-mix(in srgb, var(--t-amber-c) 40%, var(--card)); --ct: var(--ink); }
 .v3c .s4.lt, .v3c-leg .s4.lt { --c: color-mix(in srgb, var(--ok) 40%, var(--card)); --ct: var(--ink); }
 .v3c .s5.lt, .v3c-leg .s5.lt { --c: color-mix(in srgb, var(--text3) 40%, var(--card)); --ct: var(--ink); }
-.v3c .bull, .v3c-leg .bull { --c: var(--ok); }
-.v3c .base, .v3c-leg .base { --c: var(--t-amber-c); }
-.v3c .bear, .v3c-leg .bear { --c: var(--danger); }
+.v3c .bull, .v3c-leg .bull { --c: var(--danger); }
+.v3c .base, .v3c-leg .base { --c: var(--text2); }
+.v3c .bear, .v3c-leg .bear { --c: color-mix(in srgb, var(--primary) 55%, var(--card)); --ck: var(--primary); }
 .v3c .up, .v3c-leg .up { --c: var(--danger); }
 .v3c .dn, .v3c-leg .dn { --c: var(--primary); }
 
@@ -982,8 +982,8 @@
 .va .v3q-st th.st { vertical-align: bottom; }
 .va .v3q-st th.ax { text-align: center; color: var(--ink); border-bottom-color: var(--row); }
 .v3q-st th.c, .v3q-st td.st.c { color: var(--ink); font-weight: 700; }
-.v3q-st td.up { color: var(--danger); font-weight: 400; }
-.v3q-st td.dn { color: var(--primary); font-weight: 400; }
+.v3q-st td.up { background: color-mix(in srgb, var(--danger) var(--a, 8%), var(--card)); color: var(--ink); font-weight: 400; }
+.v3q-st td.dn { background: color-mix(in srgb, var(--primary) var(--a, 8%), var(--card)); color: var(--ink); font-weight: 400; }
 .v3q-st td.mid { background: var(--primary-soft); box-shadow: inset 0 0 0 1px var(--primary); font-weight: 700; }
 
 /* 단일 변수 슬라이더 */

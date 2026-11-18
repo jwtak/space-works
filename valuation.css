@@ -476,7 +476,7 @@ button.va-gr.me:hover { background: var(--primary-soft); }
 .va-mt td small, .va-split td small, .va-ap td small, .va-pos td small, .va-loo td small, .va-peers td small, .va-sct td small, .va-plist td small { font-size: var(--fs-sm); }
 .va-mt tr.va-stat td { white-space: normal; }
 /* 요약 탭 절대가치평가 시나리오 점: 색 변수는 절대가치평가 화면(#va-host[data-v3])에만 있어 여기서도 같은 값 */
-.va-sct { --v3-bull: var(--ok); --v3-base: var(--t-amber-c); --v3-bear: var(--danger); }
+.va-sct { --v3-bull: var(--danger); --v3-base: var(--text2); --v3-bear: color-mix(in srgb, var(--primary) 55%, var(--card)); }
 @media (max-width: 760px) {
   .va-ttl:has(p:only-child) { align-items: flex-start; }
   .va-cmp .card-head > .mk-seg { margin-left: 0; }

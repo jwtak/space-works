@@ -3314,12 +3314,19 @@ const V3Q_TIP = {
   tor: '영업이익을 움직이는 변수(매출 성장률, 영업이익률)가 대개 가장 크게 움직입니다. CAPEX는 길게 보면 감가상각과 맞물리고 운전자본 증가는 금액이 작아 영향이 작습니다.',
   cover: '모두 걸치면 평가가 현재가와 가깝다는 뜻입니다. 증권사 목표가는 높게 잡는 경향이 있고, 목표주가의 기준은 DCF입니다.',
 };
-/* 이중 변수 표 하나: 세로 WACC(o.yName), 가로 xName. 현재가보다 높으면 up(빨강), 낮으면 dn(파랑), 가운데 칸 mid.
+/* 이중 변수 표 하나: 세로 WACC(o.yName), 가로 xName. 가운데 칸(mid, 지금 가정)보다 높으면 up(옅은 빨강), 낮으면 dn(옅은 파랑),
+   차이가 표 안 가장 큰 차이에 가까울수록 진하게(--a 6～24%). 칸 툴팁은 현재가 대비.
    o = {yName, yTip, xTip 축 이름 툴팁, xt: (v) => 가로 칸 머리 툴팁} */
 function v3qSensTbl(t, xName, xf, close, o = {}) {
   if (!t || !Array.isArray(t.x) || !Array.isArray(t.y) || !Array.isArray(t.z)) return '<div class="empty">표를 만들 값이 없습니다.</div>';
   const ci = Math.floor(t.y.length / 2), cj = Math.floor(t.x.length / 2), big = t.z.some((r) => (r || []).some((v) => v3Ok(v) && Math.abs(v) >= 1e6)); // 일곱 자리 값이 있으면 좁은 폭에서도 표 폭을 줄이지 않음
-  const cell = (v, i, j) => `<td class="${[v3Ok(v) && close ? (v > close ? 'up' : v < close ? 'dn' : '') : '', i === ci && j === cj ? 'mid' : ''].join(' ').trim()}">${v3Num(v)}</td>`;
+  const b = t.z[ci]?.[cj], eps = 1e-9, dv = (v) => (v3Ok(v) && v3Ok(b) && b ? v / b - 1 : 0);
+  const mx = Math.max(0, ...t.z.flatMap((r) => (r || []).map((v) => Math.abs(dv(v)))));
+  const cell = (v, i, j) => {
+    const d = dv(v), mid = i === ci && j === cj, cls = mid ? 'mid' : d > eps ? 'up' : d < -eps ? 'dn' : '';
+    const a = !mid && cls && mx > 0 ? Math.round(6 + 18 * Math.abs(d) / mx) : 0, up = v3qUpOf(v, close);
+    return `<td${cls ? ` class="${cls}"` : ''}${a ? ` style="--a:${a}%"` : ''}${up != null ? ` title="현재가 대비 ${up > 0 ? '+' : up < 0 ? '−' : ''}${v3Num(Math.abs(up) * 100, 1)}%"` : ''}>${v3Num(v)}</td>`;
+  };
   return `<div class="mk-scroll"><table class="mk-tbl v3-t v3q-st${big ? ' big' : ''}"><thead><tr><th class="st" rowspan="2">${v3qTip(esc(o.yName || 'WACC'), o.yTip)}</th><th class="ax" colspan="${t.x.length}">${v3qTip(esc(xName), o.xTip)}</th></tr>
     <tr>${t.x.map((v, j) => `<th class="${j === cj ? 'c' : ''}"${o.xt ? ` title="${esc(o.xt(v))}"` : ''}>${xf(v)}</th>`).join('')}</tr></thead>
     <tbody>${t.y.map((w, i) => `<tr><td class="st${i === ci ? ' c' : ''}">${v3Pct(w, 2)}</td>${(t.z[i] || []).map((v, j) => cell(v, i, j)).join('')}</tr>`).join('')}</tbody></table></div>`;
@@ -4604,7 +4611,7 @@ function v3Info(c) {
       '요약의 「다른 가정」 표는 파이썬이 처음 값으로 계산한 결과. 그 아래 FCFE 순차입, 배당할인모형 단계 단추 옆 값은 지금 입력으로 다시 계산한 Base 주당 가치',
       'WACC를 움직이면 명시 기간과 안정기 WACC가 같은 폭으로 움직임',
       '토네이도: 변수 하나만 정한 폭으로 올리고 내렸을 때의 주당 가치',
-      '현재가보다 높으면 빨강, 낮으면 파랑. Base 기준이며 그 밖의 입력은 지금 값']],
+      '이중 변수 표 색: 가운데 칸보다 높으면 빨강, 낮으면 파랑, 차이가 클수록 진하게. 칸에 마우스를 올리면 현재가 대비. Base 기준이며 그 밖의 입력은 지금 값']],
     ['리버스', [
       'P/FCF 방식: 지금 주가를 맞추는 주당 FCF 성장률을 거꾸로 풂. 주가 = Σ 주당 FCF ÷ (1 + 할인율)^t + n년 뒤 주당 FCF × 최종 P/FCF ÷ (1 + 할인율)^n',
       'P/E 방식: 주당 FCF 대신 EPS와 최종 P/E',

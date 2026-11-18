@@ -31,7 +31,7 @@
 .mk-tbl .st { position: sticky; left: 0; z-index: 1; width: 150px; background: var(--card); box-shadow: 1px 0 0 var(--row); }
 .mk-tbl th.st { z-index: 2; }
 .mk-tbl td.st b { color: var(--ink); font-weight: 600; }
-.mk-tbl td.st small, .mk-tbl td small { display: block; font-size: var(--fs-xs); color: var(--text3); margin-top: 1px; font-weight: 400; }
+.mk-tbl td.st small, .mk-tbl td small { display: block; font-size: var(--fs-sm); color: var(--text3); margin-top: 1px; font-weight: 400; }
 .mk-tbl .strong { color: var(--ink); font-weight: 600; }
 .mk-tbl .bl { border-left: 1px solid var(--line); }
 /* 업종 대표 ETF 표의 비교 기준 줄(코스피·코스닥): 회색 바탕, 업종 줄과 굵은 선으로 나눔 */
