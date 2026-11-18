@@ -771,7 +771,7 @@ function vaPickList() {
   const rows = done.map((o) => {
     let tp = null, up = null, close = null, day = '', ref = '';
     if (o.v3?.py?.blend) {
-      const b = o.v3.py.blend, t = o.v3.target; tp = typeof v3TgtOf === 'function' ? v3TgtOf(o.v3).ps : b.target; day = t.val_date || ''; // 비상장은 지금 가치(소수지분)
+      const b = o.v3.py.blend, t = o.v3.target; tp = typeof v3TgtOf === 'function' ? v3TgtOf(o.v3).ps : b.target; day = t.val_date || ''; // 비상장은 결합 가치(없으면 지금 가치)
       if (t.listed === false) { close = t.ref?.price ?? null; up = vaRefUp(tp, t); ref = t.ref?.label || ''; } else { up = b.up; close = t.close; }
     }
     else if (o.rel) { const t = vaTarget(o.rel, vaCalc(o.rel)); tp = t ? Math.round(t.ps / 100) * 100 : null; up = t?.up; close = o.rel.target.close; day = o.rel.day; }
@@ -800,7 +800,10 @@ function vaBrief() {
   let kpi;
   if (off) {
     const tg = v3TgtOf(vc), by = Object.fromEntries(v3uRows(x).map((y) => [y.k, y]));
-    kpi = cell(esc(tg.lab), vaWon(tg.ps), upL(upOf(tg.ps)), 'tp') + cell('IPO 기준 DCF', vaWon(by.ipo?.w), upL(upOf(by.ipo?.w))) + cell('VC 방식', vaWon(by.vc?.w), upL(upOf(by.vc?.w)))
+    const wt = (w) => (w > 0 && w < 1 ? ` <small>비중 ${vaNum(w * 100)}%</small>` : ''), bu = tg.blend; // 결합 가치가 있으면 두 재료를 비중과 같이
+    kpi = cell(esc(tg.lab), vaWon(tg.ps), upL(upOf(tg.ps)), 'tp')
+      + (bu ? cell(`DCF${wt(bu.w_dcf)}`, vaWon(by.now?.w), upL(upOf(by.now?.w))) + cell(`상대가치${wt(1 - bu.w_dcf)}`, vaWon(bu.rel?.wavg), upL(upOf(bu.rel?.wavg))) : cell('IPO 기준 DCF', vaWon(by.ipo?.w), upL(upOf(by.ipo?.w))))
+      + (bu ? '' : cell('VC 방식', vaWon(by.vc?.w), upL(upOf(by.vc?.w))))
       + (close == null ? '' : cell(esc(x.pxL), vaWon(close), esc(day || '')));
   } else if (unl) {
     const bl = x.res.blend || {}, typ = v3DcfTyp(x), dv = typ ? bl.dcf : x.res.wavg?.ok === false ? null : x.res.wavg?.ps;
