@@ -1,4 +1,4 @@
-/* UNIVERSE WORKS 작은 서버(works-api, Supabase Edge Functions) 연결: 수신 확인 API, 폰 푸시(2026-11-14)
+/* UNIVERSE WORKS 작은 서버(works-api, Supabase Edge Functions) 연결: 폰 푸시(2026-11-14, 수신 확인은 11/18 제거)
    - 서버에는 Microsoft 토큰을 저장하지 않는다. 요청 때 Graph 토큰을 보내면 서버가 /me 로 본인만 확인하고 버린다.
    - 폰 푸시: 이 기기를 Web Push로 등록하고, Graph 받은편지함 구독(리치 1일 + 일반 7일)을 이 화면이 열릴 때마다 연장한다.
      서버는 토큰이 없어 구독을 직접 연장하지 못하므로, 웍스가 열리는 기기(PC 포함) 아무 곳에서나 ensureGraphSub()가 맡는다.
@@ -10,7 +10,7 @@ const VAPID_PUBLIC = 'BA1S8W0brPPz80gyDIxd6M__Zw6W_u9EnMuq9hOOQtPxOKg98aG7TjiLQJ
 const NOTIFY_CERT = 'MIIDITCCAgmgAwIBAgIULIEgFAS50j43OiSCwQI4+Y5GfC0wDQYJKoZIhvcNAQELBQAwIDEeMBwGA1UEAwwVVU5JVkVSU0UgV09SS1Mgbm90aWZ5MB4XDTI2MTExNDEyMDAzMVoXDTM2MTExMTEyMDAzMVowIDEeMBwGA1UEAwwVVU5JVkVSU0UgV09SS1Mgbm90aWZ5MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAlU1LWGRKLSyoNOjeag/cqwfUYft2uumjEDkDEgjVJrUCnG+ex+XG6UShTnhV1jym+TPA8fN1UFOZqMuy9dH6i8rANAIsw2BklhTJaXnviXREZQgTV+GdPyCcHfOL6cgR2jyJ2qDZIfpWc3tsvqWlGKw8Mov/j790Td5RYq2Q5JKi64LTFxXYsIo5OFYVmQyblfVo0hUR2Kps+ktIrHkdGh94hpMP0gbGTgR2AwJUD9YwCrR/ZdjUVEW9jgJcQkS+t5rnnH2B3q2XKShi9rkURh09WkQaJuGtchVQ1zLXWp+tf1M8M6m9+07qpTEk2L8T5Wtdv5vE3UlN7SCzl301NQIDAQABo1MwUTAdBgNVHQ4EFgQUq61dcIEYy9Hws4shv2HPqLIouCEwHwYDVR0jBBgwFoAUq61dcIEYy9Hws4shv2HPqLIouCEwDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAbz4OlwY9gyXM/j4GeCjmW2Yeo6SFv9iUNFgkjuS95srwX9KMFntHfx/kIwdJF4HIbK5ZzCsGJimojJgGA8aYZpRid+31jQDocd/pW2wxKGNnHK2XJa5G8KSZjKa/Cq+I05+4R/YhFQNIBt5LKRcJhW0UN8Py7YBGM8o/1zaKhoGyhymFfxjTNNxTVIFcPp72B90TF5t1SZ5JQCJwIsIsa0+c5FqtetfYDp/4b0J4McvGSLy8Pemmw/d9LQVJxefgiz/XwmkNUIGyRZxUfI4ddE1fvoTuupG4GQmIb50jU8IWOdQFn34iuc6YjiEvJ4NVp4j1x/oOs1lxkQ6ei4gHlA==';
 const NOTIFY_CERT_ID = 'works-notify-2026-11';
 
-/* 서버 호출. mail.js가 'track-new'·'opens'를 이 이름·시그니처로 부른다(바꾸지 말 것) */
+/* 서버 호출 */
 async function worksApi(action, body = {}) {
   if (!WORKS_API) throw new Error('웍스 서버가 아직 연결되지 않았습니다');
   let r;

@@ -629,24 +629,7 @@
   }
 }
 
-/* ---------- 수신 확인 · 장애 때 저장해 둔 목록 (2026-11-14) ---------- */
-/* 수신 확인 버튼: 목록 줄 오른쪽, 읽기 화면 주소 아래 */
-.mail-trkb { flex: none; height: 30px; padding: 0 10px; font-size: var(--fs-sm); white-space: nowrap; }
-.mail-trkr { margin: 0 0 14px; }
-.mail-trkp { flex: none; padding: 0 6px; border-radius: var(--r-xs); background: var(--t-amber); color: var(--t-amber-c); font-size: var(--fs-sm); line-height: 20px; }
-/* 수신 확인 창 */
-.mail-trks-h { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-.mail-trks-h h3 { flex: 1; margin: 0; }
-.mail-trks-to { display: flex; gap: 10px; min-width: 0; padding: 10px 12px; border-radius: var(--r); background: var(--hover); font-size: var(--fs-md); }
-.mail-trks-to span { flex: none; color: var(--text3); }
-.mail-trks-to b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; color: var(--ink); }
-.mail-trks-l { max-height: 50vh; margin: 10px 0 0; padding: 0; overflow-y: auto; list-style: none; }
-.mail-trks-l li { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 0 4px; border-bottom: 1px solid var(--row); font-size: var(--fs-base); color: var(--ink); font-variant-numeric: tabular-nums; }
-.mail-trks-l li:last-child { border-bottom: 0; }
-.mail-trks-l li b { font-weight: 600; margin: 0 2px; }
-.mail-trks-n { margin: 8px 0 0; font-size: var(--fs-sm); color: var(--text3); }
-.mail-trks-l li.empty { justify-content: center; min-height: 88px; border: 0; color: var(--text3); }
-
+/* ---------- 장애 때 저장해 둔 목록 (2026-11-14) ---------- */
 .mail-off { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; flex: none; margin: 0 16px 8px; padding: 8px 8px 8px 14px; border-radius: var(--r); background: var(--t-amber); color: var(--t-amber-c); font-size: var(--fs-base); }
 .mail-off[hidden] { display: none; }
 .mail-off b { font-weight: 600; }
@@ -658,28 +641,14 @@
 
 @media (min-width: 761px) {
   .mail-off { margin: 0 28px 12px; }
-  /* 표형 목록: 수신 확인 버튼 칸을 맨 오른쪽에 더한다 */
-  .mail-items.trk .mail-item { grid-template-columns: 24px 28px 24px 180px 20px minmax(0, 1fr) 104px 76px; }
-  .mail-trkb { grid-column: 8; grid-row: 1; justify-self: end; }
 }
 @media (min-width: 761px) and (max-width: 1100px) {
   .mail-off { margin: 0 20px 12px; }
-  .mail-items.trk .mail-item { grid-template-columns: 24px 28px 24px 130px 20px minmax(0, 1fr) 96px 76px; }
-}
-@media (min-width: 761px) {
-  @container (max-width: 820px) {
-    .mail-items.trk .mail-item { grid-template-columns: 24px 28px 24px minmax(0, 1fr) 20px auto 76px; }
-    .mail-trkb { grid-column: 7; grid-row: 1 / span 2; align-self: center; }
-  }
 }
 @media (max-width: 760px) {
-  .mail-item.has-trk .mail-pv, .mail-item.has-trk .mail-subj { padding-right: 100px; }
-  .mail-item .mail-trkb { position: absolute; right: 16px; bottom: 8px; height: 36px; font-size: var(--fs-md); }
-  .mail-trkr .mail-trkb { height: 40px; font-size: var(--fs-base); }
   .mail-off { margin: 2px 16px 8px; }
   .mail-offhead .mail-mdate { margin-bottom: 8px; }
   .mail-offmeta { display: grid; margin-top: 8px; }
-  .mail-trks-l { max-height: 55vh; }
 }
 
 /* 목록 페이지 번호(2026-11-16, '더 보기' 대신) */
