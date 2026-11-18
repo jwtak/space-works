@@ -819,7 +819,7 @@ function vaBrief() {
   const ff = x ? v3Try(v3qFf, x, vc) : vaSec('풋볼필드', '', vaFootball(c, r));
   // 상대가치평가 한 장
   let rel = '';
-  if (unl) rel = '';
+  if (unl) rel = vaUnlRelCard(vc);
   else if (c) {
     const s = r.s, lead = tp?.parts.map((p) => p.nm) || c.primary.slice(0, 1), nm = lead[0], st = r.st[s.base][nm], item = VA_MULT[nm]?.[1], m = c.target.metrics[s.base] || {};
     const peers = vaUse(c, s).map((p) => p.name);
@@ -841,7 +841,47 @@ function vaBrief() {
       <dl class="va-asm"><div><dt>WACC</dt><dd>${v3Pct(V('WACC.wacc'), 2)}</dd></div><div><dt>영구성장률</dt><dd>${v3Pct(V('DCF.g_s'), 2)}</dd></div><div><dt>추정 기간</dt><dd>명시 ${x.tl.N}년${x.tl.M ? `, 전환 ${x.tl.M}년` : ''}</dd></div><div><dt>종료가치 비중</dt><dd>${v3Pct(V('DCF.tv_share'), 1)}</dd></div></dl>`);
   }
   const memo = c?.conclusion ? vaSec('판단 메모', '', `<p class="va-prof">${vaTx(c.conclusion)}</p>`) : '';
-  return `${head}${ff}${off ? v3uSec(x) : ''}${unl ? abs : `<div class="va-two">${rel}${abs}</div>`}${memo}`;
+  return `${head}${ff}${off ? v3uSec(x) : ''}${unl && !rel ? abs : `<div class="va-two">${rel}${abs}</div>`}${memo}`;
+}
+
+// ---------- 비상장 상대가치(2026-11-18, 첫 대상 TCMS) ----------
+/* relval_unlisted.py 결과(v3 사례 input.notes_in.rel_unlisted). 실적 연도 이익 × 상장 비교기업, 유사거래 배수 → 할인율로 지금 → 시리즈 C 빼고 Pre. 로직 노트 23-6 */
+function vaUnlRelOf(code) {
+  const vc = code && vaUnl(code) ? vaV3Of(code).find((y) => y.target.listed === false) : null, o = vc?.input?.notes_in?.rel_unlisted;
+  return o?.methods?.length ? { vc, o } : null;
+}
+const VA_US = ['Bull', 'Base', 'Bear'];
+function vaUnlRelCard(vc) { // 요약 탭의 상대가치평가 한 장(비상장): 상장 비교기업 PER 가중평균
+  const o = vc?.input?.notes_in?.rel_unlisted, m = o?.methods?.find((y) => y.key === 'peer_per'); if (!m) return '';
+  const ma = o.methods.find((y) => y.key === 'ma_ev_ebitda'), lab = vc.target.ref?.label || '기준 거래';
+  return vaSec('상대가치평가', vaGoTab('rel', '자세히'), `<div class="va-bv"><span>주당 가치</span><b>${vaWon(m.ps.wavg)}</b>${vaUp(m.vs_ref?.wavg)}<small class="v3-ref">${esc(lab)} 대비</small></div>
+    <dl class="va-asm"><div><dt>상장 비교기업 PER</dt><dd>${vaX(m.mult)} <small>${m.n}곳 중앙값</small></dd></div>${ma ? `<div><dt>유사거래 EV/EBITDA</dt><dd>${vaX(ma.mult)} <small>${ma.n}건, ${vaWon(ma.ps.wavg)}</small></dd></div>` : ''}<div><dt>지금으로 할인</dt><dd>연 ${vaNum(o.r * 100, 1)}%</dd></div></dl>
+    <div class="va-chips">${(o.peers?.rows || []).map((p) => `<span>${esc(p.name)}</span>`).join('')}</div>`);
+}
+function vaUnlRel({ vc, o }) { // 상대가치평가 탭(비상장): 결과, 가정, 상장 비교기업, 유사거래
+  const lab = vc.target.ref?.label || '기준 거래', n1 = (v) => (typeof v === 'number' ? vaNum(v, 1) : esc(v || '-'));
+  const rng = `배수 25～75%, 할인율 ${vaNum(o.r_range[0] * 100)}～${vaNum(o.r_range[1] * 100)}%, 유사거래는 경영권 프리미엄 ${vaNum(o.ctrl_prem_range[0] * 100)}～${vaNum(o.ctrl_prem_range[1] * 100)}%도`;
+  const res = o.methods.map((m) => `<tr><td class="st"><b>${m.src === 'ma' ? '유사거래' : '상장 비교기업'}</b><small>${esc(m.kind)}</small></td><td>${vaX(m.mult)}<small>${m.n}${m.src === 'ma' ? '건' : '곳'}</small></td>${VA_US.map((S) => `<td>${vaNum(m.ps[S])}</td>`).join('')}<td title="범위 ${vaNum(m.range?.[0])}～${vaNum(m.range?.[1])}원(${rng})"><b>${vaNum(m.ps.wavg)}</b></td><td>${vaUp(m.vs_ref?.wavg) || '-'}</td></tr>`).join('');
+  const sec1 = vaSec('상대가치 결과', '<span class="meta">단위 원</span>', `<div class="mk-scroll"><table class="mk-tbl va-ut"><thead><tr><th class="st">방법</th><th>배수</th>${VA_US.map((S) => `<th>${S}</th>`).join('')}<th>가중평균</th><th>${esc(lab)} 대비</th></tr></thead><tbody>${res}</tbody></table></div>`);
+  const tl = VA_US.map((S) => { const t = o.target[S]; return `<tr><td class="st"><b>${S}</b></td><td>${t.year}</td><td>${esc(String(t.list_date).slice(0, 7))}</td><td>${n1(t.ni)}</td><td>${n1(t.ebitda)}</td><td>${n1(t.ebit)}</td><td>${n1(t.net_debt)}</td></tr>`; }).join('');
+  const sec2 = vaSec('가정', '<span class="meta">단위 억원</span>', `<dl class="va-asm"><div><dt>지금으로 할인</dt><dd title="${esc(o.r_src)}">연 ${vaNum(o.r * 100, 1)}%</dd></div><div><dt>유사거래 경영권 프리미엄</dt><dd title="${esc(o.ctrl_prem_src)}">${vaNum(o.ctrl_prem * 100)}%</dd></div><div><dt>${esc(lab)} 금액</dt><dd>${vaNum(o.series_c)}억</dd></div><div><dt>지금 주식수</dt><dd>${vaNum(o.shares)}주</dd></div></dl>
+    <div class="mk-scroll"><table class="mk-tbl va-ut"><thead><tr><th class="st">시나리오</th><th>실적 연도</th><th>상장 가정일</th><th>순이익</th><th>EBITDA</th><th>EBIT</th><th>그 해 순차입금</th></tr></thead><tbody>${tl}</tbody></table></div>`);
+  const P = o.peers, b = P.basis, st = P.stats[b];
+  const ps = (r, per) => { const v = r.mult[per]?.PER; return r.per_cut?.[per] ? `<s title="PER ${P.per_range.min}～${P.per_range.max}배 밖">${n1(v)}</s>` : n1(v); };
+  const prow = P.rows.map((r) => `<tr><td class="st"><b>${esc(r.name)}</b><small>${esc(r.code)}</small></td><td>${vaNum(r.mcap)}</td><td>${ps(r, b)}</td><td>${n1(r.mult[b]?.['EV/EBITDA'])}</td><td>${n1(r.mult[b]?.['EV/EBIT'])}</td><td>${ps(r, 'FY1')}</td><td>${ps(r, 'FY2')}</td></tr>`).join('');
+  const md = (s, u) => (s?.n ? `${vaNum(s.median, 1)}<small>${s.n}${u}</small>` : '-');
+  const sec3 = vaSec('상장 비교기업', '<span class="meta">시가총액 억원</span>', `<div class="mk-scroll"><table class="mk-tbl va-mt va-ut"><thead><tr><th class="st">회사</th><th>시가총액</th><th>PER 최근 4분기</th><th>EV/EBITDA</th><th>EV/EBIT</th><th>PER 올해</th><th>PER 내년</th></tr></thead><tbody>${prow}
+    <tr class="va-stat"><td class="st"><b>중앙값</b></td><td></td><td>${md(st.PER, '곳')}</td><td>${md(st['EV/EBITDA'], '곳')}</td><td>${md(st['EV/EBIT'], '곳')}</td><td>${md(P.stats.FY1?.PER, '곳')}</td><td>${md(P.stats.FY2?.PER, '곳')}</td></tr></tbody></table></div>`);
+  const M = o.ma, T = M.tiers[M.use], tip = (r) => { const t = [r.est, r.ev_basis].filter(Boolean).join(': '); return t ? ` title="${esc(t)}"` : ''; };
+  const mrow = (r) => `<tr${r.in_main ? '' : ' class="off"'}><td class="st"><b>${esc(r.target)}</b><small>${esc(r.date)}</small></td><td class="wrap">${esc(r.sub)}</td><td class="wrap">${esc(r.buyer || '-')}</td><td>${r.stake == null ? '-' : `${vaNum(r.stake, 1)}%`}</td><td>${vaNum(r.amount)}</td><td${tip(r)}>${n1(r.ev_ebitda)}</td><td${tip(r)}>${n1(r.ev_op)}</td></tr>`;
+  const sm = T.stats.main, sr = T.stats.ref, old = T.rows.filter((r) => !r.in_main), drop = T.dropped || [];
+  const others = Object.entries(M.tiers).filter(([k]) => k !== M.use).map(([, t]) => `<div><dt>${esc(t.name)}만</dt><dd>EV/EBITDA ${vaX(t.stats.main['EV/EBITDA']?.median)} <small>${t.stats.main['EV/EBITDA']?.n || 0}건</small></dd></div>`).join('');
+  const sec4 = vaSec('유사거래', `<span class="meta">${esc(T.name)}, ${esc(M.since)} 이후 ${M.years}년</span>`, `<div class="mk-scroll"><table class="mk-tbl va-mt va-ut"><thead><tr><th class="st">대상</th><th>사업</th><th>인수자</th><th>지분</th><th>금액(억)</th><th>EV/EBITDA</th><th>EV/EBIT</th></tr></thead><tbody>${T.rows.filter((r) => r.in_main).map(mrow).join('')}
+    <tr class="va-stat"><td class="st"><b>중앙값</b><small>${M.years}년</small></td><td></td><td></td><td></td><td></td><td>${md(sm['EV/EBITDA'], '건')}</td><td>${md(sm['EV/EBIT'], '건')}</td></tr>
+    <tr class="va-stat off"><td class="st"><b>참고</b><small>${M.ref_years}년</small></td><td></td><td></td><td></td><td></td><td>${md(sr['EV/EBITDA'], '건')}</td><td>${md(sr['EV/EBIT'], '건')}</td></tr></tbody></table></div>
+    ${others ? `<dl class="va-asm">${others}</dl>` : ''}
+    ${old.length || drop.length ? `<details class="va-fold"><summary>${M.ref_years}년 참고 거래 ${old.length}건, 뺀 거래 ${drop.length}건</summary><div class="mk-scroll"><table class="mk-tbl va-mt va-ut"><tbody>${old.map(mrow).join('')}${drop.map((d) => `<tr class="off"><td class="st"><b>${esc(d.target)}</b><small>${esc(d.date)}</small></td><td colspan="6" class="wrap">${esc(d.why)}</td></tr>`).join('')}</tbody></table></div></details>` : ''}`);
+  return sec1 + sec2 + sec3 + sec4;
 }
 
 // ---------- 그리기 ----------
@@ -851,7 +891,8 @@ function vaDraw() { // 시장동향, 요약, 상대가치평가 탭 본문
   if (vaS.vt === 'mkt') { host.innerHTML = vaMktTab(); vaSave(); return; }
   if (vaS.vt === 'sum') { host.innerHTML = vaBrief(); vaSave(); return; }
   if (vaS.err) { host.innerHTML = `<div class="card"><div class="empty">${esc(vaS.err)}</div></div>`; return; }
-  const c = vaCase(), code = vaCode();
+  const c = vaCase(), code = vaCode(), ru = !c && vaUnlRelOf(code);
+  if (ru) { host.innerHTML = vaUnlRel(ru); vaSave(); return; }
   if (!c) { // 회사를 고르지 않았으면 평가한 회사 목록, 리서치한 평가가 없는 회사는 Peer 비교
     const x = code && vaS.mk?.by[code];
     host.innerHTML = !code ? vaPickList() : `${vaNone(code, '상대가치평가가 없는 회사입니다.')}${x ? vaPeerQ(vaFocusQuick(code), x) : ''}`;
@@ -1009,7 +1050,7 @@ async function renderValuation() {
   }
   await Promise.all([vaLoad(), vaLoadMkt(), typeof v3Load === 'function' ? v3Load().catch(() => {}) : null]);
   if (!$('#va-co')?.isConnected) return; // 불러오는 사이 다른 화면으로 감
-  const u = new Date((vt === 'mkt' ? vaS.mk?.generated_at : vt === 'rel' ? vaS.data?.updated_at : vt === 'sum' ? v3S?.data?.updated_at || vaS.data?.updated_at : null) || NaN);
+  const u = new Date((vt === 'mkt' ? vaS.mk?.generated_at : vt === 'rel' ? (vaUnlRelOf(vaCode()) ? v3S?.data?.updated_at : vaS.data?.updated_at) : vt === 'sum' ? v3S?.data?.updated_at || vaS.data?.updated_at : null) || NaN);
   if (!isNaN(u)) $('#va-upd').textContent = `${u.getMonth() + 1}/${u.getDate()} ${pad(u.getHours())}:${pad(u.getMinutes())} 업데이트`;
   vaShow();
 }
@@ -1023,6 +1064,7 @@ TAB_INFO.valuation = { title: '가치평가', rows: [
   ['바꿔 볼 수 있는 것', ['배수 표의 체크를 풀거나 켜면 그 회사를 빼거나 넣고 다시 계산', '비교기업 범위: 국내만, 해외만, 국내와 해외. 「국내와 해외 따로」 표는 범위와 상관없이 셋 다 보여 줌', '기준 기간: 최근 4분기, 올해 추정, 내년 추정', 'PER 10～50배만: 증권신고서 관행대로 PER이 10배 미만이거나 50배 초과인 비교기업을 PER 통계에서 뺌', '적용 결과 표의 조정(%): 할증은 +, 할인은 −', '처음 구성으로: 리서치에서 정한 구성으로 되돌림']],
   ['배수 정의', { table: [['배수', '분자', '분모'], ['PER', '시가총액', '지배주주 순이익'], ['PBR', '시가총액', '지배주주 자본'], ['EV/EBITDA', 'EV', 'EBITDA'], ['EV/EBIT', 'EV', '영업이익'], ['EV/Sales', 'EV', '매출']] }],
   ['금액 정의', ['시가총액: 자사주를 뺀 보통주 수 × 종가 + 우선주(상장이면 우선주 종가, 비상장이면 보통주 종가로 1:1 가정)', 'EV: 시가총액 + 순부채 + 비지배지분', '순부채: 이자발생부채(전환사채, 리스 포함) − 현금, 단기금융상품, 단기 당기손익공정가치 금융자산', '배수와 이익은 같은 기간끼리 곱함. 대표값은 중앙값, 범위는 25%～75%', 'EV 배수로 구한 주주가치 = 배수 × 지표 − 순부채 − 비지배지분 + 비영업자산']],
+  ['비상장 회사 상대가치', ['시세가 없어 대상 회사 배수를 구할 수 없으므로 상장 직전 해(실적 연도) 이익에 배수를 곱해 상장 때 가치를 구하고, 연 22.5%로 지금까지 할인한 뒤 최근 투자 라운드 금액을 빼고 지금 주식수로 나눔', '할인율 22.5%: 기술특례 IPO 증권신고서가 미래 추정 이익 × PER을 현재가치로 바꿀 때 쓴 할인율(2026 상반기 6곳 평균). 범위는 20～25%', '상장 비교기업: 같은 업종 상장사의 최근 4분기 PER, EV/EBITDA 중앙값. PER 10～50배 밖은 줄을 긋고 중앙값에서 뺌', '유사거래: 시장동향 M&A 거래 가운데 같은 업종 묶음의 경영권 거래. 기본은 최근 3년(2차전지 업황 정점이던 2021～2023년 상반기 거래를 빼려고), 5년은 참고 줄. 회생 M&A, 같은 거래 중복, 업종이 다른 회사는 뺌', '유사거래 값은 경영권 값이라 경영권 프리미엄 30%만큼 나눠 소수지분 값으로 바꿈(범위 20～46%)', '가중평균 칸에 마우스를 올리면 배수 25～75%, 할인율, 경영권 프리미엄 범위로 계산한 값의 범위가 보임. 유사거래 배수 칸에 올리면 거래금액을 지분으로 나눈 값인지, 기사 숫자인지 보임']],
   ['상대가치평가 읽는 법', ['안쪽 탭: 결과(풋볼필드와 목표주가, 배수별 평가표, 비교기업 선정), 배수 상세(국내와 해외 따로, 배수별 범위, 회사별 배수, 적용 결과), 검증(한 회사씩 빼기, 시나리오), 선정 근거(단계별 기준과 회사별 이유)', '풋볼필드: 52주 고저, 증권사 목표가 최저～최고, 배수별 Bear～Bull(시나리오가 없으면 25～75%). 회색 점선은 현재가, 빨간 점선은 목표주가이고 이름표는 그림 맨 위 줄', '목표주가: 평가 배수 하나로 계산(100원 단위 반올림). 기본은 PER, 금융업은 PBR, 순이익 적자면 EV/EBITDA, EBITDA도 적자면 EV/Sales(국내 IPO 증권신고서와 셀사이드 관행). 리서치에서 바꿀 수 있고, 다른 배수는 풋볼필드 「참고」 줄과 교차 확인 표로만 봄', '배수별 평가표: 막대 세로선이 Target 배수(비교기업 중앙값), 표는 지표 × Target 배수 = 주당 가치', '범위 막대(배수 상세): 비교기업 배수 25～75% 구간을 대상 회사에 적용한 주당 가치, 가운데 선은 중앙값', '배수 표 체크: 풀면 그 회사가 통계에서 빠지고 결론이 바로 다시 계산됨. 취소선 PER은 10～50배 밖이라 통계에서 뺀 값', '조정(%): 성장률이나 이익률 차이처럼 근거가 있을 때만 넣고 판단 메모에 이유를 남김', '비교기업이 3곳 미만이면 배수 평가 칸 아래에 다른 범위(국내, 해외, 국내와 해외)와 대상 회사 업종(FnGuide 소분류, 같은 PER 범위 조건) 중앙값을 참고로 보여 줌. 「국내와 해외 따로」 표에서는 주황', '한 회사씩 빼기: 한 곳만 빼도 주당 가치가 15% 넘게 움직이면 주황 표시', '시나리오: 배수는 그대로 두고 대상 회사 이익만 바꿔 적용. 근거는 시나리오 이름에 마우스를 올리면 보임', 'NM: 분모가 0 이하(적자 등)라 계산하지 않음', '주황 칸: 중앙값의 2배를 넘거나 절반에 못 미치는 배수', '확인할 것: 지금 구성에서 비교기업 수 부족, 평균과 중앙값 차이, 한 회사에 기대는 결과, 데이터 지연 등']],
   ['Peer 비교', ['리서치한 평가가 없는 회사를 상대가치평가 탭에서 열면 나옴. Peer는 검색해 넣거나 같은 업종(소분류) 시가총액 상위 5곳을 한 번에 넣음', '세로선은 Peer 최근 4분기 PER 중앙값, 흐린 막대는 10～50배 밖이라 중앙값에서 뺀 회사', '넣은 Peer는 PER 시장 탭의 위치 표와 PER 회귀 그림에도 같이 나옴']],
   ['출처', ['시장 데이터: 네이버 금융 PER(최근 4분기, 추정), FnGuide 업종 분류, 네이버 테마. 평일 장 마감 뒤 갱신', '국내 비교기업: 네이버 기업정보(와이즈리포트) 실적과 컨센서스, KIND 상장법인 목록. 실적 발표 직후 며칠은 반영이 늦어 대상 회사는 분기보고서와 증권사 리포트로 고쳐 넣음', '해외 비교기업: 리서치로 모은 배수(회사별 출처와 기준일은 비교기업 선정 칸)', '계산 원본과 사례 폴더: 05. 딜소싱 > _자동화 > 가치평가']],

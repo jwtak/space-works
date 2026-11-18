@@ -500,3 +500,9 @@ button.va-gr.me:hover { background: var(--primary-soft); }
 .va-tile + .va-tile { padding-left: 24px; border-left: 1px solid var(--line); }
 .va-tile p { color: var(--text3); }
 @media (max-width: 760px) { .va-tile + .va-tile { padding-left: 0; border-left: 0; } }
+/* 비상장 상대가치 유사거래의 참고 거래, 뺀 거래 접기(2026-11-18) */
+.va-fold { margin-top: 12px; }
+.va-fold summary { padding: 8px 0; font-size: var(--fs-md); color: var(--text2); cursor: pointer; }
+.va-fold summary:hover { color: var(--ink); }
+.va .mk-tbl.va-ut { min-width: 720px; }
+.va .mk-tbl.va-ut .st { width: 140px; }

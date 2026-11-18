@@ -72,6 +72,8 @@ const v3OffC = (c) => (v3Unl(c?.target) ? c.input?.notes_in?.offengine || null :
 const v3Off = (x) => v3OffC(x.c);
 const v3uW = (o) => (o && typeof o === 'object' ? o['가중평균'] ?? o.wavg ?? null : null);
 const v3uPs = (b) => (b && typeof b === 'object' && b.ps && typeof b.ps === 'object' ? b.ps : b);
+const v3RelU = (c) => (v3Unl(c?.target) ? c.input?.notes_in?.rel_unlisted || null : null); // 비상장 상대가치(relval_unlisted.py, 2026-11-18): 상장 비교기업, 유사거래
+const v3RelNm = (m) => `${m.src === 'ma' ? '유사거래' : '상장 비교기업'} ${m.kind} ${v3Num(m.mult, 1)}배`;
 function v3TgtOf(c) {
   const w = v3uW(v3OffC(c)?.minority_now?.ps);
   return v3Ok(w) ? { ps: +w, lab: '지금 가치(소수지분)', off: true } : { ps: c.py?.blend?.target ?? null, lab: '목표주가', off: false };
@@ -82,6 +84,8 @@ function v3uRows(x) { // 비상장 가치 표의 줄 {k, name, s: 시나리오�
   const rows = [{ k: 'now', name: '지금 가치(소수지분)', s: o.minority_now?.ps, w: v3uW(o.minority_now?.ps) }, { k: 'ipo', name: 'IPO 기준 DCF', s: o.ipo_now?.ps, w: v3uW(o.ipo_now?.ps) },
     { k: 'vc', name: 'VC 방식(목표수익률 30%)', s: vc('per'), w: L.vc_per_30_wavg_ps ?? null }, { k: 'vcd', name: 'VC 방식(공모 할인 30%)', s: vc('per_ipo_disc30'), w: L.vc_per_ipo_disc30_wavg_ps ?? null },
     { k: 'sj', name: '상증법 보충적 평가', s: {}, w: o.sangjeung?.ps ?? null }];
+  const ru = v3RelU(x.c);
+  if (ru?.methods?.length) rows.push({ grp: '상대가치' }, ...ru.methods.map((m) => ({ k: `rel.${m.key}`, name: v3RelNm(m), s: m.ps, w: m.ps?.wavg ?? null })));
   const a = o.alt_margin15;
   if (a && typeof a === 'object') {
     const m = [['minority_now', '지금 가치(소수지분)'], ['ipo_now', 'IPO 기준 DCF'], ['vc_per_30', 'VC 방식(목표수익률 30%)']].filter(([k]) => a[k] != null).map(([k, name]) => { const ps = v3uPs(a[k]); return { k: `m15.${k}`, name, s: ps, w: v3uW(ps) }; });
@@ -100,8 +104,8 @@ function v3uSec(x) { // 비상장 가치 표: 행은 방법, 열은 Bull, Base, 
 }
 function v3uFfRows(x) { // 비상장 풋볼필드 줄(할인 뒤 값): 지금 가치, VC 방식, IPO 기준 DCF의 Bear～Bull, 가운데는 Base
   if (!v3Off(x)) return null;
-  const N = { now: ['지금 가치 Bear～Bull', '지금 가치', 's1'], vc: ['VC 방식 Bear～Bull', 'VC 방식', 's2'], ipo: ['IPO 기준 DCF Bear～Bull', 'IPO DCF', 's3'] }, by = Object.fromEntries(v3uRows(x).map((r) => [r.k, r]));
-  return ['now', 'vc', 'ipo'].map((k) => { const r = by[k], v = V3U_S.map((S) => r?.s?.[S]).filter(v3Ok).map(Number); return v.length ? { label: N[k][0], short: N[k][1], cls: N[k][2], lo: Math.min(...v), hi: Math.max(...v), mid: v3Ok(r.s.Base) ? +r.s.Base : undefined } : null; }).filter(Boolean);
+  const N = { now: ['지금 가치 Bear～Bull', '지금 가치', 's1'], vc: ['VC 방식 Bear～Bull', 'VC 방식', 's2'], 'rel.peer_per': ['상대가치 PER Bear～Bull', '상대가치', 's4'], ipo: ['IPO 기준 DCF Bear～Bull', 'IPO DCF', 's3'] }, by = Object.fromEntries(v3uRows(x).map((r) => [r.k, r]));
+  return Object.keys(N).map((k) => { const r = by[k], v = V3U_S.map((S) => r?.s?.[S]).filter(v3Ok).map(Number); return v.length ? { label: N[k][0], short: N[k][1], cls: N[k][2], lo: Math.min(...v), hi: Math.max(...v), mid: v3Ok(r.s.Base) ? +r.s.Base : undefined } : null; }).filter(Boolean);
 }
 const v3UpL = (x, u) => `${v3Up(u)}${v3Unl(x.t) && v3Ok(u) ? `<small class="v3-ref">${esc(x.pxL)} 대비</small>` : ''}`; // 비상장 상승여력 옆 이름
 const v3Up = (u, d = 1) => { if (!v3Ok(u)) return ''; const r = +(u * 100).toFixed(d), s = r > 0 ? 1 : r < 0 ? -1 : 0; return `<span class="${s > 0 ? 'up' : s < 0 ? 'dn' : ''}">${s > 0 ? '+' : ''}${v3Num(u * 100, d)}%</span>`; }; // 반올림해 0이면 부호와 색 없이
