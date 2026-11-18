@@ -1,0 +1,43 @@
+/* 딜소싱 › 타깃 › SI 타깃 (si.js) — 목록·펼친 행·상자는 ipo.css, 좁은 폭 배치·필터 줄·묶음 제목은 radar.css(.rd-page), 폰 배치는 tgt.css(.tgt-page),
+   칩·수치 칸은 pe.css를 그대로 쓰고 여기엔 SI 요약 카드와 표시만. tgt.css 뒤에 읽어야 한다. 목록 일곱 칸은 radar.css 기본 그대로. */
+
+/* SI 요약 카드: SI 고르기(빠른 보기 모양) / 이름·코드·기준일·리서치 PDF / 항목 표 */
+.si-card { margin-bottom: 12px; }
+.si-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 16px 24px 4px; }
+.si-h h2 { margin: 0; font-size: var(--fs-xl); line-height: 24px; font-weight: 600; color: var(--ink); }
+.si-h .muted { font-size: var(--fs-md); }
+.si-h .si-rep { margin-left: auto; align-self: center; }
+.si-kv { padding: 0 24px 16px; }
+.si-own { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; color: var(--text2); }
+
+/* 사내 대화 표시(상장사 미공개 정보일 수 있는 내용): 목록 이름 옆 칩, 인수 업종 칩 */
+.rd-fs-tag.si-in, .pe-ds.si-in { background: var(--t-amber); color: var(--t-amber-c); }
+
+/* 사람이 쓴 고른 이유: 회사 칸 아래 두 줄까지 */
+.si-why { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; white-space: normal; overflow: hidden; overflow-wrap: anywhere; color: var(--text2); }
+
+/* 원래 탭으로 가는 링크: 그 탭에서 남긴 컨택 상태 칩을 글자 옆에 */
+.si-go .ipo-st { margin-left: 4px; }
+
+@media (max-width: 760px) {
+  .si-h { padding: 16px 16px 4px; }
+  .si-kv { padding: 0 16px 16px; }
+  .si-card .rd-quick { padding: 16px 16px 0; }
+  .si-h .si-rep { height: 44px; margin-left: 0; }
+  .si-page .ipo-dhead > .si-go, .si-page .ipo-acts > .si-go { min-height: 44px; }
+  .si-page .si-why { display: none; } /* 폰은 펼친 칸 머리에서 */
+}
+
+/* 카드가 1000보다 좁으면(업종·출처 칸을 접을 때) 고른 이유 줄은 빼고 펼친 칸에서만 */
+@media (min-width: 761px) {
+  @container (max-width: 999px) { .si-page .si-why { display: none; } }
+}
+/* 펼친 행 머리는 넓어도 두 단(요약·파이프라인 / 상태·메모·팩트시트·원래 탭 링크): 한 줄에 다 넣으면 요약 칸이 몇 글자 폭으로 눌린다. 1180보다 좁을 때는 radar.css 규칙 그대로 */
+@media (min-width: 761px) {
+  @container (min-width: 1180px) {
+    .si-page .ipo-dhead { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px 24px; }
+    .si-page .ipo-dhead > .ipo-acts { grid-column: 1 / -1; grid-row: 2; flex-wrap: wrap; }
+    .si-page .ipo-dhead > .rd-pipe { grid-column: 2; grid-row: 1; }
+    .si-page .ipo-note { flex: 1 1 200px; width: auto; }
+  }
+}

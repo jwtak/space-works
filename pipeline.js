@@ -8,7 +8,7 @@
 const PP_STAGES = ['발굴', '검토', '미팅', '실사', '투자심의', '완료', '드롭'];
 const PP_END = ['완료', '드롭'];            // '진행 중'에서 빼는 단계
 const PP_HOT = ['미팅', '실사', '투자심의'];  // 목록 칩을 파랑으로
-const PP_SRCS = ['소개', '투자 라운드', '신규상장', '상장 준비', '구주 매물', '입찰딜', '행사·IR', '상폐 위험·CB', '오너기업', '중복상장', '소비재', '딥테크', '기타'];
+const PP_SRCS = ['소개', '투자 라운드', '신규상장', '상장 준비', '구주 매물', '입찰딜', '행사·IR', '상폐 위험·CB', '오너기업', '중복상장', '소비재', '딥테크', 'SI 타깃', '기타'];
 const PP_TYPES = ['메자닌', '구주', '프리IPO', '경영권', '기타'];
 const PP_SORTS = [['next', '다음 연락일순'], ['at', '최근 수정순'], ['created', '등록일순']];
 
@@ -36,7 +36,7 @@ TAB_INFO['deals/pipeline'] = { title: '파이프라인', rows: [
   ]],
 ] };
 // ref 앞부분 → 그 딜이 있는 탭
-const PP_TABS = { ipo: ['#deals/ipo', '신규상장'], yesim: ['#deals/yesim', '상장 준비'], sell: ['#deals/sell', '구주 매물'], bids: ['#deals/bids', '입찰딜'], events: ['#deals/events', '행사·IR'], facts: ['#deals/facts', '팩트시트'], delist: ['#deals/delist', '상폐 위험·CB'], heir: ['#deals/heir', '오너기업'], dup: ['#deals/dup', '중복상장'], cons: ['#deals/cons', '소비재'], deep: ['#deals/deep', '딥테크'], round: ['#deals/round', '투자 라운드'] };
+const PP_TABS = { ipo: ['#deals/ipo', '신규상장'], yesim: ['#deals/yesim', '상장 준비'], sell: ['#deals/sell', '구주 매물'], bids: ['#deals/bids', '입찰딜'], events: ['#deals/events', '행사·IR'], facts: ['#deals/facts', '팩트시트'], delist: ['#deals/delist', '상폐 위험·CB'], heir: ['#deals/heir', '오너기업'], dup: ['#deals/dup', '중복상장'], cons: ['#deals/cons', '소비재'], deep: ['#deals/deep', '딥테크'], round: ['#deals/round', '투자 라운드'], si: ['#deals/si', 'SI 타깃'] };
 // ref → 탭. PE 쪽 ref(pe:heir:… · pe:dup:…)는 오너기업·중복상장 탭으로
 const ppTabOf = (ref) => { const p = String(ref || '').split(':'); return PP_TABS[p[0] === 'pe' ? (p[1] === 'dup' ? 'dup' : 'heir') : p[0]]; };
 const PP_HASH = '#deals/pipeline';
@@ -1131,6 +1131,7 @@ function ppGoTab(ref) {
   else if (k === 'pe' && key && typeof peFocus === 'function') peFocus(ref);
   else if ((k === 'cons' || k === 'deep') && key && typeof tgtFocus === 'function') tgtFocus(ref);
   else if (k === 'round' && key && typeof roundFocus === 'function') roundFocus(ref); // 투자 라운드(round.js, 2026-11-18)
+  else if (k === 'si' && key && typeof siFocus === 'function') siFocus(ref); // SI 타깃(si.js, 2026-11-18)
   else if (k === 'events' && key && typeof evState === 'object') evState.focus = key; // 행사: 그 행사를 펼치고 그 자리로(events.js)
   else if (k === 'kmx' && key && typeof kmxS === 'object') { // 매물장터: 매도/매수 쪽을 맞추고 펼침
     const it = kmxS.data?.items?.find((x) => x.id === key);
