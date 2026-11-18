@@ -55,6 +55,10 @@
 .rd-quick button.on .rd-qn { color: var(--primary); }
 .rd-turn { color: var(--primary); font-weight: 600; }
 .rd-fs-tag.rd-big { background: var(--fill); color: var(--text2); } /* 대형(매출·기업가치 3,000억+) 표시만 */
+/* 구주 매물 만기 행: 기사 투자사로 이은 행(회색), 조합 추정(주황). 펼친 칸 근거 상자에서는 왼쪽 여백 없이 */
+.rd-fs-tag.rd-art { background: var(--fill); color: var(--text3); }
+.rd-fs-tag.rd-est { background: var(--t-amber); color: var(--t-amber-c); cursor: help; }
+.ipo-kv .v > .rd-fs-tag:first-child { margin-left: 0; }
 .rd-grp { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; padding: 16px 24px 8px; border-top: 1px solid var(--line); } /* 묶음 설명 글이 붙으면(FI 회수) 폰에서 줄바꿈 */
 .rd-grp b { font-size: var(--fs-base); line-height: 22px; font-weight: 600; }
 .rd-grp span { font-size: var(--fs-sm); color: var(--text3); }
