@@ -210,7 +210,7 @@ const MAIL_FONT = "Pretendard,'Malgun Gothic','맑은 고딕',sans-serif";
 /* 쓰기 상태 → Graph body. 일반 텍스트 모드는 원문 인용이 없을 때만 Text로 보낸다 */
 function mailComposeBody(c) {
   if (c.plain) return c.quote ? { contentType: 'HTML', content: mailMergeBody(mailTextToHtml(c.text), c.quote) } : { contentType: 'Text', content: c.text };
-  return { contentType: 'HTML', content: mailMergeBody(`<div style="font-family:${MAIL_FONT};font-size:14px;line-height:1.6;color:#111827">${mailFixHtml(c.html)}</div>`, c.quote) };
+  return { contentType: 'HTML', content: mailMergeBody(`<div style="font-family:${MAIL_FONT};font-size:14px;line-height:1.6;color:#111827">${mailCidHide(mailFixHtml(c.html), c.cids)}</div>`, c.quote) };
 }
 /* 서명을 뺀 본문에 쓴 내용이 있는지 */
 function mailTyped(c) {
@@ -225,6 +225,30 @@ const mailBase = (c) => [c.to, c.cc, c.bcc, c.subject].map((s) => (s || '').trim
 const mailDirty = (c) => !c.saved && !!(c.rev || mailTyped(c) || c.files.length || mailBase(c) !== c.base);
 const mailEdited = (c) => { c.saved = false; c.rev = (c.rev || 0) + 1; };
 const mailLockFiles = (c) => document.querySelectorAll('#mail-cf [data-rm]').forEach((b) => { b.disabled = !!(c.busy || c.sending); });
+
+/* 본문 속 cid: 그림(서명 로고, 붙여 넣은 캡처). 쓰기 화면에서는 첨부에서 꺼낸 data: 주소로 보여 주고, 저장·보낼 때 cid:로 되돌린다.
+   그림 파일은 초안의 인라인 첨부로 같이 나간다(createReply·createForward가 원래 메일의 인라인 첨부를 초안에 붙여 줌, 11/19 확인).
+   초안에 없는 그림은 원래 메일(src)에서 같은 contentId로 붙인다 */
+async function mailCidMap(p, html, src) {
+  const map = [];
+  if (!/cid:/i.test(html || '')) return map;
+  const load = async (q, add) => {
+    const atts = (await G.get(`${q}/attachments?$select=id,size,isInline`).catch(() => ({ value: [] }))).value;
+    for (const a of atts.filter((x) => x.isInline && x.size < MAIL_MAX_ATTACH)) {
+      try {
+        const f = await G.get(`${q}/attachments/${encodeURIComponent(a.id)}`);
+        if (!f.contentId || !f.contentBytes || map.some((x) => x.cid === f.contentId) || !html.includes(`cid:${f.contentId}`)) continue;
+        if (add) await G.post(`${p}/attachments`, { '@odata.type': '#microsoft.graph.fileAttachment', name: f.name, contentType: f.contentType, contentBytes: f.contentBytes, contentId: f.contentId, isInline: true });
+        map.push({ cid: f.contentId, url: `data:${f.contentType || 'image/png'};base64,${f.contentBytes}` });
+      } catch { /* 그림 하나 실패해도 쓰기는 된다 */ }
+    }
+  };
+  await load(p, false);
+  if (src && (html.match(/cid:[^"'\s)>]+/gi) || []).some((s) => !map.some((x) => `cid:${x.cid}` === s))) await load(src, true);
+  return map;
+}
+const mailCidShow = (html, map) => (map || []).reduce((h, x) => h.split(`cid:${x.cid}`).join(x.url), html || '');
+const mailCidHide = (html, map) => (map || []).reduce((h, x) => h.split(x.url).join(`cid:${x.cid}`), html || '');
 
 /* iframe 안에 들어갈 문서. 스크립트·폼·외부 요청은 막고, 외부 이미지는 사용자가 허용할 때만 */
 function mailFrameDoc(html, allowRemote) {
@@ -1284,12 +1308,15 @@ async function mailOpenCompose({ mode, id, box }) {
       Object.assign(c, { draftId: d.id, auto: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(cc), subject: subj, quote: mailQuoteWrap(mailPixelStrip(d.body?.content || '')) });
       viewSet('mail.autoDraft', { id: d.id, box: c.box }); // 저장·보내기·닫기 전 F5면 지울 초안(pagehide)
       MS.acquireTokenSilent({ scopes: CFG.scopes, account: G.account }).then((r) => { c.tok = r.accessToken; }).catch(() => {});
+      c.cids = await mailCidMap(mailMsgP(d.id, c.box), c.quote, mailMsgP(id, c.box));
     } else if (mode === 'draft') {
       const d = await G.get(`${mailMsgP(id, c.box)}?$select=id,subject,toRecipients,ccRecipients,bccRecipients,body,importance,isReadReceiptRequested`);
       if (m.compose !== c) return;
       const html = d.body?.contentType === 'html' ? mailSanitize(mailPixelStrip(d.body.content)) : mailTextHtml(d.body?.content || '');
+      c.cids = await mailCidMap(mailMsgP(d.id, c.box), html);
+      if (m.compose !== c) return;
       Object.assign(c, { draftId: d.id, saved: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(d.ccRecipients), bcc: mailAddrList(d.bccRecipients), subject: d.subject || '',
-        html, sigOn: mailHasSig(html), important: d.importance === 'high', receipt: !!d.isReadReceiptRequested });
+        html: mailCidShow(html, c.cids), sigOn: mailHasSig(html), important: d.importance === 'high', receipt: !!d.isReadReceiptRequested });
     }
     c.base = mailBase(c);
     if (c.draftId) c.existing = (await G.get(`${mailMsgP(c.draftId, c.box)}/attachments?$select=id,name,size,isInline`)).value.filter((a) => !a.isInline);
@@ -1413,7 +1440,7 @@ function mailDrawCompose() {
   if (c.quote) { // 원문은 보통 메일처럼 본문 아래에 펼쳐 둔다(사용자 11/9). 보낼 때는 mailMergeBody가 그대로 붙인다
     const qf = f.querySelector('.mail-quote .mail-frame');
     qf.addEventListener('load', () => mailFitQuote(qf), { once: true });
-    qf.srcdoc = mailFrameDoc(c.quote, mailFid(ui.mail.folder) !== 'junkemail');
+    qf.srcdoc = mailFrameDoc(mailCidShow(c.quote, c.cids), mailFid(ui.mail.folder) !== 'junkemail');
   }
   if (rte) { rte.innerHTML = c.html; mailRteInit(rte, c); }
   // 도구막대는 위 버튼 줄 바로 아래에 붙는다 (버튼 줄이 두 줄로 접혀도)

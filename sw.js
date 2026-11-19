@@ -1,11 +1,28 @@
 /* SPACE WORKS 서비스워커: 앱 화면 파일만 캐시(오프라인에서도 열리게). 메일·일정·파일 같은 데이터는 캐시하지 않는다. */
-const VERSION = 'works-1795003500';
-const SHELL = ['./', 'index.html', 'style.css', 'mail.css', 'graph.js', 'app.js', 'mail.js', 'push.js', 'events.js', 'events.css', 'ipo.js', 'ipo.css', 'radar.js', 'radar.css', 'fsq.js', 'pipeline.js', 'pipeline.css', 'facts.js', 'facts.css', 'delist.js', 'delist.css', 'pe.js', 'pe.css', 'kmx.js', 'kmx.css', 'sector.js', 'sector.css', 'tgt.js', 'tgt.css', 'files.js', 'files.css', 'prep.js', 'prep.css', 'news.js', 'news.css', 'market.js', 'market.css', 'ma.js', 'ma.css', 'vc.js', 'vc.css', 'valuation.js', 'valuation.css', 'valuation_fin.js', 'valuation_fin.css', 'valuation_dcf.js', 'valuation_dcf.css', 'valuation_v3_engine.js', 'valuation_v3.js', 'valuation_v3.css', 'feedback.js', 'feedback.css', 'guide.js', 'guide.css', 'mobile.css', 'round.js', 'round.css', 'si.js', 'si.css', 'fav.js', 'fav.css', 'vendor/msal-browser.min.js', 'manifest.webmanifest', 'icons/icon-192.png'];
+const VERSION = 'works-1795052877';
+const SHELL = ['./', 'index.html', 'style.css', 'mail.css', 'graph.js', 'app.js', 'mail.js', 'push.js', 'events.js', 'events.css', 'ipo.js', 'ipo.css', 'radar.js', 'radar.css', 'fsq.js', 'pipeline.js', 'pipeline.css', 'facts.js', 'facts.css', 'delist.js', 'delist.css', 'pe.js', 'pe.css', 'kmx.js', 'kmx.css', 'sector.js', 'sector.css', 'tgt.js', 'tgt.css', 'files.js', 'files.css', 'prep.js', 'prep.css', 'news.js', 'news.css', 'market.js', 'market.css', 'ma.js', 'ma.css', 'vc.js', 'vc.css', 'valuation.js', 'valuation.css', 'valuation_fin.js', 'valuation_fin.css', 'valuation_dcf.js', 'valuation_dcf.css', 'valuation_v3_engine.js', 'valuation_v3.js', 'valuation_v3.css', 'feedback.js', 'feedback.css', 'guide.js', 'guide.css', 'mobile.css', 'round.js', 'round.css', 'si.js', 'si.css', 'fav.js', 'fav.css', 'heal.js', 'vendor/msal-browser.min.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 
 // index.html은 css·js를 '?v=<VERSION>'으로 부른다(배포 때 sw.js·index.html의 works-숫자를 같이 바꾼다). 캐시 열쇠도 같은 주소로
 const vUrl = (u) => (/\.(css|js)$/.test(u) ? `${u}?v=${VERSION}` : u);
-// 설치 때 이 버전 화면 파일을 서버에서 새로 받아 둔다(cache:'reload' — GitHub Pages·브라우저 캐시를 건너뜀)
-self.addEventListener('install', (e) => { e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL.map((u) => new Request(vUrl(u), { cache: 'reload' })))).then(() => self.skipWaiting())); });
+// 설치 때 이 버전 화면 파일을 서버에서 새로 받아 둔다(cache:'reload' — 브라우저 캐시를 건너뜀).
+// 배포 직후 GitHub Pages가 아직 옛 파일을 섞어 주면 설치를 멈추고 다음 방문 때 다시 받는다:
+// index.html에 이 버전 주소(?v=)가 없거나, 파일들의 Last-Modified(Pages는 배포 때 모든 파일을 같은 시각으로 올림)가 5분 넘게 벌어지면
+self.addEventListener('install', (e) => {
+  e.waitUntil((async () => {
+    const got = await Promise.all(SHELL.map(async (u) => {
+      const q = new Request(vUrl(u), { cache: 'reload' }), r = await fetch(q);
+      if (!r.ok) throw new Error(`${u} ${r.status}`);
+      return [q, r];
+    }));
+    const idx = got.find(([q]) => q.url.endsWith('/index.html'));
+    if (idx && !(await idx[1].clone().text()).includes(`?v=${VERSION}`)) throw new Error('index.html이 아직 옛 버전');
+    const t = got.map(([, r]) => Date.parse(r.headers.get('Last-Modified') || '')).filter(Number.isFinite);
+    if (t.length === got.length && Math.max(...t) - Math.min(...t) > 300e3) throw new Error('옛 파일이 섞임');
+    const c = await caches.open(VERSION);
+    await Promise.all(got.map(([q, r]) => c.put(q, r)));
+    await self.skipWaiting();
+  })().catch(async (err) => { await caches.delete(VERSION).catch(() => {}); throw err; }));
+});
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== 'works-data').map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
@@ -93,24 +110,34 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET' || url.origin !== location.origin) return; // Graph·로그인 요청은 건드리지 않음
   if (url.pathname === hpPath().slice(0, -1)) { url.pathname += '/'; e.respondWith(Response.redirect(url.href, 302)); return; }
   if (url.pathname.startsWith(hpPath())) { e.respondWith(hpServe(e.request)); return; }
-  // 페이지(index.html)는 서버 우선(3초 안에 안 오면 캐시): 배포 직후 F5 한 번에 새 버전 주소(?v=)를 받는다
+  // 페이지(index.html)는 서버 우선(3초 안에 안 오면 이 버전 캐시): 배포 직후 F5 한 번에 새 버전 주소(?v=)를 받는다
   if (e.request.mode === 'navigate') {
     e.respondWith((async () => {
       try {
-        const r = await Promise.race([fetch(e.request, { cache: 'no-cache' }), new Promise((_, no) => setTimeout(() => no(new Error('timeout')), 3000))]);
-        if (r.ok) { const copy = r.clone(); caches.open(VERSION).then((c) => c.put('index.html', copy)); }
+        const r = await Promise.race([fetch(url.href, { cache: 'no-cache', credentials: 'same-origin' }), new Promise((_, no) => setTimeout(() => no(new Error('timeout')), 3000))]);
+        if (r.redirected) return Response.redirect(r.url, 302); // 페이지 요청에는 따라간 응답을 그대로 못 돌려준다
+        if (r.ok) { const copy = r.clone(); caches.open(VERSION).then((c) => c.put('index.html', copy)).catch(() => {}); }
         return r;
-      } catch { return (await caches.match(e.request, { ignoreSearch: true })) || (await caches.match('index.html')) || Response.error(); }
+      } catch {
+        const c = await caches.open(VERSION).catch(() => null);
+        return (c && ((await c.match('index.html')) || (await c.match('./')))) || (await caches.match('index.html', { ignoreSearch: true })) || fetch(e.request);
+      }
     })());
     return;
   }
-  // 화면 파일(css·js는 ?v=버전 주소): 캐시에 있으면 바로(2026-11-15: 파일마다 서버에 묻느라 시작이 수 초 걸리던 것), 없으면 받아서 담는다.
-  // 버전 주소가 바뀌면 캐시에 없으니 새로 받는다. 글꼴·아이콘 등 버전 없는 파일도 같은 방식
-  e.respondWith(caches.open(VERSION).then(async (c) => {
-    const hit = await c.match(e.request);
-    if (hit) return hit;
-    const r = await fetch(e.request, { cache: 'no-cache' });
-    if (r.ok) c.put(e.request, r.clone());
-    return r;
-  }).catch(() => caches.match(e.request, { ignoreSearch: true })));
+  // 화면 파일(css·js는 ?v=버전 주소): 이 버전 캐시에 있으면 바로(2026-11-15: 파일마다 서버에 묻느라 시작이 수 초 걸리던 것), 없으면 서버에서 받는다.
+  // 이 버전 주소만 담는다(페이지와 서비스워커 버전이 다를 때 남의 버전 파일을 섞어 담지 않게).
+  // 서버에서도 못 받으면 아무 캐시의 같은 파일, 그것도 없으면 한 번 더 받는다(2026-11-19: 빈 응답으로 app.js가 안 떠 화면이 비었음)
+  const ver = url.searchParams.get('v');
+  e.respondWith((async () => {
+    let c = null;
+    try { c = await caches.open(VERSION); const hit = await c.match(e.request); if (hit) return hit; } catch { c = null; }
+    try {
+      const r = await fetch(e.request, { cache: 'no-cache' });
+      if (c && r.ok && (!ver || ver === VERSION)) c.put(e.request, r.clone()).catch(() => {});
+      return r;
+    } catch {
+      return (await caches.match(e.request, { ignoreSearch: true }).catch(() => null)) || fetch(e.request, { cache: 'reload' });
+    }
+  })());
 });
