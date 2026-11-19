@@ -246,6 +246,7 @@ svg.i.lg { width: 22px; height: 22px; }
 .tt-who { display: inline-flex; align-items: center; height: 20px; padding: 0 8px; margin-left: 8px; border-radius: var(--r-full); font-size: var(--fs-sm); font-weight: 500; line-height: 1; background: var(--primary-soft); color: var(--primary); vertical-align: 1px; white-space: nowrap; text-decoration: none; }
 .todo.done .tt-who { opacity: .6; }
 .note-team { display: inline-flex; align-items: center; height: 18px; padding: 0 6px; margin-right: 6px; border-radius: var(--r-xs); font-size: var(--fs-xs); font-weight: 600; line-height: 1; background: var(--primary-soft); color: var(--primary); vertical-align: 1px; }
+.note-team.deal { background: var(--t-green); color: var(--t-green-c); }
 .check { appearance: none; width: 18px; height: 18px; margin: 0; border: 1.5px solid var(--text4); border-radius: var(--r-xs); cursor: pointer; display: grid; place-content: center; background: #fff; flex: none; }
 .check:hover { border-color: var(--primary); }
 .check:checked { background: var(--primary); border-color: var(--primary); }
@@ -292,7 +293,7 @@ table.tbl { width: 100%; border-collapse: collapse; table-layout: fixed; }
 textarea.area { min-height: 120px; padding: 10px 12px; border: 1px solid var(--line2); border-radius: var(--r); resize: vertical; outline: none; line-height: 20px; }
 
 /* ---------- 기록 ---------- */
-.notes { display: grid; grid-template-columns: 300px minmax(0, 1fr); overflow: hidden; height: calc(100vh - 190px); min-height: 480px; }
+.notes { display: grid; grid-template-columns: 344px minmax(0, 1fr); /* 새 기록 버튼 네 개가 한 줄에(11/19 딜 노트) */ overflow: hidden; height: calc(100vh - 190px); min-height: 480px; }
 .notes-list { border-right: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
 .notes-list .top { padding: 16px; display: flex; flex-direction: column; gap: 8px; border-bottom: 1px solid var(--line); }
 .notes-list .top .row { display: flex; gap: 6px; }
@@ -309,7 +310,15 @@ textarea.area { min-height: 120px; padding: 10px 12px; border: 1px solid var(--l
 .editor { display: flex; flex-direction: column; min-height: 0; }
 .editor .bar { display: flex; align-items: center; gap: 12px; height: 56px; padding: 0 24px; border-bottom: 1px solid var(--line); }
 .editor .bar .nm { font-weight: 600; }
-.editor .bar .st { margin-left: auto; font-size: var(--fs-sm); color: var(--text3); }
+/* 제목 고치기(2026-11-19): 제목을 누르면 같은 자리에 입력칸. 글자 시작선은 버튼과 입력칸이 같게(입력칸은 1px 테두리만큼 안쪽 여백을 줄임) */
+.editor .bar .nm-btn { min-width: 0; max-width: 100%; margin-left: -8px; padding: 4px 8px; border: 0; border-radius: var(--r-sm); background: none; font: inherit; font-weight: 600; color: inherit; text-align: left; cursor: text; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor .bar .nm-btn:hover { background: var(--row); }
+.editor .bar .note-team { margin-right: 0; }
+.editor .bar .nm-in { flex: 1; min-width: 0; max-width: 480px; height: 32px; margin-left: -8px; padding: 0 7px; font: inherit; font-weight: 600; }
+.editor .bar .note-deal { flex: none; font-size: var(--fs-sm); color: var(--text3); text-decoration: none; white-space: nowrap; }
+.editor .bar .note-deal:hover { color: var(--primary); text-decoration: underline; }
+.notes-list .top .row .btn[aria-expanded="true"] { border-color: var(--primary); color: var(--primary); }
+.editor .bar .st { margin-left: auto; font-size: var(--fs-sm); color: var(--text3); white-space: nowrap; }
 .editor textarea { flex: 1; border: 0; outline: none; resize: none; padding: 20px 24px; font-size: var(--fs-base); line-height: 22px; tab-size: 2em; }
 
 /* ---------- 브라우저 표면 ---------- */
@@ -621,6 +630,7 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
   body.note-open .notes .editor { display: flex; height: calc(100dvh - 56px - 60px - 24px - env(safe-area-inset-bottom)); }
   .editor .bar { padding: 0 8px 0 4px; height: 52px; }
   .editor .bar .nm { font-size: var(--fs-lg); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .editor .bar .note-deal { display: none; }
   .editor textarea { padding: 16px; font-size: var(--fs-xl); line-height: 26px; }
 
   .input, .select, textarea { font-size: var(--fs-xl); } /* iOS 확대 방지 */

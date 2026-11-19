@@ -66,15 +66,19 @@ function toast(msg) {
 }
 
 async function load() {
-  const prevN = S?.notes || [], prevT = prevN.filter((n) => n.team);
+  const prevN = S?.notes || [], prevT = prevN.filter((n) => n.team && !n.deal), prevD = prevN.filter((n) => n.deal);
   const meP = S?.me ? Promise.resolve(S.me) : G.get('/me?$select=displayName,jobTitle,department,mail').catch(() => ({})); // 자료와 같이 묻는다
-  const [todos, programs, milestones, brief, mine, team] = await Promise.all([
+  // 딜 노트: 파이프라인 딜 폴더마다 02. 작성자료(graph.js listDealNotes). 파이프라인을 못 읽으면 지난 목록 그대로
+  const dealP = (typeof pipeLoad === 'function' ? pipeLoad() : Promise.reject())
+    .then(() => STORE.listDealNotes(ppS.items.filter((x) => ppOk(x) && x.folder).map((x) => x.folder), prevD)).catch(() => prevD);
+  const [todos, programs, milestones, brief, mine, team, , deal] = await Promise.all([
     STORE.readJSON('todos'), STORE.readJSON('programs'), STORE.readJSON('milestones'),
     STORE.readText('data/briefing.md'), STORE.listNotes(prevN.filter((n) => !n.team)),
     STORE.listTeamNotes(prevT).catch(() => prevT), // 팀 회의록을 못 읽어도 내 기록은 보인다
     ttLoad().catch(() => false), // 팀 할 일도 같이(못 읽으면 지난 것 그대로)
+    dealP,
   ]);
-  const notes = [...mine, ...team].sort((a, b) => b.mtime - a.mtime);
+  const notes = [...mine, ...team, ...deal].sort((a, b) => b.mtime - a.mtime);
   const me = await meP;
   S = { todos, programs, milestones, briefing: { text: brief.text, mtime: brief.mtime }, notes, me, auth: { connected: true, upn: G.account.username } };
   meChrome();
@@ -1517,7 +1521,10 @@ function renderHomepage() {
 function renderNotes() {
   const q = ui.noteQ.trim().toLowerCase();
   const list = S.notes.filter((n) => !q || n.name.toLowerCase().includes(q) || n.preview.toLowerCase().includes(q));
+  // 다른 곳에서 이름을 바꿨거나 지운 기록은 열지 않는다(옛 이름으로 새 파일이 생기지 않게)
+  if (ui.note && !S.notes.some((n) => n.name === ui.note) && !(cur && cur.name === ui.note && (cur.dirty || cur.saving))) ui.note = null;
   if (!ui.note && S.notes.length && !isMobile()) ui.note = S.notes[0].name;
+  const deals = ui.dealPick && typeof ppS !== 'undefined' ? ppS.items.filter((x) => ppOk(x) && ppStage(x) !== '드롭').sort((a, b) => a.name.localeCompare(b.name, 'ko')) : [];
   viewSet('note', ui.note); viewSet('noteQ', ui.noteQ); viewSet('noteOpen', !!ui.noteOpen);
   document.body.classList.toggle('note-open', isMobile() && !!ui.noteOpen);
   if (isMobile() && ui.noteOpen && !ui.noteOff) { // 폰에서 기록을 연 상태 = 한 겹
@@ -1528,7 +1535,8 @@ function renderNotes() {
     <div class="card notes">
       <div class="notes-list">
         <div class="top">
-          <div class="row"><button class="btn" data-new="daily">${ico('plus', 'sm')}업무일지</button><button class="btn" data-new="meeting">${ico('plus', 'sm')}회의록</button><button class="btn" data-new="memo">${ico('plus', 'sm')}메모</button></div>
+          <div class="row"><button class="btn" data-new="daily">${ico('plus', 'sm')}업무일지</button><button class="btn" data-new="meeting">${ico('plus', 'sm')}회의록</button><button class="btn" data-new="memo">${ico('plus', 'sm')}메모</button><button class="btn${ui.dealPick ? ' on' : ''}" data-new="deal" aria-expanded="${!!ui.dealPick}">${ico('plus', 'sm')}딜 노트</button></div>
+          ${ui.dealPick ? `<select class="select" id="ndeal" aria-label="딜 선택"><option value="">딜 선택</option>${deals.map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select>` : ''}
           <input class="input" id="nq" placeholder="제목·내용 검색" value="${esc(ui.noteQ)}">
         </div>
         <ul>${list.map((n) => `<li data-n="${esc(n.name)}" class="${n.name === ui.note ? 'on' : ''}"><div class="nm">${noteTag(n.name)}${esc(noteTitle(n.name))}</div><span class="tm">${relTime(n.mtime)}</span></li>`).join('') || '<div class="empty">기록이 없습니다.</div>'}</ul>
@@ -1537,17 +1545,26 @@ function renderNotes() {
     </div>`;
   $('#nq').addEventListener('input', (e) => { ui.noteQ = e.target.value; const pos = e.target.selectionStart; renderNotes(); const n = $('#nq'); n.focus(); n.setSelectionRange(pos, pos); });
   PAGE.querySelectorAll('[data-n]').forEach((li) => li.addEventListener('click', async () => { await flushNote(); ui.note = li.dataset.n; ui.noteOpen = true; renderNotes(); }));
-  PAGE.querySelectorAll('[data-new]').forEach((b) => b.addEventListener('click', () => newNote(b.dataset.new)));
+  PAGE.querySelectorAll('[data-new]').forEach((b) => b.addEventListener('click', () => {
+    if (b.dataset.new !== 'deal') { ui.dealPick = false; newNote(b.dataset.new); return; }
+    if (!ui.dealPick && !(typeof ppS !== 'undefined' && ppS.items.some((x) => ppOk(x) && ppStage(x) !== '드롭'))) { toast('파이프라인에 딜이 없습니다'); return; }
+    ui.dealPick = !ui.dealPick; renderNotes();
+    const sel = $('#ndeal'); if (sel) { sel.focus(); try { sel.showPicker(); } catch { /* 지원 안 하면 눌러서 고른다 */ } }
+  }));
+  $('#ndeal')?.addEventListener('change', (e) => { if (e.target.value) { ui.dealPick = false; newDealNote(e.target.value); } });
   if (ui.note) openNote(ui.note);
 }
 
 /* 팀 회의록(2026-11-12): 새 회의록은 팀 파일함 '회의록' 폴더에 만들어 세 사람이 같이 보고 고친다. 이름 앞 '팀/'으로 내 기록과 구분.
    업무일지·메모와 옛 회의록은 그대로 내 OneDrive */
 const isTeamNote = (name) => String(name || '').startsWith('팀/');
-const noteTitle = (name) => String(name).replace(/^팀\//, '').replace(/\.(txt|md)$/i, '');
-const noteTag = (name) => (isTeamNote(name) ? '<span class="note-team">팀</span>' : '');
-const noteRead = (name) => (isTeamNote(name) ? STORE.readTeamNote(name) : STORE.readNote(name));
-const noteWrite = (name, text, version) => (isTeamNote(name) ? STORE.writeTeamNote(name, text, version) : STORE.writeNote(name, text, version));
+const isDealNote = (name) => String(name || '').startsWith('딜/'); // 딜 노트 = '딜/<딜 폴더>/<파일>'(graph.js listDealNotes)
+const noteFile = (name) => String(name).slice(String(name).lastIndexOf('/') + 1);
+const noteTitle = (name) => noteFile(name).replace(/\.(txt|md)$/i, '');
+const noteTag = (name) => (isDealNote(name) ? '<span class="note-team deal">딜</span>' : isTeamNote(name) ? '<span class="note-team">팀</span>' : '');
+const noteRead = (name) => (isDealNote(name) ? STORE.readDealNote(name) : isTeamNote(name) ? STORE.readTeamNote(name) : STORE.readNote(name));
+const noteWrite = (name, text, version, lf) => (isDealNote(name) ? STORE.writeDealNote(name, text, version, lf) : isTeamNote(name) ? STORE.writeTeamNote(name, text, version) : STORE.writeNote(name, text, version));
+const noteDealOf = (name) => (isDealNote(name) && typeof ppS !== 'undefined' ? ppS.items.find((x) => ppOk(x) && x.folder && name.startsWith(`딜/${x.folder}/`)) : null);
 let cur = null, noteTok = 0; // 열린 기록 { name, version, text, dirty, gen, saving, conflict }
 const NOTE_CONFLICT = '다른 곳에서 수정됨 — 내용을 복사해 두고 다시 여세요';
 // 충돌 중에 친 내용은 저장되지 않으니 이 브라우저에 남겨 두고, 새로 고침 뒤 그 기록을 다시 열면 충돌 상태 그대로 한 번 되살린다
@@ -1563,10 +1580,11 @@ async function openNote(name) {
       if (tok !== noteTok) return; // 그사이 다른 기록을 눌렀다
       let draft = null; try { draft = localStorage.getItem(noteDraftKey(name)); localStorage.removeItem(noteDraftKey(name)); } catch { /* 없으면 그대로 */ }
       const keep = draft != null && draft !== n.text;
-      cur = { name, version: n.version, text: keep ? draft : n.text, dirty: keep, gen: 0, saving: null, conflict: keep };
+      cur = { name, version: n.version, text: keep ? draft : n.text, dirty: keep, gen: 0, saving: null, conflict: keep, lf: !!n.lf };
     }
     if (!ed.isConnected) return;
-    ed.innerHTML = `<div class="bar"><button class="iconbtn m-only" type="button" id="note-back" aria-label="목록" style="width:44px;height:44px">${ico('left')}</button><span class="nm">${noteTag(cur.name)}${esc(noteTitle(cur.name))}</span><span class="st" id="nst">${cur.conflict ? NOTE_CONFLICT : cur.dirty ? '입력 중…' : '저장됨'}</span><button class="btn sm primary" type="button" id="note-save">저장</button></div><textarea id="nta" spellcheck="false"></textarea>`;
+    ed.innerHTML = `<div class="bar"><button class="iconbtn m-only" type="button" id="note-back" aria-label="목록" style="width:44px;height:44px">${ico('left')}</button>${noteTag(cur.name)}<button class="nm nm-btn" type="button" id="note-nm" title="제목 고치기">${esc(noteTitle(cur.name))}</button>${(() => { const d = noteDealOf(cur.name); return d ? `<a class="note-deal" href="#deals/pipeline" data-pp-dn="${esc(d.id)}">${esc(d.name)}</a>` : ''; })()}<span class="st" id="nst">${cur.conflict ? NOTE_CONFLICT : cur.dirty ? '입력 중…' : '저장됨'}</span><button class="btn sm primary" type="button" id="note-save">저장</button></div><textarea id="nta" spellcheck="false"></textarea>`;
+    ed.querySelector('#note-nm').onclick = () => noteRenameStart(cur);
     ed.querySelector('#note-back').onclick = async () => { ui.noteOff?.(); ui.noteOff = null; await flushNote(); ui.noteOpen = false; renderNotes(); };
     const ta = ed.querySelector('#nta'), c = cur; ta.value = c.text;
     // 자동 저장(0.8초)과 별개로 손으로 저장: 버튼·Ctrl+S
@@ -1617,6 +1635,44 @@ function noteEnter(ta, e) {
   noteReplace(ta, s, ta.selectionEnd, '\n' + ind, p, p);
 }
 
+/* 제목 고치기(2026-11-19 사용자 요청): 편집기 머리 제목을 누르면 그 자리에서 고치고, Enter·다른 곳 누르기로 파일 이름까지 바꾼다(Esc 취소).
+   확장자와 저장 위치(내 OneDrive·팀 회의록·딜 폴더)는 그대로. 쓰던 글을 먼저 저장하고, 그 eTag일 때만 바꾼다(graph.js renameNote) */
+function noteRenameStart(c) {
+  const btn = $('#note-nm'); if (!btn || cur !== c) return;
+  if (c.conflict) { toast(NOTE_CONFLICT); return; }
+  const inp = document.createElement('input');
+  inp.className = 'input nm-in'; inp.value = noteTitle(c.name); inp.maxLength = 120; inp.setAttribute('aria-label', '제목');
+  btn.replaceWith(inp); inp.focus(); inp.select();
+  let done = false;
+  const end = async (ok) => {
+    if (done) return; done = true;
+    const t = inp.value.replace(/[\\/:*?"<>|#%]/g, ' ').replace(/\s+/g, ' ').trim();
+    if (ok && t && t !== noteTitle(c.name)) await noteRename(c, t);
+    if (cur === c && inp.isConnected) renderNotes();
+  };
+  inp.addEventListener('keydown', (e) => {
+    if (e.isComposing || e.keyCode === 229) return;
+    if (e.key === 'Enter') { e.preventDefault(); end(true); } else if (e.key === 'Escape') { e.preventDefault(); end(false); }
+  });
+  inp.addEventListener('blur', () => end(true));
+}
+async function noteRename(c, title) {
+  await flushNote();
+  if (c.conflict || c.dirty) { toast(c.conflict ? NOTE_CONFLICT : '저장하지 못해 제목을 바꾸지 않았습니다'); return; }
+  const old = c.name, ext = (old.match(/\.(txt|md)$/i) || ['.txt'])[0];
+  const file = title + ext, name = old.slice(0, old.lastIndexOf('/') + 1) + file;
+  if (S.notes.some((n) => n.name === name)) { toast('같은 이름의 기록이 이미 있습니다'); return; }
+  try {
+    const ver = await STORE.renameNote(old, file, c.version);
+    c.name = name; c.version = ver;
+    const n = S.notes.find((x) => x.name === old); if (n) { n.name = name; n.version = ver; }
+    if (ui.note === old) ui.note = name;
+    const li = [...PAGE.querySelectorAll('[data-n]')].find((el) => el.dataset.n === old);
+    if (li) { li.dataset.n = name; li.querySelector('.nm').innerHTML = noteTag(name) + esc(noteTitle(name)); }
+    toast('제목을 바꿨습니다');
+  } catch (e) { toast(e.message); }
+}
+
 async function flushNote() {
   clearTimeout(noteTimer);
   const c = cur; if (!c) return;
@@ -1625,7 +1681,7 @@ async function flushNote() {
   const gen = c.gen, text = c.text;
   c.saving = (async () => {
     try {
-      c.version = await noteWrite(c.name, text, c.version);
+      c.version = await noteWrite(c.name, text, c.version, c.lf);
       if (c.gen === gen) c.dirty = false; // 저장하는 사이에 친 글자가 있으면 한 번 더
       const st = cur === c && $('#nst'); if (st && !c.dirty) { const d = new Date(); st.textContent = `저장됨 ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
       const n = S.notes.find((x) => x.name === c.name); if (n) { n.mtime = Date.now() / 1000; n.preview = text.slice(0, 400); n.version = c.version; }
@@ -1663,6 +1719,29 @@ async function newNote(kind) {
     }
     await load(); ui.note = name; ui.noteQ = ''; ui.noteOpen = true; renderNotes();
     setTimeout(() => { const ta = $('#nta'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }, 200);
+  } catch (e) { toast(e.message); }
+}
+
+/* 딜 노트(2026-11-19 사용자 요청): 파이프라인 딜을 골라 그 딜 폴더의 02. 작성자료에 'YYMMDD_회사명_노트.txt'(딜 폴더 표준 이름).
+   폴더가 아직 없는 딜은 경로로 올려 폴더까지 만들고 pipeline.json folder를 채운다(pipeline.js ppMkdir와 같은 방식). 파이프라인 딜 노트 탭에서도 부른다 */
+async function newDealNote(id) {
+  await flushNote();
+  const x = typeof ppFind === 'function' ? ppFind(id) : null; if (!x) { toast('딜을 찾을 수 없습니다'); return; }
+  const dir = x.folder || ppDealDir(x), co = dir.split('/').pop().replace(/^\([^)]*\)\s*/, '');
+  const d = new Date(), m = pad(d.getMonth() + 1), dd = pad(d.getDate());
+  const base = `딜/${dir}/${String(d.getFullYear()).slice(2)}${m}${dd}_${co}_노트`, text = `${co} 노트\n${d.getFullYear()}.${m}.${dd}(${WD[d.getDay()]})\n\n1. `;
+  let name = `${base}.txt`, i = 2;
+  while (S.notes.some((n) => n.name === name)) name = `${base}_${i++}.txt`;
+  try {
+    for (;;) {
+      try { await noteWrite(name, text, null); break; } catch (e) { if (e.status !== 409 || i > 9) throw e; name = `${base}_${i++}.txt`; } // 같은 이름을 다른 분이 먼저 만들었다
+    }
+    if (!x.folder) ppSet(x.id, { folder: dir });
+    await load();
+    if (!S.notes.some((n) => n.name === name)) S.notes.unshift({ name, id: '', version: '', mtime: Date.now() / 1000, preview: text, team: true, deal: dir }); // 목록을 아직 못 읽었어도 바로 연다
+    ui.note = name; ui.noteQ = ''; ui.noteOpen = true; ui.dealPick = false;
+    if (route() === 'notes') renderNotes(); else location.hash = '#notes';
+    setTimeout(() => { const ta = $('#nta'); if (ta) { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); } }, 300);
   } catch (e) { toast(e.message); }
 }
 

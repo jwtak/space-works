@@ -219,7 +219,7 @@ const STORE = {
       const r = await G.put(sh ? `${sh}/content` : `${STORE.path(rel)}:/content${q}`, text, { headers });
       return r.eTag;
     } catch (e) {
-      if (e.status === 412 || e.status === 409) { const err = new Error('다른 기기에서 먼저 수정되었습니다. 최신 내용을 다시 불러옵니다.'); err.status = 409; throw err; }
+      if (e.status === 412 || e.status === 409 || (version && e.status === 404) /* 그사이 다른 곳에서 이름을 바꿨다 */) { const err = new Error('다른 기기에서 먼저 수정되었습니다. 최신 내용을 다시 불러옵니다.'); err.status = 409; throw err; }
       throw e;
     }
   },
@@ -242,12 +242,56 @@ const STORE = {
       let url = `${STORE.path(dir)}:/children?$select=id,name,eTag,lastModifiedDateTime,size&$top=200`;
       while (url) { const j = await G.get(url); kids.push(...j.value); url = j['@odata.nextLink'] || null; }
     } catch (e) { if (e.status !== 404) throw e; }
-    const files = kids.filter((k) => /\.(txt|md)$/i.test(k.name) && !k.name.startsWith('~$'));
+    return STORE.notesFrom(kids, drive, prefix, prev);
+  },
+  async notesFrom(kids, drive, prefix, prev) {
+    const files = kids.filter((k) => !k.folder && /\.(txt|md)$/i.test(k.name) && !k.name.startsWith('~$'));
     const known = new Map(prev.map((n) => [n.name, n]));
     const previews = await Promise.all(files.map((f) => (known.get(prefix + f.name)?.version === f.eTag ? Promise.resolve(known.get(prefix + f.name).preview)
       : STORE.dcGet(`np/${f.id}`, f.eTag).then((c) => (c != null ? c : G.get(`${drive}/items/${f.id}/content`, { type: 'text' }).then((t) => { const p = t.slice(0, 400); STORE.dcPut(`np/${f.id}`, f.eTag, p); return p; }).catch(() => ''))))));
     return files.map((f, i) => ({ name: prefix + f.name, id: f.id, version: f.eTag, mtime: Date.parse(f.lastModifiedDateTime) / 1000, preview: previews[i] }))
       .sort((a, b) => b.mtime - a.mtime);
+  },
+  /* 딜 노트(2026-11-19 사용자 요청): 파이프라인 딜 폴더(팀 파일함 pipeline.json folder)의 '02. 작성자료' 맨 위 글 파일(.txt·.md).
+     딜 폴더 표준(_지도 schema.md)에서 우리가 쓴 자료 자리라 검토 노트, 자료와 한 폴더에 모인다. 이름 = '딜/<딜 폴더>/<파일>'.
+     딜 폴더가 여럿이라 $batch 한 번(20개씩)으로 목록을 읽는다 */
+  DEAL_NOTES: '02. 작성자료',
+  async listDealNotes(folders, prev = []) {
+    const list = [...new Set(folders.filter(Boolean))], out = [];
+    for (let i = 0; i < list.length; i += 20) {
+      const part = list.slice(i, i + 20);
+      const j = await G.post('/$batch', { requests: part.map((f, k) => ({ id: String(k), method: 'GET',
+        url: `/drives/${CFG.teamDrive}/root:/${[...f.split('/'), STORE.DEAL_NOTES].map(encodeURIComponent).join('/')}:/children?$select=id,name,eTag,lastModifiedDateTime,size,folder&$top=200` })) });
+      await Promise.all((j.responses || []).map(async (r) => {
+        const f = part[Number(r.id)], pre = `딜/${f}/`;
+        if (r.status === 404) return; // 02. 작성자료가 아직 없다
+        if (r.status !== 200) { out.push(...prev.filter((n) => n.deal === f)); return; } // 잠깐 못 읽으면 지난 목록 그대로
+        out.push(...(await STORE.notesFrom(r.body?.value || [], `/drives/${CFG.teamDrive}`, pre, prev)).map((n) => ({ ...n, team: true, deal: f })));
+      }));
+    }
+    return out;
+  },
+  dealRel: (name) => { const s = name.slice(2), k = s.lastIndexOf('/'); return `팀/${s.slice(0, k)}/${STORE.DEAL_NOTES}/${s.slice(k + 1)}`; },
+  // Claude 세션이 LF로 쓴 .md는 LF 그대로 저장(lf), 그 밖은 업무일지처럼 CRLF
+  async readDealNote(name) {
+    const r = await STORE.readText(STORE.dealRel(name));
+    return { name, text: r.text.replace(/\r\n/g, '\n'), version: r.version, lf: !!r.text && !r.text.includes('\r\n') };
+  },
+  writeDealNote(name, text, version, lf) {
+    const t = text.replace(/\r\n/g, '\n');
+    return STORE.writeText(STORE.dealRel(name), lf ? t : t.replace(/\n/g, '\r\n'), version);
+  },
+  noteRel: (name) => (name.startsWith('딜/') ? STORE.dealRel(name) : name.startsWith('팀/') ? `팀/${STORE.TEAM_NOTES}/${name.slice(2)}` : `업무일지/${name}`),
+  /* 제목 고치기 = 파일 이름 바꾸기. version(eTag)이 같을 때만 바꾼다: 그사이 다른 분이 고쳤으면 412로 알리고,
+     바꾼 뒤 eTag가 달라져 옛 이름으로 저장하던 다른 기기는 충돌로 멈춘다(writeText 404·412) */
+  async renameNote(name, file, version) {
+    try {
+      const r = await G.patch(STORE.path(STORE.noteRel(name)), { name: file }, { headers: version ? { 'If-Match': version } : {} });
+      return r.eTag;
+    } catch (e) {
+      const err = new Error(e.status === 409 ? '같은 이름의 기록이 이미 있습니다' : e.status === 412 ? '다른 곳에서 먼저 수정되었습니다. 다시 연 뒤 제목을 고쳐 주세요.' : e.message);
+      err.status = e.status; throw err;
+    }
   },
   async readNote(name) {
     const r = await STORE.readText(`업무일지/${name}`);

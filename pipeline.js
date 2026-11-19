@@ -22,7 +22,8 @@ TAB_INFO['deals/pipeline'] = { title: '파이프라인', rows: [
     '다음 할 일 날짜가 7일 안이거나 지난 딜은 대시보드 홈 카드에도 뜹니다.',
     '발굴, 검토 단계 딜은 하루 두 번 컨택 플랜이 자동으로 만들어집니다. 딜을 펼치면 키맨, 연락 루트, 메일 초안, 전화 순서가 보입니다.',
     '단계는 목록의 단계 칸을 눌러 바꿉니다.',
-    '딜을 펼치면 진행, 팩트시트, 검토 노트, 자료 탭이 있습니다. 검토 노트와 자료는 공용 폴더 05. 딜소싱/딜/(섹터) 회사명 폴더 하나에 모입니다.',
+    '딜을 펼치면 진행, 팩트시트, 검토 노트, 딜 노트, 자료 탭이 있습니다. 검토 노트, 딜 노트, 자료는 공용 폴더 05. 딜소싱/딜/(섹터) 회사명 폴더 하나에 모입니다.',
+    '딜 노트는 그 폴더의 02. 작성자료에 저장되고 업무일지·회의록 목록에도 \'딜\' 표시로 함께 보입니다.',
     '파이프라인에 올린 딜은 팩트시트를 자동으로 요청합니다. 오전 11시와 오후 4시에 만들어집니다.',
   ]],
   ['그래서 할 일', [
@@ -375,8 +376,8 @@ const PP_DEAL_DIR = '05. 딜소싱/딜';
 const PP_NOTE_RE = /검토 노트\.md$/;
 const ppT = { tab: {}, files: new Map(), note: new Map(), edit: null };
 { const v = viewGet('pp.dt', {}); if (v && typeof v === 'object') ppT.tab = v; }
-const ppDtTab = (id) => (['run', 'fs', 'note', 'files'].includes(ppT.tab[id]) ? ppT.tab[id] : 'run');
-const ppDtInner = (x, t) => (t === 'run' ? ppRunInner(x) : t === 'fs' ? ppFsInner(x) : t === 'note' ? ppNoteInner(x) : ppFilesInner(x));
+const ppDtTab = (id) => (['run', 'fs', 'note', 'dn', 'files'].includes(ppT.tab[id]) ? ppT.tab[id] : 'run');
+const ppDtInner = (x, t) => (t === 'run' ? ppRunInner(x) : t === 'fs' ? ppFsInner(x) : t === 'note' ? ppNoteInner(x) : t === 'dn' ? ppDnInner(x) : ppFilesInner(x));
 
 /* 팩트시트 탭(2026-11-16 사용자: 파이프라인에 올린 딜은 무조건 팩트시트, 검토 노트 앞에).
    키 = 다른 탭에서 올린 딜은 그 탭 키(ref, 팩트시트를 같이 씀), 직접 넣은 딜은 'pp:<딜 id>'. 내용·요청은 fsq.js(fqBox),
@@ -404,7 +405,18 @@ const ppFolderUrl = (p) => `/drives/${flDrive()}/root:/${flEnc(p)}:`;
 function ppDtTabs(x) {
   const t = ppDtTab(x.id), f = ppT.files.get(x.id), n = f?.items ? f.items.filter((i) => !i.folder).length : 0;
   const b = (k, l) => `<button type="button" data-pp-dt="${k}" class="${t === k ? 'on' : ''}" aria-pressed="${t === k}">${l}</button>`;
-  return b('run', '진행') + b('fs', '팩트시트') + b('note', '검토 노트') + b('files', `자료${n ? `<span class="n">${n}</span>` : ''}`);
+  const dn = ppDnList(x).length;
+  return b('run', '진행') + b('fs', '팩트시트') + b('note', '검토 노트') + b('dn', `딜 노트${dn ? `<span class="n">${dn}</span>` : ''}`) + b('files', `자료${n ? `<span class="n">${n}</span>` : ''}`);
+}
+/* 딜 노트 탭(2026-11-19): 딜 폴더 02. 작성자료의 글 파일. 목록은 업무일지·회의록이 읽어 둔 것(app.js load → S.notes의 deal),
+   누르면 업무일지·회의록 화면에서 열고, 새로 쓰기는 app.js newDealNote */
+const ppDnList = (x) => (x.folder && typeof S !== 'undefined' && S?.notes ? S.notes.filter((n) => n.deal === x.folder) : []);
+function ppDnInner(x) {
+  const list = ppDnList(x);
+  const head = `<div class="pp-nhead"><span class="muted">${esc(`${x.folder || ppDealDir(x)}/${STORE.DEAL_NOTES}`)}</span><button type="button" class="btn sm" data-pp-dnew>${ico('plus', 'sm')}딜 노트</button></div>`;
+  if (!list.length) return `${head}<div class="pp-dempty"><p>아직 쓴 딜 노트가 없습니다.</p></div>`;
+  return `${head}<ul class="pp-files">${list.map((n) => `<li><button type="button" class="pp-file" data-pp-dnote="${esc(n.name)}">${flIcon({ name: noteFile(n.name), file: {} })}<span class="nm">${esc(noteTitle(n.name))}</span>
+    <span class="dt">${flDate(new Date(n.mtime * 1000).toISOString())}</span></button></li>`).join('')}</ul>`;
 }
 function ppDtPaint(id) {
   const h = ppS.host, x = ppFind(id); if (!h || !x) return;
@@ -1176,6 +1188,9 @@ function ppBind(root) {
     const rid = t.closest('.pp-row')?.dataset.id, dtb = t.closest('[data-pp-dt]');
     if (dtb && rid) { ppDtSet(rid, dtb.dataset.ppDt); return; }
     if (t.closest('[data-pp-mkdir]') && rid) { ppMkdir(rid); return; }
+    if (t.closest('[data-pp-dnew]') && rid) { newDealNote(rid); return; }
+    const dnb = t.closest('[data-pp-dnote]');
+    if (dnb) { ui.note = dnb.dataset.ppDnote; ui.noteQ = ''; ui.noteOpen = true; location.hash = '#notes'; return; }
     if (t.closest('[data-pp-nedit]') && rid) { ppNoteEdit(rid); return; }
     if (t.closest('[data-pp-ncancel]') && rid) { ppNoteCancel(rid); return; }
     if (t.closest('[data-pp-nsave]') && rid) { ppNoteSave(rid); return; }
@@ -1271,6 +1286,13 @@ document.addEventListener('click', (ev) => {
   const id = li.dataset.ppGo;
   ppS.stage = 'live'; ppS.q = ''; ppS.open = id; ppS.focus = id; ppS.view = 'list'; ppViewSave();
   if (location.hash === PP_HASH && ppS.host?.isConnected) ppShow(id); else location.hash = PP_HASH;
+});
+
+// 업무일지·회의록의 딜 노트 머리에서 딜 이름을 누르면 그 딜의 딜 노트 탭을 펼친다(이동은 링크 주소로)
+document.addEventListener('click', (ev) => {
+  const id = ev.target.closest('a[data-pp-dn]')?.dataset.ppDn, x = id && ppFind(id); if (!x) return;
+  ppT.tab[id] = 'dn'; viewSet('pp.dt', ppT.tab);
+  ppS.stage = ppLive(x) ? 'live' : ppStage(x); ppS.q = ''; ppS.open = id; ppS.focus = id; ppS.view = 'list'; ppViewSave();
 });
 
 // 다른 탭의 '파이프라인에 있음'(data-pp-ref = ref)을 누르면 같은 ref 딜을 펼쳐 보여 준다. 완료·드롭이면 그 단계로(이동은 링크 주소로)
