@@ -1,0 +1,71 @@
+/* 자금(cash.js): 계좌, 수입·지출, 자금계획 */
+.nav a[hidden] { display: none; }
+#cs-body > * + * { margin-top: 20px; }
+.cs-tiles { grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); padding: 0; }
+.cs-tiles .tile .v { font-size: var(--fs-3xl); line-height: 30px; font-variant-numeric: tabular-nums; }
+.cs-n { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cs-sub { font-size: var(--fs-sm); color: var(--text3); }
+.cs-in { color: var(--primary); }
+.cs-neg { color: var(--danger); }
+.cs-warn { color: var(--t-amber-c); font-weight: 600; }
+.cs-desc { word-break: break-all; }
+.cs-memo-t { color: var(--text2); word-break: break-all; }
+.cs-tbl td { vertical-align: middle; }
+/* 칸 안 입력: 글자 시작선을 머리글과 맞춘다(입력 칸 안쪽 여백 12 + 테두리 1) */
+.cs-tbl .cs-cat, .cs-tbl .cs-memo { height: 32px; margin-left: -13px; width: calc(100% + 13px); font-size: var(--fs-md); }
+.cs-tbl .cs-cat.sug { color: var(--text3); border-style: dashed; }
+.cs-head { flex-wrap: wrap; row-gap: 8px; padding-top: 8px; padding-bottom: 8px; }
+.cs-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.cs-filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 24px 16px; }
+.cs-filters .input { width: 240px; }
+.cs-seg button { height: 32px; font-size: var(--fs-md); }
+.cs-more { padding: 12px 24px 20px; }
+.cs-wide { overflow-x: auto; }
+.cs-grid td, .cs-grid th { white-space: nowrap; }
+.cs-grid .cs-totr td { font-weight: 600; border-top: 1px solid var(--line2); }
+.cs-wc { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; padding: 0 24px 20px; }
+.cs-wc > div { display: flex; flex-direction: column; gap: 4px; padding: 12px 16px; border-radius: var(--r); background: var(--fill); }
+.cs-wc span { font-size: var(--fs-sm); color: var(--text2); }
+.cs-wc b { font-size: var(--fs-xl); }
+/* 입력 창 */
+.cs-pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.cs-foot { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.cs-foot .cs-del { margin-right: auto; color: var(--danger); }
+.cs-lb { display: flex; align-items: center; gap: 8px; margin: -4px 0 16px; padding: 8px 12px; border-radius: var(--r); background: var(--fill); font-size: var(--fs-md); }
+.cs-lb .btn { margin-left: auto; }
+.sheet.cs-impsheet { max-width: 760px; }
+.cs-file { margin: -8px 0 12px; word-break: break-all; }
+.cs-map { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0 12px; }
+.cs-prev { overflow-x: auto; margin: 4px 0 8px; border: 1px solid var(--line); border-radius: var(--r); }
+.cs-prev .tbl th, .cs-prev .tbl td { padding: 8px 12px; }
+.cs-prev .tbl th:first-child, .cs-prev .tbl td:first-child { padding-left: 12px; }
+.cs-cnt { margin: 12px 0 4px; font-size: var(--fs-md); color: var(--text2); }
+.cs-cnt b { color: var(--primary); }
+.cs-cats { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+.cs-catrow { display: grid; grid-template-columns: minmax(0, 1fr) 96px 56px 36px; gap: 8px; align-items: center; }
+.cs-imps { display: flex; flex-direction: column; }
+.cs-imp { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--row); }
+.cs-imp > div { flex: 1; min-width: 0; }
+
+@media (max-width: 760px) {
+  #cs-body > * + * { margin-top: 0; }
+  .cs-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 0 16px 16px; }
+  .cs-tiles .tile { padding: 12px 16px; gap: 8px; }
+  .cs-tiles .tile .v { font-size: var(--fs-xl); line-height: 24px; }
+  /* 표: 행마다 카드처럼 쌓고 칸 앞에 머리글 */
+  .cs-tbl thead { display: none; }
+  .cs-tbl, .cs-tbl tbody, .cs-tbl tr, .cs-tbl td { display: block; width: 100%; }
+  .cs-tbl tr { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+  .cs-tbl td, .cs-tbl td:first-child { display: flex; gap: 12px; align-items: center; padding: 2px 0; border: 0; min-height: 24px; }
+  .cs-tbl td[data-h]::before { content: attr(data-h); flex: 0 0 72px; font-size: var(--fs-sm); color: var(--text3); }
+  .cs-tbl td > * { min-width: 0; }
+  .cs-tbl td:nth-child(n) { display: flex; } /* style.css 폰 규칙이 .tbl 3, 4번째 칸을 숨기는 것 되돌림 */
+  .cs-tbl td:empty, .cs-tbl td:has(> span:empty:only-child) { display: none; }
+  .cs-tbl .cs-cat, .cs-tbl .cs-memo { margin-left: 0; width: auto; flex: 1; height: 36px; }
+  .cs-filters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0 16px 12px; }
+  .cs-filters .input { width: 100%; grid-column: 1 / -1; }
+  .cs-head { padding: 8px 16px; }
+  .cs-more { padding: 12px 16px 16px; }
+  .cs-wc { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 0 16px 16px; gap: 8px; }
+  .cs-map { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
