@@ -1,5 +1,5 @@
 /* SPACE WORKS 서비스워커: 앱 화면 파일만 캐시(오프라인에서도 열리게). 메일·일정·파일 같은 데이터는 캐시하지 않는다. */
-const VERSION = 'works-1795167978';
+const VERSION = 'works-1795168066';
 const SHELL = ['./', 'index.html', 'style.css', 'mail.css', 'graph.js', 'app.js', 'mail.js', 'push.js', 'events.js', 'events.css', 'ipo.js', 'ipo.css', 'radar.js', 'radar.css', 'fsq.js', 'pipeline.js', 'pipeline.css', 'facts.js', 'facts.css', 'delist.js', 'delist.css', 'pe.js', 'pe.css', 'kmx.js', 'kmx.css', 'sector.js', 'sector.css', 'tgt.js', 'tgt.css', 'files.js', 'files.css', 'prep.js', 'prep.css', 'news.js', 'news.css', 'market.js', 'market.css', 'ma.js', 'ma.css', 'vc.js', 'vc.css', 'valuation.js', 'valuation.css', 'valuation_fin.js', 'valuation_fin.css', 'valuation_dcf.js', 'valuation_dcf.css', 'valuation_v3_engine.js', 'valuation_v3.js', 'valuation_v3.css', 'feedback.js', 'feedback.css', 'guide.js', 'guide.css', 'mobile.css', 'round.js', 'round.css', 'si.js', 'si.css', 'fav.js', 'fav.css', 'cash.js', 'cash.css', 'heal.js', 'vendor/msal-browser.min.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 
 // index.html은 css·js를 '?v=<VERSION>'으로 부른다(배포 때 sw.js·index.html의 works-숫자를 같이 바꾼다). 캐시 열쇠도 같은 주소로
