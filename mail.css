@@ -313,8 +313,11 @@
   .mail-files { display: none; }
   .mail-files.has-files { display: grid; grid-template-columns: minmax(0, 1fr); padding: 10px 18px; }
   .mail-files .mail-flbl, .mail-dfile { display: none; }
-  .mail-file { height: 36px; font-size: var(--fs-base); }
-  .mail-file .iconbtn { width: 36px; height: 36px; }
+  .mail-files.has-files { flex-shrink: 0; } /* 첨부가 많으면 칸이 줄어 본문 위로 겹치던 것: 내용만큼 늘어 아래를 밀어냄 */
+  .mail-file { min-width: 0; max-width: 100%; height: 36px; font-size: var(--fs-base); }
+  .mail-file-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mail-file .muted, .mail-file-pct { flex: none; white-space: nowrap; }
+  .mail-file .iconbtn { flex: none; width: 36px; height: 36px; }
   .mail-body { flex: 1 0 auto; min-height: 40vh; margin: 0; padding: 16px 18px; border: 0; border-radius: 0; resize: none; font-size: var(--fs-xl); line-height: 26px; }
   .mail-body:focus { box-shadow: none; }
   .mail-body::placeholder { color: transparent; }
@@ -549,7 +552,7 @@
   .mail-cbtns { display: none; }
   .mail-drop { border: 0; padding: 0; background: none; }
   .mail-drop-top { display: none; }
-  .mail-flist { display: flex; flex-wrap: wrap; gap: 8px; }
+  .mail-flist { display: flex; flex-wrap: wrap; gap: 8px; width: 100%; min-width: 0; } /* 긴 이름 첨부가 화면 밖으로 늘지 않게 */
 }
 
 /* 첨부 미리보기 창 */
