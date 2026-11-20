@@ -113,10 +113,11 @@ function nwBriefLine(l) { // "주체: 상황 — 액션"을 주체 칸, 상황, 
   return `<li>${x ? `<a href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" title="${esc(x.title)}">${inner}</a>` : inner}</li>`;
 }
 
-// 출처 칸('매체 외 n곳') + 시간 칸, 우주·항공·방산 기사는 전체·중요 탭에서만 칩 하나
+// 출처 칸('매체 유료 외 n곳') + 시간 칸, 우주·항공·방산 기사는 전체·중요 탭에서만 칩 하나
 function nwMeta(x, pick) {
   const also = (x.also || []).length, tm = `${pick && nwDay(x.published) !== today() ? '어제 ' : ''}${nwTime(x.published)}`;
-  const src = x.source ? `<span class="nw-src"${also ? ` title="${esc(x.also.join(', '))}"` : ''}>${esc(x.source)}${also ? ` 외 ${also}곳` : ''}</span>` : '';
+  const paid = x.paid ? '<span class="nw-paid" title="유료회원 전용">유료</span>' : ''; // 더벨·딜사이트 유료 기사(수집기 news.json paid)
+  const src = x.source ? `<span class="nw-src"${also ? ` title="${esc(x.also.join(', '))}"` : ''}>${esc(x.source)}${paid}${also ? ` 외 ${also}곳` : ''}</span>` : '';
   return `${src}${tm.trim() ? `<span class="nw-tm">${tm}</span>` : ''}${nwS.cat !== 'space' && x.cat === 'space' ? '<span class="chip nw-cat">우주·항공·방산</span>' : ''}`;
 }
 function nwRow(x, pick) { // 아침 메일과 같은 모양: 점수, 제목, 출처, 요약
