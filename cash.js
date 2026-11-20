@@ -2,10 +2,10 @@
    이 화면은 관리용 참고 값이다(01. 법인 설립\기장·ERP 노트 4절).
    자료: 내 OneDrive SPACE WORKS/data/cash/{accounts,tx,plan}.json. 지금은 탁지원만 보고(CS_USERS) 공유하지 않는다.
    나중에 대표님과 같이 볼 때: CS_USERS에 주소를 더하고, 세 파일을 OneDrive에서 공유한 뒤 graph.js CFG.shared.files와 writable에 등록.
-   공유 전에 급여 분류 거래(사람별 이체 금액)를 가릴지 정할 것.
    공개 저장소라 금액·계좌 자료는 코드에 두지 않는다. 계좌번호는 끝 4자리만 받는다.
-   accounts.json { items[{ id, name, bank, kind, last4, bal, balAt, balSrc: '수기'|'거래내역', rate, due, memo }] }
-   tx.json { cats[{ name, type: '지출'|'수입'|'제외' }], items[{ id, k(중복 확인 열쇠), imp, src: 'bank'|'card', acct, card, date, time, desc, desc2, in, out, bal, cat, sug, memo }],
+   accounts.json { items[{ id, name, bank, kind, last4, bal, balAt, balSrc: '수기'|'거래내역', tb?{ bal, date }(올린 거래내역의 마지막 잔액), rate, due, memo }] }
+   tx.json { cats[{ name, type: '지출'|'수입'|'제외', pay?(합계만 저장) }], items[{ id, k(중복 확인 열쇠), imp, src: 'bank'|'card', acct, card, date, time, desc, desc2, in, out, bal, cat, sug, memo }
+             급여 합계 줄은 { id: 'pay:…', pay: true, desc: '급여 YYYY-MM', in, out, ks[] }],
              imports[{ id, at, file, src, acct, card, n }], maps{ <머리글 서명>: 열 고른 값 } }
    plan.json { items[{ id, name, type: '지출'|'수입', cat, amt, freq, start: 'YYYY-MM', end, memo }], wc[{ id, name, type: '받을 돈'|'줄 돈', amt, due, memo }] } */
 const CS_USERS = ['jw.tak@universeinvest.co.kr', 'jw.tak@spaceinve.com'];
@@ -15,7 +15,8 @@ const CS_KINDS = ['보통예금', 'CMA', '정기예금', '적금', 'MMF', '기�
 const CS_BANKS = ['신한은행', 'KB국민은행', '우리은행', '하나은행', 'IBK기업은행', 'NH농협은행', 'KDB산업은행', '한국투자증권', '미래에셋증권', 'NH투자증권', '삼성증권', 'KB증권', '키움증권', '신한투자증권'];
 // 시작 분류. 모회사 계정체계를 받으면 '분류 관리'에서 바꾼다. 제외 = 계좌끼리 옮긴 돈·자본금·카드대금처럼 수입·지출 합계에 넣지 않는 것
 const CS_CATS0 = [
-  ...['임차료', '관리비', '급여', '4대보험', '복리후생비', '접대비', '여비교통비', '통신비', '소모품비', '도서인쇄비', '지급수수료', '세금과공과', '차량유지비', '교육훈련비', '기타 지출'].map((name) => ({ name, type: '지출' })),
+  { name: '급여', type: '지출', pay: true },
+  ...['임차료', '관리비', '4대보험', '복리후생비', '접대비', '여비교통비', '통신비', '소모품비', '도서인쇄비', '지급수수료', '세금과공과', '차량유지비', '교육훈련비', '기타 지출'].map((name) => ({ name, type: '지출' })),
   ...['관리보수', '이자수익', '기타 수입'].map((name) => ({ name, type: '수입' })),
   ...['자본금', '계좌 이체', '카드대금'].map((name) => ({ name, type: '제외' })),
 ];
@@ -82,12 +83,42 @@ function csHash(s) {
 }
 const csNorm = (s) => String(s ?? '').replace(/\s+/g, ' ').trim();
 
+/* 급여(2026-11-20 사용자 "추천대로"): 보수 정보는 OneDrive에 두지 않는 규칙이라, 합계만 저장(pay) 분류 거래는 개별 줄 없이
+   계좌와 달별 '급여 YYYY-MM' 합계 한 줄로만 저장한다. 받는 사람, 적요, 건별 금액, 시각은 남기지 않고,
+   같은 계좌 같은 달 다른 거래의 잔액도 지운다(앞뒤 잔액 차이로 건별 금액이 보이지 않게). 계좌 잔고는 accounts.json tb로 따로 둔다.
+   다시 올려도 두 번 더하지 않도록 거래 열쇠를 한 번 더 해시한 32비트 값(ks)만 남긴다. 값이 짧아 이름, 금액을 넣어 맞혀 보는 식으로는 되살릴 수 없다.
+   4대보험, 원천세처럼 회사 단위로 나가는 돈은 대상이 아니다 */
+const CS_PAY_RE = /급여|급료|상여|성과급|퇴직금|퇴직급여|월급|임금|인센티브/;
+const csH32 = (s) => { let a = 0x811c9dc5; for (let i = 0; i < s.length; i++) a = Math.imul(a ^ s.charCodeAt(i), 16777619) >>> 0; return a.toString(16).padStart(8, '0'); };
+const csShort = (k) => csH32(`pay|${k}`);
+const csIsPay = (cat) => !!cat && !!CS.f.tx.d.cats.find((c) => c.name === cat)?.pay;
+const csPayCat = () => CS.f.tx.d.cats.find((c) => c.pay)?.name || '';
+const csMonEnd = (ym) => { const [y, m] = ym.split('-').map(Number); return `${ym}-${pad(new Date(y, m, 0).getDate())}`; };
+const csPayId = (src, who, cat, ym) => `pay:${src}:${who}:${cat}:${ym}`;
+// 이미 있는 거래인지: 보통 거래는 열쇠, 급여 합계에 들어간 거래는 짧은 해시로
+function csSeen(d) { const full = new Set(), short = new Set(); for (const x of d.items) { full.add(x.k); for (const h of x.ks || []) short.add(h); } return (k) => full.has(k) || short.has(csShort(k)); }
+// 거래 x를 그 달 급여 합계에 넣고, 저장돼 있던 원래 줄은 지운다. 이미 넣은 거래면 금액은 그대로. 다시 적용해도 같은 결과
+function csPayAdd(d, x, cat) {
+  const ym = csYm(x.date), acct = x.src === 'bank' ? x.acct || '' : '', card = x.src === 'card' ? x.card || '' : '', id = csPayId(x.src, acct || card, cat, ym);
+  let g = d.items.find((y) => y.id === id);
+  if (!g) { g = { id, k: id, pay: true, src: x.src, acct, card, date: csMonEnd(ym), time: '', desc: `${cat} ${ym}`, desc2: '', in: 0, out: 0, bal: null, seq: 0, cat, sug: false, memo: '', ks: [] }; d.items.push(g); }
+  const h = csShort(x.k);
+  if (!g.ks.includes(h)) { g.ks.push(h); g.in += x.in || 0; g.out += x.out || 0; }
+  d.items = d.items.filter((y) => y === g || y.id !== x.id);
+}
+function csPayStrip(d) {
+  const pm = new Set(d.items.filter((g) => g.pay).map((g) => `${g.src}|${g.acct || ''}|${csYm(g.date)}`));
+  for (const y of d.items) if (!y.pay && y.bal != null && pm.has(`${y.src}|${y.acct || ''}|${csYm(y.date)}`)) y.bal = null;
+}
+
 // ---------- 저장 ----------
 async function csRead(k) {
   const r = await STORE.readText(`${CS_DIR}${CS_FILE[k]}.json`);
   let d = null; try { d = r.text ? JSON.parse(r.text) : null; } catch { d = null; }
   const base = csNew[k]();
-  return { d: d && typeof d === 'object' ? { ...base, ...d } : base, v: r.version };
+  const out = d && typeof d === 'object' ? { ...base, ...d } : base;
+  if (k === 'tx' && !out.cats.some((c) => 'pay' in c)) { const c = out.cats.find((y) => y.name === '급여'); if (c) c.pay = true; }
+  return { d: out, v: r.version };
 }
 function csLoad() {
   return (CS.loading ||= Promise.all(['acc', 'tx', 'plan'].map(async (k) => { CS.f[k] = await csRead(k); }))
@@ -129,7 +160,8 @@ function csSums(items) {
   return { inn, out, un };
 }
 const csMonths = () => [...new Set([...CS.f.tx.d.items.map((x) => csYm(x.date)), csThisYm()])].sort().reverse();
-function csLastBal(acct) { // 그 계좌의 거래내역 중 가장 늦은 잔액
+function csLastBal(acct) { // 그 계좌의 거래내역 중 가장 늦은 잔액(올릴 때 계좌에 적어 둔 tb, 없으면 남은 거래 잔액)
+  const tb = csAccs().find((a) => a.id === acct)?.tb; if (tb) return tb;
   let best = null;
   for (const x of CS.f.tx.d.items) if (x.acct === acct && x.bal != null && x.src === 'bank') { const key = `${x.date} ${x.time || ''} ${String(x.seq ?? 0).padStart(6, '0')}`; if (!best || key > best.key) best = { key, bal: x.bal, date: x.date }; }
   return best;
@@ -241,11 +273,11 @@ function csTxHTML() {
   const { mon, mons, inMon, list } = csTxView(), s = csSums(inMon), shown = list.slice(0, CS.lim);
   const sug = list.filter((x) => x.sug).length;
   const rows = shown.map((x) => `<tr data-tx="${esc(x.id)}">
-    ${csTd('날짜', `<span class="cs-n">${yymd(x.date)}</span>${x.time ? `<div class="cs-sub cs-n">${esc(x.time.slice(0, 5))}</div>` : ''}`)}
+    ${csTd('날짜', `<span class="cs-n">${x.pay ? csYmTxt(csYm(x.date)) : yymd(x.date)}</span>${x.time ? `<div class="cs-sub cs-n">${esc(x.time.slice(0, 5))}</div>` : ''}`)}
     ${csTd('내용', `<div class="cs-desc">${esc(x.desc || x.desc2 || '')}</div><div class="cs-sub">${esc([x.desc && x.desc2 ? x.desc2 : '', csSrcName(x)].filter(Boolean).join(' / '))}</div>`)}
     ${csTd('입금', `<span class="cs-n cs-in">${csAmt(x.in)}</span>`)}${csTd('출금', `<span class="cs-n">${csAmt(x.out)}</span>`)}
     ${csTd('잔액', `<span class="cs-n cs-sub">${x.bal != null ? csWon(x.bal) : ''}</span>`)}
-    ${csTd('분류', `<select class="select cs-cat ${x.sug ? 'sug' : ''}" data-cat="${esc(x.id)}" aria-label="분류"${x.sug ? ' title="지난 분류 제안"' : ''}>${csCatOpts(x.cat)}</select>`)}
+    ${csTd('분류', x.pay ? `<span class="cs-payc">${esc(x.cat || '급여')}</span><button type="button" class="btn ghost sm cs-paydel" data-paydel="${esc(x.id)}" aria-label="급여 합계 줄 지우기">${ico('trash', 'sm')}</button>` : `<select class="select cs-cat ${x.sug ? 'sug' : ''}" data-cat="${esc(x.id)}" aria-label="분류"${x.sug ? ' title="지난 분류 제안"' : ''}>${csCatOpts(x.cat)}</select>`)}
     ${csTd('메모', `<input class="input cs-memo" data-memo="${esc(x.id)}" value="${esc(x.memo || '')}" maxlength="200" aria-label="메모" autocomplete="off">`)}</tr>`).join('');
   return `<div class="tiles cs-tiles">${csTile('수입', csV(s.inn), 'green')}${csTile('지출', csV(s.out), 'red')}${csTile('순수입', csV(s.inn - s.out), s.inn - s.out < 0 ? 'amber' : 'blue')}${csTile('미분류', `${s.un}<small>건</small>`, 'violet')}</div>
     ${csSumHTML(mon, mons)}
@@ -294,10 +326,10 @@ function csCatsEdit() {
   openSheet(`<h3>분류 관리</h3><div class="cs-cats" id="cs-cats"></div><button type="button" class="btn sm" data-catadd>${ico('plus', 'sm')}분류 추가</button>
     <div class="cs-foot"><button type="button" class="btn" data-close>취소</button><button type="button" class="btn primary" data-catsave>저장</button></div>`, (el, close) => {
     const box = el.querySelector('#cs-cats');
-    const draw = () => { box.innerHTML = list.map((c, i) => `<div class="cs-catrow"><input class="input" data-cn="${i}" value="${esc(c.name)}" maxlength="30" aria-label="분류 이름"><select class="select" data-ct="${i}" aria-label="구분">${['지출', '수입', '제외'].map((t) => `<option ${t === c.type ? 'selected' : ''}>${t}</option>`).join('')}</select><span class="cs-sub cs-n">${c.old ? `${used(c.old)}건` : ''}</span><button type="button" class="btn ghost sm" data-cd="${i}" aria-label="지우기">${ico('trash', 'sm')}</button></div>`).join(''); };
+    const draw = () => { box.innerHTML = list.map((c, i) => `<div class="cs-catrow"><input class="input" data-cn="${i}" value="${esc(c.name)}" maxlength="30" aria-label="분류 이름"><select class="select" data-ct="${i}" aria-label="구분">${['지출', '수입', '제외'].map((t) => `<option ${t === c.type ? 'selected' : ''}>${t}</option>`).join('')}</select><label class="cs-sub cs-pl" title="받는 분, 건별 금액 없이 달별 합계로만 저장"><input type="checkbox" data-cpay="${i}" ${c.pay ? 'checked' : ''}>합계만</label><span class="cs-sub cs-n">${c.old ? `${used(c.old)}건` : ''}</span><button type="button" class="btn ghost sm" data-cd="${i}" aria-label="지우기">${ico('trash', 'sm')}</button></div>`).join(''); };
     draw();
     box.addEventListener('input', (e) => { const i = e.target.dataset.cn; if (i != null) list[i].name = e.target.value; });
-    box.addEventListener('change', (e) => { const i = e.target.dataset.ct; if (i != null) list[i].type = e.target.value; });
+    box.addEventListener('change', (e) => { const i = e.target.dataset.ct; if (i != null) list[i].type = e.target.value; const j = e.target.dataset.cpay; if (j != null) list[j].pay = e.target.checked; });
     box.addEventListener('click', (e) => { const b = e.target.closest('[data-cd]'); if (!b) return; const c = list[b.dataset.cd]; if (c.old && used(c.old) && !confirm(`${c.old} 분류 거래 ${used(c.old)}건은 미분류가 됩니다. 지울까요?`)) return; list.splice(Number(b.dataset.cd), 1); draw(); });
     el.querySelector('[data-catadd]').onclick = () => { list.push({ name: '', type: '지출', old: '' }); draw(); box.querySelector(`[data-cn="${list.length - 1}"]`)?.focus(); };
     el.querySelector('[data-close]').onclick = () => close();
@@ -306,9 +338,17 @@ function csCatsEdit() {
       if (new Set(out.map((c) => c.name)).size !== out.length) { toast('같은 이름의 분류가 있습니다'); return; }
       const ren = Object.fromEntries(out.filter((c) => c.old && c.old !== c.name).map((c) => [c.old, c.name]));
       const gone = new Set(list.filter((c) => c.old).map((c) => c.old).filter((n) => !out.some((c) => c.old === n)));
-      const cats = out.map(({ name, type }) => ({ name, type }));
+      const cats = out.map(({ name, type, pay }) => ({ name, type, pay: !!pay }));
+      const payNew = new Set(out.filter((c) => c.pay).map((c) => c.name)), wasPay = new Set(csCats().filter((c) => c.pay).map((c) => c.name));
+      const np = CS.f.tx.d.items.filter((x) => !x.pay && x.cat && payNew.has(ren[x.cat] || x.cat) && !wasPay.has(x.cat)).length;
+      if (np && !confirm(`합계만 저장으로 바꾼 분류의 거래 ${np}건은 받는 분, 건별 금액 없이 달별 합계에 합쳐집니다. 되돌릴 수 없습니다. 저장할까요?`)) return;
       close();
-      csAct('tx', (d) => { d.cats = cats; for (const x of d.items) { if (ren[x.cat]) x.cat = ren[x.cat]; else if (gone.has(x.cat)) { x.cat = ''; x.sug = false; } } });
+      csAct('tx', (d) => {
+        d.cats = cats;
+        for (const x of d.items) { if (ren[x.cat]) x.cat = ren[x.cat]; else if (gone.has(x.cat)) { x.cat = ''; x.sug = false; } if (x.pay) { x.id = x.k = csPayId(x.src, x.acct || x.card || '', x.cat, csYm(x.date)); x.desc = `${x.cat || '급여'} ${csYm(x.date)}`; } }
+        for (const x of [...d.items]) if (!x.pay && x.cat && payNew.has(x.cat)) csPayAdd(d, x, x.cat);
+        csPayStrip(d);
+      });
       if (Object.keys(ren).length || gone.size) csAct('plan', (d) => { for (const x of d.items) { if (ren[x.cat]) x.cat = ren[x.cat]; else if (gone.has(x.cat)) x.cat = ''; } });
     };
   });
@@ -320,7 +360,7 @@ function csImpsList() {
     el.addEventListener('click', (e) => {
       const b = e.target.closest('[data-impdel]'); if (!b) return;
       const id = b.dataset.impdel, m = CS.f.tx.d.imports.find((x) => x.id === id);
-      if (!confirm(`${m?.file || ''}에서 올린 거래 ${cnt(id)}건을 지울까요? 붙인 분류와 메모도 지워집니다.`)) return;
+      if (!confirm(`${m?.file || ''}에서 올린 거래 ${cnt(id)}건을 지울까요? 붙인 분류와 메모도 지워지고, 급여 합계 줄은 남습니다.`)) return;
       close(); csAct('tx', (d) => { d.items = d.items.filter((x) => x.imp !== id); d.imports = d.imports.filter((x) => x.id !== id); });
     });
   });
@@ -386,6 +426,7 @@ function csParse(rows, cfg) {
 }
 // 같은 거래처는 지난번 분류를 먼저 제안. 처음 보는 곳은 몇 가지 낱말로만
 function csSuggest(x, src) {
+  if (x.out && csPayCat() && CS_PAY_RE.test(`${x.desc} ${x.desc2}`)) return csPayCat();
   const items = CS.f.tx.d.items, key = csNorm(x.desc || x.desc2).toLowerCase();
   if (key) {
     let best = null;
@@ -432,8 +473,8 @@ async function csImport(file) {
     const box = el.querySelector('#cs-imp');
     const draw = () => {
       const rows = sheets[si].rows, hs = rows[cfg.hdr] || [], ncol = Math.max(...rows.slice(cfg.hdr, cfg.hdr + 30).map((r) => r.length), hs.length);
-      const p = csParse(rows, cfg), have = new Set(CS.f.tx.d.items.map((x) => x.k));
-      const fresh = p.rows.filter((x) => !have.has(x.k));
+      const p = csParse(rows, cfg), seen = csSeen(CS.f.tx.d), pc = csPayCat();
+      const fresh = p.rows.filter((x) => !seen(x.k)), payN = pc ? fresh.filter((x) => csSuggest(x, cfg.src) === pc).length : 0;
       const colOpts = (f) => `<option value="-1">없음</option>${Array.from({ length: ncol }, (_, j) => `<option value="${j}" ${cfg.map[f] === j ? 'selected' : ''}>${csColName(j)} ${esc(String(hs[j] ?? '').slice(0, 20))}</option>`).join('')}`;
       box.innerHTML = `<div class="cs-sub cs-file">${esc(file.name)}</div>
         ${sheets.length > 1 ? `<div class="field"><label>시트</label><select class="select" data-is>${sheets.map((s, i) => `<option value="${i}" ${i === si ? 'selected' : ''}>${esc(s.n)}</option>`).join('')}</select></div>` : ''}
@@ -444,6 +485,7 @@ async function csImport(file) {
         <div class="cs-map">${CS_FLD[cfg.src].map(([f, t]) => `<div class="field"><label>${t}</label><select class="select" data-im="${f}">${colOpts(f)}</select></div>`).join('')}</div>
         <div class="cs-prev">${p.rows.length ? `<table class="tbl"><thead><tr><th>날짜</th><th>내용</th><th>입금</th><th>출금</th><th>잔액</th></tr></thead><tbody>${p.rows.slice(0, 5).map((x) => `<tr><td class="cs-n">${yymd(x.date)}</td><td class="cs-desc">${esc(x.desc || x.desc2)}</td><td class="cs-n">${csAmt(x.in)}</td><td class="cs-n">${csAmt(x.out)}</td><td class="cs-n">${x.bal != null ? csWon(x.bal) : ''}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">읽은 거래 없음</div>'}</div>
         <div class="cs-cnt">새 거래 <b>${fresh.length}</b>건 / 이미 있음 ${p.rows.length - fresh.length}건${p.bad ? ` / 건너뛴 줄 ${p.bad}` : ''}</div>
+        ${payN ? `<label class="cs-paychk"><input type="checkbox" data-ipay ${cfg.pay !== false ? 'checked' : ''}>${esc(pc)} ${payN}건은 받는 분, 건별 금액 없이 달별 합계로 저장</label>` : ''}
         <div class="cs-foot"><button type="button" class="btn" data-close>취소</button><button type="button" class="btn primary" data-igo ${fresh.length && cfg.map.date >= 0 ? '' : 'disabled'}>올리기</button></div>`;
     };
     draw();
@@ -454,6 +496,7 @@ async function csImport(file) {
       else if (t.matches('[data-iacct]')) cfg.acct = t.value;
       else if (t.matches('[data-icard]')) cfg.card = t.value.trim();
       else if (t.matches('[data-im]')) cfg.map[t.dataset.im] = Number(t.value);
+      else if (t.matches('[data-ipay]')) { cfg.pay = t.checked; return; }
       else return;
       draw();
     });
@@ -464,22 +507,33 @@ async function csImport(file) {
       const rows = sheets[si].rows, p = csParse(rows, cfg), sig = sigOf(rows, cfg.hdr), at = new Date().toISOString();
       const imp = { id: uid(), at, file: file.name.slice(0, 120), src: cfg.src, acct: cfg.src === 'bank' ? cfg.acct : '', card: cfg.src === 'card' ? cfg.card || '카드' : '', n: 0 };
       const recs = p.rows.map((x) => ({ id: x.k, k: x.k, imp: imp.id, src: cfg.src, acct: imp.acct, card: imp.card, date: x.date, time: x.time, desc: x.desc, desc2: x.desc2, in: x.in, out: x.out, bal: x.bal, seq: x.row, cat: '', sug: false, memo: '' }));
+      const pay = cfg.pay !== false;
       // 은행 파일은 최근 거래가 위에 오기도 하고 아래에 오기도 한다. 같은 시각이면 파일 안 순서로 가장 늦은 줄을 고른다
       const desc = recs.length > 1 && `${recs[0].date}${recs[0].time}` > `${recs[recs.length - 1].date}${recs[recs.length - 1].time}`;
       if (desc) recs.forEach((x) => { x.seq = rows.length - x.seq; });
       close();
-      let added = 0;
+      // 계좌 잔고는 저장 전 거래(메모리)에서 고른다: 급여가 든 달은 거래 잔액을 지우기 때문
+      let lb = null;
+      for (const x of recs) if (x.bal != null) { const key = `${x.date} ${x.time || ''} ${String(x.seq).padStart(6, '0')}`; if (!lb || key > lb.key) lb = { key, bal: x.bal, date: x.date }; }
+      let added = 0, paid = 0;
       csAct('tx', (d) => {
-        const have = new Set(d.items.map((x) => x.k)), add = recs.filter((x) => !have.has(x.k));
-        for (const x of add) { const c = csSuggest(x, cfg.src); if (c) { x.cat = c; x.sug = true; } }
-        d.items.push(...add); added = add.length;
+        const seen = csSeen(d), add = recs.filter((x) => !seen(x.k)), pc = csPayCat();
+        added = add.length; paid = 0;
+        for (const x of add) {
+          x.cat = ''; x.sug = false;
+          const c = csSuggest(x, cfg.src);
+          if (c && c === pc) { if (pay) { csPayAdd(d, x, pc); paid++; continue; } }
+          else if (c) { x.cat = c; x.sug = true; }
+          d.items.push(x);
+        }
+        csPayStrip(d);
         if (add.length && !d.imports.some((m) => m.id === imp.id)) d.imports.push({ ...imp, n: add.length });
         d.maps[sig] = { src: cfg.src, map: cfg.map };
       });
-      toast(`${added}건 올림`);
-      if (cfg.src === 'bank' && cfg.acct && cfg.map.bal >= 0) {
-        const lb = csLastBal(cfg.acct), a = csAccs().find((y) => y.id === cfg.acct);
-        if (lb && a && (!a.balAt || lb.date >= a.balAt)) csAct('acc', (d) => { const y = d.items.find((z) => z.id === cfg.acct); if (y && (!y.balAt || lb.date >= y.balAt)) { y.bal = lb.bal; y.balAt = lb.date; y.balSrc = '거래내역'; } });
+      toast(paid ? `${added}건 올림, 급여 ${paid}건은 합계로` : `${added}건 올림`);
+      if (cfg.src === 'bank' && cfg.acct && cfg.map.bal >= 0 && lb) {
+        const tb = { bal: lb.bal, date: lb.date };
+        csAct('acc', (d) => { const y = d.items.find((z) => z.id === cfg.acct); if (!y) return; if (!y.tb || tb.date >= y.tb.date) y.tb = tb; if (!y.balAt || tb.date >= y.balAt) { y.bal = tb.bal; y.balAt = tb.date; y.balSrc = '거래내역'; } });
       }
     });
   }, 'cs-impsheet');
@@ -612,7 +666,13 @@ document.addEventListener('click', (e) => {
   if (t.closest('[data-more]')) { CS.lim += 300; csDraw(); return; }
   const sm = t.closest('[data-sum]'); if (sm) { CS.sum = sm.dataset.sum; viewSet('cash.sum', CS.sum); csDraw(); return; }
   const cg = t.closest('[data-catgo]'); if (cg) { CS.cat = cg.dataset.catgo; viewSet('cash.cat', CS.cat); CS.lim = 300; csDraw(); $('#cs-drop')?.scrollIntoView({ block: 'start', behavior: 'smooth' }); return; }
-  if (t.closest('[data-sug-ok]')) { const ids = new Set(csTxView().list.filter((x) => x.sug).map((x) => x.id)); csAct('tx', (d) => { for (const x of d.items) if (ids.has(x.id)) x.sug = false; }); return; }
+  if (t.closest('[data-sug-ok]')) {
+    const sl = csTxView().list.filter((x) => x.sug), ids = new Set(sl.map((x) => x.id)), np = sl.filter((x) => csIsPay(x.cat)).length;
+    if (np && !confirm(`급여 제안 ${np}건은 받는 분, 건별 금액 없이 달별 합계에 합쳐집니다. 되돌릴 수 없습니다. 확정할까요?`)) return;
+    csAct('tx', (d) => { for (const x of [...d.items]) if (ids.has(x.id) && !x.pay) { if (csIsPay(x.cat)) csPayAdd(d, x, x.cat); else x.sug = false; } csPayStrip(d); }); return;
+  }
+  const pd = t.closest('[data-paydel]');
+  if (pd) { if (!confirm('이 달 급여 합계 줄을 지울까요? 다시 넣으려면 그 달 거래내역을 다시 올립니다.')) return; const id = pd.dataset.paydel; csAct('tx', (d) => { d.items = d.items.filter((x) => x.id !== id); }); return; }
   if (t.closest('[data-padd]')) { csPlanEdit(''); return; }
   const pr = t.closest('[data-pid]'); if (pr) { csPlanEdit(pr.dataset.pid); return; }
   if (t.closest('[data-wadd]')) { csWcEdit(''); return; }
@@ -622,7 +682,14 @@ document.addEventListener('change', (e) => {
   if (!csOn() || !e.target.closest('#cs-root')) return;
   const t = e.target;
   if (t.id === 'cs-file') { const fl = t.files?.[0]; t.value = ''; if (fl) csImport(fl); return; }
-  if (t.matches('[data-cat]')) { const id = t.dataset.cat, v = t.value; csAct('tx', (d) => { const x = d.items.find((y) => y.id === id); if (x) { x.cat = v; x.sug = false; } }); return; }
+  if (t.matches('[data-cat]')) {
+    const id = t.dataset.cat, v = t.value;
+    if (csIsPay(v)) {
+      if (!confirm(`${v} 거래는 받는 분, 적요, 건별 금액 없이 그 달 ${v} 합계에 합쳐집니다. 되돌릴 수 없습니다. 합칠까요?`)) { t.value = CS.f.tx.d.items.find((y) => y.id === id)?.cat || ''; return; }
+      csAct('tx', (d) => { const x = d.items.find((y) => y.id === id && !y.pay); if (x) { csPayAdd(d, x, v); csPayStrip(d); } }); return;
+    }
+    csAct('tx', (d) => { const x = d.items.find((y) => y.id === id); if (x) { x.cat = v; x.sug = false; } }); return;
+  }
   if (t.matches('[data-memo]')) { const id = t.dataset.memo, v = t.value.trim(); csAct('tx', (d) => { const x = d.items.find((y) => y.id === id); if (x) x.memo = v; }, false); return; }
   if (t.matches('[data-pva]')) { CS.pva = t.value; viewSet('cash.pva', CS.pva); csDraw(); return; }
   const f = t.dataset.f;
@@ -646,7 +713,7 @@ TAB_INFO.cash = {
   title: '자금',
   rows: [
     ['계좌', ['예치 통장, CMA, 정기예금을 직접 등록. 계좌번호는 끝 4자리만', '잔고는 직접 고치거나, 은행 거래내역을 올리면 그 계좌의 마지막 잔액으로 바뀜', '만기 30일 안은 주황색']],
-    ['수입·지출', ['은행 거래내역과 법인카드 이용내역 엑셀(xlsx, xls, csv)을 올림. 같은 거래는 다시 올려도 한 번만 들어감', '열 이름으로 날짜, 내용, 입금, 출금, 잔액(카드는 금액)을 찾고, 못 찾으면 직접 고름. 고른 열은 같은 양식에 다시 씀', '같은 거래처는 지난 분류를 제안(회색). 분류를 고르거나 제안 확정을 누르면 확정', '제외 분류(자본금, 계좌 이체, 카드대금)는 수입, 지출 합계에서 뺌. 카드로 쓴 돈과 그 카드대금 출금이 두 번 잡히지 않게 하려는 것', '장부는 회계법인이 아마란스10에서 작성. 여기 숫자는 월 결산과 맞춰 보는 참고 값']],
+    ['수입·지출', ['은행 거래내역과 법인카드 이용내역 엑셀(xlsx, xls, csv)을 올림. 같은 거래는 다시 올려도 한 번만 들어감', '열 이름으로 날짜, 내용, 입금, 출금, 잔액(카드는 금액)을 찾고, 못 찾으면 직접 고름. 고른 열은 같은 양식에 다시 씀', '같은 거래처는 지난 분류를 제안(회색). 분류를 고르거나 제안 확정을 누르면 확정', '급여, 상여, 성과급, 퇴직금 거래는 받는 분, 적요, 건별 금액 없이 계좌와 달별 급여 합계 한 줄로만 저장. 그 달 다른 거래의 잔액도 지움. 다른 거래를 급여로 바꾸면 그때 합쳐지고 되돌릴 수 없음', '제외 분류(자본금, 계좌 이체, 카드대금)는 수입, 지출 합계에서 뺌. 카드로 쓴 돈과 그 카드대금 출금이 두 번 잡히지 않게 하려는 것', '장부는 회계법인이 아마란스10에서 작성. 여기 숫자는 월 결산과 맞춰 보는 참고 값']],
     ['자금계획', ['매달 나가는 고정비와 들어올 돈을 주기별로 넣으면 앞으로 12개월 월말 잔고를 계산', '이번 달은 이미 오간 금액을 뺀 남은 계획만 반영', '버티는 개월 수 = 계좌 잔고 / (월 고정 지출 - 월 예정 수입), 12개월 평균', '계획 대비 실적은 수입·지출 탭의 분류별 실제 금액과 비교', '운전자본 = 계좌 잔고 + 받을 돈 - 줄 돈. 받을 돈, 줄 돈은 예정일 달의 잔고 계산에도 들어감']],
     ['저장 위치', '내 OneDrive SPACE WORKS/data/cash. 지금은 탁지원 계정에서만 보임'],
   ],

@@ -42,7 +42,11 @@
 .cs-cnt { margin: 12px 0 4px; font-size: var(--fs-md); color: var(--text2); }
 .cs-cnt b { color: var(--primary); }
 .cs-cats { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
-.cs-catrow { display: grid; grid-template-columns: minmax(0, 1fr) 96px 56px 36px; gap: 8px; align-items: center; }
+.cs-catrow { display: grid; grid-template-columns: minmax(0, 1fr) 96px 72px 56px 36px; gap: 8px; align-items: center; }
+.cs-pl { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.cs-paychk { display: flex; align-items: center; gap: 8px; margin: 8px 0 4px; font-size: var(--fs-md); color: var(--text2); }
+.cs-payc { font-size: var(--fs-md); }
+.cs-tbl .cs-paydel { margin-left: 4px; color: var(--text3); }
 .cs-imps { display: flex; flex-direction: column; }
 .cs-imp { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--row); }
 .cs-imp > div { flex: 1; min-width: 0; }
