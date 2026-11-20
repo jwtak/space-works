@@ -10,6 +10,9 @@ const PP_END = ['완료', '드롭'];            // '진행 중'에서 빼는 단
 const PP_HOT = ['미팅', '실사', '투자심의'];  // 목록 칩을 파랑으로
 const PP_SRCS = ['소개', '투자 라운드', '신규상장', '상장 준비', '구주 매물', '입찰딜', '행사·IR', '상폐 위험·CB', '오너기업', '중복상장', '소비재', '딥테크', 'SI 타깃', '기타'];
 const PP_TYPES = ['메자닌', '구주', '프리IPO', '경영권', '기타'];
+// 구분(kind) = 주간회의 '진행중인 딜' 회사 옆 칸 값. 딜 폴더 이름 '번호. 회사명(구분)'에 들어간다(2026-11-20)
+const PP_KINDS = ['Buyout', 'Bolt-on', 'Growth Cap.', 'Pre-IPO', 'Series-A', 'Series-B', 'Series-C'];
+const ppKindsEl = () => { if (!document.getElementById('pp-kinds')) document.body.insertAdjacentHTML('beforeend', `<datalist id="pp-kinds">${PP_KINDS.map((k) => `<option value="${k}">`).join('')}</datalist>`); };
 const PP_SORTS = [['next', '다음 연락일순'], ['at', '최근 수정순'], ['created', '등록일순']];
 
 // 머리줄 ⓘ 설명(app.js infoOpen)
@@ -22,7 +25,8 @@ TAB_INFO['deals/pipeline'] = { title: '파이프라인', rows: [
     '다음 할 일 날짜가 7일 안이거나 지난 딜은 대시보드 홈 카드에도 뜹니다.',
     '발굴, 검토 단계 딜은 하루 두 번 컨택 플랜이 자동으로 만들어집니다. 딜을 펼치면 키맨, 연락 루트, 메일 초안, 전화 순서가 보입니다.',
     '단계는 목록의 단계 칸을 눌러 바꿉니다.',
-    '딜을 펼치면 진행, 팩트시트, 검토 노트, 딜 노트, 자료 탭이 있습니다. 검토 노트, 딜 노트, 자료는 공용 폴더 05. 딜소싱/딜/(섹터) 회사명 폴더 하나에 모입니다.',
+    '딜을 펼치면 진행, 팩트시트, 검토 노트, 딜 노트, 자료 탭이 있습니다. 검토 노트, 딜 노트, 자료는 공용 폴더 06. 진행중인 딜 안의 딜 폴더 하나에 모입니다.',
+    '딜 폴더 이름은 \'번호. 회사명(구분)\'이고 번호는 주간회의 진행중인 딜 순서입니다. 주간회의에 아직 없는 딜은 발굴 단계 폴더에 번호 없이 있습니다.',
     '딜 노트는 그 폴더의 02. 작성자료에 저장되고 업무일지·회의록 목록에도 \'딜\' 표시로 함께 보입니다.',
     '파이프라인에 올린 딜은 팩트시트를 자동으로 요청합니다. 오전 11시와 오후 4시에 만들어집니다.',
   ]],
@@ -59,16 +63,14 @@ const ppViewSave = () => viewSet('pp', { q: ppS.q, stage: ppS.stage, sort: ppS.s
 /* ---------- 데이터 ---------- */
 // 파일은 배열이어야 한다. 다른 모양이거나 깨졌으면 덮어쓰지 않도록 읽기부터 멈춘다
 const PP_BAD = '파이프라인 자료 형식이 올바르지 않습니다';
-// 옛 출처·딜 폴더 이름은 읽을 때 새 이름으로(다음 저장 때 파일에도 반영).
-// 출처: 11/17 매각희망 → FI 회수, 11/18 FI 회수 → 구주 매물, 예심청구 → 상장 준비, PE 앵글 → 오너기업·중복상장. 폴더: 11/18 공용 04. 딜소싱 → 05. 딜소싱, 딜 폴더는 (섹터) 회사명
+// 옛 출처 이름은 읽을 때 새 이름으로(다음 저장 때 파일에도 반영).
+// 출처: 11/17 매각희망 → FI 회수, 11/18 FI 회수 → 구주 매물, 예심청구 → 상장 준비, PE 앵글 → 오너기업·중복상장.
+// 딜 폴더(folder): 11/20 공용 06. 진행중인 딜로 옮기며 pipeline.json 값을 바로 고침. 번호와 구분은 deal_order.py(05. 딜소싱 _자동화 딜 폴더 순서)가 주간회의 순서로 맞춘다
 const PP_SRC_OLD = { 매각희망: '구주 매물', 'FI 회수': '구주 매물', 예심청구: '상장 준비' };
-const PP_DIR_OLD = { '04. 딜소싱/딜/TCMS 티씨엠에스': '05. 딜소싱/딜/(2차전지) TCMS 티씨엠에스', '04. 딜소싱/딜/랩스피너(ETI)': '05. 딜소싱/딜/(바이오) 랩스피너(ETI)',
-  '04. 딜소싱/딜/여신티켓 패스트레인': '05. 딜소싱/딜/(플랫폼) 여신티켓 패스트레인', '04. 딜소싱/딜/(화장품) 아진플라텍, 은진': '05. 딜소싱/딜/(화장품) 아진플라텍' };
 function ppFixOld(x) {
   if (!x) return;
   if (PP_SRC_OLD[x.src]) x.src = PP_SRC_OLD[x.src];
   else if (x.src === 'PE 앵글') x.src = String(x.ref || '').startsWith('pe:dup:') ? '중복상장' : '오너기업';
-  if (typeof x.folder === 'string') x.folder = PP_DIR_OLD[x.folder] || x.folder.replace(/^04\. 딜소싱\//, '05. 딜소싱/');
 }
 const ppArr = (v) => { if (!Array.isArray(v)) throw new Error(PP_BAD); v.forEach(ppFixOld); return v; };
 const ppRead = () => STORE.readJSON('pipeline').catch((e) => { throw e instanceof SyntaxError ? new Error(PP_BAD) : e; });
@@ -190,7 +192,7 @@ function ppCreate(f) {
   let id;
   do { id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`; } while (ppS.items.some((x) => x && x.id === id));
   const item = {
-    id, name: f.name, src: f.src || '기타', ref: f.ref || '', type: f.type || '', introducer: f.introducer || '',
+    id, name: f.name, src: f.src || '기타', ref: f.ref || '', type: f.type || '', kind: f.kind || '', introducer: f.introducer || '',
     stage: PP_STAGES.includes(f.stage) ? f.stage : '발굴', owner: f.owner ?? by, next: f.next || '', action: f.action || '', note: f.note || '', created: at,
   };
   ppS.items.push({ ...item, at, by });
@@ -254,7 +256,7 @@ function ppOpts(list, cur, blank) {
 function ppList() {
   const q = ppS.q.trim().toLowerCase();
   const list = ppS.items.filter((x) => ppOk(x) && (ppS.stage === 'live' ? ppLive(x) : ppStage(x) === ppS.stage)
-    && (!q || [x.name, x.src, x.introducer, x.type, x.owner, x.action, x.note, ppStage(x)].join(' ').toLowerCase().includes(q)));
+    && (!q || [x.name, x.src, x.introducer, x.type, x.kind, x.owner, x.action, x.note, ppStage(x)].join(' ').toLowerCase().includes(q)));
   const s = (v) => String(v || '');
   const by = {
     next: (a, b) => (ppNext(a) || '9999').localeCompare(ppNext(b) || '9999') || s(b.at).localeCompare(s(a.at)),
@@ -354,12 +356,14 @@ function ppRunInner(x) {
   const fld = (f, label, ctl, cls = '') => `<div class="field${cls}"><label for="${fid(f)}">${label}</label>${ctl}</div>`;
   const inp = (f, max) => `<input class="input" id="${fid(f)}" data-pp-f="${f}" value="${esc(x[f] || '')}" maxlength="${max}" autocomplete="off">`;
   const sel = (f, list, blank) => `<select class="select" id="${fid(f)}" data-pp-f="${f}">${ppOpts(list, x[f], blank)}</select>`;
+  ppKindsEl();
   return `<div class="pp-form">
       ${fld('next', '다음 연락일', `<input class="input" type="date" id="${fid('next')}" data-pp-f="next" value="${ppNext(x)}">`)}
       ${fld('action', '다음 할 일', inp('action', 200), ' w2')}
       ${fld('owner', '담당', sel('owner', ppPeople(), '선택'))}
       ${fld('name', '회사명', inp('name', 100))}
       ${fld('type', '유형', sel('type', PP_TYPES, '선택'))}
+      ${fld('kind', '구분', `<input class="input" id="${fid('kind')}" data-pp-f="kind" value="${esc(x.kind || '')}" maxlength="40" autocomplete="off" list="pp-kinds">`)}
       ${fld('src', '출처', sel('src', PP_SRCS, x.src ? null : '선택'))}
       ${fld('introducer', '소개자', inp('introducer', 100))}
       ${fld('note', '메모', `<textarea class="area" id="${fid('note')}" data-pp-f="note" rows="4" maxlength="4000">${esc(x.note || '')}</textarea>`, ' wall')}
@@ -368,11 +372,12 @@ function ppRunInner(x) {
 }
 
 /* ---------- 딜 상세 탭: 진행 · 검토 노트 · 자료 (2026-11-16 사용자: 딜 자료를 어디서 볼지 애매) ----------
-   딜 폴더 = 팀 파일함 경로 x.folder(예 '05. 딜소싱/딜/(2차전지) TCMS 티씨엠에스'). 없으면 '폴더 만들기'로 PP_DEAL_DIR/<딜 이름>과 빈 검토 노트를 만든다.
-   폴더 이름 규칙(11/18)은 '(섹터) 회사명'이라 딜 이름을 그 꼴로 적으면 그대로 폴더 이름이 된다.
-   검토 노트 = 그 폴더 맨 위에서 이름이 '검토 노트.md'로 끝나는 파일('회사명 검토 노트.md', 앞의 (섹터)는 뺌). 웍스에서 읽고 고친다(eTag로 덮어쓰기 충돌 확인).
+   딜 폴더 = 팀 파일함 경로 x.folder(예 '06. 진행중인 딜/07. TCMS(Series-C)'). 경로는 늘 이 값으로 찾는다(번호가 주마다 바뀔 수 있음).
+   폴더 이름 규칙(11/20 사용자): '번호. 회사명(구분)', 번호는 주간회의 진행중인 딜 순서, 주간회의에 없는 딜은 '발굴 단계' 아래 '회사명(구분)'.
+   폴더가 없으면 '폴더 만들기'로 PP_DEAL_DIR/<회사명(구분)>과 빈 검토 노트를 만든다. 번호 붙이기와 옮기기는 deal_order.py 몫.
+   검토 노트 = 그 폴더 맨 위에서 이름이 '검토 노트.md'로 끝나는 파일('회사명 검토 노트.md'). 웍스에서 읽고 고친다(eTag로 덮어쓰기 충돌 확인).
    Claude 세션은 PC 동기화 폴더의 같은 파일을 고친다. 노트 원본은 이 파일 하나 */
-const PP_DEAL_DIR = '05. 딜소싱/딜';
+const PP_DEAL_DIR = '06. 진행중인 딜/발굴 단계';
 const PP_NOTE_RE = /검토 노트\.md$/;
 const ppT = { tab: {}, files: new Map(), note: new Map(), edit: null };
 { const v = viewGet('pp.dt', {}); if (v && typeof v === 'object') ppT.tab = v; }
@@ -400,7 +405,19 @@ function ppFsAuto() {
   ppFsKeys = sig;
   fqEnsure(list.map((x) => ({ key: ppFsKey(x), name: x.name, label: ppFsLabel(x), hint: ppFsHint(x) })));
 }
-const ppDealDir = (x) => `${PP_DEAL_DIR}/${String(x.name || '').replace(/[\\/:*?"<>|#%]/g, ' ').replace(/\s+/g, ' ').trim()}`;
+const ppSafe = (v) => String(v || '').replace(/[\\/:*?"<>|#%]/g, ' ').replace(/\s+/g, ' ').trim();
+// 새 딜 폴더 = 발굴 단계/회사명(구분). 회사명은 딜 이름에서 괄호 부분을 뺀 것(여신티켓(패스트레인) → 여신티켓)
+const ppDealDir = (x) => {
+  const co = ppSafe(String(x.name || '').replace(/\([^)]*\)/g, ' ')) || ppSafe(x.name), k = ppSafe(x.kind).replace(/[()]/g, '');
+  return `${PP_DEAL_DIR}/${co}${k ? `(${k})` : ''}`;
+};
+// 딜 폴더 이름에서 회사명만(검토 노트, 딜 노트 파일 이름): 앞 번호(01. 02-1.)와 옛 (섹터)를 빼고, 구분이 있으면 끝의 (구분)도 뺀다
+const ppDealCo = (dir, kind) => {
+  const last = String(dir || '').split('/').pop();
+  let s = last.replace(/^\([^)]*\)\s*/, '').replace(/^\d+(?:-\d+)?\.\s*/, '');
+  if (kind) s = s.replace(/\s*\([^()]*\)$/, '');
+  return s.trim() || last;
+};
 const ppFolderUrl = (p) => `/drives/${flDrive()}/root:/${flEnc(p)}:`;
 function ppDtTabs(x) {
   const t = ppDtTab(x.id), f = ppT.files.get(x.id), n = f?.items ? f.items.filter((i) => !i.folder).length : 0;
@@ -503,7 +520,7 @@ function ppFileOpen(id, i) {
 }
 async function ppMkdir(id) {
   const x = ppFind(id); if (!x) return;
-  const dir = x.folder || ppDealDir(x), co = dir.split('/').pop().replace(/^\([^)]*\)\s*/, ''), name = `${co} 검토 노트.md`;
+  const dir = x.folder || ppDealDir(x), co = ppDealCo(dir, x.kind), name = `${co} 검토 노트.md`;
   // 틀: 대표님 주간회의 틀(11/18 사용자)
   const text = `# ${co} 검토 노트\n\n- 시작 ${today()}\n\n## 1. 사업\n\n## 2. 실적\n\n## 3. 구조\n\n## 4. 상황\n\n## 5. 다음 할 일\n`;
   try {
@@ -1073,6 +1090,7 @@ window.addEventListener('beforeunload', (e) => { ppFlush(); if (ppS.dirty.size) 
 /* ---------- 새 딜·삭제 ---------- */
 function ppNewSheet() {
   if (typeof openSheet !== 'function' || document.querySelector('#pp-nf')) return;
+  ppKindsEl();
   const r = (id, label, ctl) => `<div class="r"><label for="${id}">${label}</label>${ctl}</div>`;
   openSheet(`<h3>새 딜</h3>
     <form class="ev-form" id="pp-nf" autocomplete="off">
@@ -1080,6 +1098,7 @@ function ppNewSheet() {
       ${r('pp-nf-src', '출처', `<select class="select narrow" id="pp-nf-src" name="src">${ppOpts(PP_SRCS, '소개')}</select>`)}
       ${r('pp-nf-in', '소개자', '<input class="input" id="pp-nf-in" name="introducer" maxlength="100">')}
       ${r('pp-nf-ty', '유형', `<select class="select narrow" id="pp-nf-ty" name="type">${ppOpts(PP_TYPES, '', '선택')}</select>`)}
+      ${r('pp-nf-kd', '구분', '<input class="input narrow" id="pp-nf-kd" name="kind" maxlength="40" list="pp-kinds">')}
       ${r('pp-nf-st', '단계', `<select class="select narrow" id="pp-nf-st" name="stage">${ppOpts(PP_STAGES, '발굴')}</select>`)}
       ${r('pp-nf-ow', '담당', `<select class="select narrow" id="pp-nf-ow" name="owner">${ppOpts(ppPeople(), ppMe(), '선택')}</select>`)}
       ${r('pp-nf-nx', '다음 연락일', '<input class="input narrow" type="date" id="pp-nf-nx" name="next">')}
@@ -1102,7 +1121,7 @@ function ppNewSheet() {
         await pipeLoad();
         const nx = (typeof fixYmd === 'function' ? fixYmd(v.next) : v.next) || '';
         const id = ppCreate({
-          name, src: v.src, ref: '', type: v.type, introducer: String(v.introducer || '').trim(), stage: v.stage, owner: v.owner,
+          name, src: v.src, ref: '', type: v.type, kind: String(v.kind || '').trim(), introducer: String(v.introducer || '').trim(), stage: v.stage, owner: v.owner,
           next: /^\d{4}-\d{2}-\d{2}$/.test(nx) ? nx : '', action: String(v.todo || '').trim(), note: String(v.note || '').trim(),
         });
         ppShow(id);

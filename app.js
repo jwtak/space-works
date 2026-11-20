@@ -1740,7 +1740,7 @@ async function newNote(kind) {
 async function newDealNote(id) {
   await flushNote();
   const x = typeof ppFind === 'function' ? ppFind(id) : null; if (!x) { toast('딜을 찾을 수 없습니다'); return; }
-  const dir = x.folder || ppDealDir(x), co = dir.split('/').pop().replace(/^\([^)]*\)\s*/, '');
+  const dir = x.folder || ppDealDir(x), co = ppDealCo(dir, x.kind);
   const d = new Date(), m = pad(d.getMonth() + 1), dd = pad(d.getDate());
   const base = `딜/${dir}/${String(d.getFullYear()).slice(2)}${m}${dd}_${co}_노트`, text = `${co} 노트\n${d.getFullYear()}.${m}.${dd}(${WD[d.getDay()]})\n\n1. `;
   let name = `${base}.txt`, i = 2;
