@@ -50,11 +50,7 @@ function flDate(s) {
 }
 function flIcon(it) {
   if (it.folder) return '<span class="fl-ic fold" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5h4.6l2 2h8.4A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/></svg></span>';
-  const e = flExt(it.name);
-  const [cls, t] = ['xls', 'xlsx', 'xlsm', 'csv'].includes(e) ? ['x', 'X'] : ['doc', 'docx'].includes(e) ? ['w', 'W'] : ['ppt', 'pptx'].includes(e) ? ['p', 'P']
-    : e === 'pdf' ? ['pdf', 'PDF'] : e === 'hwp' || e === 'hwpx' ? ['h', 'H'] : e === 'loop' ? ['loop', 'L'] : FL_PREVIEW.img.includes(e) ? ['img', 'IMG']
-      : ['zip', '7z', 'rar'].includes(e) ? ['zip', 'ZIP'] : ['etc', (e || '').slice(0, 3).toUpperCase() || '·'];
-  return `<span class="fl-ic ${cls}" aria-hidden="true">${t}</span>`;
+  return fileIcon(it.name);
 }
 function flSorted(list) {
   const { k, dir } = flS.sort;

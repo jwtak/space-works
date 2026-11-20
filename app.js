@@ -14,6 +14,15 @@ let noteTimer = null;
 // ---------- 유틸 ----------
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const pad = (n) => String(n).padStart(2, '0');
+// 파일 종류 아이콘: 파일함, 딜 폴더, 메일 첨부가 같이 씀(모양은 style.css .fl-ic). 모르는 종류면 fileKind가 null
+const FILE_KINDS = [[['xls', 'xlsx', 'xlsm', 'csv'], 'x', 'X'], [['doc', 'docx'], 'w', 'W'], [['ppt', 'pptx'], 'p', 'P'], [['pdf'], 'pdf', 'PDF'],
+  [['hwp', 'hwpx'], 'h', 'H'], [['loop'], 'loop', 'L'], [['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp', 'heic'], 'img', 'IMG'], [['zip', '7z', 'rar', 'alz', 'egg'], 'zip', 'ZIP']];
+const fileExt = (n) => (/\.([a-z0-9]+)$/i.exec(n || '') || [, ''])[1].toLowerCase();
+const fileKind = (n) => { const e = fileExt(n); const k = FILE_KINDS.find(([l]) => l.includes(e)); return k ? [k[1], k[2]] : null; };
+function fileIcon(name, size = '') {
+  const [cls, t] = fileKind(name) || ['etc', fileExt(name).slice(0, 3).toUpperCase() || '·'];
+  return `<span class="fl-ic ${cls}${size ? ` ${size}` : ''}" aria-hidden="true">${t}</span>`;
+}
 const ymd = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const parse = (s) => { const [y, m, d] = s.slice(0, 10).split('-').map(Number); return new Date(y, m - 1, d); };
 const today = () => ymd(new Date());

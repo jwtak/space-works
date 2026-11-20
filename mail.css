@@ -276,6 +276,7 @@
   .mail-matt:active { background: var(--hover); }
   .mail-fic { display: inline-flex; flex: none; }
   .mail-fic svg.i { width: 22px; height: 22px; }
+  .mail-matt .fl-ic.sm { width: 22px; height: 22px; }
   .mail-matt-n { flex: 0 1 auto; min-width: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; word-break: keep-all; overflow-wrap: anywhere; line-height: 22px; }
   .mail-matt .muted { flex: none; font-size: var(--fs-base); }
   .mail-matt-dl { margin-left: auto; display: inline-flex; color: var(--text3); }
@@ -439,7 +440,7 @@
   .mail-abox.open .mail-abox-l { display: block; }
   .mail-abox-l li { display: flex; align-items: center; gap: 10px; height: 38px; padding: 0 8px; border-radius: var(--r-sm); font-size: var(--fs-base); }
   .mail-abox-l li:hover { background: #fff; }
-  .mail-abox-l .mail-fic { display: inline-flex; flex: none; }
+  .mail-abox-l .mail-fic { display: inline-flex; flex: none; justify-content: center; width: 20px; }
   .mail-abox-l .mail-fic svg.i { width: 18px; height: 18px; }
   .mail-abox-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   button.mail-abox-n { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; } /* 파일 이름을 눌러도 저장 */
@@ -498,7 +499,7 @@
   .mail-flist { display: flex; flex-direction: column; gap: 2px; margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--row); }
   .mail-file { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 4px 0 8px; border: 0; border-radius: var(--r-sm); background: none; font-size: var(--fs-base); }
   .mail-file:hover { background: var(--hover); }
-  .mail-file > svg.i { flex: none; width: 16px; height: 16px; color: var(--text3); }
+  .mail-file > svg.i { flex: none; width: 16px; height: 16px; margin: 0 2px; color: var(--text3); } /* 종류 배지(20px)와 글자 시작선 맞춤 */
   .mail-file-n { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mail-file .muted { flex: none; font-size: var(--fs-md); }
   .mail-file .iconbtn { margin-left: auto; }
@@ -592,6 +593,7 @@
 .mail-fl { display: inline-block; flex: none; margin-right: 6px; padding: 0 6px; border-radius: var(--r-xs); background: var(--fill); color: var(--text3); font-size: var(--fs-sm); font-weight: 500; line-height: 18px; vertical-align: 1px; }
 .mail-file-pct { flex: none; font-size: var(--fs-md); font-weight: 600; color: var(--primary); font-variant-numeric: tabular-nums; }
 .mail-file-pct:empty { display: none; }
+.mail-fic { color: var(--text3); } /* 종류 배지가 없는 첨부의 문서 아이콘 */
 .mail-from-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mail-from-pick { gap: 4px; border: 0; cursor: pointer; }
 .mail-from-pick:hover { background: var(--line); }

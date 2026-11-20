@@ -892,15 +892,8 @@ const MAIL_ICONS = {
   folder: '<path d="M3.5 7a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.3A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/>',
 };
 const mi = (n, cls = '') => `<svg class="i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${MAIL_ICONS[n]}</svg>`;
-function mailExtColor(name) {
-  const e = (name.split('.').pop() || '').toLowerCase();
-  if (e === 'pdf') return '#DC2626';
-  if (['xls', 'xlsx', 'csv'].includes(e)) return '#15803D';
-  if (['doc', 'docx', 'hwp', 'hwpx', 'txt'].includes(e)) return '#2563EB';
-  if (['ppt', 'pptx'].includes(e)) return '#EA580C';
-  if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'heic'].includes(e)) return '#7C3AED';
-  return '#6B7280';
-}
+// 첨부 앞 아이콘: 아는 종류는 파일함과 같은 글자 배지(app.js fileIcon), 그 밖은 문서 아이콘
+const mailFic = (name, bare) => (fileKind(name) ? fileIcon(name, 'sm') : bare ? mi('doc') : `<span class="mail-fic">${mi('doc')}</span>`);
 function mailDateLine(iso) {
   if (!iso) return '';
   const d = new Date(iso);
@@ -981,12 +974,12 @@ function mailDrawPane() {
       </dl>
       ${attN ? `<div class="mail-abox ${m.attFold ? '' : 'open'}" id="mail-abox">
         <div class="mail-abox-h"><button type="button" class="mail-abox-tg" id="mail-abox-tg" aria-expanded="${!m.attFold}">${mi('caret', 'caret')}<b>첨부 ${attN}개</b><span class="muted">(${mailSize(attTotal)})</span></button><button type="button" class="mail-tbtn" data-saveall>모두 저장</button></div>
-        <ul class="mail-abox-l">${m.atts.map((a) => `<li><span class="mail-fic" style="color:${mailExtColor(a.name)}">${mi('doc')}</span><button type="button" class="mail-abox-n" data-att="${esc(a.id)}" title="${esc(a.name)} 저장">${esc(a.name)}</button><span class="muted">${mailSize(a.size)}</span><span class="mail-abox-a">${mailPvKind(a.name) ? `<button type="button" class="mail-linkbtn" data-pv="${esc(a.id)}">미리보기</button>` : ''}<button type="button" class="mail-linkbtn" data-att="${esc(a.id)}">저장</button></span></li>`).join('')}${big.map((b, i) => `<li><span class="mail-fic" style="color:${mailExtColor(b.name)}">${mi('doc')}</span>${b.expired ? `<span class="mail-abox-n">${esc(b.name)}</span>` : `<button type="button" class="mail-abox-n" data-big="${i}" title="${esc(b.name)} 저장">${esc(b.name)}</button>`}<span class="muted">${mailSize(b.size)}</span>${bigTag(b)}<span class="mail-abox-a">${b.expired ? '' : `<button type="button" class="mail-linkbtn" data-big="${i}">저장</button>`}</span></li>`).join('')}</ul>
+        <ul class="mail-abox-l">${m.atts.map((a) => `<li>${mailFic(a.name)}<button type="button" class="mail-abox-n" data-att="${esc(a.id)}" title="${esc(a.name)} 저장">${esc(a.name)}</button><span class="muted">${mailSize(a.size)}</span><span class="mail-abox-a">${mailPvKind(a.name) ? `<button type="button" class="mail-linkbtn" data-pv="${esc(a.id)}">미리보기</button>` : ''}<button type="button" class="mail-linkbtn" data-att="${esc(a.id)}">저장</button></span></li>`).join('')}${big.map((b, i) => `<li>${mailFic(b.name)}${b.expired ? `<span class="mail-abox-n">${esc(b.name)}</span>` : `<button type="button" class="mail-abox-n" data-big="${i}" title="${esc(b.name)} 저장">${esc(b.name)}</button>`}<span class="muted">${mailSize(b.size)}</span>${bigTag(b)}<span class="mail-abox-a">${b.expired ? '' : `<button type="button" class="mail-linkbtn" data-big="${i}">저장</button>`}</span></li>`).join('')}</ul>
       </div>
       <div class="mail-matts">
         <div class="mail-matts-h"><span>첨부 ${attN}개 <span class="muted">(${mailSize(attTotal)})</span></span><button type="button" class="mail-linkbtn" data-saveall>모두 저장</button></div>
-        ${m.atts.map((a) => `<button type="button" class="mail-matt" data-${mailPvKind(a.name) ? 'pv' : 'att'}="${esc(a.id)}"><span class="mail-fic" style="color:${mailExtColor(a.name)}">${mi('doc')}</span><span class="mail-matt-n">${esc(a.name)}</span><span class="muted">(${mailSize(a.size)})</span><span class="mail-matt-dl">${mi(mailPvKind(a.name) ? 'eye' : 'dl')}</span></button>`).join('')}
-        ${big.map((b, i) => `<button type="button" class="mail-matt" ${b.expired ? 'disabled' : `data-big="${i}"`}><span class="mail-fic" style="color:${mailExtColor(b.name)}">${mi('doc')}</span><span class="mail-matt-n">${esc(b.name)}</span><span class="muted">(${mailSize(b.size)})</span>${bigTag(b)}<span class="mail-matt-dl">${mi('dl')}</span></button>`).join('')}
+        ${m.atts.map((a) => `<button type="button" class="mail-matt" data-${mailPvKind(a.name) ? 'pv' : 'att'}="${esc(a.id)}">${mailFic(a.name)}<span class="mail-matt-n">${esc(a.name)}</span><span class="muted">(${mailSize(a.size)})</span><span class="mail-matt-dl">${mi(mailPvKind(a.name) ? 'eye' : 'dl')}</span></button>`).join('')}
+        ${big.map((b, i) => `<button type="button" class="mail-matt" ${b.expired ? 'disabled' : `data-big="${i}"`}>${mailFic(b.name)}<span class="mail-matt-n">${esc(b.name)}</span><span class="muted">(${mailSize(b.size)})</span>${bigTag(b)}<span class="mail-matt-dl">${mi('dl')}</span></button>`).join('')}
       </div>` : ''}
       ${hasRemote && !m.remote ? '<div class="mail-remote">외부 이미지 차단됨 <button class="btn sm ghost" type="button" id="mail-remote">이미지 보기</button></div>' : ''}
     </div>
@@ -1421,7 +1414,7 @@ function mailDrawCompose() {
           <label class="btn sm mail-dfile">${mi('pc')}내 컴퓨터<input type="file" multiple hidden id="mail-file"></label>
           <span class="mail-drop-tx">에서 첨부하거나, 여기로 파일을 끌어놓으세요.</span>
         </div>
-        ${files.length ? `<div class="mail-flist">${files.map((f, i) => `<span class="mail-file">${mi('doc')}<span class="mail-file-n">${esc(f.name)}</span><span class="muted">${mailSize(f.size)}</span>${f.file && f.size > MAIL_MAX_ATTACH ? `<span class="mail-file-pct" data-fk="${mailFileKey(f.file)}">${c.pct?.has(f.file) ? `${c.pct.get(f.file)}%` : ''}</span>` : ''}<button type="button" class="iconbtn" data-rm="${i}" aria-label="첨부 빼기" ${c.busy || c.sending ? 'disabled' : ''}>${mi('close')}</button></span>`).join('')}</div>
+        ${files.length ? `<div class="mail-flist">${files.map((f, i) => `<span class="mail-file">${mailFic(f.name, true)}<span class="mail-file-n">${esc(f.name)}</span><span class="muted">${mailSize(f.size)}</span>${f.file && f.size > MAIL_MAX_ATTACH ? `<span class="mail-file-pct" data-fk="${mailFileKey(f.file)}">${c.pct?.has(f.file) ? `${c.pct.get(f.file)}%` : ''}</span>` : ''}<button type="button" class="iconbtn" data-rm="${i}" aria-label="첨부 빼기" ${c.busy || c.sending ? 'disabled' : ''}>${mi('close')}</button></span>`).join('')}</div>
         <div class="mail-drop-sz">${files.length}개, 총 ${mailSize(files.reduce((s, f) => s + (f.size || 0), 0))}</div>` : ''}
       </div></div>
       ${c.plain ? `<textarea class="mail-body" name="text" placeholder="내용">${esc(c.text)}</textarea>` : `

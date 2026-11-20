@@ -50,19 +50,9 @@
 .fl-more { opacity: .7; }
 .fl-item:hover .fl-more, .fl-more:focus-visible { opacity: 1; }
 
-/* 파일 종류 아이콘: 글자 배지(엑셀 초록·워드 파랑·PPT 주황·PDF 빨강) */
-.fl-ic { flex: none; display: inline-grid; place-content: center; width: 28px; height: 28px; border-radius: var(--r-sm); font-size: var(--fs-xs); font-weight: 700; letter-spacing: -0.02em; color: #fff; background: #8B95A1; }
+/* 파일 종류 아이콘(.fl-ic)은 메일 첨부와 같이 쓰므로 style.css */
 .fl-ic.fold { background: none; color: #F2B53A; }
 .fl-ic.fold svg { width: 28px; height: 28px; fill: currentColor; }
-.fl-ic.x { background: #1D7044; }
-.fl-ic.w { background: #2B5797; }
-.fl-ic.p { background: #C4441C; }
-.fl-ic.pdf { background: #D93025; font-size: 9px; }
-.fl-ic.h { background: #1E88D6; }
-.fl-ic.loop { background: #7B5CE6; }
-.fl-ic.img { background: #8E5BD8; font-size: 9px; }
-.fl-ic.zip { background: var(--text3); font-size: 9px; }
-.fl-ic.etc { font-size: 9px; }
 
 /* ⋯ 메뉴(PC) */
 .fl-pop { position: fixed; z-index: 70; min-width: 168px; padding: 6px; background: #fff; border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: 0 8px 24px rgba(17, 24, 39, .12); }

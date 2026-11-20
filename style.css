@@ -878,3 +878,16 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 .cal-stale .btn { flex: none; }
 #cal-body > .cal-stale { margin: 0 0 12px; }
 @media (max-width: 760px) { .cal-stale { margin: 0 12px 10px; } .mh-today .cal-stale { margin: 0 0 10px; } }
+/* 파일 종류 아이콘(app.js fileIcon): 파일함, 딜 폴더 28px, 메일 첨부 .sm 20px */
+.fl-ic { flex: none; display: inline-grid; place-content: center; width: 28px; height: 28px; border-radius: var(--r-sm); font-size: var(--fs-xs); font-weight: 700; letter-spacing: -0.02em; color: #fff; background: #8B95A1; }
+.fl-ic.x { background: #1D7044; }
+.fl-ic.w { background: #2B5797; }
+.fl-ic.p { background: #C4441C; }
+.fl-ic.pdf { background: #D93025; font-size: 9px; }
+.fl-ic.h { background: #1E88D6; }
+.fl-ic.loop { background: #7B5CE6; }
+.fl-ic.img { background: #8E5BD8; font-size: 9px; }
+.fl-ic.zip { background: var(--text3); font-size: 9px; }
+.fl-ic.etc { font-size: 9px; }
+.fl-ic.sm { width: 20px; height: 20px; border-radius: var(--r-xs); font-size: 11px; line-height: 1; }
+.fl-ic.sm:is(.pdf, .img, .zip, .etc) { font-size: 7px; letter-spacing: 0; }
