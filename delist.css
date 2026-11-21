@@ -121,6 +121,14 @@
 .dl-tbl td.risk { min-width: 170px; max-width: 260px; white-space: normal; }
 .dl-tbl td.dl-ang { min-width: 96px; }
 .dl-empty { padding: 40px 16px !important; text-align: center !important; color: var(--text3); cursor: default; }
+/* 관심 없음(사람별, fav.js): 표 맨 아래 접힌 묶음 머리는 보이는 폭(--dl-bw)에 붙이고, 펼친 행은 흐리게(고정 칸은 칸이 아니라 안쪽만 흐리게 해 밀린 칸이 비치지 않게) */
+.dl-tbl tr.dl-fvtr > td { padding: 0; background: var(--card); white-space: normal; cursor: default; }
+.dl-tbl .dl-fvtr .rd-grp.fv-skipgrp { position: sticky; left: 0; width: var(--dl-bw, 100%); }
+.dl-tbl tbody tr.dl-fvoff td:not(.stick), .dl-tbl tbody tr.dl-fvoff td.stick > * { opacity: .6; }
+.dl-tbl tbody tr.dl-fvoff:hover td:not(.stick), .dl-tbl tbody tr.dl-fvoff:hover td.stick > *,
+.dl-tbl tbody tr.dl-fvoff.open td:not(.stick), .dl-tbl tbody tr.dl-fvoff.open td.stick > * { opacity: 1; }
+.dl-card.dl-fvoff { opacity: .55; }
+.dl-card.dl-fvoff:hover { opacity: 1; }
 
 /* 펼친 칸: 표가 옆으로 밀려도 보이는 폭(--dl-bw) 그대로 왼쪽에 붙어 있다 */
 .dl-tbl tr.dl-xrow > td { padding: 0; background: var(--card); white-space: normal; border-bottom: 1px solid #C9D9F7; cursor: default; }
@@ -214,6 +222,8 @@
   .dl-mb .dl-bdg { margin: 0; font-size: var(--fs-sm); }
 
   .dl-tbl tr.dl-xrow > td { display: block; }
+  .dl-tbl tr.dl-fvtr > td { display: block; }
+  .dl-tbl .dl-fvtr .rd-grp.fv-skipgrp { position: static; width: 100%; padding: 16px 16px 8px; }
   .dl-xin { width: auto; position: static; padding: 16px 16px 24px; }
   .dl-xin .ipo-kv { grid-template-columns: 96px minmax(0, 1fr); gap: 8px; padding: 6px 0; }
   .dl-xin .ipo-dhead > .rd-pipe { align-self: stretch; height: 40px; justify-content: center; }

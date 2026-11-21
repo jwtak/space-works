@@ -140,7 +140,9 @@
 .ev-mplace { display: none; }
 .ev-pv { font-size: var(--fs-md); line-height: 20px; color: var(--text2); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; word-break: keep-all; overflow-wrap: anywhere; }
 .ev-c-ind { font-size: var(--fs-md); line-height: 20px; color: var(--text2); min-width: 0; }
-.ev-row.m-pass .ev-ttl, .ev-row.m-pass .ev-d { color: var(--text3); }
+/* 관심 없음(fav.js) 묶음: 목록 맨 아래, 머리 높이는 월 묶음 줄에 맞춘다 */
+.ev-list .fv-skipgrp { padding: 18px 24px 8px; }
+.ev-list .fv-skipgrp + .fv-skiprows > .ev-row:first-child { border-top: 0; }
 
 /* 펼친 내용: 라벨 왼쪽 + 값. 행사 열 시작선에 맞춰 들여 쓴다(24+별 24+날짜 120+점수 80+간격 16×3 = 296) */
 .ev-detail { padding: 4px 24px 20px 296px; background: var(--card); font-size: var(--fs-md); line-height: 20px; }
@@ -149,8 +151,6 @@
 .ev-detail dd { margin: 0; min-width: 0; color: var(--text2); overflow-wrap: anywhere; }
 .ev-detail dd:first-of-type { color: var(--ink); font-weight: 500; }
 .ev-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
-.ev-dhide { gap: 4px; }
-.ev-dhide .i { color: var(--text3); }
 /* 상세 점수: 총점 + 항목별 점수 칸(라벨 값) */
 .ev-dsc { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 16px; row-gap: 2px; }
 .ev-dsc .ev-sc { min-width: 0; font-size: var(--fs-md); line-height: 20px; }
@@ -214,7 +214,7 @@
   .ev-mcal .it.ev-on::before, .ev-mcal .it.more { display: none; }
   .ev-mcal .c.sel .n { box-shadow: inset 0 0 0 1.5px var(--primary); }
   .ev-head { display: none; }
-  .ev-grp { padding: 14px 16px 4px; }
+  .ev-grp, .ev-list .fv-skipgrp { padding: 14px 16px 4px; }
 
   .ev-cols { padding: 0 16px; }
   /* 폰 한 건 = 날짜(+시간, 마감 칩) / 제목 / 장소, 관심 별은 오른쪽 위 하나 */
@@ -231,7 +231,7 @@
   .ev-sheet .ev-pop-list button { min-height: 48px; align-items: center; }
   .ev-sheet .ev-pop-list .t { font-size: var(--fs-lg); line-height: 22px; white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
   .ev-sheet .ev-pop-act .btn { height: 40px; }
-  .ev-sheet .ev-pop-act { margin-left: 0; } /* 폰: 관심·숨기기 아래 줄에 버튼 셋을 같은 폭으로 */
+  .ev-sheet .ev-pop-act { margin-left: 0; } /* 폰: 관심 아래 줄에 버튼 셋을 같은 폭으로 */
   .ev-sheet .ev-pop-act .iconbtn:first-child { margin-left: -8px; }
   .ev-sheet .ev-pop-act .sp { flex: 1 1 100%; height: 0; }
   .ev-sheet .ev-pop-act .btn { flex: 1 1 0; min-width: 0; justify-content: center; padding: 0 6px; white-space: nowrap; }
@@ -245,7 +245,7 @@
 .ev-pop-hd:has(.ev-pop-ttl) { align-items: flex-start; margin-bottom: 12px; }
 .ev-pop-hd .ev-pop-ttl { flex: 1; min-width: 0; margin: 4px 0 0; }
 
-/* 표 보기에서는 칸을 세로 가운데로(ipo.css와 같은 기준, 사용자 11/9). 숨기기 아이콘의 위 맞춤 보정(-4)은 뺀다 */
+/* 표 보기에서는 칸을 세로 가운데로(ipo.css와 같은 기준, 사용자 11/9) */
 @media (min-width: 761px) {
   .ev-line.ev-cols { align-items: center; }
 }

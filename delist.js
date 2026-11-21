@@ -205,14 +205,14 @@ function dlHead() {
 const DL_MQ = matchMedia('(max-width: 760px)');
 const dlMob = () => DL_MQ.matches;
 const dlME = (v, d = 0) => (dlNum(v) == null ? DL_NA : `<span class="${dlNeg(v)}">${dlFmt(v, d)}억</span>`);
-function dlRowM(x, i) {
+function dlRowM(x, i, off = false) {
   const open = dlS.open.has(x.code);
   const ang = x.angles ? Object.keys(DL_ANG_L).filter((k) => dlAngOk(x, k)).map((k) => dlAngBadge(DL_ANG_L[k])).join('') : '';
   const kv = (k, v) => `<div><dt>${k}</dt><dd>${v}</dd></div>`;
   // 한 건 = 이름 / 단계 / 수치 세 칸 / 앵글·상태 배지 하나. 업종·재무·나머지 상태는 펼친 칸 '기업'·'재무' 상자(폰 전용)로
   const sb = dlStateBadges(x), sb1 = sb.match(/^<span class="dl-bdg[^>]*>[^<]*<\/span>/)?.[0] || sb;
   const showSb = !(dlS.good && x.pass && sb1.includes('b-ok')); // '좋은 기업만'이 켜져 있으면 '양호'는 되풀이라 뺀다
-  return `<tr class="dl-tr dl-mr${open ? ' open' : ''}" data-id="${esc(x.code)}" data-n="${i}" tabindex="0" aria-expanded="${open}"><td class="dl-mc" colspan="${DL_COLS}">
+  return `<tr class="dl-tr dl-mr${open ? ' open' : ''}${off ? ' dl-fvoff' : ''}" data-id="${esc(x.code)}" data-n="${i}" tabindex="0" aria-expanded="${open}"><td class="dl-mc" colspan="${DL_COLS}">
     <div class="dl-m1"><span class="dl-ttl">${dlNm(x.name)}</span><span class="dl-cd">${esc(x.code)}</span></div>
     ${x.stage ? `<div class="dl-m2"><span class="dl-s${x.stage}">${x.stage}단계</span><span>${esc(dlStageName(x.stage))}</span></div>` : ''}
     <dl class="dl-mg">${kv('시총', dlME(x.mcap, 1))}${kv(`${dlNextY()} 부족분`, x.gapNext != null && x.gapNext > 0 ? dlME(x.gapNext, 1) : DL_NA)}${kv('PBR', x.pbr != null ? dlPbr(x.pbr) : DL_NA)}</dl>
@@ -223,13 +223,13 @@ function dlRowM(x, i) {
 const DL_MSORT = [['score|0', '점수순'], ['mcap|0', '시총 큰 순'], ['mcap|1', '시총 작은 순'], ['gap|1', '부족분 작은 순'], ['pbr|1', 'PBR 낮은 순'],
   ['evop|1', 'EV/영업이익 낮은 순'], ['mezz|1', '메자닌 낮은 순'], ['r3|0', '매출 큰 순'], ['o3|0', '영업이익 큰 순'], ['name|1', '이름순']];
 
-function dlRow(x, i) {
-  if (dlMob()) return dlRowM(x, i);
+function dlRow(x, i, off = false) {
+  if (dlMob()) return dlRowM(x, i, off);
   const open = dlS.open.has(x.code), ys = dlYears(), l = x.last, y = dlS.data.year;
   const mark = l && y && l.y !== y ? `<span class="yr">'${String(l.y).slice(2)}</span>` : ''; // 최근 결산이 다른 회사보다 이르면 연도 표시
   const gap = x.gapNext != null && x.gapNext > 0 ? `${dlI(x.gapNext, 1)}<span class="yr">${dlFmt(x.gapNextPct ?? 0, 0)}%</span>` : DL_NA;
   const ang = x.angles ? Object.keys(DL_ANG_L).filter((k) => dlAngOk(x, k)).map((k) => dlAngBadge(DL_ANG_L[k])).join('') : '';
-  return `<tr class="dl-tr${i % 2 ? ' z' : ''}${open ? ' open' : ''}" data-id="${esc(x.code)}" data-n="${i}" tabindex="0" aria-expanded="${open}">
+  return `<tr class="dl-tr${i % 2 ? ' z' : ''}${open ? ' open' : ''}${off ? ' dl-fvoff' : ''}" data-id="${esc(x.code)}" data-n="${i}" tabindex="0" aria-expanded="${open}">
     <td class="num dl-no">${i + 1}</td>
     <td class="dl-nm stick"><span class="dl-ttl">${dlNm(x.name)}</span><span class="dl-cd">${esc(x.code)}</span>${x.biz ? `<div class="biz" title="${esc(x.biz)}">${esc(x.biz)}</div>` : ''}</td>
     <td class="sector" title="${esc(x.sector)}">${esc(x.sector) || DL_NA}</td>
@@ -310,9 +310,11 @@ const dlPickBody = (k, full = true) => `<ul class="th">${k.thesis.map((t) => `<l
 function dlPicks() {
   const d = dlS.data, p = d?.picks;
   if (!p || (!p.items.length && !d.hist.length)) return '';
+  // 관심 없음으로 표시한 회사 카드는 맨 뒤로 보내고 흐리게
+  const [pkKeep, pkSkip] = dlFv(p.items, (k) => (k.code ? `delist:${k.code}` : null)), items = [...pkKeep, ...pkSkip];
   const card = (k) => {
     const x = d.byCode.get(k.code);
-    return `<div class="dl-card${x ? '' : ' off'}"${x ? ` role="button" tabindex="0" data-dl-go="${esc(k.code)}"` : ''}>
+    return `<div class="dl-card${x ? '' : ' off'}${pkSkip.includes(k) ? ' dl-fvoff' : ''}"${x ? ` role="button" tabindex="0" data-dl-go="${esc(k.code)}"` : ''}>
       <div class="nm"><b>${dlNm(k.name || x?.name || k.code)}</b>${k.code ? `<span class="cd">${esc(k.code)}</span>` : ''}${k.angle ? `<span class="ag">${dlAngBadges(k.angle)}</span>` : ''}</div>
       ${dlPickBody(k, !x)}</div>`;
   };
@@ -322,7 +324,7 @@ function dlPicks() {
   const t = dlTime(p.at, false);
   return `<section class="card dl-ai"><div class="dl-ai-head"><span class="ttl">AI 추천</span>${t ? `<span class="meta${p.stale ? ' ipo-stale' : ''}"${p.stale ? ' title="오늘 선정 실패, 직전 추천"' : ''}>${esc(t)}</span>` : ''}</div>
     ${p.summary ? `<p class="dl-ai-note">${esc(p.summary)}</p>` : ''}
-    ${p.items.length ? `<div class="dl-ai-grid${dlS.aiAll ? ' all' : ''}">${p.items.map(card).join('')}</div>` : ''}
+    ${items.length ? `<div class="dl-ai-grid${dlS.aiAll ? ' all' : ''}">${items.map(card).join('')}</div>` : ''}
     ${p.items.length > 2 && !dlS.aiAll ? `<button type="button" class="btn dl-aimore" data-dl-aimore>나머지 ${p.items.length - 2}곳 보기</button>` : ''}${hist}</section>`;
 }
 
@@ -330,7 +332,7 @@ function dlPicks() {
 function dlSummary() {
   const d = dlS.data; if (!d) return '';
   const g = dlTime(d.generated), gd = d.generated ? new Date(d.generated) : null;
-  const n = (f) => d.items.filter(f).length;
+  const it = dlFv(d.items)[0], n = (f) => it.filter(f).length; // 관심 없음은 빼고 센다
   return `${g ? `<span class="${gd && Date.now() - gd > 36 * 3600000 ? 'ipo-stale' : ''}">${g} 수집</span>` : ''}${d.asof ? `<span>기준일 ${yymd(d.asof)}</span>` : ''}`
     + [1, 2, 3].map((s) => `<span>${s}단계 <b>${n((x) => x.stage === s)}</b></span>`).join('') + `<span>좋은 기업 <b>${n((x) => x.pass)}</b></span>`
     + (d.items.some((x) => x.angles) ? Object.entries(DL_ANG_L).map(([k, l]) => `<span>${l} <b>${n((x) => dlAngOk(x, k))}</b></span>`).join('') : '')
@@ -370,10 +372,23 @@ function dlCsv() {
 /* ---------- 그리기 ---------- */
 function dlBody() {
   if (!dlS.data) return '<div class="empty">수집 자료 없음</div>';
-  const list = dlList();
-  const cnt = dlS.host?.querySelector('#dl-count'); if (cnt) cnt.textContent = `${list.length.toLocaleString('ko-KR')} / 전체 ${dlS.data.items.length.toLocaleString('ko-KR')}곳`;
-  return `<table class="dl-tbl">${dlHead()}<tbody>${list.length ? list.map(dlRow).join('') : `<tr><td colspan="${DL_COLS}" class="dl-empty">조건에 맞는 회사 없음</td></tr>`}</tbody></table>`;
+  const [list, skip] = dlFv(dlList());
+  const cnt = dlS.host?.querySelector('#dl-count'); if (cnt) cnt.textContent = `${list.length.toLocaleString('ko-KR')} / 전체 ${dlFv(dlS.data.items)[0].length.toLocaleString('ko-KR')}곳`;
+  return `<table class="dl-tbl">${dlHead()}<tbody>${list.length ? list.map((x, i) => dlRow(x, i)).join('') : `<tr><td colspan="${DL_COLS}" class="dl-empty">조건에 맞는 회사 없음</td></tr>`}${dlSkipTail(skip, list.length)}</tbody></table>`;
 }
+/* 관심 없음(사람별, fav.js): 펼친 칸 머리와 같은 ref(delist:<종목코드>)로 떼어 표 맨 아래 접힌 묶음으로.
+   fav.js fvSkipTail은 div 묶음이라 표에서는 머리만 한 칸짜리 행에 넣고, 펼쳤을 때(fav.js와 같은 기억 키 fv.sk.delist) 흐린 표 행을 잇는다 */
+const DL_FV_SCOPE = 'delist';
+const dlRef = (x) => `delist:${x.code}`;
+const dlFv = (list, refOf = dlRef) => (typeof fvSplit === 'function' ? fvSplit(list, refOf) : [list, []]);
+function dlSkipTail(skip, n0) {
+  if (!skip.length || typeof fvSkipTail !== 'function') return '';
+  const open = viewGet(`fv.sk.${DL_FV_SCOPE}`, false) === true;
+  return `<tr class="dl-fvtr"><td colspan="${DL_COLS}">${fvSkipTail(skip, DL_FV_SCOPE, () => '').replace(/<div class="fv-skiprows"><\/div>$/, '')}</td></tr>`
+    + (open ? skip.map((x, i) => dlRow(x, n0 + i, true)).join('') : '');
+}
+// 다른 화면이나 AI 추천 카드에서 관심 없음 회사를 열 때는 맨 아래 묶음을 펼쳐 둔다
+const dlSkipOpen = (code) => { if (typeof fvSkip === 'function' && fvSkip(`delist:${code}`)) viewSet(`fv.sk.${DL_FV_SCOPE}`, true); };
 const dlRowEl = (root, id) => [...root.querySelectorAll('tr.dl-tr[data-id]')].find((r) => r.dataset.id === id);
 // 펼친 칸은 표가 옆으로 밀려도 보이는 폭에 맞춰 둔다(표 상자 폭을 --dl-bw로)
 function dlFitX() {
@@ -412,7 +427,7 @@ function dlToggle(tr) {
   dlViewSave();
   const nx = tr.nextElementSibling;
   if (nx && nx.classList.contains('dl-xrow')) nx.remove();
-  tr.outerHTML = dlRow(x, Number(tr.dataset.n) || 0);
+  tr.outerHTML = dlRow(x, Number(tr.dataset.n) || 0, tr.classList.contains('dl-fvoff'));
   dlFitX();
 }
 
@@ -458,6 +473,7 @@ function dlGo(code) {
   if (dlS.q && !x.q.includes(dlS.q.trim().toLowerCase())) dlS.q = '';
   dlCtlSync();
   dlS.open.add(code); dlS.focus = code;
+  dlSkipOpen(code);
   dlDraw();
 }
 
@@ -494,6 +510,14 @@ function dlBind(root) {
 
 let dlRO = null;
 DL_MQ.addEventListener('change', () => { if (dlS.host?.isConnected) { dlDraw(); dlCtlSync(); } }); // PC 표 ↔ 폰 카드
+// 관심 없음을 켜고 끄거나 처음 읽었을 때: 이 화면이 열려 있으면 AI 추천 카드와 표를 다시 그린다(보던 세로 자리 유지)
+window.addEventListener('fv-change', () => {
+  const h = dlS.host;
+  if (!h?.isConnected || !dlS.data || !h.querySelector('#dl-body')) return;
+  const sc = h.closest('.scroll'), top = sc?.scrollTop;
+  dlDraw();
+  if (sc) sc.scrollTop = top;
+});
 async function renderDelist(host) {
   dlS.host = host;
   host.innerHTML = `<div class="ipo-page dl-page" id="dl-root">
@@ -525,6 +549,7 @@ function delistFocus(ref) {
   if (!m) return '';
   Object.assign(dlS, { q: '', good: false, cb: false, bo: false, stage: '', mkt: '' });
   dlS.open.add(m[1]); dlS.focus = m[1];
+  dlSkipOpen(m[1]);
   dlViewSave();
   return '#deals/delist';
 }

@@ -172,16 +172,19 @@ function siSetNote(id, val) {
 }
 
 /* ---------- 거르기·정렬 ---------- */
+// 관심 없음(사람별, fav.js): 펼친 칸 머리와 같은 ref(원래 탭 ref = refs 첫 값)로 떼어 맨 아래 접힌 묶음으로. SI 칩·요약·업종 숫자도 뺀 목록으로 센다
+const siFv = (list) => (typeof fvSplit === 'function' ? fvSplit(list, (e) => e.refs[0] || null) : [list, []]);
+const siVis = (list) => siFv(list)[0];
 function siRows(si) {
   const s = siS, q = s.q.trim().toLowerCase(), lo = (v) => (v == null ? -Infinity : v);
   const hit = (e) => !q || e.q.includes(q);
   const by = { rev: (e) => e.perf.rev, op: (e) => e.perf.op }[s.sort];
   const cmp = (a, b) => (by ? lo(by(b)) - lo(by(a)) : 0) || lo(b.score) - lo(a.score) || a.idx - b.idx;
   // 사내 딜(pin)은 필터와 관계없이 맨 위에 고정, 검색어만 따른다
-  const pins = si.items.filter((e) => e.pin && hit(e)).sort((a, b) => a.idx - b.idx);
-  const rest = si.items.filter((e) => !e.pin && hit(e) && (!s.fit || e.fit === s.fit) && (!s.bk || e.bucket === s.bk) && (!s.from || e.from.includes(s.from)) && (!s.top || e.top)).sort(cmp);
+  const [pins, skipP] = siFv(si.items.filter((e) => e.pin && hit(e)).sort((a, b) => a.idx - b.idx));
+  const [rest, skipR] = siFv(si.items.filter((e) => !e.pin && hit(e) && (!s.fit || e.fit === s.fit) && (!s.bk || e.bucket === s.bk) && (!s.from || e.from.includes(s.from)) && (!s.top || e.top)).sort(cmp));
   const low = rest.filter((e) => tgLowSt(siSt(e)));
-  return { pins, main: rest.filter((e) => !low.includes(e)), low };
+  return { pins, main: rest.filter((e) => !low.includes(e)), low, skip: [...skipP, ...skipR] };
 }
 
 /* ---------- 표시 형식 ---------- */
@@ -252,7 +255,7 @@ function siDetail(e) {
 /* ---------- SI 요약 카드·요약 줄·필터 ---------- */
 function siCard(si) {
   if (!si) return '';
-  const pick = `<div class="rd-quick si-pick">${siS.data.sis.map((x) => `<button type="button" data-si-pick="${esc(x.name)}" class="${x === si ? 'on' : ''}" aria-pressed="${x === si}">${esc(x.name)}<span class="rd-qn">${x.items.length}</span></button>`).join('')}</div>`;
+  const pick = `<div class="rd-quick si-pick">${siS.data.sis.map((x) => `<button type="button" data-si-pick="${esc(x.name)}" class="${x === si ? 'on' : ''}" aria-pressed="${x === si}">${esc(x.name)}<span class="rd-qn">${siVis(x.items).length}</span></button>`).join('')}</div>`;
   const secs = si.pattern.sectors.map((t) => `<span class="pe-ds${/사내/.test(t) ? ' si-in' : ''}">${esc(t)}</span>`).join('');
   const kv = `${tgKv('지배구조', esc(si.gov))}${tgKv('요약', esc(si.summary))}${tgKv('인수 업종', secs ? `<div class="tgt-flags">${secs}</div>` : '')}
     ${tgKv('인수 규모', esc(si.pattern.size))}${tgKv('인수 구조', esc(si.pattern.deal))}${tgKv('인수 자금', esc(si.pattern.funding))}
@@ -273,7 +276,7 @@ async function siReport(path) {
 
 function siSummary(si) {
   if (!si) return '';
-  const it = si.items, n = (f) => it.filter(f).length, t = tgTime(siS.data?.generated);
+  const it = siVis(si.items), n = (f) => it.filter(f).length, t = tgTime(siS.data?.generated);
   const bad = Object.entries(si.sources).filter(([, v]) => !/^ok/i.test(siStr(v))).map(([s, v]) => `<span class="ipo-stale" title="${esc(siStr(v))}">${esc(s)} 확인 필요</span>`);
   return [si.asof ? `<span${t ? ` title="${esc(t)} 생성"` : ''}>기준일 ${esc(yymd(si.asof))}</span>` : '', `<span><b>${it.length}</b>곳</span>`,
     `<span>상 <b>${n((e) => e.fit === '상')}</b></span>`, `<span>중 <b>${n((e) => e.fit === '중')}</b></span>`,
@@ -283,7 +286,7 @@ function siSummary(si) {
 const siSeg = (attr, opts, cur) => `<div class="seg">${opts.map(([v, l]) => `<button type="button" data-${attr}="${esc(v)}" class="${cur === v ? 'on' : ''}" aria-pressed="${cur === v}">${esc(l)}</button>`).join('')}</div>`;
 const siSel = (id, label, opts, cur) => `<select class="select" id="${id}" aria-label="${label}">${opts.map(([v, l]) => `<option value="${esc(v)}"${cur === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
 function siFilterHtml(si) {
-  const s = siS, bks = si ? si.buckets : [], froms = si ? si.froms : [];
+  const s = siS, vis = si ? siVis(si.items) : [], bks = siCount(vis.map((e) => e.bucket)), froms = siCount(vis.flatMap((e) => e.from));
   const bk = [['', '전체'], ...bks.map(([k, n]) => [k, `${k} ${n}`])];
   if (s.bk && !bks.some(([k]) => k === s.bk)) bk.push([s.bk, s.bk]); // 자료에서 빠진 업종을 고른 채로 남아 있으면 풀 수 있게
   const fr = [['', '출처 전체'], ...froms.map(([k, n]) => [k, `${k} ${n}`])];
@@ -298,7 +301,7 @@ function siFilterHtml(si) {
 function siCsv(si) {
   if (!si) return;
   const cell = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  const { pins, main, low } = siRows(si), list = [...pins, ...main, ...low].filter((e) => !e.inh);
+  const { pins, main, low, skip } = siRows(si), list = [...pins, ...main, ...low, ...skip].filter((e) => !e.inh);
   const head = ['번호', '회사', '업종', '주력', '지역', '딜', '단계', '적합도', '점수', '기준 연도', '매출(억)', '영업이익(억)', 'OPM(%)', '매출 성장(%)', '최대주주', '출처', '신호', '고른 이유', '컨택 상태', '메모'];
   const rows = list.map((e, i) => [i + 1, e.name, e.bucket, e.line, e.region, e.deal, e.stage, e.fit, e.score, e.perf.fy, e.perf.rev, e.perf.op, e.perf.opm, e.perf.gr, e.owner,
     e.from.join(', '), e.signals.join(', '), e.why, siSt(e), tgMark(e.id)?.note || '']);
@@ -314,13 +317,14 @@ function siCsv(si) {
 function siBody(si) {
   if (siS.err) return `<div class="empty">${esc(siS.err)}</div>`;
   if (!si) return '<div class="empty">SI 타깃 목록을 준비하고 있습니다. 자료가 올라오면 여기에 보입니다.</div>';
-  const { pins, main, low } = siRows(si);
-  if (!pins.length && !main.length && !low.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
+  const { pins, main, low, skip } = siRows(si);
+  if (!pins.length && !main.length && !low.length && !skip.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
   const row = (e) => siRow(e, si.fy);
   return SI_HEAD
     + (pins.length ? siGrp('사내 딜', pins.length) + pins.map(row).join('') : '')
     + (main.length ? (pins.length ? siGrp('후보', main.length) : '') + main.map(row).join('') : '')
-    + (low.length ? siGrp('컨택한 곳', low.length, ' rd-low') + low.map(row).join('') : '');
+    + (low.length ? siGrp('컨택한 곳', low.length, ' rd-low') + low.map(row).join('') : '')
+    + (skip.length ? fvSkipTail(skip, 'si', row) : '');
 }
 const siRowEl = (id) => (siS.host ? [...siS.host.querySelectorAll('#si-body .ipo-row[data-id]')].find((r) => r.dataset.id === id) : null);
 const siNoteOn = () => { const ae = document.activeElement; return !!(ae && ae.matches?.('[data-si-note]') && siS.host?.contains(ae)); };
@@ -359,7 +363,7 @@ function siToggle(row) {
   siSave();
   const low = row.parentElement.querySelector('.rd-low');
   const inLow = !!low && !!(low.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING);
-  if (!was || !e || e.pin || tgLowSt(siSt(e)) === inLow) { siRedrawRow(id); return; }
+  if (!was || !e || e.pin || row.closest('.fv-skiprows') || tgLowSt(siSt(e)) === inLow) { siRedrawRow(id); return; }
   const sc = row.closest('.scroll');
   let nx = row.nextElementSibling; while (nx && !nx.matches('.ipo-row[data-id]')) nx = nx.nextElementSibling;
   const y0 = row.getBoundingClientRect().top - (parseFloat(getComputedStyle(row).marginTop) || 0), nid = nx?.dataset.id;
@@ -437,6 +441,15 @@ function siFlush() {
   if (!el.isConnected) siS.field = null;
 }
 window.addEventListener('hashchange', () => { siFlush(); siS.field = null; });
+// 관심 없음을 켜고 끄거나 처음 읽었을 때: 이 화면이 열려 있으면 목록을 다시 그린다(SI 칩·업종 숫자까지 맞추되 고르던 칸은 그대로)
+window.addEventListener('fv-change', () => {
+  const h = siS.host;
+  if (!h?.isConnected || !h.querySelector('#si-body') || !siS.data) return;
+  const sc = h.closest('.scroll'), top = sc?.scrollTop;
+  const ae = document.activeElement, keepF = ae && h.querySelector('#si-filter')?.contains(ae);
+  siDraw(!keepF);
+  if (sc) sc.scrollTop = top;
+});
 document.addEventListener('visibilitychange', () => { if (document.hidden) siFlush(); });
 
 async function renderSi(host) {
@@ -465,6 +478,8 @@ function siFocus(ref) {
   if (!m) return '';
   Object.assign(siS, { si: m[1], q: '', fit: '', bk: '', from: '', top: false });
   siS.open.add(id); siS.focus = id;
+  const r = siFind(id)?.refs[0];
+  if (r && typeof fvSkip === 'function' && fvSkip(r)) viewSet('fv.sk.si', true); // 관심 없음 회사면 맨 아래 묶음을 펼쳐 둔다
   siSave();
   return '#deals/si';
 }

@@ -131,6 +131,9 @@ function rnOk(e, s, skipQuick) {
   return true;
 }
 function rnAll() { return rnS.data ? rnS.data.items : rnFromTg(); }
+// 관심 없음(사람별, fav.js): 펼친 칸 머리와 같은 ref(e.key = round:… 또는 예전 자료 deep:… · cons:…)로 본다. 합친 회사는 예전 id(aliases)로 표시한 것도 같은 회사
+const rnRef = (e) => [e.key, ...(e.aliases || [])].find((r) => typeof fvSkip === 'function' && fvSkip(r)) || e.key;
+const rnFv = (list) => (typeof fvSplit === 'function' ? fvSplit(list, rnRef) : [list, []]);
 function rnRows(all) {
   const s = rnS, q = s.q.trim().toLowerCase();
   const dt = (a, b) => rnDesc(a.dt, b.dt);
@@ -294,19 +297,19 @@ function rnFilterHtml(all) {
 function rnBody(all) {
   if (rnS.err) return `<div class="empty">${esc(rnS.err)}</div>`;
   if (!rnS.data && !tgS.deep.data && !tgS.cons.data) return '<div class="empty">투자 라운드 목록을 준비하고 있습니다. 자료가 올라오면 여기에 보입니다.</div>';
-  const list = rnRows(all);
-  if (!list.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
-  return RN_HEAD + list.map(rnRow).join('');
+  const [list, skip] = rnFv(rnRows(all));
+  if (!list.length && !skip.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
+  return RN_HEAD + list.map((e) => rnRow(e)).join('') + (skip.length ? fvSkipTail(skip, 'round', (e) => rnRow(e)) : '');
 }
 
 function rnDraw(full) {
   const h = rnS.host; if (!h || !h.isConnected) return;
   const ae = document.activeElement;
   if (ae && ae.matches?.('[data-rn-note]') && h.contains(ae)) { rnS.redraw = true; return; } // 메모를 쓰는 중이면 칸을 떠날 때 다시 그린다
-  const all = rnAll();
-  if (full) h.querySelector('#rn-filter').innerHTML = rnFilterHtml(all);
-  h.querySelector('#rn-quick').innerHTML = rnQuickHtml(all);
-  h.querySelector('#rn-sum').innerHTML = rnSummary(all);
+  const all = rnAll(), vis = rnFv(all)[0]; // 요약 숫자·빠른 보기·업종 숫자는 관심 없음을 뺀 목록으로
+  if (full) h.querySelector('#rn-filter').innerHTML = rnFilterHtml(vis);
+  h.querySelector('#rn-quick').innerHTML = rnQuickHtml(vis);
+  h.querySelector('#rn-sum').innerHTML = rnSummary(vis);
   h.querySelector('#rn-body').innerHTML = rnBody(all);
   rnSave();
   if (rnS.focus) {
@@ -378,6 +381,16 @@ function rnBind(root) {
   });
 }
 
+// 관심 없음을 켜고 끄거나 처음 읽었을 때: 이 화면이 열려 있으면 목록을 다시 그린다(업종 숫자까지 맞추되 고르던 칸은 그대로)
+window.addEventListener('fv-change', () => {
+  const h = rnS.host;
+  if (!h?.isConnected || !h.querySelector('#rn-body') || (!rnS.data && !tgS.deep.data && !tgS.cons.data)) return;
+  const sc = h.closest('.scroll'), top = sc?.scrollTop;
+  const ae = document.activeElement, keepF = ae && h.querySelector('#rn-filter')?.contains(ae);
+  rnDraw(!keepF);
+  if (sc) sc.scrollTop = top;
+});
+
 async function rnLoad(force) {
   const host = rnS.host;
   if (force || !rnS.at || Date.now() - rnS.at > RN_TTL) {
@@ -422,6 +435,8 @@ function roundFocus(ref) {
   if (!id) return '';
   Object.assign(rnS, { q: '', k: 'all', st: '', sec: '', stg: '', amt: '', prof: '', ipo: '' });
   rnS.open.add(id); rnS.focus = id;
+  const e = rnAll().find((y) => y.id === id);
+  if (typeof fvSkip === 'function' && fvSkip(e ? rnRef(e) : id)) viewSet('fv.sk.round', true); // 관심 없음 회사면 맨 아래 묶음을 펼쳐 둔다
   rnSave();
   return '#deals/round';
 }

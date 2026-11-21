@@ -44,3 +44,12 @@
   .fv-page .fv-seg button + button { border-left: 1px solid var(--line2); }
   .fv-page .fv-seg button.on { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); font-weight: 600; }
 }
+
+/* 관심 없음(사람별): 펼친 칸 머리 버튼, 목록 맨 아래 접힌 묶음 */
+.btn.fv-skip.on { border-color: var(--text2); background: var(--fill2, #F3F4F6); color: var(--ink); font-weight: 600; }
+.rd-grp.fv-skipgrp { display: flex; align-items: center; gap: 8px; width: 100%; border: 0; border-top: 1px solid var(--line); background: var(--hover); font: inherit; text-align: left; cursor: pointer; }
+.rd-grp.fv-skipgrp b { color: var(--text2); }
+.rd-grp.fv-skipgrp .i { margin-left: auto; color: var(--text3); transition: transform .15s; }
+.rd-grp.fv-skipgrp.open .i { transform: rotate(90deg); }
+.fv-skiprows > * { opacity: .6; }
+.fv-skiprows > *:hover, .fv-skiprows > .open { opacity: 1; }

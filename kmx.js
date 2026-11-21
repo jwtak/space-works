@@ -103,8 +103,10 @@ function kmxDetail(x) {
 function kmxBody() {
   const d = kmxS.data;
   if (!d || !d.items.length) return '<div class="empty">아직 수집된 매물장터 자료가 없습니다.</div>';
-  const list = kmxList();
-  if (!list.length) return `<div class="empty">${kmxS.q.trim() ? '조건에 맞는 회사가 없습니다.' : `${kmxS.side} 글이 없습니다.`}</div>`;
+  // 관심 없음(fav.js, 사람별, ref = kmx:<id>)은 떼어 맨 아래 접힌 묶음으로
+  const [list, skip] = typeof fvSplit === 'function' ? fvSplit(kmxList(), (x) => `kmx:${x.id}`) : [kmxList(), []];
+  const tail = skip.length && typeof fvSkipTail === 'function' ? fvSkipTail(skip, 'kmx', kmxRow) : '';
+  if (!list.length && !tail) return `<div class="empty">${kmxS.q.trim() ? '조건에 맞는 회사가 없습니다.' : `${kmxS.side} 글이 없습니다.`}</div>`;
   // 같은 글(관리번호)끼리 묶어 발행일 소제목 아래에
   const groups = [];
   list.forEach((x) => {
@@ -112,7 +114,7 @@ function kmxBody() {
     if (g && g.k === k) g.items.push(x); else groups.push({ k, date: x.date, no: x.no, items: [x] });
   });
   const head = `<div class="ipo-head ipo-cols${kmxColCls(kmxS.side)}">${KMX_COLS[kmxS.side].map((t) => `<div>${t}</div>`).join('')}<div></div></div>`;
-  return head + groups.map((g) => `<div class="rd-grp"><b>${g.date ? yymd(g.date) : '발행일 없음'}</b>${g.no ? `<span>${esc(g.no)}</span>` : ''}<span>${g.items.length}곳</span></div>${g.items.map(kmxRow).join('')}`).join('');
+  return head + groups.map((g) => `<div class="rd-grp"><b>${g.date ? yymd(g.date) : '발행일 없음'}</b>${g.no ? `<span>${esc(g.no)}</span>` : ''}<span>${g.items.length}곳</span></div>${g.items.map(kmxRow).join('')}`).join('') + tail;
 }
 
 function kmxSummary() {
@@ -150,6 +152,9 @@ function kmxBind(root) {
   });
   root.addEventListener('input', (ev) => { if (ev.target.id === 'kmx-q') { kmxS.q = ev.target.value; viewSet('kmx.q', kmxS.q); kmxDraw(); } });
 }
+
+// 관심 없음 표시가 바뀌거나 처음 읽혔으면(fav.js) 매물장터 화면이 열려 있을 때 목록을 다시 그린다
+window.addEventListener('fv-change', () => { if (kmxS.data) kmxDraw(); });
 
 async function renderKmx(host) {
   kmxS.host = host;

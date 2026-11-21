@@ -308,6 +308,10 @@ function peSink(list) {
   return [...list.filter((x) => !low.includes(x)), { low: true, n: low.length }, ...low];
 }
 const peLowRow = (x) => `<div class="rd-grp rd-low"><b>컨택한 곳</b><span>${x.n}곳</span></div>`;
+// 관심 없음(사람별, fav.js): 펼친 칸 머리와 같은 ref(pe:heir:<cc> · pe:dup:<이름>)로 떼어 맨 아래 접힌 묶음으로. 요약 숫자·묶음 숫자도 뺀 목록으로 센다
+const peRef = (x) => x.key;
+const peFv = (list) => (typeof fvSplit === 'function' ? fvSplit(list, peRef) : [list, []]);
+const peVis = (list) => peFv(list)[0];
 
 /* 오너기업: 점수 | 회사 | 최근 매출 | 영업이익률 | 최대주주 | 업력 | 신호 | 컨택 상태
    카드가 좁으면 업력·신호 칸(rd-c2)을 접어 회사 칸 보조 줄(rd-alt)로, 더 좁으면 한 건을 여러 줄로(rd-mob) — radar.css 배치 */
@@ -453,13 +457,13 @@ function peDupDetail(x) {
 function peSummary() {
   const d = peS.data; if (!d) return '';
   const g = d.generated ? new Date(d.generated) : null, t = peTime(d.generated);
-  const it = peS.grp === 'heir' ? d.heir.items : peDupBase(), n = (f) => it.filter(f).length;
+  const all = peS.grp === 'heir' ? d.heir.items : peDupBase(), it = peVis(all), n = (f) => it.filter(f).length;
   const done = n((x) => peSt(x.key) !== '미접촉');
   const pg = d.heir.progress;
   const parts = peS.grp === 'heir'
     ? [pg.universe != null && pg.parsed != null ? `<span>감사보고서 ${peFmt(pg.parsed, 0)}/${peFmt(pg.universe, 0)}곳 확인</span>` : '', `<span>통과 <b>${n((x) => x.pass)}</b></span>`, `<span>근접 <b>${n((x) => !x.pass)}</b></span>`]
     : [`<span>${it.length}곳</span>`, `<span>살아 있는 딜 <b>${n((x) => x.sg !== 'end')}</b></span>`, `<span>실제 매물 <b>${n((x) => x.sg === 'sale')}</b></span>`,
-      peS.dup.big ? '' : `<span>대기업집단 제외 <b>${d.dup.items.length - it.length}</b></span>`];
+      peS.dup.big ? '' : `<span>대기업집단 제외 <b>${d.dup.items.length - all.length}</b></span>`];
   // ok로 시작하지 않는 출처만 이름으로(값은 마우스를 올리면)
   const bad = Object.entries(d.sources).filter(([, v]) => !/^ok/i.test(peStr(v))).map(([k, v]) => `<span class="ipo-stale" title="${esc(peStr(v))}">${esc(k)} 확인 필요</span>`);
   return `${t ? `<span class="${g && Date.now() - g > 36 * 3600000 ? 'ipo-stale' : ''}">${t} 수집</span>` : ''}${parts.join('')}<span>팀 리스트 <b>${n((x) => x.team)}</b></span><span>컨택 <b>${done}</b></span>${bad.join('')}`;
@@ -468,7 +472,7 @@ function peSummary() {
 const peSeg = (attr, opts, cur, cls = 'seg') => `<div class="${cls}">${opts.map(([k, l]) => `<button type="button" data-${attr}="${esc(k)}" class="${cur === k ? 'on' : ''}" aria-pressed="${cur === k}">${esc(l)}</button>`).join('')}</div>`;
 function peGrpHtml() {
   const d = peS.data;
-  return `<div class="seg" role="tablist">${PE_GRPS.map(([k, l]) => `<button type="button" role="tab" data-pe-g="${k}" class="${peS.grp === k ? 'on' : ''}" aria-selected="${peS.grp === k}">${l}${d ? `<span class="pe-gn">${(k === 'heir' ? d.heir.items : peDupBase()).length}</span>` : ''}</button>`).join('')}</div>`;
+  return `<div class="seg" role="tablist">${PE_GRPS.map(([k, l]) => `<button type="button" role="tab" data-pe-g="${k}" class="${peS.grp === k ? 'on' : ''}" aria-selected="${peS.grp === k}">${l}${d ? `<span class="pe-gn">${peVis(k === 'heir' ? d.heir.items : peDupBase()).length}</span>` : ''}</button>`).join('')}</div>`;
 }
 
 function peFilterHtml() {
@@ -488,9 +492,10 @@ function peFilterHtml() {
 /* ---------- 그리기 ---------- */
 function peBody() {
   if (!peS.data) return '<div class="empty">아직 수집된 PE 앵글 자료가 없습니다.</div>';
-  const heir = peS.grp === 'heir', list = peSink(heir ? peHeirList() : peDupList());
-  if (!list.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
-  return (heir ? PE_HEIR_HEAD : PE_DUP_HEAD) + list.map((x) => (x.low ? peLowRow(x) : heir ? peHeirRow(x) : peDupRow(x))).join('');
+  const heir = peS.grp === 'heir', row = (x) => (heir ? peHeirRow(x) : peDupRow(x));
+  const [keep, skip] = peFv(heir ? peHeirList() : peDupList()), list = peSink(keep);
+  if (!list.length && !skip.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
+  return (heir ? PE_HEIR_HEAD : PE_DUP_HEAD) + list.map((x) => (x.low ? peLowRow(x) : row(x))).join('') + (skip.length ? fvSkipTail(skip, `pe-${peS.grp}`, row) : '');
 }
 const peRowEl = (root, id) => [...root.querySelectorAll('.ipo-row[data-id]')].find((r) => r.dataset.id === id);
 const peRowHtml = (x) => (x.id.startsWith('heir:') ? peHeirRow(x) : peDupRow(x));
@@ -583,6 +588,7 @@ function peRefreshRow(id) {
 
 // 접은 행이 상태 때문에 다른 묶음(컨택한 곳 ↔ 위 목록)으로 가야 하면 목록을 다시 그리고, 그 행 바로 다음 행이 그 자리에 오게 한다
 function peFold(r, x) {
+  if (r.closest('.fv-skiprows')) { peRefreshRow(x.id); return; } // 관심 없음 묶음 안에서는 상태와 관계없이 제자리
   const b = r.parentElement, low = b.querySelector('.rd-low');
   const inLow = !!low && !!(low.compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING);
   if (peLowSt(peSt(x.key)) === inLow) { peRefreshRow(x.id); return; }
@@ -686,6 +692,11 @@ function peFlush(leave) {
   if (id != null) peSetNote(id, el.value);
 }
 window.addEventListener('hashchange', () => peFlush(true));
+// 관심 없음을 켜고 끄거나 처음 읽었을 때: 이 화면이 열려 있으면 보던 자리를 지킨 채 목록을 다시 그린다
+window.addEventListener('fv-change', () => {
+  const b = peS.host?.isConnected && peS.data && peS.host.querySelector('#pe-body');
+  if (b) peHold(b, null, peDraw);
+});
 document.addEventListener('visibilitychange', () => { if (document.hidden) peFlush(false); });
 window.addEventListener('beforeunload', (e) => { peFlush(false); if (peS.dirty.size) { e.preventDefault(); e.returnValue = ''; } });
 
@@ -722,6 +733,7 @@ function peFocus(ref) {
   peS.grp = g; s.q = ''; s.team = false; s.f = 'all';
   if (g === 'heir') { s.rev = ''; s.opm = ''; s.old = false; }
   s.open.add(id); peS.focus = id;
+  if (typeof fvSkip === 'function' && fvSkip(String(ref))) viewSet(`fv.sk.pe-${g}`, true); // 관심 없음 회사면 맨 아래 묶음을 펼쳐 둔다
   peViewSave();
   return '#deals/pe';
 }

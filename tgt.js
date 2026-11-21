@@ -317,6 +317,8 @@ function tgSink(list) {
   return [...list.filter((x) => !low.includes(x)), { low: true, n: low.length }, ...low];
 }
 const tgLowRow = (x) => `<div class="rd-grp rd-low"><b>컨택한 곳</b><span>${x.n}곳</span></div>`;
+// 관심 없음(사람별, fav.js): 펼친 칸 머리와 같은 ref(item.id = cons:… · deep:…)로 떼어 맨 아래 접힌 묶음으로. 요약 숫자도 뺀 목록으로 센다
+const tgFv = (list) => (typeof fvSplit === 'function' ? fvSplit(list, (x) => x.id) : [list, []]);
 
 /* 소비재: 영업이익 | 회사 | 매출 | 매출 성장 | 최대주주 | 컨택 상태 — 정렬 기준 값을 첫 칸에(pe.js 오너기업 점수 칸과 같은 자리)
    카드가 1000보다 좁으면 최대주주 칸(rd-c2)을 접어 회사 칸 보조 줄(rd-alt)로, 700보다 좁거나 폰이면 회사 칸 아래 수치 칸(pe-mg)으로 */
@@ -429,7 +431,7 @@ function tgDetail(k, x) {
 /* ---------- 요약 줄·필터 ---------- */
 function tgSummary(k) {
   const d = tgS[k].data; if (!d) return '';
-  const it = d.items, n = (f) => it.filter(f).length, t = tgTime(d.generated);
+  const it = tgFv(d.items)[0], n = (f) => it.filter(f).length, t = tgTime(d.generated);
   const old = d.asof && (Date.parse(today()) - Date.parse(d.asof)) / 86400000 > TG_CFG[k].stale;
   const pg = d.progress;
   const parts = [
@@ -483,11 +485,10 @@ function tgBody(k) {
   if (st.err) return `<div class="empty">${esc(st.err)}</div>`;
   if (!st.data) return `<div class="empty">${TG_CFG[k].title} 목록을 준비하고 있습니다. 자료가 올라오면 여기에 보입니다.</div>`;
   if (!st.data.items.length) return '<div class="empty">아직 목록에 든 회사가 없습니다.</div>';
-  const list = tgSink(tgRows(k));
-  if (!list.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
-  if (k === 'deep') return TG_DEEP_HEAD + list.map((x) => (x.low ? tgLowRow(x) : tgDeepRow(x))).join('');
-  const y = tgYear(st.data.items);
-  return tgConsHead(y) + list.map((x) => (x.low ? tgLowRow(x) : tgConsRow(x, y))).join('');
+  const [keep, skip] = tgFv(tgRows(k)), list = tgSink(keep);
+  if (!list.length && !skip.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
+  const y = k === 'deep' ? null : tgYear(st.data.items), row = (x) => (k === 'deep' ? tgDeepRow(x) : tgConsRow(x, y));
+  return (k === 'deep' ? TG_DEEP_HEAD : tgConsHead(y)) + list.map((x) => (x.low ? tgLowRow(x) : row(x))).join('') + (skip.length ? fvSkipTail(skip, k, row) : '');
 }
 const tgRowEl = (root, id) => [...root.querySelectorAll('.ipo-row[data-id]')].find((r) => r.dataset.id === id);
 const tgRowHtml = (x) => (x.id.startsWith('deep:') ? tgDeepRow(x) : tgConsRow(x, tgYear(tgS.cons.data?.items || [])));
@@ -576,6 +577,7 @@ function tgRefreshRow(id) {
 
 // 접은 행이 상태 때문에 다른 묶음(컨택한 곳 ↔ 위 목록)으로 가야 하면 목록을 다시 그리고, 그 행 바로 다음 행이 그 자리에 오게 한다
 function tgFold(r, x) {
+  if (r.closest('.fv-skiprows')) { tgRefreshRow(x.id); return; } // 관심 없음 묶음 안에서는 상태와 관계없이 제자리
   const b = r.parentElement, low = b.querySelector('.rd-low');
   const inLow = !!low && !!(low.compareDocumentPosition(r) & Node.DOCUMENT_POSITION_FOLLOWING);
   if (tgLowSt(tgSt(x.id)) === inLow) { tgRefreshRow(x.id); return; }
@@ -661,6 +663,11 @@ function tgFlush(leave) {
   if (id != null) tgSetNote(id, el.value);
 }
 window.addEventListener('hashchange', () => tgFlush(true));
+// 관심 없음을 켜고 끄거나 처음 읽었을 때: 소비재·딥테크 화면이 열려 있으면 보던 자리를 지킨 채 목록을 다시 그린다
+window.addEventListener('fv-change', () => {
+  const b = tgS.host?.isConnected && tgS[tgS.k]?.data && tgS.host.querySelector('#tg-body');
+  if (b) tgHold(b, null, tgDraw);
+});
 document.addEventListener('visibilitychange', () => { if (document.hidden) tgFlush(false); });
 window.addEventListener('beforeunload', (e) => { tgFlush(false); if (tgS.dirty.size) { e.preventDefault(); e.returnValue = ''; } });
 
@@ -699,6 +706,7 @@ function tgtFocus(ref) {
   const k = m[1], s = tgS[k].v, id = `${k}:${m[2]}`;
   Object.assign(s, { q: '', cat: '' }, k === 'cons' ? { op: '', lst: '', fi: false } : { young: false, late: false });
   s.open.add(id); tgS.focus = id;
+  if (typeof fvSkip === 'function' && fvSkip(id)) viewSet(`fv.sk.${k}`, true); // 관심 없음 회사면 맨 아래 묶음을 펼쳐 둔다
   tgViewSave(k);
   return `#deals/${k}`;
 }

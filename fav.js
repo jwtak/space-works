@@ -4,7 +4,10 @@
    형식: [{key, name, src, tab, at}] — key = 파이프라인·팩트시트 ref와 같은 꼴(yesim:<id> · ipo:<code> · pe:heir:<cc> · delist:<code> · cons:<id> · deep:<id> …),
          src = 관심 표시한 화면 이름(app.js DEAL_SCREENS), tab = 그 화면 키, at = 'YYYY-MM-DDTHH:MM'.
    버튼은 fsq.js fqHead가 '팩트시트 요청' 옆에 같이 넣는다(fvHead). 원래 화면 이동은 pipeline.js PP_TABS·ppGoTab.
-   진입: renderFav(host). 버튼 클릭은 document에서 받는다(각 탭 클릭 처리는 펼친 칸 안 클릭을 건너뛴다). */
+   진입: renderFav(host). 버튼 클릭은 document에서 받는다(각 탭 클릭 처리는 펼친 칸 안 클릭을 건너뛴다).
+   '관심 없음'(2026-11-21 사용자, 사람별): 같은 파일에 skip: true로. 관심과 함께 걸리지 않는다(하나를 켜면 다른 하나는 꺼짐).
+   각 화면 목록은 fvSplit(list, refOf)로 관심 없음을 떼어 맨 아래 fvSkipTail(...)로 접힌 묶음을 붙이고,
+   표시가 바뀌거나 처음 읽혔을 때 window 'fv-change' 이벤트를 받아 목록을 다시 그린다. 관심 기업 탭에는 관심(skip 아님)만. */
 
 const FV_TTL = 5 * 60000;
 const FV_STAR = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4.5l2.3 4.6 5.1.8-3.7 3.6.9 5.1L12 16.2l-4.6 2.4.9-5.1-3.7-3.6 5.1-.8z"/></svg>';
@@ -23,12 +26,14 @@ function fvLoad(force) {
   if (!fvS.loading) {
     fvS.loading = fvRead().then((r) => { fvS.items = r.items; fvS.ver = r.version; fvS.err = ''; })
       .catch((e) => { fvS.err = e.message || '관심 기업을 불러오지 못했습니다'; })
-      .finally(() => { fvS.at = Date.now(); fvS.loading = null; fvPaint(); });
+      .finally(() => { fvS.at = Date.now(); fvS.loading = null; fvPaint(); fvChanged(); });
   }
   return fvS.loading;
 }
 
-const fvHas = (ref) => fvS.items.some((x) => x.key === ref);
+const fvHas = (ref) => fvS.items.some((x) => x.key === ref && !x.skip);
+const fvSkip = (ref) => fvS.items.some((x) => x.key === ref && x.skip);
+const fvFavs = () => fvS.items.filter((x) => !x.skip);
 const fvNow = () => { const d = new Date(); return `${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 // 관심 표시한 화면: 지금 보고 있는 딜소싱 화면 이름, 모르면 ref 앞머리로
 function fvSrc(ref) {
@@ -47,9 +52,26 @@ function fvHead(ref, x) {
 }
 function fvBtn(ref) {
   if (!fvS.at || fvS.err) return '';
-  const on = fvHas(ref);
-  return `<button type="button" class="btn sm rd-fs fv-btn${on ? ' on' : ''}" data-fv-tgl="${esc(ref)}" aria-pressed="${on}">${FV_STAR}관심</button>`;
+  const on = fvHas(ref), off = fvSkip(ref);
+  return `<button type="button" class="btn sm rd-fs fv-btn${on ? ' on' : ''}" data-fv-tgl="${esc(ref)}" aria-pressed="${on}">${FV_STAR}관심</button>`
+    + `<button type="button" class="btn sm rd-fs fv-skip${off ? ' on' : ''}" data-fv-tgl="${esc(ref)}" data-fv-kind="skip" aria-pressed="${off}">관심 없음</button>`;
 }
+// 목록 화면용: 관심 없음을 떼어 낸다 → [보일 것, 관심 없음]. 아직 안 읽었으면 읽기 시작(다 읽으면 'fv-change'로 다시 그림)
+function fvSplit(list, refOf) {
+  if (!fvS.loading && (!fvS.at || Date.now() - fvS.at > FV_TTL) && typeof G === 'object' && G.account) fvLoad();
+  if (!fvS.items.some((x) => x.skip)) return [list, []];
+  const keep = [], skip = [];
+  list.forEach((x) => { const r = x && !x.grp ? refOf(x) : null; (r && fvSkip(r) ? skip : keep).push(x); });
+  return [keep, skip];
+}
+// 맨 아래 접힌 묶음: 머리(누르면 펼치기·접기, 화면별로 기억) + 펼쳤을 때만 행들
+function fvSkipTail(skip, scope, rowFn) {
+  if (!skip.length) return '';
+  const open = viewGet(`fv.sk.${scope}`, false) === true;
+  return `<button type="button" class="rd-grp fv-skipgrp${open ? ' open' : ''}" data-fv-skipgrp="${esc(scope)}" aria-expanded="${open}"><b>관심 없음</b><span>${skip.length}곳</span>${ico('right', 'sm')}</button>`
+    + (open ? `<div class="fv-skiprows">${skip.map(rowFn).join('')}</div>` : '');
+}
+const fvChanged = () => window.dispatchEvent(new CustomEvent('fv-change'));
 
 function fvPaint() {
   document.querySelectorAll('.fv-slot[data-fv]').forEach((s) => { s.innerHTML = fvBtn(s.dataset.fv); });
@@ -57,14 +79,14 @@ function fvPaint() {
 }
 
 /* ---------- 표시·해제 ---------- */
-function fvToggle(ref) {
+function fvToggle(ref, kind) {
   if (!fvS.at || fvS.err) return;
-  const add = !fvHas(ref);
+  const skip = kind === 'skip', add = skip ? !fvSkip(ref) : !fvHas(ref);
   const old = fvS.items.find((x) => x.key === ref);
-  const rec = add ? { key: ref, name: fvS.ctx.get(ref)?.name || fqNameOf(ref), ...fvSrc(ref), at: fvNow() } : null;
+  const rec = add ? { key: ref, name: fvS.ctx.get(ref)?.name || fqNameOf(ref), ...fvSrc(ref), at: fvNow(), ...(skip ? { skip: true } : {}) } : null;
   const apply = (items) => { const a = items.filter((x) => x.key !== ref); if (rec) a.push(rec); return a; };
   fvS.items = apply(fvS.items);
-  fvPaint();
+  fvPaint(); fvChanged();
   fvS.saving = fvS.saving.catch(() => {}).then(async () => {
     for (let i = 0; i < 3; i++) {
       try { fvS.ver = await STORE.writeJSON('favs', fvS.items, fvS.ver); return; } catch (e) {
@@ -73,7 +95,7 @@ function fvToggle(ref) {
       }
     }
     throw new Error('다른 기기에서 동시에 수정 중입니다. 잠시 후 다시 해 주세요.');
-  }).then(() => { fvPaint(); if (!add && old) toast(`${old.name || '이 회사'}를 관심 기업에서 뺐습니다`); })
+  }).then(() => { fvPaint(); if (!add && old && !skip) toast(`${old.name || '이 회사'}를 관심 기업에서 뺐습니다`); if (add && skip) toast(`${rec.name || '이 회사'}: 관심 없음으로 목록 맨 아래에 접어 둡니다`); })
     .catch((e) => { toast(e.message || '저장하지 못했습니다.'); return fvLoad(true); });
 }
 // 이름을 못 받았을 때: 팩트시트 요청 기록의 이름
@@ -89,12 +111,12 @@ const fvDay = (s) => (s && s.length >= 10 ? yymd(s) : '');
 
 function fvList() {
   const q = fvS.q.trim().toLowerCase();
-  return fvS.items.filter((x) => (!fvS.src || x.src === fvS.src) && (!q || `${x.name || ''} ${x.src || ''}`.toLowerCase().includes(q)))
+  return fvFavs().filter((x) => (!fvS.src || x.src === fvS.src) && (!q || `${x.name || ''} ${x.src || ''}`.toLowerCase().includes(q)))
     .sort((a, b) => (String(a.at || '') < String(b.at || '') ? 1 : -1));
 }
 function fvSrcs() {
   const m = new Map();
-  fvS.items.forEach((x) => { const s = x.src || '기타'; m.set(s, (m.get(s) || 0) + 1); });
+  fvFavs().forEach((x) => { const s = x.src || '기타'; m.set(s, (m.get(s) || 0) + 1); });
   return [...m];
 }
 
@@ -105,12 +127,13 @@ function fvDraw() {
   if (fvS.err) { body.innerHTML = `<div class="empty">${esc(fvS.err)}</div>`; sum.innerHTML = ''; seg.innerHTML = ''; return; }
   const srcs = fvSrcs();
   if (fvS.src && !srcs.some(([s]) => s === fvS.src)) { fvS.src = ''; viewSet('fv.src', ''); }
-  sum.innerHTML = `<span><b>${fvS.items.length}</b>곳</span>`;
+  const favs = fvFavs();
+  sum.innerHTML = `<span><b>${favs.length}</b>곳</span>`;
   const one = (k, l, n) => `<button type="button" data-fv-src="${esc(k)}" class="${fvS.src === k ? 'on' : ''}" aria-pressed="${fvS.src === k}">${esc(l)}<span class="fv-n">${n}</span></button>`;
-  seg.innerHTML = srcs.length > 1 ? one('', '전체', fvS.items.length) + srcs.map(([s, n]) => one(s, s, n)).join('') : '';
+  seg.innerHTML = srcs.length > 1 ? one('', '전체', favs.length) + srcs.map(([s, n]) => one(s, s, n)).join('') : '';
   seg.hidden = srcs.length < 2;
   const a = fvList();
-  if (!fvS.items.length) { body.innerHTML = '<div class="empty">관심 표시한 회사가 없습니다.</div>'; return; }
+  if (!favs.length) { body.innerHTML = '<div class="empty">관심 표시한 회사가 없습니다.</div>'; return; }
   if (!a.length) { body.innerHTML = '<div class="empty">검색 결과가 없습니다.</div>'; return; }
   body.innerHTML = `<div class="ipo-head fv-cols"><div>회사</div><div class="fv-h-src">화면</div><div>관심 표시</div><div></div></div>${a.map(fvRow).join('')}`;
 }
@@ -162,5 +185,7 @@ async function renderFav(host) {
 
 document.addEventListener('click', (ev) => {
   const b = ev.target.closest('[data-fv-tgl]');
-  if (b) { ev.preventDefault(); fvToggle(b.dataset.fvTgl); }
-});
+  if (b) { ev.preventDefault(); fvToggle(b.dataset.fvTgl, b.dataset.fvKind); return; }
+  const g = ev.target.closest('[data-fv-skipgrp]');
+  if (g) { ev.preventDefault(); ev.stopPropagation(); const k = `fv.sk.${g.dataset.fvSkipgrp}`; viewSet(k, viewGet(k, false) !== true); fvChanged(); }
+}, true);

@@ -444,11 +444,17 @@ function ipoSummary() {
   return `${gl ? `<span class="${ok && Date.now() - g > 36 * 3600000 ? 'ipo-stale' : ''}">${gl}</span>` : ''}<span>${d.items.length}곳</span><span>락업 30일 <b>${lock}</b></span><span>컨택 <b>${done}</b></span>`;
 }
 
+// 관심 없음(fav.js, 사람별): ref = ipo:<종목코드>(펼친 칸 fqHead와 같은 키). fav.js가 없으면 아무것도 떼지 않는다
+const ipoSkipRef = (code) => `ipo:${code}`;
+const ipoIsSkip = (code) => typeof fvSkip === 'function' && fvSkip(ipoSkipRef(code));
+
 function ipoBody() {
-  const list = ipoList();
   if (!ipoState.data) return '<div class="empty">아직 수집된 신규상장 데이터가 없습니다.</div>';
-  if (!list.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
-  return `<div class="ipo-head ipo-cols"><div>상장일</div><div>회사</div><div class="ipo-c-cap">현재 시총</div><div class="ipo-c-rev">2025 매출</div><div>작성책임자</div><div>다음 락업</div><div class="ipo-h-st">컨택 상태</div></div>${ipoSink(list)}`;
+  // 관심 없음은 떼어 '컨택한 곳' 뒤 맨 아래 접힌 묶음으로
+  const [list, skip] = typeof fvSplit === 'function' ? fvSplit(ipoList(), (x) => ipoSkipRef(x.code)) : [ipoList(), []];
+  if (!list.length && !skip.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
+  const tail = skip.length && typeof fvSkipTail === 'function' ? fvSkipTail(skip, 'ipo', ipoRow) : '';
+  return `<div class="ipo-head ipo-cols"><div>상장일</div><div>회사</div><div class="ipo-c-cap">현재 시총</div><div class="ipo-c-rev">2025 매출</div><div>작성책임자</div><div>다음 락업</div><div class="ipo-h-st">컨택 상태</div></div>${ipoSink(list)}${tail}`;
 }
 // 컨택한 곳(연락함·미팅·보류)은 맨 아래 '컨택한 곳'으로 내리고 흐리게 — 예심청구 등(radar.js rdSink)과 같은 방식(사용자 2026-11-10). 검토 완료는 제자리(11-16)
 function ipoSink(list) {
@@ -508,6 +514,7 @@ function ipoDraw() {
   const b = ipoState.host && ipoState.host.querySelector('#ipo-body'); if (!b) return;
   if (ipoImeWait(b, 'draw', ipoDraw)) return;
   const keep = ipoKeepNote(b);
+  if (ipoState.focus && ipoIsSkip(ipoState.focus)) viewSet('fv.sk.ipo', true); // 보기 링크로 온 회사가 관심 없음이면 맨 아래 묶음을 펼쳐 둔다
   ipoDrawing = true;
   try { b.innerHTML = ipoBody(); } finally { ipoDrawing = false; }
   const s = ipoState.host.querySelector('#ipo-sum'); if (s) s.innerHTML = ipoSummary();
@@ -617,6 +624,9 @@ function ipoFocus(code) {
   ipoState.open.add(c); ipoState.focus = c;
   viewSet('ipo.q', ''); viewSet('ipo.f', 'all'); viewSet('ipo.open', ipoState.open);
 }
+
+// 관심 없음 표시가 바뀌거나 처음 읽혔으면(fav.js) 신규상장 화면이 열려 있을 때 목록을 다시 그린다. 쓰던 메모·한글 조합은 ipoDraw가 지킨다
+window.addEventListener('fv-change', () => { if (ipoState.data) ipoDraw(); });
 
 /* 홈 카드 등에서 회사를 누르면 신규상장 목록에서 그 회사를 펼쳐 보여 준다 */
 document.addEventListener('click', (ev) => {
