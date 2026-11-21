@@ -6,7 +6,6 @@
   body.req-on .scroll > .page { flex: 1 1 auto; min-width: 0; }
   .req { position: sticky; top: 28px; flex: none; width: 320px; margin: 78px 32px 32px 0; max-height: calc(100vh - 64px - 60px); border: 1px solid var(--line); border-radius: var(--r-lg); }
   .req .rq-hd { border-radius: var(--r-lg) var(--r-lg) 0 0; height: 56px; }
-  .req .rq-x { display: none; } /* PC는 항상 고정 */
 }
 @media (min-width: 761px) and (max-width: 1439.98px) { .req { width: 280px; margin-right: 24px; } }
 @media (max-width: 760px) {
@@ -65,3 +64,10 @@
   body.req-on .scroll { flex-direction: column; align-items: stretch; }
   .req { position: static; width: auto; max-height: none; margin: 0 32px 32px !important; }
 }
+
+/* 위쪽 바 '요청사항' 버튼(PC): 누르면 오른쪽 칸을 펼치고 접는다. 폰은 이름 메뉴에서 연다 */
+.rq-open { gap: 6px; margin-right: 16px; }
+.rq-open.on { border-color: var(--primary); color: var(--primary); background: var(--primary-soft); }
+.rq-open .rq-n:empty { display: none; }
+.rq-open .rq-n { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--primary); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+@media (max-width: 760px) { .rq-open { display: none; } }

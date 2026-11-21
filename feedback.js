@@ -1,6 +1,6 @@
 /* 요청사항: 화면마다 대표님·팀원이 "이런 게 있으면 좋겠다"를 남기고, 고친 뒤 그 아래 의견(답글)을 단다.
    데이터는 팀 파일함 '_웍스/요청사항.json' 하나(세 사람 모두 쓰기 가능). 저장은 eTag로 충돌을 막고, 겹치면 다시 읽어 다시 적용한다.
-   PC는 각 화면 본문 오른쪽에 항상 고정된 칸(닫지 않음), 폰은 이름 메뉴에서 여는 덮는 패널. */
+   PC는 위쪽 바 '요청사항' 버튼으로 본문 오른쪽 칸을 펼치고 접는다(기본은 접음, 마지막 상태 기억 — 2026-11-21 사용자 "오른쪽 공간을 너무 차지"), 폰은 이름 메뉴에서 여는 덮는 패널. */
 const RQ_PATH = '_웍스/요청사항.json';
 const RQ_HINT = {
   home: '예: 대시보드에 이번 주 딜 미팅 일정도 같이 보이면 좋겠습니다',
@@ -185,20 +185,22 @@ function rqBind(box) {
 let rqOff = null;
 function rqOpen() {
   const box = $('#req'); if (!box) return;
-  box.hidden = false; document.body.classList.add('req-on'); rqAlignSoon();
-  if (rqWide()) { try { localStorage.setItem('reqDock', '1'); } catch { /* 기억 못 해도 됨 */ } } else if (!rqOff) rqOff = pushLayer(() => { rqOff = null; rqClose(true); }, () => { rqOff = null; rqClose(true); });
+  box.hidden = false; document.body.classList.add('req-on'); rqAlignSoon(); rqBtn(true);
+  if (rqWide()) { try { localStorage.setItem('reqDock2', '1'); } catch { /* 기억 못 해도 됨 */ } } else if (!rqOff) rqOff = pushLayer(() => { rqOff = null; rqClose(true); }, () => { rqOff = null; rqClose(true); });
   rqDraw();
   if (Date.now() - rqS.at > 20000 && !rqS.busy) rqLoad().then((ok) => { if (!ok) return; rqCount(); if (!rqDrafting()) rqDraw(); }).catch(() => {});
 }
 // viaBack === true: 뒤로 가기·다른 메뉴로 옮기기·화면 폭 변화로 닫힘 → 붙여 두기 설정은 그대로
 function rqClose(viaBack) {
   const box = $('#req'); if (!box) return;
-  box.hidden = true; document.body.classList.remove('req-on');
-  if (viaBack !== true && rqWide()) { try { localStorage.setItem('reqDock', '0'); } catch { /* 기억 못 해도 됨 */ } }
+  box.hidden = true; document.body.classList.remove('req-on'); rqBtn(false);
+  if (viaBack !== true && rqWide()) { try { localStorage.setItem('reqDock2', '0'); } catch { /* 기억 못 해도 됨 */ } }
   if (viaBack !== true && rqOff) { rqOff(); rqOff = null; }
 }
 function rqToggle() { $('#req')?.hidden ? rqOpen() : rqClose(); }
-const rqDock = () => true; // PC는 항상 열어 둔다
+// PC: 마지막으로 펼쳐 둔 상태를 기억(처음엔 접음)
+const rqDock = () => { try { return localStorage.getItem('reqDock2') === '1'; } catch { return false; } };
+const rqBtn = (on) => { const b = $('#req-btn'); if (b) { b.classList.toggle('on', on); b.setAttribute('aria-expanded', on); } };
 
 // 박스 위쪽 선을 그 화면 첫 본문 카드(공용 폴더 목록, 딜소싱 필터 카드 등)의 위쪽 선에 맞춘다
 function rqAlign() {
@@ -222,7 +224,7 @@ async function rqInit() {
   RQ_MQL.addEventListener?.('change', (e) => {
     if (e.matches) {
       if (rqOff) { rqOff(); rqOff = null; }
-      if (!box.hidden) { try { localStorage.setItem('reqDock', '1'); } catch { /* 기억 못 해도 됨 */ } } else if (rqDock()) rqOpen();
+      if (!box.hidden) { try { localStorage.setItem('reqDock2', '1'); } catch { /* 기억 못 해도 됨 */ } } else if (rqDock()) rqOpen();
     } else if (!box.hidden) rqClose(true);
   });
   window.addEventListener('hashchange', () => { rqS.reply = null; rqS.replyDraft = ''; rqS.edit = null; rqS.editDraft = ''; rqDraw(); });
