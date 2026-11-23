@@ -348,22 +348,43 @@ const OUTLOOK = {
       throw e;
     }
   },
+  /* 회사 캘린더에 연결한 사본(2026-11-23): Teams 회의·참석자 있는 회의·첨부 있는 일정은 원래 것을 지우면 회의가 취소되거나 링크가 바뀌어
+     옮기지 않고 회사 캘린더에 같은 내용의 사본을 만든다. 사본에 원래 일정 iCalUId를 이 속성으로 남기고,
+     목록에서는 사본이 있는 원래 일정을 빼서 한 번만 보인다(원래 일정은 Outlook에 그대로).
+     calendarView는 확장 속성 $expand를 조용히 무시하고, 목록 조회의 속성 값은 255자에서 잘려(11/23 실계정 확인) 값은 iCalUId만 넣고
+     연결 사본 목록은 /events $filter로 따로 읽는다. 사본의 Teams 참가 주소는 내용(bodyPreview)의 '참가:' 주소 */
+  LINK_PROP: 'String {6a1f7d2e-3c4b-4e59-9b8a-2f0c5d7e1a93} Name WorksLink',
+  async linkedIds(cid, fromIso) {
+    const P = OUTLOOK.LINK_PROP, map = {};
+    const f = `singleValueExtendedProperties/Any(ep: ep/id eq '${P}' and ep/value ne null) and end/dateTime ge '${fromIso}'`;
+    let url = `${cid}/events?${new URLSearchParams({ $filter: f, $select: 'id', $top: '200', $expand: `singleValueExtendedProperties($filter=id eq '${P}')` })}`;
+    while (url) {
+      const j = await G.get(url);
+      for (const e of j.value) { const v = e.singleValueExtendedProperties?.[0]?.value; if (v) map[e.id] = v; }
+      url = j['@odata.nextLink'] || null;
+    }
+    return map;
+  },
   async events(start, end) {
-    const sel = 'id,subject,start,end,isAllDay,location,onlineMeeting,organizer,isOrganizer,attendees,webLink,isCancelled,bodyPreview,categories';
+    const sel = 'id,iCalUId,subject,start,end,isAllDay,location,onlineMeeting,organizer,isOrganizer,attendees,webLink,isCancelled,bodyPreview,categories';
     const kst = (t) => (/[zZ]|[+-]\d\d:?\d\d$/.test(t) ? t : `${t}+09:00`); // 시간대가 없으면 Graph가 UTC로 읽어 오전 9시 전 일정이 빠진다
     const q = new URLSearchParams({ startDateTime: kst(start), endDateTime: kst(end), $top: '200', $orderby: 'start/dateTime', $select: sel });
     const out = [], cals = Object.entries(await OUTLOOK.calendarIds());
     let failed = 0, lastErr = null;
     for (const [cal, cid] of cals) {
       let url = `${cid}/calendarView?${q}`;
+      const lp = cal === 'team' ? OUTLOOK.linkedIds(cid, new Date(kst(start)).toISOString().slice(0, 19)).catch(() => ({})) : null; // 못 읽어도 일정은 보이게(두 번 보일 뿐)
       try { while (url) {
         const j = await G.get(url, { headers: G.KST });
+        const links = lp ? await lp : {};
         for (const e of j.value) {
+          const lu = links[e.id] || '';
           out.push({
-            id: e.id, cal, organizer_me: !!e.isOrganizer,
+            id: e.id, cal, organizer_me: !!e.isOrganizer, uid: e.iCalUId || '', linkUid: lu,
             editable: !!e.isOrganizer && !(e.attendees || []).length && (cal !== 'team' || OUTLOOK.teamWritable), // 참석자 없는 내 일정만 (수정 시 상대에게 알림이 가지 않게)
             subject: e.subject || '(제목 없음)', start: e.start.dateTime.slice(0, 16), end: e.end.dateTime.slice(0, 16),
-            allDay: !!e.isAllDay, location: e.location?.displayName || '', join: e.onlineMeeting?.joinUrl || '',
+            allDay: !!e.isAllDay, location: e.location?.displayName || '',
+            join: e.onlineMeeting?.joinUrl || (lu && (/https:\/\/teams\.microsoft\.com\/[^\s<>"]+/.exec(e.bodyPreview || '') || [])[0]) || '',
             organizer: e.organizer?.emailAddress?.name || '', link: e.webLink || '', cancelled: !!e.isCancelled, categories: e.categories || [],
           });
         }
@@ -371,7 +392,9 @@ const OUTLOOK = {
       } } catch (e) { failed++; lastErr = e; } // 팀 캘린더 하나가 막혀도 내 일정은 보여 준다
     }
     if (failed && failed === cals.length) throw lastErr;
-    const res = out.sort((a, b) => a.start.localeCompare(b.start) || (a.cal === 'team' ? -1 : 1));
+    const linked = new Map(out.filter((x) => x.linkUid).map((x) => [x.linkUid, x]));
+    for (const x of out) { const c = x.cal === 'me' && linked.get(x.uid); if (c && x.join) c.join = x.join; } // 원래 일정이 보이면 그 참가 주소를 쓴다
+    const res = out.filter((x) => x.cal === 'team' || !linked.has(x.uid)).sort((a, b) => a.start.localeCompare(b.start) || (a.cal === 'team' ? -1 : 1));
     res.partial = failed > 0; // 캘린더 하나가 빠진 결과는 기기에 남기지 않는다(eventsSafe)
     return res;
   },
@@ -484,6 +507,25 @@ const OUTLOOK = {
       const err = new Error(`옮긴 캘린더에 추가했지만 원래 일정을 지우지 못했습니다. 원래 일정을 지워 주세요 (${e.message})`);
       err.moved = true; throw err;
     }
+  },
+  // 회사 캘린더에 연결: 원래 일정(o: 목록 항목)은 건드리지 않고 사본만 만든다. 알림은 원래 일정이 울리니 사본은 끈다
+  async link(o, b) {
+    if (!o.uid) throw new Error('이 일정은 회사 캘린더에 연결할 수 없습니다');
+    const ids = await OUTLOOK.calendarIds();
+    if (!ids.team) throw new Error('팀 캘린더를 열 수 없습니다. 잠시 후 다시 해 주세요');
+    const note = b.note || '', join = o.join && !/https:\/\/teams\.microsoft\.com\//.test(note) ? `Microsoft Teams 모임\n참가: ${o.join}\n\n` : ''; // 참가 주소가 내용 앞쪽(bodyPreview)에 있어야 대표님 화면에도 참가 버튼
+    const body = OUTLOOK.body({ ...b, note: join + note, reminder: '' });
+    delete body.recurrence;
+    body.singleValueExtendedProperties = [{ id: OUTLOOK.LINK_PROP, value: o.uid }];
+    return OUTLOOK.teamTry('team', () => G.post(`${ids.team}/events`, body, { headers: G.KST }));
+  },
+  /* 연결한 사본을 내 일정으로 되돌리기: 내 캘린더에 원래 일정이 있으면 사본만 지운다(원래 일정이 다시 보임).
+     없으면(다른 사람이 연결했거나 원래 것을 지움) 보통 옮기기처럼 내 일정에 만들고 사본을 지운다 */
+  async unlink(c, b) {
+    const r = await G.get(`/me/events?$filter=${encodeURIComponent(`iCalUId eq '${c.linkUid}'`)}&$select=id&$top=1`).catch(() => ({ value: [] }));
+    if (!r.value?.length) return OUTLOOK.move(c.id, b, 'team');
+    await OUTLOOK.checkEditable(c.id, 'team');
+    return OUTLOOK.teamTry('team', () => G.del(OUTLOOK.evUrl(c.id, 'team')));
   },
   async removeMeeting(id, cal) { // 내가 연 회의는 참석자에게 취소 알림을 보내며 지우고, 받은 초대는 내 캘린더에서만 지운다
     const p = OUTLOOK.evUrl(id, cal);

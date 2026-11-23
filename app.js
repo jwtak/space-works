@@ -1064,8 +1064,10 @@ async function openEventModalInner(id, events, onDone, date, pre) {
   const remNow = !e ? '15' : det.isReminderOn === false ? '' : String(det.reminderMinutesBeforeStart ?? 15);
   const noteNow = (det.body?.content || '').trim();
   const opts = (list, cur) => list.map(([v, t]) => `<option value="${v}" ${v === cur ? 'selected' : ''}>${t}</option>`).join('');
-  // 있던 일정도 캘린더를 바꿀 수 있다(새로 만들고 원래 것 삭제). 반복 일정·첨부·Teams 회의는 옮기면 빠지는 게 있어 Outlook에서
-  const canMove = !e || (!series && !det.hasAttachments && !e.join && OUTLOOK.teamWritable);
+  // 있던 일정도 캘린더를 바꿀 수 있다(새로 만들고 원래 것 삭제). 반복 일정은 고정.
+  // 내 일정의 Teams 회의·첨부 있는 일정은 지우면 회의가 취소되거나 링크·첨부가 사라져, 원래 것은 두고 회사 캘린더에 사본을 연결한다(OUTLOOK.link)
+  const keepOrig = !!e && (!!e.join || !!det.hasAttachments || !!(det.attendees || []).length);
+  const canMove = !e || (!series && OUTLOOK.teamWritable && (e.cal === 'me' ? !keepOrig || !!e.uid : !!e.linkUid || !keepOrig));
   const calNow = e ? e.cal : OUTLOOK.teamWritable ? 'team' : 'me';
   openSheet(`<h3>${e ? '일정 수정' : '일정 추가'}</h3>
     <form class="ev-form" id="evf" autocomplete="off">
@@ -1104,7 +1106,10 @@ async function openEventModalInner(id, events, onDone, date, pre) {
       if (!series && v.repeat && (moving || v.repeat !== repNow)) body.repeat = v.repeat;
       save.disabled = true;
       try {
-        await (moving ? OUTLOOK.move(id, body, e.cal) : id ? OUTLOOK.update(id, body, e.cal) : OUTLOOK.create(body));
+        await (!moving ? (id ? OUTLOOK.update(id, body, e.cal) : OUTLOOK.create(body))
+          : e.cal === 'me' && keepOrig ? OUTLOOK.link(e, body)
+            : e.cal === 'team' && e.linkUid ? OUTLOOK.unlink(e, body)
+              : OUTLOOK.move(id, body, e.cal));
         close(); ui.selDay = body.startDate;
         const calName = body.calendar === 'team' ? '유니버스인베스트먼트 캘린더' : '내 일정';
         toast(moving ? `${calName}${body.calendar === 'team' ? '로' : '으로'} 옮겼습니다` : id ? 'Outlook 일정을 고쳤습니다' : `${calName}에 추가했습니다`);
@@ -1131,18 +1136,34 @@ async function openEventView(e, onDone) {
     const who = (det.attendees || []).map((a) => a.emailAddress?.name || a.emailAddress?.address).filter(Boolean);
     const note = (det.body?.content || '').split(/_{10,}/)[0].trim(); // Teams 초대 안내문(밑줄 구분선 아래)은 뺀다
     const row = (l, v) => (v ? `<div class="r"><label>${l}</label><div class="v">${v}</div></div>` : '');
+    // 참석자 있는 회의·받은 초대도 회사 캘린더에 연결할 수 있다(원래 일정은 그대로, OUTLOOK.link)
+    const canLink = !e.stale && e.cal === 'me' && !!e.uid && OUTLOOK.teamWritable && det.type !== 'occurrence' && det.type !== 'exception';
+    const calHtml = canLink
+      ? `<div class="cal-pick">${CALS.slice(0, 2).map((c) => `<label class="c-${c.key}"><input type="radio" name="calendar" value="${c.key}" ${c.key === 'me' ? 'checked' : ''}><i class="cdot"></i>${c.name}<span class="muted">${c.sub}</span></label>`).join('')}</div>`
+      : `<span class="cal-tag c-${e.cal}"><i class="cdot"></i>${e.cal === 'team' ? '유니버스인베스트먼트' : '내 일정'}</span>`;
     openSheet(`<h3>${esc(e.subject)}</h3>
       <div class="ev-form ev-view">
-        ${row('캘린더', `<span class="cal-tag c-${e.cal}"><i class="cdot"></i>${e.cal === 'team' ? '유니버스인베스트먼트' : '내 일정'}</span>`)}
+        ${row('캘린더', calHtml)}
         ${row('일시', esc(when))}
         ${row('담당자', esc(evOwners(e).join(', ')))}
         ${row('주최자', e.organizer_me ? '' : esc(e.organizer || ''))}
         ${row('참석자', esc(who.join(', ')))}
         ${row('장소', esc(e.location || ''))}
         ${row('내용', esc(note))}
-        <div class="ev-actions">${e.stale || (e.cal === 'team' && !OUTLOOK.teamWritable) ? '' : '<button type="button" class="btn ghost danger" data-del>삭제</button>'}<span class="sp"></span>${e.link ? `<a class="btn grey" href="${esc(e.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}${e.join ? `<a class="btn primary" href="${esc(e.join)}" target="_blank" rel="noopener">Teams 참가</a>` : '<button type="button" class="btn primary" data-close>닫기</button>'}</div>
+        <div class="ev-actions">${e.stale || (e.cal === 'team' && !OUTLOOK.teamWritable) ? '' : '<button type="button" class="btn ghost danger" data-del>삭제</button>'}<span class="sp"></span>${e.link ? `<a class="btn grey" href="${esc(e.link)}" target="_blank" rel="noopener">Outlook에서 열기</a>` : ''}<span class="ev-last">${e.join ? `<a class="btn primary" href="${esc(e.join)}" target="_blank" rel="noopener">Teams 참가</a>` : '<button type="button" class="btn primary" data-close>닫기</button>'}</span>${canLink ? '<button type="button" class="btn primary" data-save hidden>저장</button>' : ''}</div>
       </div>`, (el, close) => {
       const b = el.querySelector('[data-close]'); if (b) b.onclick = close;
+      const sv = el.querySelector('[data-save]');
+      if (sv) {
+        const last = el.querySelector('.ev-last'), pick = () => el.querySelector('input[name="calendar"]:checked')?.value;
+        el.querySelectorAll('input[name="calendar"]').forEach((r) => r.addEventListener('change', () => { sv.hidden = pick() !== 'team'; last.hidden = !sv.hidden; }));
+        sv.onclick = async () => {
+          sv.disabled = true;
+          const sd2 = e.start.slice(0, 10), owners = evOwners(e);
+          const body = { subject: e.subject, startDate: sd2, endDate: e.allDay ? ed : e.end.slice(0, 10), startTime: e.start.slice(11, 16), endTime: e.end.slice(11, 16), allDay: e.allDay, location: e.location, note: (det.body?.content || '').trim(), categories: [...(e.categories || []).filter((c) => !PEOPLE.includes(c)), ...(owners.length ? owners : PEOPLE.filter((x) => myName().includes(x)))] };
+          try { await OUTLOOK.link(e, body); close(); toast('유니버스인베스트먼트 캘린더로 옮겼습니다'); onDone?.(); } catch (err) { sv.disabled = false; toast(err.message); }
+        };
+      }
       const del = el.querySelector('[data-del]');
       if (del) del.onclick = async () => {
         const msg = e.organizer_me ? `이 회의를 취소할까요?\n${who.length ? `참석자(${who.join(', ')})에게` : '참석자에게'} 취소 알림이 갑니다.` : '이 일정을 내 캘린더에서 삭제할까요?\n주최자에게는 알리지 않습니다.';
