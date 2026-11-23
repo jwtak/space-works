@@ -1,9 +1,12 @@
-/* 준비서류 체크(2026-11-12): 공통업무 > 법인설립(#corp)·금감원 면담(#fss).
+/* 준비서류 체크(2026-11-12): 공통업무 > 법인 설립(#corp)·금감원 면담(#fss).
    목록과 체크 상태는 팀 파일함 '_웍스/준비서류.json' 하나를 세 사람이 같이 쓴다(누구나 체크, 누가 언제 했는지 남김).
    { lists: { corp|fss: { title, event, date, src, folder, personFolders?, people[], roles{}, owners[],
        sections[{ title, kind: 'people'|'company', note, items[{ id, title, detail, due, na?[사람], owner? }] }] } },
      state: { <항목 id>: 사람 서류면 { <사람>: { s: 'todo'|'done'|'na', by, at } }, 회사 서류면 { owner, s, by, at } },
      memos: { <항목 id>: { t, by, at } } }  — 서류 줄마다 메모 하나(누구나 쓰고 고친다, 비우면 지움)
+   날짜별 할 일(2026-11-23, 법인 설립): 섹션에 date(YYYY-MM-DD)와 when('오전', '10시', '이후' 같은 때 표시)이 있으면 날짜 묶음으로 그린다.
+     이때 항목마다 kind: 'people'이면 사람별 칸, 없으면 담당을 고르는 회사 일. L.coFolder는 회사 일 요약 칸의 폴더.
+     지난 날짜 묶음은 다 끝났으면 '지난 일정'으로 접고(펼침은 viewGet), 오늘 묶음은 파란 테두리, 오늘 뒤 첫 날짜는 '다음'.
    서류 목록은 공개 저장소에 두지 않으려고 코드에 없다 — 목록을 바꿀 땐 그 파일을 고친다.
    저장은 할 일 맡기기(app.js ttSave)처럼 eTag로 충돌을 막고, 겹치면 다시 읽어 다시 적용한다 */
 const PR_PATH = '_웍스/준비서류.json';
@@ -71,10 +74,13 @@ const prMemoBtn = (it) => (PR.edit === it.id || PR.d.memos[it.id]?.t ? '' : `<bu
 const PR_NEXT = { todo: 'done', done: 'na', na: 'todo' };
 const PR_LABEL = { todo: '미준비', done: '준비됨', na: '해당 없음' };
 
+const prKind = (sec, it) => (sec.date ? (it.kind === 'people' ? 'people' : 'company') : sec.kind);
+// 한 항목이 끝났는지: 사람 칸은 모두 준비됨이나 해당 없음, 회사 일은 준비됨
+const prItemDone = (L, sec, it) => (prKind(sec, it) === 'people' ? L.people.every((p) => prCell(it, p).s !== 'todo') : prCo(it).s === 'done');
 function prCount(L) {
   const per = Object.fromEntries(L.people.map((p) => [p, { n: 0, done: 0 }])), co = { n: 0, done: 0, mine: 0 };
   for (const sec of L.sections) for (const it of sec.items) {
-    if (sec.kind === 'people') for (const p of L.people) { const s = prCell(it, p).s; if (s !== 'na') { per[p].n++; if (s === 'done') per[p].done++; } }
+    if (prKind(sec, it) === 'people') for (const p of L.people) { const s = prCell(it, p).s; if (s !== 'na') { per[p].n++; if (s === 'done') per[p].done++; } }
     else { const c = prCo(it); co.n++; if (c.s === 'done') co.done++; if (c.owner && c.owner === prMe() && c.s !== 'done') co.mine++; }
   }
   return { per, co };
@@ -84,6 +90,53 @@ function prDue(due, done) {
   if (!due) return '';
   const d = diffDays(due, today()), cls = done ? '' : d < 0 ? 'red' : d <= 3 ? 'amber' : '';
   return `<span class="pr-due ${cls}" title="${prMD(due)}">${!done && d < 0 ? `${-d}일 지남` : prMD(due)}</span>`;
+}
+
+// 사람 서류 칸 하나(표와 날짜 묶음이 같이 쓴다)
+function prPCell(it, p) {
+  const c = prCell(it, p);
+  return `<button type="button" class="pr-cell s-${c.s}" data-id="${esc(it.id)}" data-p="${esc(p)}" aria-label="${esc(`${p} ${it.title}: ${PR_LABEL[c.s]}`)}"
+    title="${esc(`${p}: ${PR_LABEL[c.s]}${c.by ? ` (${personName(c.by)} ${prWhen(c.at)})` : ''} · 누르면 ${PR_LABEL[PR_NEXT[c.s]]}`)}">${c.s === 'done' ? ico('done', 'sm') : c.s === 'na' ? '–' : ''}</button>`;
+}
+// 회사 일 한 줄: 체크, 내용, 담당
+function prCoLi(L, it, me, noDue) {
+  const c = prCo(it), opts = [...new Set([...(L.owners || []), ...(c.owner ? [c.owner] : [])])];
+  return `<li class="${c.s === 'done' ? 'done' : ''}">
+    <button type="button" class="pr-cell s-${c.s === 'done' ? 'done' : 'todo'}" data-co="${esc(it.id)}" aria-label="${esc(`${it.title}: ${c.s === 'done' ? '준비됨' : '미준비'}`)}"
+      title="${esc(c.s === 'done' && c.by ? `준비됨 (${personName(c.by)} ${prWhen(c.at)})` : '누르면 준비됨')}">${c.s === 'done' ? ico('done', 'sm') : ''}</button>
+    <div class="pr-doc"><div class="pr-t">${esc(it.title)}${noDue ? '' : prDue(it.due, c.s === 'done')}${prMemoBtn(it)}</div>${it.detail ? `<div class="pr-det">${esc(it.detail)}</div>` : ''}${prMemo(it)}</div>
+    <select class="select pr-own ${c.owner ? '' : 'none'} ${c.owner && c.owner === me ? 'me' : ''}" data-own="${esc(it.id)}" aria-label="담당">
+      <option value="">담당 미정</option>${opts.map((o) => `<option ${o === c.owner ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
+  </li>`;
+}
+// 날짜 묶음 안의 사람별 항목: 사람 아이콘, 내용, 사람마다 칸
+function prPpLi(L, it, me) {
+  const done = L.people.every((p) => prCell(it, p).s !== 'todo');
+  return `<li class="pr-pp ${done ? 'done' : ''}">
+    <span class="pr-pi" title="사람별 체크">${ico('user', 'sm')}</span>
+    <div class="pr-doc"><div class="pr-t">${esc(it.title)}${prMemoBtn(it)}</div>${it.detail ? `<div class="pr-det">${esc(it.detail)}</div>` : ''}${prMemo(it)}</div>
+    <div class="pr-ppl">${L.people.map((p) => `<span class="pr-pw ${p === me ? 'me' : ''}"><small>${esc(p)}</small>${prPCell(it, p)}</span>`).join('')}</div>
+  </li>`;
+}
+const prDayTitle = (sec) => `${prMD(sec.date)}${sec.when ? ` ${sec.when}` : ''}`;
+function prDays(L, me) {
+  const t = today(), next = L.sections.map((s) => s.date).filter((d) => d > t).sort()[0];
+  const one = (sec) => {
+    const d = diffDays(sec.date, t), left = sec.items.filter((it) => !prItemDone(L, sec, it)).length;
+    const cls = d === 0 ? 'today' : d < 0 ? 'past' : sec.date === next ? 'next' : '';
+    const tag = !left ? '<span class="chip green">완료</span>' : d === 0 ? '<span class="chip blue">오늘</span>' : d < 0 ? `<span class="chip red">${left}건 남음</span>`
+      : sec.date === next ? `<span class="chip line">다음 D-${d}</span>` : `<span class="meta">D-${d}</span>`;
+    return `<section class="card pr-sec pr-day ${cls}">
+      <div class="card-head"><h2>${esc(prDayTitle(sec))}</h2>${tag}${sec.note ? `<span class="meta">${esc(sec.note)}</span>` : ''}<span class="pr-dn">${sec.items.length - left}/${sec.items.length}</span></div>
+      <ul class="pr-co">${sec.items.map((it) => (prKind(sec, it) === 'people' ? prPpLi(L, it, me) : prCoLi(L, it, me, true))).join('')}</ul>
+    </section>`;
+  };
+  // 지난 날짜 가운데 다 끝난 묶음만 접는다. 남은 일이 있으면 지나도 펼쳐 둔다
+  const fold = L.sections.filter((s) => s.date < t && s.items.every((it) => prItemDone(L, s, it)));
+  const rest = L.sections.filter((s) => !fold.includes(s));
+  const open = viewGet('prep.past', false);
+  const foldHtml = fold.length ? `<button type="button" class="pr-fold ${open ? 'open' : ''}" data-fold aria-expanded="${open}"><b>지난 일정</b><span>${fold.map(prDayTitle).join(', ')} 완료</span>${ico('right', 'sm')}</button>${open ? fold.map(one).join('') : ''}` : '';
+  return foldHtml + rest.map(one).join('');
 }
 
 function renderPrep(host, key) {
@@ -99,15 +152,15 @@ function prDraw() {
     root.innerHTML = `<div class="page-head"><h1>${esc(CRUMB[key])}</h1></div><section class="card"><div class="empty">${esc(PR.err || (PR.loaded ? '준비서류 목록이 아직 없습니다. 탁지원 대리에게 알려 주세요.' : '불러오는 중…'))}</div></section>`;
     return;
   }
-  const me = prMe(), { per, co } = prCount(L), dd = L.date ? diffDays(L.date, today()) : null;
+  const me = prMe(), { per, co } = prCount(L), dd = L.date ? diffDays(L.date, today()) : null, byDay = L.sections.some((s) => s.date);
   const sum = `<section class="pr-sum">
     ${L.people.map((p) => `<div class="pr-who ${p === me ? 'me' : ''}">
       <div class="pr-who-h"><b title="${esc(L.roles?.[p] || '')}">${esc(p)}</b><span class="pr-role">${esc(L.roles?.[p] || '')}</span>${L.personFolders?.[p] ? `<a class="pr-fd" href="${esc(prFolder(L.personFolders[p]))}" title="${esc(p)} 서류 폴더">${ico('folder', 'sm')}</a>` : ''}</div>
       <div class="pr-who-n"><b>${per[p].done}</b> / ${per[p].n}${per[p].n && per[p].done === per[p].n ? '<span class="chip green">완료</span>' : ''}</div>${prBar(per[p].done, per[p].n)}</div>`).join('')}
-    <div class="pr-who co"><div class="pr-who-h"><b>회사 서류</b>${co.mine ? `<span>내 담당 ${co.mine}건 남음</span>` : ''}</div>
+    <div class="pr-who co"><div class="pr-who-h"><b>${byDay ? '회사 할 일' : '회사 서류'}</b>${co.mine ? `<span>내 담당 ${co.mine}건 남음</span>` : ''}${L.coFolder ? `<a class="pr-fd" href="${esc(prFolder(L.coFolder))}" title="회사 서류 폴더">${ico('folder', 'sm')}</a>` : ''}</div>
       <div class="pr-who-n"><b>${co.done}</b> / ${co.n}</div>${prBar(co.done, co.n)}</div>
   </section>`;
-  const secs = L.sections.map((sec, si) => {
+  const secs = byDay ? prDays(L, me) : L.sections.map((sec, si) => {
     if (sec.kind === 'people') {
       const n = sec.items.length * L.people.length, done = sec.items.reduce((a, it) => a + L.people.filter((p) => prCell(it, p).s === 'done').length, 0);
       return `<section class="card pr-sec">
@@ -116,9 +169,7 @@ function prDraw() {
           <thead><tr><th class="pr-doc">서류</th>${L.people.map((p) => `<th class="${p === me ? 'me' : ''}">${esc(p)}</th>`).join('')}</tr></thead>
           <tbody>${sec.items.map((it) => `<tr>
             <td class="pr-doc"><div class="pr-t">${esc(it.title)}${prDue(it.due, L.people.every((p) => prCell(it, p).s !== 'todo'))}${prMemoBtn(it)}</div>${it.detail ? `<div class="pr-det">${esc(it.detail)}</div>` : ''}${prMemo(it)}</td>
-            ${L.people.map((p) => { const c = prCell(it, p);
-              return `<td class="${p === me ? 'me' : ''}"><button type="button" class="pr-cell s-${c.s}" data-id="${esc(it.id)}" data-p="${esc(p)}" aria-label="${esc(`${p} ${it.title}: ${PR_LABEL[c.s]}`)}"
-                title="${esc(`${p}: ${PR_LABEL[c.s]}${c.by ? ` (${personName(c.by)} ${prWhen(c.at)})` : ''} · 누르면 ${PR_LABEL[PR_NEXT[c.s]]}`)}">${c.s === 'done' ? ico('done', 'sm') : c.s === 'na' ? '–' : ''}</button></td>`; }).join('')}
+            ${L.people.map((p) => `<td class="${p === me ? 'me' : ''}">${prPCell(it, p)}</td>`).join('')}
           </tr>`).join('')}</tbody>
         </table></div>
         <div class="pr-foot">${done}/${n}칸 준비됨</div>
@@ -126,14 +177,7 @@ function prDraw() {
     }
     return `<section class="card pr-sec">
       <div class="card-head"><h2>${esc(sec.title)}</h2>${sec.note ? `<span class="meta">${esc(sec.note)}</span>` : ''}${sec.folder ? `<a class="btn sm act" href="${esc(prFolder(sec.folder))}">${ico('folder', 'sm')}<span>회사 서류 폴더</span></a>` : ''}</div>
-      <ul class="pr-co">${sec.items.map((it) => { const c = prCo(it), opts = [...new Set([...(L.owners || []), ...(c.owner ? [c.owner] : [])])];
-        return `<li class="${c.s === 'done' ? 'done' : ''}">
-          <button type="button" class="pr-cell s-${c.s === 'done' ? 'done' : 'todo'}" data-co="${esc(it.id)}" aria-label="${esc(`${it.title}: ${c.s === 'done' ? '준비됨' : '미준비'}`)}"
-            title="${esc(c.s === 'done' && c.by ? `준비됨 (${personName(c.by)} ${prWhen(c.at)})` : '누르면 준비됨')}">${c.s === 'done' ? ico('done', 'sm') : ''}</button>
-          <div class="pr-doc"><div class="pr-t">${esc(it.title)}${prDue(it.due, c.s === 'done')}${prMemoBtn(it)}</div>${it.detail ? `<div class="pr-det">${esc(it.detail)}</div>` : ''}${prMemo(it)}</div>
-          <select class="select pr-own ${c.owner ? '' : 'none'} ${c.owner && c.owner === me ? 'me' : ''}" data-own="${esc(it.id)}" aria-label="담당">
-            <option value="">담당 미정</option>${opts.map((o) => `<option ${o === c.owner ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
-        </li>`; }).join('')}</ul>
+      <ul class="pr-co">${sec.items.map((it) => prCoLi(L, it, me)).join('')}</ul>
     </section>`;
   }).join('');
   root.innerHTML = `<div class="page-head"><h1>${esc(L.title)}</h1>
@@ -142,6 +186,7 @@ function prDraw() {
     ${sum}${secs}
     ${L.src ? `<div class="pr-src">목록 근거: ${esc(L.src)}</div>` : ''}`;
 
+  $('[data-fold]', root)?.addEventListener('click', () => { viewSet('prep.past', !viewGet('prep.past', false)); prDraw(); });
   root.querySelectorAll('[data-p]').forEach((b) => b.addEventListener('click', () => {
     const id = b.dataset.id, p = b.dataset.p, it = L.sections.flatMap((s) => s.items).find((x) => x.id === id); if (!it) return;
     const to = PR_NEXT[prCell(it, p).s], st = { s: to, ...prStamp() };

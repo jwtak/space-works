@@ -401,7 +401,7 @@ function infoOpen(k) {
 }
 const infoBtn = (k) => (TAB_INFO[k] ? `<button class="btn ghost info-btn" type="button" data-info="${esc(k)}" aria-label="화면 설명">${ico('info', 'sm')}<span class="info-txt">화면 설명</span></button>` : '');
 document.addEventListener('click', (e) => { const b = e.target.closest('[data-info]'); if (b) infoOpen(b.dataset.info); });
-const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', news: '딜 뉴스', deals: '딜소싱', pipeline: '파이프라인', market: '시장동향', valuation: '가치평가', weekly: '주간회의', files: '공용 폴더', corp: '운용사 설립', fss: '금감원 면담', cash: '자금', notes: '업무일지·회의록', programs: '프로그램', homepage: '홈페이지' };
+const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail: '메일', news: '딜 뉴스', deals: '딜소싱', pipeline: '파이프라인', market: '시장동향', valuation: '가치평가', weekly: '주간회의', files: '공용 폴더', corp: '법인 설립', fss: '금감원 면담', cash: '자금', notes: '업무일지·회의록', programs: '프로그램', homepage: '홈페이지' };
 function render() {
   if (!S) return; // 로그인·데이터 읽기 전 hashchange
   let r = route();
@@ -604,7 +604,7 @@ function renderHomeMobile() {
     ['#valuation', 'calc', '가치평가', ''],
     ['#weekly', 'week', '주간회의', ''],
     ['#files', 'folder', '공용 폴더', ''],
-    ['#corp', 'home', '운용사 설립', ''],
+    ['#corp', 'home', '법인 설립', ''],
     ['#fss', 'flag', '금감원 면담', ''],
     ...(typeof csAllowed === 'function' && csAllowed() ? [['#cash', 'wallet', '자금', '']] : []),
     ['#programs', 'box', '프로그램', prog ? `<i class="mh-n grey">${prog}</i>` : ''],

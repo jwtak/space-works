@@ -1,4 +1,4 @@
-/* 준비서류 체크: 법인설립(#corp)·금감원 면담(#fss) — prep.js */
+/* 준비서류 체크: 법인 설립(#corp)·금감원 면담(#fss) — prep.js */
 .pr-sum { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 12px; margin-bottom: 16px; }
 .pr-who { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 14px 16px; }
 .pr-who.me { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary) inset; }
@@ -65,6 +65,23 @@
 .pr-mbtns span { margin-right: auto; font-size: var(--fs-sm); color: var(--text3); }
 .pr-src { font-size: var(--fs-sm); color: var(--text3); margin: 4px 2px 0; }
 
+/* 날짜별 할 일(법인 설립): 날짜 묶음 카드, 오늘은 파란 테두리, 지난 날짜는 흐리게, 다 끝난 지난 날짜는 접음 */
+.pr-day.today { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary) inset; }
+.pr-day.today .card-head h2 { color: var(--primary); }
+.pr-day.past .card-head h2 { color: var(--text3); }
+.pr-dn { margin-left: auto; font-size: var(--fs-sm); color: var(--text3); font-variant-numeric: tabular-nums; }
+.pr-pi { width: 28px; height: 28px; flex: none; display: inline-grid; place-content: center; color: var(--text4); }
+.pr-ppl { display: flex; gap: 4px; flex: none; }
+.pr-pw { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 56px; }
+.pr-pw small { font-size: var(--fs-sm); line-height: 16px; color: var(--text3); white-space: nowrap; }
+.pr-pw.me small { color: var(--primary); font-weight: 600; }
+.pr-fold { display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 16px; padding: 12px 24px; background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); cursor: pointer; font: inherit; color: inherit; text-align: left; }
+.pr-fold:hover { background: var(--hover); }
+.pr-fold b { font-size: var(--fs-base); font-weight: 600; }
+.pr-fold span { font-size: var(--fs-sm); color: var(--text3); }
+.pr-fold svg.i { margin-left: auto; color: var(--text3); transition: transform .15s; }
+.pr-fold.open svg.i { transform: rotate(90deg); }
+
 @media (max-width: 760px) {
   .pr-sum { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 0 16px 12px; }
   .pr-who { padding: 12px; }
@@ -84,4 +101,9 @@
   .pr-own { height: 40px; width: 140px; font-size: var(--fs-base); }
   .pr-who .pr-fd { padding: 8px; margin: -8px -8px -8px auto; }
   .pr-det { font-size: var(--fs-md); line-height: 20px; }
+  .pr-day.today { box-shadow: inset 4px 0 0 var(--primary); }
+  .pr-co li.pr-pp .pr-doc { flex-basis: calc(100% - 40px); }
+  .pr-ppl { margin-left: 40px; gap: 8px; }
+  .pr-fold { margin: 0; padding: 12px 16px; border: 0; border-radius: 0; }
+  .pr-fold + .card { border-top: 8px solid var(--row); }
 }
