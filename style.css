@@ -463,6 +463,17 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 .sheet .menu .who { font-size: var(--fs-md); color: var(--text3); padding: 0 4px 10px; }
 .sheet .field { margin-bottom: 14px; }
 .sheet .full { width: 100%; height: 48px; font-size: var(--fs-xl); }
+/* 오류 기록(app.js errLogOpen) */
+.el-sheet { max-width: 640px; }
+.el-act { display: flex; gap: 8px; margin: -4px 0 12px; }
+.el-list { list-style: none; margin: 0; padding: 0; }
+.el-list li { padding: 12px 0; border-top: 1px solid var(--row); min-width: 0; }
+.el-list li.empty { color: var(--text3); }
+.el-top { display: flex; justify-content: space-between; gap: 12px; font-size: var(--fs-base); }
+.el-top span { flex: none; color: var(--text3); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.el-msg { margin-top: 4px; font-size: var(--fs-base); color: var(--text2); }
+.el-req, .el-raw { margin-top: 4px; font: var(--fs-sm)/20px Consolas, 'D2Coding', monospace; color: var(--text3); overflow-wrap: anywhere; letter-spacing: 0; }
+.el-raw { color: var(--text2); }
 .chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
 .chips::-webkit-scrollbar { display: none; }
 .chips label { flex: none; display: inline-flex; align-items: center; height: 36px; padding: 0 14px; border: 1px solid var(--line2); border-radius: var(--r-full); font-size: var(--fs-base); color: var(--text2); cursor: pointer; white-space: nowrap; }

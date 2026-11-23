@@ -70,8 +70,48 @@ function workDay(dateStr) { // DAY1부터 평일 기준 N일째
 }
 
 function toast(msg) {
-  const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
+  const t = document.createElement('div'); t.className = 'toast'; t.textContent = errShow(msg);
   document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
+}
+// 오류 문구: Graph 오류면 그 요청을 오류 기록에 남기고, 영어 원문이면 한국어로 바꾼다(graph.js ERRLOG)
+function errShow(msg) {
+  if (typeof ERRLOG !== 'object') return msg;
+  const r = (location.hash || '#home').slice(1).split('/')[0];
+  const a = document.querySelector(`#nav a[data-r="${r}"]`) || document.querySelector(`#nav a[href="#${r}"]`);
+  const name = a ? [...a.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim() : '';
+  return ERRLOG.shown(msg, name || r);
+}
+// 오류 기록(메뉴): 이 기기에서 띄운 오류 최근 50건. 캡처하거나 복사해 보내면 원인을 찾을 수 있다
+function errLogText(list) {
+  const v = (document.querySelector('script[src*="app.js"]')?.src.match(/[?&]v=([^&]+)/) || [])[1] || '';
+  return [`UNIVERSE WORKS ${v}
+${navigator.userAgent}`, ...list.map((x) => [
+    [new Date(x.t).toLocaleString('ko-KR'), [x.screen, x.act].filter(Boolean).join(' › ')].join(' '), x.msg, x.req, [x.status, x.code].filter((y) => y !== '' && y != null).join(' '), x.raw, x.rid && `request-id ${x.rid}`,
+  ].filter(Boolean).join('\n'))].join('\n\n');
+}
+function errLogOpen() {
+  const fmt = (t) => { const d = new Date(t); return isNaN(d) ? '' : `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`; };
+  const draw = (el) => {
+    const list = ERRLOG.list();
+    el.querySelector('.el-list').innerHTML = list.length ? list.map((x) => `<li>
+      <div class="el-top"><b>${esc([x.screen, x.act].filter(Boolean).join(' › '))}</b><span>${esc(fmt(x.t))}</span></div>
+      <div class="el-msg">${esc(x.msg || '')}</div>
+      ${x.req || x.code || x.status !== '' ? `<div class="el-req">${esc([x.status, x.code].filter((y) => y !== '' && y != null).join(' '))}${x.req ? ` ${esc(x.req)}` : ''}</div>` : ''}
+      ${x.raw ? `<div class="el-raw">${esc(x.raw)}</div>` : ''}
+    </li>`).join('') : '<li class="empty">기록된 오류가 없습니다</li>';
+    el.querySelectorAll('.el-act button').forEach((b) => { b.disabled = !list.length; });
+  };
+  openSheet(`<h3>오류 기록</h3>
+    <div class="el-act"><button type="button" class="btn sm" data-el="copy">복사</button><button type="button" class="btn sm ghost" data-el="clear">지우기</button></div>
+    <ul class="el-list"></ul>`, (el) => {
+    draw(el);
+    el.querySelector('[data-el=copy]').onclick = async () => {
+      const t = errLogText(ERRLOG.list());
+      try { await navigator.clipboard.writeText(t); toast('오류 기록을 복사했습니다'); }
+      catch { const ta = document.createElement('textarea'); ta.value = t; el.appendChild(ta); ta.select(); try { document.execCommand('copy'); toast('오류 기록을 복사했습니다'); } catch { toast('복사하지 못했습니다'); } ta.remove(); }
+    };
+    el.querySelector('[data-el=clear]').onclick = () => { ERRLOG.clear(); draw(el); };
+  }, 'el-sheet');
 }
 
 async function load() {
@@ -357,6 +397,7 @@ function accountMenu() {
       <li><a href="#deals" data-close>${ico('ticket')}딜소싱</a></li>
       <li><a href="#programs" data-close>${ico('box')}프로그램</a></li>
       <li><button type="button" id="m-guide">${ico('flag')}사용 안내</button></li>
+      <li><button type="button" id="m-errlog">${ico('alert')}오류 기록${typeof ERRLOG === 'object' && ERRLOG.list().length ? `<span class="cnt" style="margin-left:auto">${ERRLOG.list().length}</span>` : ''}</button></li>
       ${typeof pushMenuItem === 'function' ? pushMenuItem() : ''}
       <li><button type="button" id="m-req">${ico('spark')}요청사항<span class="cnt" data-cnt="req" style="margin-left:auto"></span></button></li>
       <li><button type="button" id="m-refresh">${ico('refresh')}새로고침</button></li>
@@ -367,6 +408,7 @@ function accountMenu() {
     el.querySelector('#m-logout').onclick = () => G.logout();
     el.querySelector('#m-req').onclick = () => { close(); if (typeof rqOpen === 'function') rqOpen(); };
     el.querySelector('#m-guide').onclick = () => { close(); setTimeout(() => gdOpen(true), 150); };
+    el.querySelector('#m-errlog').onclick = () => { close(); setTimeout(errLogOpen, 150); };
     el.addEventListener('click', (e) => { if (e.target.closest('[data-push-toggle]') && typeof pushToggle === 'function') pushToggle(); }); // 폰 알림 켜기·끄기(push.js)
     if (typeof rqCount === 'function') rqCount();
   });
@@ -642,7 +684,7 @@ function renderHomeMobile() {
     box.innerHTML = ev.map((e) => `<li class="click" ${e.editable ? `data-ev="${esc(e.id)}"` : 'data-go="#calendar"'}><span class="mh-time">${e.allDay ? '종일' : e.start.slice(11, 16)}</span><span class="mh-tt">${esc(e.subject)}</span>${e.location ? `<span class="mh-loc">${esc(e.location)}</span>` : ''}</li>`).join('') || '<li class="mh-empty">오늘 일정이 없습니다.</li>';
     box.querySelectorAll('[data-go]').forEach((li) => li.addEventListener('click', () => { location.hash = li.dataset.go; }));
     box.querySelectorAll('[data-ev]').forEach((li) => li.addEventListener('click', () => openEventModal(li.dataset.ev, r.events, () => { delete CALC[`${ymd(s0)}|${ymd(addDays(s0, 1))}`]; renderHome(); })));
-  }).catch((e) => { const box = $('#mh-ev'); if (box) box.innerHTML = `<li class="mh-empty">${esc(e.message)}</li>`; });
+  }).catch((e) => { const box = $('#mh-ev'); if (box) box.innerHTML = `<li class="mh-empty">${esc(errShow(e.message))}</li>`; });
   homePrenew();
   G.get('/me/mailFolders/inbox?$select=unreadItemCount').then((j) => { const n = $('#mh-mail'); if (n && j.unreadItemCount) { n.textContent = j.unreadItemCount > 99 ? '99+' : j.unreadItemCount; n.hidden = false; } }).catch(() => {});
 }
@@ -703,7 +745,7 @@ function renderDeals() {
   PAGE.querySelectorAll('[data-dt]').forEach((b) => b.addEventListener('click', () => { if (!b.classList.contains('on')) location.hash = b.dataset.dt; })); // 주소에 남겨 뒤로 가기로 전환
   const host = $('#deal-host'), fn = DEAL_SCREENS[k][2]();
   if (!fn) { host.innerHTML = '<div class="card"><div class="empty">준비 중</div></div>'; return; }
-  Promise.resolve(fn(host)).catch((e) => { host.innerHTML = `<div class="card"><div class="empty">${esc(e.message)}</div></div>`; });
+  Promise.resolve(fn(host)).catch((e) => { host.innerHTML = `<div class="card"><div class="empty">${esc(errShow(e.message))}</div></div>`; });
 }
 // 탭 줄이 넘치면 고른 탭을 가운데로(탭을 바꿀 때마다 새로 그려 처음 위치로 돌아가므로), PC 마우스 휠로도 옆으로 밀기(끝에 닿으면 화면 스크롤)
 /* 폰 필터 정리(2026-11-15 사용자: 목록 위에 요소가 다닥다닥 쌓여 보기 불편).
@@ -774,7 +816,7 @@ async function homeCalendar() {
       <div class="t"><div class="ttl">${esc(e.subject)}</div>${e.location ? `<div class="meta">${esc(e.location)}</div>` : ''}</div>${e.join ? `<a class="btn sm" href="${esc(e.join)}" target="_blank" rel="noopener">참가</a>` : ''}</li>`;
     const td = today(), a = ev.filter((e) => e.start.slice(0, 10) <= td), b = ev.filter((e) => e.start.slice(0, 10) > td);
     box.innerHTML = [['오늘', a], ['내일', b]].filter(([, l]) => l.length).map(([h, l]) => `<div class="sec-label">${h}</div><ul class="list">${l.map(row).join('')}</ul>`).join('');
-  } catch (e) { box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  } catch (e) { box.innerHTML = `<div class="empty">${esc(errShow(e.message))}</div>`; }
 }
 
 function relTime(ts) {
@@ -1482,7 +1524,7 @@ async function renderCalendar(force) {
     }
     $('#cal-body').innerHTML = `${calStaleBar(r.stale)}<section class="card" style="overflow:hidden">${html}</section>
       ${r.stale ? '' : `<div class="muted" style="font-size:var(--fs-xs);margin-top:8px">${r.fetched} 기준</div>`}`;
-  } catch (err) { const cb = $('#cal-body'); if (cb) cb.innerHTML = `<div class="empty">${esc(err.message)}</div>`; }
+  } catch (err) { const cb = $('#cal-body'); if (cb) cb.innerHTML = `<div class="empty">${esc(errShow(err.message))}</div>`; }
 }
 
 // ---------- 프로그램 ----------
@@ -1639,7 +1681,7 @@ async function openNote(name) {
       const st = $('#nst'); if (st && !c.conflict) st.textContent = '입력 중…';
       clearTimeout(noteTimer); if (!c.conflict) noteTimer = setTimeout(flushNote, 800); else noteDraftSet(c);
     });
-  } catch (e) { if (tok === noteTok) ed.innerHTML = `<div class="empty" style="margin:auto">${esc(e.message)}</div>`; }
+  } catch (e) { if (tok === noteTok) ed.innerHTML = `<div class="empty" style="margin:auto">${esc(errShow(e.message))}</div>`; }
 }
 
 // 업무일지 들여쓰기: Tab=고른 줄(없으면 지금 줄)을 한 단계 안으로, Shift+Tab=한 단계 밖으로.
@@ -1843,7 +1885,7 @@ async function start() {
     render();
     setTimeout(() => { if (typeof gdOpen === 'function') gdOpen(); }, 900); // 처음 들어온 사람에게 한 번 사용 안내
   } catch (e) {
-    PAGE.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+    PAGE.innerHTML = `<div class="empty">${esc(errShow(e.message))}</div>`;
   }
 }
 if ('serviceWorker' in navigator && location.protocol === 'https:') {

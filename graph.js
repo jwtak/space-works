@@ -133,18 +133,26 @@ const G = {
     let r, renewed = false;
     for (let i = 0; ; i++) {
       try { r = await G.slot(() => fetch(url, { method, headers: h, body: b, signal: ms && AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined })); }
-      catch (e) { if (e.name === 'TimeoutError' || e.name === 'AbortError') { const err = new Error('응답이 없습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.'); err.status = 0; throw err; } throw e; }
+      catch (e) {
+        // 응답 없음, 네트워크 끊김('Failed to fetch' 같은 영어 원문을 그대로 띄우지 않는다)
+        const t = e.name === 'TimeoutError' || e.name === 'AbortError';
+        const err = new Error(t ? '응답이 없습니다. 네트워크를 확인한 뒤 다시 시도해 주세요.' : '네트워크 연결이 끊겼습니다. 연결을 확인한 뒤 다시 해 주세요.');
+        err.status = 0; err.code = t ? 'Timeout' : 'Network'; err.raw = String(e.message || e.name || ''); ERRLOG.note(err, method, url);
+        throw err;
+      }
       if (r.status === 401 && !renewed) { renewed = true; h.Authorization = `Bearer ${await G.token(true)}`; continue; }
       if (!again.includes(r.status) || i >= 4) break;
       const wait = Math.min(Number(r.headers.get('Retry-After')) || 2 ** i, 20) * 1000 + Math.random() * 400;
       await new Promise((res) => setTimeout(res, wait));
     }
     if (!r.ok) {
-      let msg = `오류 ${r.status}`;
-      try { const j = await r.json(); msg = j.error?.message || msg; } catch { /* 본문 없음 */ }
-      if (r.status === 429 || /concurrency|throttl/i.test(msg)) msg = '요청이 많아 잠시 지연되고 있습니다. 잠시 후 새로고침해 주세요.';
-      else if (r.status >= 500 && msg === `오류 ${r.status}`) msg = `Microsoft 서버가 잠시 응답하지 않습니다(${r.status}). 잠시 후 다시 해 주세요.`;
-      const err = new Error(msg); err.status = r.status; throw err;
+      // 화면에는 한국어 한 줄(ERRLOG.ko), 영어 원문과 코드는 err.raw·err.code와 오류 기록에
+      let code = '', raw = '';
+      try { const j = await r.json(); code = j.error?.code || ''; raw = j.error?.message || ''; } catch { /* 본문 없음 */ }
+      const err = new Error(ERRLOG.ko(r.status, code, raw, method, url));
+      err.status = r.status; err.code = code; err.raw = raw;
+      ERRLOG.note(err, method, url, r.headers.get('request-id'), body);
+      throw err;
     }
     if (r.status === 204 || type === 'none') return null;
     if (type === 'text') return r.text();
@@ -158,6 +166,101 @@ const G = {
   put: (p, body, o) => G.raw('PUT', p, { ...o, body }),
   del: (p, o) => G.raw('DELETE', p, o),
   KST: { Prefer: 'outlook.timezone="Korea Standard Time"' },
+};
+
+/* ---------- Graph 오류: 화면 문구와 오류 기록 ----------
+   2026-11-23 메일 담당이 Graph로 만든 답장 초안 두 개 중 하나를 지운 사이 웍스에서 그 초안을 열어 'The specified object was not found in the store., …'(ErrorItemNotFound)가
+   영어 그대로 토스트에 떴다. 화면에는 한국어 한 줄만, 영어 원문·코드·요청 경로는 이 기기 localStorage에 최근 50건(메뉴 '오류 기록'에서 보기·복사).
+   요청 경로는 쿼리 값·메일 주소를 빼고 긴 id는 끝 8자만 남긴다. 메일 본문·받는 사람은 남기지 않는다. */
+const ERRLOG = {
+  KEY: 'works.errlog', MAX: 50,
+  recent: [], // 방금 난 Graph 오류(토스트 문구와 짝지어 기록)
+  ko(status, code, raw, method, url) {
+    const c = String(code || ''), p = String(url || '').split('?')[0];
+    const mail = /\/messages(\/|$)|\/mailFolders\//i.test(p), ev = /\/events(\/|$)|\/calendars?\//i.test(p), drive = /\/drives?\/|\/drive\//i.test(p);
+    const draft = mail && (method === 'PATCH' || /\/(send|attachments|createUploadSession)$/i.test(p));
+    if (status === 429 || /concurrency|throttl/i.test(c + raw)) return '요청이 많아 잠시 지연되고 있습니다. 잠시 후 새로고침해 주세요.';
+    if (status === 401) return '로그인이 만료되었습니다. 위쪽 "다시 로그인"을 눌러 주세요.';
+    if (/^ErrorSendAsDenied$/i.test(c)) return 'contact@ 이름으로 보낼 권한이 없습니다.';
+    if (/^Error(InvalidRecipients|InvalidRecipient|RecipientNotFound)$/i.test(c)) return '받는 사람 주소 가운데 잘못된 것이 있습니다. 주소를 확인해 주세요.';
+    if (status === 413 || /^Error(MessageSizeExceeded|AttachmentSizeLimitExceeded)$|TooLarge/i.test(c)) return '메일이나 첨부가 너무 큽니다. 큰 파일은 OneDrive 링크로 넣어 주세요.';
+    if (/^(ErrorQuotaExceeded|quotaLimitReached|insufficientStorage)$/i.test(c) || status === 507) return '저장 공간이 부족합니다.';
+    if (/^ErrorInvalidIdMalformed$/i.test(c)) return '항목 번호가 맞지 않습니다. 목록을 새로 고친 뒤 다시 열어 주세요.';
+    if (status === 404 || /^(ErrorItemNotFound|itemNotFound|ResourceNotFound)$/i.test(c)) {
+      if (draft) return '초안이 이미 다른 곳에서 보내졌거나 지워졌습니다. 쓴 내용을 복사해 두고 목록을 새로 고쳐 주세요.';
+      if (mail) return '메일이 이미 지워졌거나 다른 폴더로 옮겨졌습니다. 목록을 새로 고친 뒤 다시 열어 주세요.';
+      if (ev) return '일정이 이미 지워졌거나 옮겨졌습니다. 새로 고친 뒤 다시 해 주세요.';
+      if (drive) return '파일이나 폴더를 찾지 못했습니다. 이미 지워졌거나 옮겨졌을 수 있습니다.';
+      return '찾는 항목이 없습니다. 이미 지워졌거나 옮겨졌을 수 있습니다.';
+    }
+    if (status === 403 || /^(ErrorAccessDenied|accessDenied|Authorization_RequestDenied)$/i.test(c)) return '이 작업을 할 권한이 없습니다.';
+    if (/^nameAlreadyExists$/i.test(c)) return '같은 이름의 파일이 이미 있습니다.';
+    if (status === 409 || status === 412 || /^(ErrorIrresolvableConflict|resourceModified|conflict)$/i.test(c)) return '다른 곳에서 먼저 바뀌었습니다. 새로 고친 뒤 다시 해 주세요.';
+    if (/^(ErrorMailboxStoreUnavailable|MailboxNotEnabledForRESTAPI|ErrorMailboxMoveInProgress)$/i.test(c)) return '메일함에 잠시 연결할 수 없습니다. 잠시 후 다시 해 주세요.';
+    if (status >= 500) return `Microsoft 서버가 잠시 응답하지 않습니다(${status}). 잠시 후 다시 해 주세요.`;
+    return `처리 중 오류가 났습니다(오류 코드 ${c || status}).`;
+  },
+  // 어떤 동작이었는지: 요청 방식과 경로로 짐작
+  act(method, url, body) {
+    const p = String(url || '').split('?')[0];
+    const has = (re) => re.test(p);
+    if (has(/\/send$/)) return '메일 보내기';
+    if (has(/\/createReply(All)?$/)) return '답장 초안 만들기';
+    if (has(/\/createForward$/)) return '전달 초안 만들기';
+    if (has(/\/createUploadSession$/)) return '큰 첨부 올리기';
+    if (has(/\/messages\/[^/]+\/attachments/)) return method === 'POST' ? '첨부 올리기' : method === 'DELETE' ? '첨부 빼기' : '첨부 읽기';
+    if (has(/\/\$value$/)) return '메일 원문 받기';
+    if (has(/\/move$/)) return '메일 옮기기';
+    if (has(/\/copy$/)) return '메일 복사';
+    if (has(/\/messages\/[^/]+$/)) {
+      if (method === 'PATCH') return body && typeof body === 'object' && Object.keys(body).every((k) => ['isRead', 'flag'].includes(k)) ? '읽음 표시' : '초안 저장';
+      return method === 'DELETE' ? '메일 삭제' : '메일 열기';
+    }
+    if (has(/\/messages$/)) return method === 'POST' ? '초안 만들기' : '메일 목록';
+    if (has(/\/mailFolders/)) return '메일 폴더';
+    if (has(/\/people$/)) return '주소 찾기';
+    if (has(/\/events|\/calendar/)) return { GET: '일정 읽기', POST: '일정 만들기', PATCH: '일정 고치기', DELETE: '일정 삭제' }[method] || '일정';
+    if (has(/\/drives?\/|\/drive\//)) return { GET: '파일 읽기', PUT: '파일 저장', PATCH: '파일 옮기기', DELETE: '파일 삭제', POST: '파일 만들기' }[method] || '파일';
+    if (has(/\$batch$/)) return '여러 요청 한꺼번에';
+    return `${method} 요청`;
+  },
+  // 개인 정보를 뺀 요청 경로: 쿼리는 이름만, 메일 주소는 {주소}, 긴 id는 끝 8자
+  path(url) {
+    const s = String(url || '');
+    if (!s.startsWith('https://graph.microsoft.com/')) { try { return `(${new URL(s).hostname})`; } catch { return ''; } }
+    const [p, q] = s.replace(/^https:\/\/graph\.microsoft\.com\/(v1\.0|beta)/, '').split('?');
+    const seg = p.split('/').map((x) => { let d = x; try { d = decodeURIComponent(x); } catch { /* 그대로 */ } return d; })
+      .map((d) => d.replace(/[^\s/@'"]+@[^\s/'"]+\.[a-z]{2,}/gi, '{주소}'))
+      .map((d) => (d.length > 24 && /^[A-Za-z0-9_\-=+!]+$/.test(d) ? `…${d.slice(-8)}` : d));
+    const qs = q ? `?${q.split('&').map((kv) => decodeURIComponent(kv.split('=')[0])).join('&')}` : '';
+    return (seg.join('/') + qs).slice(0, 200);
+  },
+  note(err, method, url, rid, body) {
+    ERRLOG.recent.unshift({ at: Date.now(), err, method, url, rid: rid || '', act: ERRLOG.act(method, url, body) });
+    ERRLOG.recent.length = Math.min(ERRLOG.recent.length, 20);
+  },
+  list() { try { const v = JSON.parse(localStorage.getItem(ERRLOG.KEY) || '[]'); return Array.isArray(v) ? v : []; } catch { return []; } },
+  add(x) { try { localStorage.setItem(ERRLOG.KEY, JSON.stringify([x, ...ERRLOG.list()].slice(0, ERRLOG.MAX))); } catch { /* 못 남겨도 화면은 그대로 */ } },
+  clear() { try { localStorage.removeItem(ERRLOG.KEY); } catch { /* 없음 */ } },
+  // 토스트 문구를 받아 화면에 띄울 문구를 돌려준다. 방금 난 Graph 오류와 같은 문구면 그 요청을, 한글이 없는 영어 문구면 원문을 기록하고 한국어로 바꾼다
+  shown(msg, screen) {
+    const s = String(msg ?? '');
+    const hit = ERRLOG.recent.find((x) => Date.now() - x.at < 120000 && x.err.message && s.includes(x.err.message));
+    const base = { t: new Date().toISOString(), screen: screen || '', msg: s };
+    if (hit) {
+      if (hit.logged && Date.now() - hit.logged < 1500) return s; // 같은 오류를 두 번 띄우면 한 번만
+      hit.logged = Date.now();
+      ERRLOG.add({ ...base, act: hit.act, req: `${hit.method} ${ERRLOG.path(hit.url)}`, status: hit.err.status ?? '', code: hit.err.code || '', raw: ERRLOG.clean(hit.err.raw), rid: hit.rid });
+      return s;
+    }
+    if (s.trim() && !/[가-힣]/.test(s)) {
+      const out = '처리 중 오류가 났습니다.';
+      ERRLOG.add({ ...base, msg: out, act: '', req: '', status: '', code: '', raw: ERRLOG.clean(s), rid: '' });
+      return out;
+    }
+    return s;
+  },
+  clean: (raw) => String(raw || '').replace(/[^\s<>()'",;]+@[^\s<>()'",;]+\.[a-z]{2,}/gi, '{주소}').slice(0, 400),
 };
 
 /* ---------- 회사 OneDrive 저장소: /SPACE WORKS/data/*.json, /SPACE WORKS/업무일지/*.txt ---------- */

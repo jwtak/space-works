@@ -724,7 +724,7 @@ async function mailLoadList(page) {
     if (c && items.length) {
       m.list = items.map((x) => ({ ...x, _box: mb, _off: true })); m.next = null; m.offline = { at: c.at };
       mailDrawOff(); mailDrawList();
-    } else box.innerHTML = `<li class="empty">${esc(e.message)}</li>`;
+    } else box.innerHTML = `<li class="empty">${esc(errShow(e.message))}</li>`;
   } finally { if (my === m.listSeq) m.loading = false; }
 }
 
@@ -844,7 +844,7 @@ async function mailOpen(id) {
       }).catch(() => {});
     }
   } catch (e) {
-    const p = $('#mail-pane'); if (p) p.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+    const p = $('#mail-pane'); if (p) p.innerHTML = `<div class="empty">${esc(errShow(e.message))}</div>`;
   }
 }
 
@@ -1156,7 +1156,7 @@ function mailPreviewAtt(x, list, start) {
       // 첨부의 contentType을 믿지 않고 확장자로 정한 형식만 쓴다 (HTML 등이 앱 출처에서 열리지 않게)
       url = URL.createObjectURL(new Blob([blob], { type: kind === 'pdf' ? 'application/pdf' : `image/${mailExt(a.name) === 'jpg' ? 'jpeg' : mailExt(a.name)}` }));
       body.innerHTML = kind === 'pdf' ? `<iframe class="mail-apv-pdf" src="${url}" title="${esc(a.name)}"></iframe>` : `<img class="mail-apv-img" src="${url}" alt="${esc(a.name)}">`;
-    } catch (e) { if (my === i) body.innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+    } catch (e) { if (my === i) body.innerHTML = `<div class="empty">${esc(errShow(e.message))}</div>`; }
   };
   const go = (d) => { if (list.length < 2) return; i = (i + d + list.length) % list.length; show(); };
   w.querySelectorAll('[data-nav]').forEach((b) => b.addEventListener('click', () => go(Number(b.dataset.nav))));
@@ -1852,7 +1852,7 @@ function mailBook(tok) {
       if (my !== seq) return;
       rows = (j.value || []).flatMap((p) => (p.scoredEmailAddresses || []).slice(0, 1).map((s) => ({ name: p.displayName || '', address: s.address }))).filter((p) => p.address);
       draw();
-    } catch (e) { if (my === seq) list.innerHTML = `<li class="empty">${esc(e.message)}</li>`; }
+    } catch (e) { if (my === seq) list.innerHTML = `<li class="empty">${esc(errShow(e.message))}</li>`; }
   };
   list.addEventListener('change', (e) => {
     const i = e.target.dataset.i; if (i == null) return;
@@ -1919,7 +1919,11 @@ async function mailUploadBig(c, file) {
         if (r.ok || (r.status < 500 && r.status !== 429)) break;
       }
       if (!r) throw fail('네트워크를 확인한 뒤 다시 보내 주세요');
-      if (!r.ok) { let msg = `오류 ${r.status}`; try { msg = (await r.json()).error?.message || msg; } catch { /* 본문 없음 */ } throw fail(msg); }
+      if (!r.ok) { // 영어 원문은 오류 기록에만(graph.js ERRLOG)
+        let code = '', raw = ''; try { const j = (await r.json()).error || {}; code = j.code || ''; raw = j.message || ''; } catch { /* 본문 없음 */ }
+        const err = fail(ERRLOG.ko(r.status, code, raw, 'PUT', `${p}/attachments/createUploadSession`)); err.status = r.status; err.code = code; err.raw = raw;
+        ERRLOG.note(err, 'PUT', s.uploadUrl); throw err;
+      }
       loc = r.headers.get('Location') || loc;
       at = end;
       mailUpProg(c, file, Math.floor((at / file.size) * 100));
