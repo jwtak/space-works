@@ -664,3 +664,18 @@
 .mail-pg.on { background: var(--primary); color: #fff; font-weight: 600; cursor: default; }
 .mail-pg.off { color: var(--line2); cursor: default; }
 @media (max-width: 760px) { .mail-pg { min-width: 40px; height: 40px; font-size: var(--fs-base); } }
+
+/* 본문 그림 크기 조절: 편집기 위 겹 상자(본문 HTML 밖). 모서리 손잡이를 끌면 비율 그대로 너비 */
+.mail-editor { position: relative; }
+.mail-rte img { cursor: pointer; }
+.mail-isel { position: absolute; z-index: 2; box-sizing: border-box; border: 1px solid var(--primary); pointer-events: none; }
+.mail-isel[hidden] { display: none; }
+.mail-isel i { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border: 1px solid var(--primary); border-radius: var(--r-xs); background: #fff; pointer-events: auto; touch-action: none; }
+.mail-isel [data-h=nw] { left: 0; top: 0; cursor: nwse-resize; }
+.mail-isel [data-h=ne] { left: 100%; top: 0; cursor: nesw-resize; }
+.mail-isel [data-h=sw] { left: 0; top: 100%; cursor: nesw-resize; }
+.mail-isel [data-h=se] { left: 100%; top: 100%; cursor: nwse-resize; }
+.mail-isz { display: none; position: absolute; left: 4px; top: 4px; padding: 0 8px; border-radius: var(--r-xs); background: rgba(17, 24, 39, .72); color: #fff; font-size: var(--fs-sm); line-height: 24px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mail-isel.drag .mail-isz { display: block; }
+.mail-isel.drag, .mail-isel.drag i { cursor: inherit; }
+@media (pointer: coarse) { .mail-isel i { width: 24px; height: 24px; margin: -12px 0 0 -12px; border-radius: var(--r-full); } }

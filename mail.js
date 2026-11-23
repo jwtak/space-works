@@ -209,6 +209,7 @@ const MAIL_FONT = "Pretendard,'Malgun Gothic','맑은 고딕',sans-serif";
 
 /* 쓰기 상태 → Graph body. 일반 텍스트 모드는 원문 인용이 없을 때만 Text로 보낸다 */
 function mailComposeBody(c) {
+  if (!c.plain) mailImgCids(c);
   if (c.plain) return c.quote ? { contentType: 'HTML', content: mailMergeBody(mailTextToHtml(c.text), c.quote) } : { contentType: 'Text', content: c.text };
   return { contentType: 'HTML', content: mailMergeBody(`<div style="font-family:${MAIL_FONT};font-size:14px;line-height:1.6;color:#111827">${mailCidHide(mailFixHtml(c.html), c.cids)}</div>`, c.quote) };
 }
@@ -238,8 +239,8 @@ async function mailCidMap(p, html, src) {
       try {
         const f = await G.get(`${q}/attachments/${encodeURIComponent(a.id)}`);
         if (!f.contentId || !f.contentBytes || map.some((x) => x.cid === f.contentId) || !html.includes(`cid:${f.contentId}`)) continue;
-        if (add) await G.post(`${p}/attachments`, { '@odata.type': '#microsoft.graph.fileAttachment', name: f.name, contentType: f.contentType, contentBytes: f.contentBytes, contentId: f.contentId, isInline: true });
-        map.push({ cid: f.contentId, url: `data:${f.contentType || 'image/png'};base64,${f.contentBytes}` });
+        const posted = add ? await G.post(`${p}/attachments`, { '@odata.type': '#microsoft.graph.fileAttachment', name: f.name, contentType: f.contentType, contentBytes: f.contentBytes, contentId: f.contentId, isInline: true }) : null;
+        map.push({ cid: f.contentId, url: `data:${f.contentType || 'image/png'};base64,${f.contentBytes}`, att: posted ? posted.id : a.id });
       } catch { /* 그림 하나 실패해도 쓰기는 된다 */ }
     }
   };
@@ -249,6 +250,68 @@ async function mailCidMap(p, html, src) {
 }
 const mailCidShow = (html, map) => (map || []).reduce((h, x) => h.split(`cid:${x.cid}`).join(x.url), html || '');
 const mailCidHide = (html, map) => (map || []).reduce((h, x) => h.split(x.url).join(`cid:${x.cid}`), html || '');
+
+/* 본문에 넣은 그림(그림 넣기, 붙여 넣기, 끌어 놓기): 쓰기 화면에서는 data: 주소, 저장·보낼 때 우리 contentId(wimg.)의 인라인 첨부로.
+   Gmail은 data: 그림을 지우고 Outlook 데스크톱도 못 보여 줘서 cid:로 보낸다. 크기는 width·height 속성과 인라인 style 둘 다 */
+const MAIL_IMG_TYPES = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/bmp'];
+const MAIL_IMG_CID = 'wimg.', MAIL_IMG_MAX = 2 * 1024 * 1024, MAIL_IMG_EDGE = 2000;
+const mailB64Size = (url) => Math.floor((url.length - url.indexOf(',') - 1) * 0.75);
+const mailImgW = (im, w) => {
+  const k = im.naturalWidth ? im.naturalHeight / im.naturalWidth : (parseFloat(im.getAttribute('height')) || im.height) / (parseFloat(im.getAttribute('width')) || im.width || 1);
+  w = Math.round(w);
+  Object.assign(im.style, { width: `${w}px`, height: 'auto', maxWidth: '100%' });
+  im.setAttribute('width', String(w)); im.setAttribute('height', String(Math.round(w * k)));
+};
+/* 그림 파일 → { url: data:, w, h }. 한 변 2000px·2MB 넘으면 줄이고, PNG·JPEG·GIF가 아니면 PNG(크면 JPEG)로 바꾼다. 못 읽으면 null */
+function mailImgData(file) {
+  return new Promise((resolve) => {
+    const r = new FileReader();
+    r.onerror = () => resolve(null);
+    r.onload = () => {
+      const url = String(r.result), im = new Image();
+      im.onerror = () => resolve(null);
+      im.onload = () => {
+        const w = im.naturalWidth, h = im.naturalHeight;
+        const keep = ['image/png', 'image/jpeg', 'image/gif'].includes(file.type) && (file.type === 'image/gif' || (file.size <= MAIL_IMG_MAX && Math.max(w, h) <= MAIL_IMG_EDGE));
+        if (keep) return resolve(file.size <= MAIL_MAX_ATTACH ? { url, w, h } : null);
+        const k = Math.min(1, MAIL_IMG_EDGE / Math.max(w, h)), cv = document.createElement('canvas');
+        cv.width = Math.round(w * k); cv.height = Math.round(h * k);
+        const g = cv.getContext('2d');
+        g.drawImage(im, 0, 0, cv.width, cv.height);
+        let out = file.type === 'image/jpeg' ? '' : cv.toDataURL('image/png');
+        if (!out || mailB64Size(out) > MAIL_IMG_MAX) { g.globalCompositeOperation = 'destination-over'; g.fillStyle = '#fff'; g.fillRect(0, 0, cv.width, cv.height); out = cv.toDataURL('image/jpeg', 0.85); }
+        resolve(mailB64Size(out) <= MAIL_MAX_ATTACH ? { url: out, w: cv.width, h: cv.height } : null);
+      };
+      im.src = url;
+    };
+    r.readAsDataURL(file);
+  });
+}
+/* 본문의 새 data: 그림에 contentId를 붙여 c.cids에 올릴 것으로 둔다(mailCidHide가 cid:로 바꾼다) */
+function mailImgCids(c) {
+  c.cids = c.cids || [];
+  const doc = new DOMParser().parseFromString(c.html || '', 'text/html');
+  doc.querySelectorAll('img[src^="data:image/"]').forEach((im) => {
+    const url = im.getAttribute('src'), type = (url.match(/^data:(image\/[\w.+-]+);base64,/) || [])[1];
+    if (!type || c.cids.some((x) => x.url === url)) return;
+    c.cids.push({ cid: `${MAIL_IMG_CID}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}@universeinvest.co.kr`, url, type, pending: true });
+  });
+}
+/* 초안에 맞춤: 올릴 그림은 인라인 첨부로 올리고, 본문에서 지운 우리 그림(wimg.)의 인라인 첨부는 지운다 */
+async function mailImgSync(c) {
+  const p = mailMsgP(c.draftId, c.box), html = c.html || '', quote = c.quote || '';
+  for (const x of c.cids || []) {
+    const used = html.includes(x.url) || quote.includes(`cid:${x.cid}`);
+    if (x.pending && used) {
+      const ext = (x.type.split('/')[1] || 'png').replace('jpeg', 'jpg');
+      const a = await G.post(`${p}/attachments`, { '@odata.type': '#microsoft.graph.fileAttachment', name: `image-${x.cid.slice(MAIL_IMG_CID.length, MAIL_IMG_CID.length + 6)}.${ext}`, contentType: x.type, contentBytes: x.url.slice(x.url.indexOf(',') + 1), contentId: x.cid, isInline: true });
+      x.pending = false; x.att = a.id;
+    } else if (!x.pending && !used && x.att && x.cid.startsWith(MAIL_IMG_CID)) {
+      await G.del(`${p}/attachments/${encodeURIComponent(x.att)}`).catch(() => {});
+      x.att = null; x.pending = true; // 실행 취소로 다시 넣으면 다시 올린다
+    }
+  }
+}
 
 /* iframe 안에 들어갈 문서. 스크립트·폼·외부 요청은 막고, 외부 이미지는 사용자가 허용할 때만 */
 function mailFrameDoc(html, allowRemote) {
@@ -874,6 +937,7 @@ const MAIL_ICONS = {
   indent: '<path d="M4 6h16M11 10h9M11 14h9M4 18h16M4.5 9.5l3 2.5-3 2.5"/>',
   link: '<path d="M10.5 13.5a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1"/><path d="M13.5 10.5a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1"/>',
   hr: '<path d="M4 12h16"/>',
+  image: '<rect x="4" y="5" width="16" height="14" rx="1.5"/><circle cx="9" cy="10" r="1.5"/><path d="m4.5 17 4.5-4.5 3 3 2.5-2.5 5 5"/>',
   undo: '<path d="M9 6 5 10l4 4"/><path d="M5 10h9.5a4.5 4.5 0 0 1 0 9H11"/>',
   redo: '<path d="m15 6 4 4-4 4"/><path d="M19 10H9.5a4.5 4.5 0 0 0 0 9H13"/>',
   clear: '<path d="M5 7V5h12v2M11 5 8 19M5 19h6M15 13l5 5M20 13l-5 5"/>',
@@ -1428,6 +1492,7 @@ function mailDrawCompose() {
       ${c.plain && c.quote ? '<div class="mail-quote"><iframe class="mail-frame" sandbox="allow-same-origin" referrerpolicy="no-referrer" scrolling="no" title="원문"></iframe></div>' : ''}
       <div class="mail-ctools">
         <label class="iconbtn mail-ctool" aria-label="사진 첨부">${mi('camera')}<input type="file" accept="image/*" capture="environment" hidden id="mail-cam"></label>
+        ${c.plain ? '' : `<label class="iconbtn mail-ctool" aria-label="그림 넣기">${mi('image')}<input type="file" accept="image/*" multiple hidden id="mail-eimg2"></label>`}
         <label class="iconbtn mail-ctool" aria-label="파일 첨부">${ico('clip')}<input type="file" multiple hidden id="mail-file2"></label>
       </div>
     </form>`;
@@ -1490,6 +1555,7 @@ function mailDrawCompose() {
     else if (k === 'cancel') { commit(); if (await mailLeaveCompose()) mailAfterCompose(); }
   });
   for (const id of ['mail-file', 'mail-file2', 'mail-cam']) $(`#${id}`).addEventListener('change', (e) => { commit(); mailAddFiles(e.target.files); });
+  $('#mail-eimg2')?.addEventListener('change', (e) => { commit(); rte.mailInsertImgs([...e.target.files]); e.target.value = ''; });
   // 첨부 칸에 파일을 끌어다 놓기 (데스크톱)
   const drop = $('#mail-drop');
   drop.addEventListener('dragover', (e) => { if ([...e.dataTransfer.types].includes('Files')) { e.preventDefault(); drop.classList.add('over'); } });
@@ -1521,7 +1587,7 @@ function mailToolbarHTML(c) {
     ${color('mail-ecolor', '글자 색', '<span class="mail-ec-a">A</span>', c.color || '#DC2626')}${color('mail-ebg', '배경 색', mi('marker'), c.bg || '#FFF3B0')}
     ${sep}${tb('justifyLeft', '왼쪽 정렬', mi('alignL'))}${tb('justifyCenter', '가운데 정렬', mi('alignC'))}${tb('justifyRight', '오른쪽 정렬', mi('alignR'))}
     ${sep}${tb('insertOrderedList', '번호 매기기', mi('ol'))}${tb('insertUnorderedList', '글머리 기호', mi('ul'))}${tb('outdent', '내어쓰기', mi('outdent'))}${tb('indent', '들여쓰기', mi('indent'))}
-    ${sep}${tb('createLink', '링크', mi('link'))}${tb('insertHorizontalRule', '구분선', mi('hr'))}<span class="mail-tblw">${tb('table', '표 넣기', mi('table'))}</span>${tb('removeFormat', '서식 지우기', mi('clear'))}
+    ${sep}${tb('createLink', '링크', mi('link'))}${tb('image', '그림 넣기', mi('image'))}<input type="file" accept="${MAIL_IMG_TYPES.join(',')}" multiple hidden id="mail-eimg">${tb('insertHorizontalRule', '구분선', mi('hr'))}<span class="mail-tblw">${tb('table', '표 넣기', mi('table'))}</span>${tb('removeFormat', '서식 지우기', mi('clear'))}
     ${sep}${tb('undo', '실행 취소', mi('undo'))}${tb('redo', '다시 실행', mi('redo'))}
     <span class="mail-etbl">${sep}${tb('rowAbove', '위에 행 추가', mi('rowUp'))}${tb('rowBelow', '아래에 행 추가', mi('rowDown'))}${tb('colLeft', '왼쪽에 열 추가', mi('colLeft'))}${tb('colRight', '오른쪽에 열 추가', mi('colRight'))}${tb('rowDel', '행 삭제', mi('rowDel'))}${tb('colDel', '열 삭제', mi('colDel'))}${color('mail-ecell', '셀 배경 색', mi('cell'), c.cellBg || '#F3F4F6')}${tb('tblFit', '표 너비 내용에 맞춤', mi('tblFit'))}${tb('tblFull', '표 너비 전체', mi('tblFull'))}${tb('tableDel', '표 삭제', mi('tableDel'))}</span>
   </div>`;
@@ -1567,9 +1633,18 @@ function mailFixTables(root, paste) {
   });
   return root;
 }
+/* 크기를 정한 본문 그림(width 속성 + px 너비): 좁은 화면에서 줄어도 비율이 깨지지 않게 height:auto, max-width:100%.
+   편집기 insertHTML이 화면 CSS와 같은 값이라며 이 둘을 지우므로 보낼 때 다시 넣는다 */
+function mailFixImgs(root) {
+  root.querySelectorAll('img[width]').forEach((im) => {
+    if (im.closest('[data-sig]') || !/px$/.test(im.style.width)) return;
+    im.style.height = 'auto'; im.style.maxWidth = '100%';
+  });
+  return root;
+}
 function mailFixHtml(html, paste) {
   const doc = new DOMParser().parseFromString(html || '', 'text/html');
-  return mailFixTables(doc.body, paste).innerHTML;
+  return mailFixImgs(mailFixTables(doc.body, paste)).innerHTML;
 }
 
 /* 서식 편집기: 도구 버튼은 execCommand, 붙여넣은 HTML은 정리해서, 표는 직접 DOM으로 다룬다 */
@@ -1663,6 +1738,7 @@ function mailRteInit(rte, c) {
   tools.querySelectorAll('[data-ex]').forEach((b) => b.addEventListener('click', () => {
     const cmd = b.dataset.ex;
     if (cmd === 'table') return tablePicker(b);
+    if (cmd === 'image') return tools.querySelector('#mail-eimg').click();
     if (['rowAbove', 'rowBelow', 'colLeft', 'colRight', 'rowDel', 'colDel', 'tblFit', 'tblFull', 'tableDel'].includes(cmd)) return tableOp(cmd);
     if (cmd !== 'createLink') return exec(cmd);
     restore();
@@ -1739,13 +1815,107 @@ function mailRteInit(rte, c) {
     document.addEventListener('mouseup', up);
   });
 
-  rte.addEventListener('paste', (e) => {
-    const html = e.clipboardData?.getData('text/html'); if (!html) return;
-    e.preventDefault();
-    exec('insertHTML', mailFixHtml(mailSanitize(html.replace(/<!--(Start|End)Fragment-->/g, '')), true));
+  /* 본문 그림 크기: 그림을 누르면 테두리와 네 모서리 손잡이, 끌면 비율 그대로 너비만(칸 폭까지). 겹 상자는 편집기에 붙고 본문 HTML 밖이라 보내는 메일에 남지 않는다 */
+  const editor = rte.parentElement;
+  try { document.execCommand('enableObjectResizing', false, 'false'); } catch { /* Firefox 기본 손잡이 끄기 */ }
+  const sel = document.createElement('div');
+  sel.className = 'mail-isel'; sel.hidden = true;
+  sel.innerHTML = '<i data-h="nw"></i><i data-h="ne"></i><i data-h="sw"></i><i data-h="se"></i><span class="mail-isz"></span>';
+  editor.appendChild(sel);
+  let pic = null;
+  const imgOf = (n) => (n && n.tagName === 'IMG' && rte.contains(n) && !n.closest('[data-sig]') ? n : null);
+  const maxW = (im) => {
+    const cell = im.closest('td,th'), box = cell && rte.contains(cell) ? cell : rte, cs = getComputedStyle(box);
+    return Math.max(24, box.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight));
+  };
+  const place = () => {
+    if (!pic || !pic.isConnected || !rte.isConnected) { pic = null; sel.hidden = true; return; }
+    const r = pic.getBoundingClientRect(), b = editor.getBoundingClientRect();
+    Object.assign(sel.style, { left: `${r.left - b.left}px`, top: `${r.top - b.top}px`, width: `${r.width}px`, height: `${r.height}px` });
+    sel.hidden = false;
+  };
+  const pick = (im) => {
+    pic = im; place();
+    if (im) { const r = document.createRange(); r.setStartAfter(im); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } // 커서는 그림 바로 뒤(그림을 덮는 선택 색 없이)
+  };
+  const fit = (im) => {
+    const go = () => { if (!im.isConnected) return; const m = maxW(im); if ((parseFloat(im.getAttribute('width')) || im.naturalWidth) > m) { mailImgW(im, m); done(); } };
+    if (im.complete) go(); else im.addEventListener('load', go, { once: true });
+  };
+  rte.addEventListener('click', (e) => { const im = imgOf(e.target); if (im) pick(im); });
+  rte.addEventListener('keydown', (e) => {
+    if (!pic) return;
+    if (e.key === 'Backspace' || e.key === 'Delete') { // 고른 그림 지우기(실행 취소 되게 execCommand로)
+      e.preventDefault();
+      const r = document.createRange(); r.selectNode(pic); const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      document.execCommand('delete'); done();
+    }
+    pic = null; sel.hidden = true;
   });
-  rte.addEventListener('dragover', (e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) e.preventDefault(); });
-  rte.addEventListener('drop', (e) => { if (e.dataTransfer?.files?.length) { e.preventDefault(); c.html = rte.innerHTML; mailAddFiles(e.dataTransfer.files); } });
+  rte.addEventListener('input', () => requestAnimationFrame(place));
+  new ResizeObserver(() => place()).observe(rte);
+  const onOut = (e) => {
+    if (!rte.isConnected) { document.removeEventListener('pointerdown', onOut, true); return; }
+    if (pic && !sel.contains(e.target) && e.target !== pic) { pic = null; sel.hidden = true; }
+  };
+  document.addEventListener('pointerdown', onOut, true);
+  sel.addEventListener('pointerdown', (e) => {
+    const h = e.target.dataset?.h; if (!h || !pic) return;
+    e.preventDefault();
+    const im = pic, hd = e.target, w0 = im.getBoundingClientRect().width, x0 = e.clientX, max = maxW(im), dir = h.endsWith('e') ? 1 : -1, lbl = sel.querySelector('.mail-isz');
+    hd.setPointerCapture(e.pointerId);
+    sel.classList.add('drag');
+    const move = (ev) => { mailImgW(im, Math.max(24, Math.min(max, w0 + dir * (ev.clientX - x0)))); lbl.textContent = `${im.getAttribute('width')} × ${im.getAttribute('height')}`; place(); };
+    const up = () => {
+      sel.classList.remove('drag');
+      hd.removeEventListener('pointermove', move); hd.removeEventListener('pointerup', up); hd.removeEventListener('pointercancel', up);
+      done(); pick(im);
+    };
+    hd.addEventListener('pointermove', move);
+    hd.addEventListener('pointerup', up);
+    hd.addEventListener('pointercancel', up);
+  });
+  // 그림 파일은 커서(끌어 놓은 자리)에 본문 그림으로. 처음 넣을 때 칸 폭보다 크면 칸 폭에 맞춘다. 못 읽은 그림과 다른 파일은 첨부로
+  const insertImgs = async (files, at) => {
+    const rest = files.filter((f) => !MAIL_IMG_TYPES.includes(f.type)), ok = [];
+    for (const f of files.filter((x) => MAIL_IMG_TYPES.includes(x.type))) { const d = await mailImgData(f); if (d) ok.push(d); else { rest.push(f); toast(`${f.name}: 그림으로 넣지 못해 파일로 첨부했습니다`); } }
+    if (ok.length && rte.isConnected) {
+      if (at) { rte.focus(); const s = getSelection(); s.removeAllRanges(); s.addRange(at); saved = at; }
+      const before = new Set(rte.querySelectorAll('img'));
+      exec('insertHTML', ok.map((d) => `<img src="${d.url}" alt="" width="${d.w}" height="${d.h}" style="width:${d.w}px;height:auto;max-width:100%">`).join(''));
+      rte.querySelectorAll('img').forEach((im) => { if (!before.has(im)) fit(im); });
+    }
+    if (rest.length && ui.mail.compose === c) { c.html = rte.innerHTML; mailAddFiles(rest); }
+  };
+  rte.mailInsertImgs = (files) => insertImgs(files);
+  const imgIn = tools.querySelector('#mail-eimg');
+  imgIn.addEventListener('change', () => { insertImgs([...imgIn.files]); imgIn.value = ''; });
+
+  rte.addEventListener('paste', (e) => {
+    const dt = e.clipboardData; if (!dt) return;
+    const html = dt.getData('text/html'), files = [...dt.files].filter((f) => MAIL_IMG_TYPES.includes(f.type));
+    // 캡처·그림 복사: 글자 없는 HTML이면 그림 파일로 넣는다(외부 주소 대신 그림 자체)
+    if (files.length && !(html && new DOMParser().parseFromString(html, 'text/html').body.textContent.trim())) { e.preventDefault(); insertImgs(files); return; }
+    if (!html) return;
+    e.preventDefault();
+    const before = new Set(rte.querySelectorAll('img'));
+    exec('insertHTML', mailFixHtml(mailSanitize(html.replace(/<!--(Start|End)Fragment-->/g, '')), true));
+    rte.querySelectorAll('img').forEach((im) => { if (!before.has(im) && imgOf(im)) fit(im); });
+  });
+  // 그림 파일은 끌어 놓은 자리에 본문 그림으로, 그 밖의 파일은 첨부로. 본문 안에서 그림을 옮기는 끌기는 브라우저에 맡긴다
+  let inner = false;
+  rte.addEventListener('dragstart', () => { inner = true; pic = null; sel.hidden = true; });
+  rte.addEventListener('dragend', () => { inner = false; });
+  rte.addEventListener('dragover', (e) => { if (!inner && [...(e.dataTransfer?.types || [])].includes('Files')) e.preventDefault(); });
+  rte.addEventListener('drop', (e) => {
+    const files = [...(e.dataTransfer?.files || [])]; if (inner || !files.length) return;
+    e.preventDefault();
+    if (!files.some((f) => MAIL_IMG_TYPES.includes(f.type))) { c.html = rte.innerHTML; mailAddFiles(files); return; }
+    let at = null;
+    if (document.caretRangeFromPoint) at = document.caretRangeFromPoint(e.clientX, e.clientY);
+    else if (document.caretPositionFromPoint) { const p = document.caretPositionFromPoint(e.clientX, e.clientY); if (p) { at = document.createRange(); at.setStart(p.offsetNode, p.offset); } }
+    insertImgs(files, at && rte.contains(at.startContainer) ? at : null);
+  });
 }
 
 /* 옵션: 발송 예약 · 서명 · 일반 텍스트 모드 · 중요. [확인]을 눌러야 적용 */
@@ -1828,7 +1998,7 @@ function mailPreview() {
   const w = mailModal(`<div class="mail-pv-head"><h3>${c.important ? '<span class="mail-optchip imp">중요</span>' : ''}${esc(c.subject.trim() || '(제목 없음)')}</h3><button class="iconbtn" type="button" data-close aria-label="닫기">${mi('close')}</button></div>
     <dl class="mail-pv-meta">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(mailTokens(v).join(', '))}</dd>`).join('')}${files ? `<dt>첨부</dt><dd>${esc(files)}</dd>` : ''}${c.sched ? `<dt>발송</dt><dd>${mailSchedLabel(c.sched)} 예약</dd>` : ''}</dl>
     <iframe class="mail-frame" sandbox referrerpolicy="no-referrer" title="미리보기"></iframe>`, 'mail-pvw');
-  w.querySelector('iframe').srcdoc = mailFrameDoc(b.contentType === 'Text' ? `<pre>${esc(b.content)}</pre>` : b.content, false);
+  w.querySelector('iframe').srcdoc = mailFrameDoc(b.contentType === 'Text' ? `<pre>${esc(b.content)}</pre>` : mailCidShow(b.content, c.cids), false);
 }
 
 /* 주소록: 자주 연락한 사람(/me/people)에서 골라 해당 칸에 넣는다 */
@@ -2044,6 +2214,7 @@ async function mailSaveDraft(c, notify) {
     if (c.draftId) await G.patch(mailMsgP(c.draftId, c.box), msg);
     else { const d = await G.post(`${mailRoot(c.box)}/messages`, msg); c.draftId = d.id; }
     c.schedSaved = !!c.sched;
+    if (!c.plain) await mailImgSync(c);
     while (c.files.length) {
       const file = c.files[0];
       const a = file.size > MAIL_MAX_ATTACH ? await mailUploadBig(c, file) : await G.post(`${mailMsgP(c.draftId, c.box)}/attachments`, {
