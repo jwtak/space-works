@@ -577,7 +577,7 @@
 @media (max-width: 760px) {
   .mail-rte td, .mail-rte span, .mail-rte a { white-space: normal !important; }
   .mail-rte { overflow-x: hidden; }
-  .mail-rte table[role="presentation"] { max-width: 100%; }
+  .mail-rte table[role="presentation"], .mail-rte table[data-tbl] { max-width: 100%; }
 }
 
 /* ---------- 내가 만든 폴더 · contact@ 공유 사서함 · 검색 범위 · 큰 첨부 진행률 (2026-11-12) ---------- */

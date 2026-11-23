@@ -888,6 +888,8 @@ const MAIL_ICONS = {
   colDel: '<rect x="8" y="4" width="8" height="16" rx="1"/><path d="M10 12h4"/>',
   cell: '<rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M4 12h16M12 5v14"/><path d="M4.5 5.5h7v6h-7z" fill="currentColor" stroke="none" opacity=".35"/>',
   tableDel: '<rect x="4" y="5" width="16" height="14" rx="1.5"/><path d="M9 9.5l6 5M15 9.5l-6 5"/>',
+  tblFit: '<rect x="8" y="5" width="8" height="14" rx="1.5"/><path d="M2.5 12h3.5M4.5 10.5 6 12l-1.5 1.5M21.5 12H18M19.5 10.5 18 12l1.5 1.5"/>',
+  tblFull: '<rect x="3.5" y="5" width="17" height="14" rx="1.5"/><path d="M7.5 12h9M9.5 10l-2 2 2 2M14.5 10l2 2-2 2"/>',
   eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>',
   folder: '<path d="M3.5 7a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.3A1.5 1.5 0 0 1 19 19H5a1.5 1.5 0 0 1-1.5-1.5z"/>',
 };
@@ -1305,7 +1307,7 @@ async function mailOpenCompose({ mode, id, box }) {
     } else if (mode === 'draft') {
       const d = await G.get(`${mailMsgP(id, c.box)}?$select=id,subject,toRecipients,ccRecipients,bccRecipients,body,importance,isReadReceiptRequested`);
       if (m.compose !== c) return;
-      const html = d.body?.contentType === 'html' ? mailSanitize(mailPixelStrip(d.body.content)) : mailTextHtml(d.body?.content || '');
+      const html = d.body?.contentType === 'html' ? mailFixHtml(mailSanitize(mailPixelStrip(d.body.content))) : mailTextHtml(d.body?.content || ''); // 예전에 잘못 바뀐 서명 표를 되돌린다
       c.cids = await mailCidMap(mailMsgP(d.id, c.box), html);
       if (m.compose !== c) return;
       Object.assign(c, { draftId: d.id, saved: true, to: mailAddrList(d.toRecipients), cc: mailAddrList(d.ccRecipients), bcc: mailAddrList(d.bccRecipients), subject: d.subject || '',
@@ -1521,17 +1523,43 @@ function mailToolbarHTML(c) {
     ${sep}${tb('insertOrderedList', '번호 매기기', mi('ol'))}${tb('insertUnorderedList', '글머리 기호', mi('ul'))}${tb('outdent', '내어쓰기', mi('outdent'))}${tb('indent', '들여쓰기', mi('indent'))}
     ${sep}${tb('createLink', '링크', mi('link'))}${tb('insertHorizontalRule', '구분선', mi('hr'))}<span class="mail-tblw">${tb('table', '표 넣기', mi('table'))}</span>${tb('removeFormat', '서식 지우기', mi('clear'))}
     ${sep}${tb('undo', '실행 취소', mi('undo'))}${tb('redo', '다시 실행', mi('redo'))}
-    <span class="mail-etbl">${sep}${tb('rowAbove', '위에 행 추가', mi('rowUp'))}${tb('rowBelow', '아래에 행 추가', mi('rowDown'))}${tb('colLeft', '왼쪽에 열 추가', mi('colLeft'))}${tb('colRight', '오른쪽에 열 추가', mi('colRight'))}${tb('rowDel', '행 삭제', mi('rowDel'))}${tb('colDel', '열 삭제', mi('colDel'))}${color('mail-ecell', '셀 배경 색', mi('cell'), c.cellBg || '#F3F4F6')}${tb('tableDel', '표 삭제', mi('tableDel'))}</span>
+    <span class="mail-etbl">${sep}${tb('rowAbove', '위에 행 추가', mi('rowUp'))}${tb('rowBelow', '아래에 행 추가', mi('rowDown'))}${tb('colLeft', '왼쪽에 열 추가', mi('colLeft'))}${tb('colRight', '오른쪽에 열 추가', mi('colRight'))}${tb('rowDel', '행 삭제', mi('rowDel'))}${tb('colDel', '열 삭제', mi('colDel'))}${color('mail-ecell', '셀 배경 색', mi('cell'), c.cellBg || '#F3F4F6')}${tb('tblFit', '표 너비 내용에 맞춤', mi('tblFit'))}${tb('tblFull', '표 너비 전체', mi('tblFull'))}${tb('tableDel', '표 삭제', mi('tableDel'))}</span>
   </div>`;
 }
 
-/* 표 정리: 붙여넣은 표·직접 넣은 표에 테두리·여백을 인라인으로 (서명 표는 건드리지 않는다) */
-function mailFixTables(root) {
+/* 표 정리. 편집용 표(data-tbl: 편집기에서 넣은 표, 붙여 넣은 표)에만 테두리와 여백을 인라인으로 넣는다.
+   서명, Outlook과 Teams가 넣은 표처럼 모양을 잡는 표는 그대로 둔다. 11/23 Graph로 만든 답장 초안을 웍스에서 열어 보냈더니
+   본문의 모든 표(서명 표, 원문 속 서명 표 포함)가 편집용 표로 바뀌어 칸마다 테두리와 여백이 붙어 나갔다.
+   paste: 붙여 넣은 HTML이면 모양 잡는 표가 아닌 표를 편집용 표로 바꾼다(엑셀 표는 border="0"이라 속성으로는 못 가린다) */
+const mailCells = (t) => [...t.rows].flatMap((r) => [...r.cells]);
+const mailLayoutTbl = (t) => t.getAttribute('role') === 'presentation' || !!t.closest('[data-sig]') || !!t.parentElement?.closest('table') || !!t.querySelector('table');
+// 예전 코드가 모양 잡는 표에 붙인 data-tbl과 테두리·여백을 걷어 낸다(이미 그렇게 저장된 초안을 다시 열 때).
+// 붙여 넣은 표는 바꿀 때 border·cellpadding 속성을 지우므로, 이 속성이 남은 data-tbl 표는 잘못 바뀐 표다
+const mailBrokenTbl = (t) => t.getAttribute('role') === 'presentation' || t.hasAttribute('cellpadding') || t.hasAttribute('border') || !!t.closest('[data-sig]');
+function mailUnTbl(t) {
+  t.removeAttribute('data-tbl');
+  mailCells(t).forEach((td) => {
+    if (/^1px solid (rgb\(214, ?214, ?214\)|#d6d6d6)$/i.test(td.style.border)) td.style.border = '';
+    if (td.style.padding === '6px 8px') td.style.padding = '';
+    if (td.style.verticalAlign === 'top' && !td.getAttribute('valign')) td.style.verticalAlign = '';
+  });
+}
+/* 표 너비: 인라인 style과 width 속성을 같이(Outlook 데스크톱은 속성을 더 잘 따른다). '' = 내용에 맞춤 */
+function mailTblW(t, w) {
+  t.style.width = w;
+  if (w) t.setAttribute('width', w.endsWith('%') ? w : String(parseInt(w, 10))); else t.removeAttribute('width');
+}
+function mailFixTables(root, paste) {
   root.querySelectorAll('table').forEach((t) => {
-    if (t.closest('[data-sig]')) return;
-    t.setAttribute('data-tbl', '1');
+    if (t.hasAttribute('data-tbl') && mailBrokenTbl(t)) { mailUnTbl(t); return; }
+    if (!t.hasAttribute('data-tbl')) {
+      if (!paste || mailLayoutTbl(t)) return;
+      ['border', 'cellpadding', 'cellspacing'].forEach((a) => t.removeAttribute(a));
+      t.setAttribute('data-tbl', '1');
+    }
     t.style.borderCollapse = 'collapse';
-    t.querySelectorAll('td,th').forEach((td) => {
+    if (t.style.width && !t.getAttribute('width')) mailTblW(t, t.style.width);
+    mailCells(t).forEach((td) => {
       if (!td.style.border && !td.style.borderTop && !td.style.borderBottom && !td.style.borderLeft && !td.style.borderRight) td.style.border = '1px solid #D6D6D6';
       if (!td.style.padding) td.style.padding = '6px 8px';
       if (!td.style.verticalAlign) td.style.verticalAlign = 'top';
@@ -1539,9 +1567,9 @@ function mailFixTables(root) {
   });
   return root;
 }
-function mailFixHtml(html) {
+function mailFixHtml(html, paste) {
   const doc = new DOMParser().parseFromString(html || '', 'text/html');
-  return mailFixTables(doc.body).innerHTML;
+  return mailFixTables(doc.body, paste).innerHTML;
 }
 
 /* 서식 편집기: 도구 버튼은 execCommand, 붙여넣은 HTML은 정리해서, 표는 직접 DOM으로 다룬다 */
@@ -1553,7 +1581,8 @@ function mailRteInit(rte, c) {
     rte.focus();
     if (saved) { const s = getSelection(); s.removeAllRanges(); s.addRange(saved); }
   };
-  const cellOf = (n) => { const el = n && (n.nodeType === 1 ? n : n.parentElement); const td = el && el.closest('td,th'); return td && rte.contains(td) && !td.closest('[data-sig]') ? td : null; };
+  // 표 도구는 편집용 표(data-tbl)에서만. 서명이나 원문 속 모양 잡는 표 안에서는 뜨지 않는다
+  const cellOf = (n) => { const el = n && (n.nodeType === 1 ? n : n.parentElement); const td = el && el.closest('td,th'); return td && rte.contains(td) && td.closest('table').hasAttribute('data-tbl') && !td.closest('[data-sig]') ? td : null; };
   const onSel = () => {
     if (!rte.isConnected) { document.removeEventListener('selectionchange', onSel); return; }
     const s = getSelection(); if (!s.rangeCount || !rte.contains(s.anchorNode)) return;
@@ -1594,7 +1623,10 @@ function mailRteInit(rte, c) {
       const w = colPct(table, i), nb = i > 0 ? i - 1 : 0;
       [...table.rows].forEach((r) => r.cells[i]?.remove());
       if (!table.rows[0]?.cells.length) table.remove(); else { setCol(table, nb, colPct(table, nb) + w); placeIn(tr.cells[nb]); }
-    } else if (op === 'tableDel') table.remove();
+    } else if (op === 'tblFit') { // 열 너비(%)가 남아 있으면 표가 다시 넓어지므로 같이 지운다
+      mailTblW(table, ''); mailCells(table).forEach((x) => { x.style.width = ''; x.removeAttribute('width'); });
+    } else if (op === 'tblFull') mailTblW(table, '100%');
+    else if (op === 'tableDel') table.remove();
     rte.focus(); done();
   };
   const insertTable = (rows, cols) => {
@@ -1631,7 +1663,7 @@ function mailRteInit(rte, c) {
   tools.querySelectorAll('[data-ex]').forEach((b) => b.addEventListener('click', () => {
     const cmd = b.dataset.ex;
     if (cmd === 'table') return tablePicker(b);
-    if (['rowAbove', 'rowBelow', 'colLeft', 'colRight', 'rowDel', 'colDel', 'tableDel'].includes(cmd)) return tableOp(cmd);
+    if (['rowAbove', 'rowBelow', 'colLeft', 'colRight', 'rowDel', 'colDel', 'tblFit', 'tblFull', 'tableDel'].includes(cmd)) return tableOp(cmd);
     if (cmd !== 'createLink') return exec(cmd);
     restore();
     const range = saved && saved.cloneRange();
@@ -1668,25 +1700,36 @@ function mailRteInit(rte, c) {
     rte.focus(); done();
   });
 
-  // 열 경계 끌어서 너비 조절 (표 오른쪽 끝 열은 제외)
+  // 열 경계를 끌면 두 열 너비, 표 오른쪽 끝(마지막 열 오른쪽 선)을 끌면 표 전체 너비(px, 편집 칸 폭까지 끌면 100%)
   let hover = null, drag = false;
   rte.addEventListener('mousemove', (e) => {
     if (drag) return;
     const td = e.target.closest && e.target.closest('td,th');
-    const ok = td && td.closest('table[data-tbl]') && rte.contains(td) && td.nextElementSibling && td.getBoundingClientRect().right - e.clientX <= 5;
+    const ok = td && td.closest('table[data-tbl]') && rte.contains(td) && td.getBoundingClientRect().right - e.clientX <= 5;
     hover = ok ? td : null;
     rte.classList.toggle('col-rs', !!ok);
   });
   rte.addEventListener('mousedown', (e) => {
     if (!hover) return;
     e.preventDefault();
-    const td = hover, nx = td.nextElementSibling, table = td.closest('table'), i = td.cellIndex;
-    const tw = table.getBoundingClientRect().width, w1 = td.getBoundingClientRect().width, w2 = nx.getBoundingClientRect().width, x0 = e.clientX;
+    const td = hover, nx = td.nextElementSibling, table = td.closest('table'), i = td.cellIndex, x0 = e.clientX;
+    const tw = table.getBoundingClientRect().width;
+    let move;
+    if (!nx) { // 표 너비
+      const pe = table.parentElement, ps = getComputedStyle(pe), max = pe.clientWidth - parseFloat(ps.paddingLeft) - parseFloat(ps.paddingRight);
+      move = (ev) => {
+        const w = Math.max(60, Math.min(max, tw + ev.clientX - x0));
+        mailTblW(table, w >= max - 2 ? '100%' : `${Math.round(w)}px`);
+      };
+    } else {
+      if (!table.style.width) mailTblW(table, `${Math.round(tw)}px`); // 내용에 맞춘 표는 지금 폭으로 고정하고 열을 나눈다
+      const w1 = td.getBoundingClientRect().width, w2 = nx.getBoundingClientRect().width;
+      move = (ev) => {
+        const d = Math.max(30 - w1, Math.min(w2 - 30, ev.clientX - x0));
+        setCol(table, i, ((w1 + d) / tw) * 100); setCol(table, i + 1, ((w2 - d) / tw) * 100);
+      };
+    }
     drag = true; rte.classList.add('col-drag');
-    const move = (ev) => {
-      const d = Math.max(30 - w1, Math.min(w2 - 30, ev.clientX - x0));
-      setCol(table, i, ((w1 + d) / tw) * 100); setCol(table, i + 1, ((w2 - d) / tw) * 100);
-    };
     const up = () => {
       drag = false; rte.classList.remove('col-drag', 'col-rs'); hover = null;
       document.removeEventListener('mousemove', move); document.removeEventListener('mouseup', up);
@@ -1699,7 +1742,7 @@ function mailRteInit(rte, c) {
   rte.addEventListener('paste', (e) => {
     const html = e.clipboardData?.getData('text/html'); if (!html) return;
     e.preventDefault();
-    exec('insertHTML', mailFixHtml(mailSanitize(html.replace(/<!--(Start|End)Fragment-->/g, ''))));
+    exec('insertHTML', mailFixHtml(mailSanitize(html.replace(/<!--(Start|End)Fragment-->/g, '')), true));
   });
   rte.addEventListener('dragover', (e) => { if ([...(e.dataTransfer?.types || [])].includes('Files')) e.preventDefault(); });
   rte.addEventListener('drop', (e) => { if (e.dataTransfer?.files?.length) { e.preventDefault(); c.html = rte.innerHTML; mailAddFiles(e.dataTransfer.files); } });
