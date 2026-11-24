@@ -29,7 +29,8 @@ TAB_INFO['deals/facts'] = { title: '팩트시트', asof: '딜소싱 각 화면�
   ['어떻게 보나', [
     '기본은 최신 요청순입니다. 요청 칸에 요청한 사람과 날짜가 나오고, 엑스포 목록 회사는 목록 작성일(2026-11-06)로 뒤에 옵니다. 파이프라인에 올린 딜은 자동으로 요청되어 \'파이프라인 자동\'으로 나옵니다.',
     '테마는 방산·항공우주와 K-Beauty(엑스포 목록)입니다. 투자 라운드에서 방산·항공우주로 분류된 회사는 새로 걸릴 때마다 요청자 \'방산 테마 자동\'으로 팩트시트가 요청됩니다.',
-    '필터는 테마, 최근 매출, OPM, 매출 성장(최근 2년 연평균), 투자 단계, 요청자 묶음이고 묶음끼리는 함께 걸립니다. 매출은 가장 최근 연간 실적이고, 2025년이 아니면 연도를 같이 적었습니다.',
+    '줄 오른쪽 별은 관심 표시입니다. 펼친 칸의 \'관심 없음\'을 누르면 내 화면에서만 목록 맨 아래 접힌 묶음으로 내려가고, 딜소싱 탭에서 같은 회사에 누른 표시도 그대로 보입니다.',
+    '필터는 테마, 최근 매출, 투자 단계가 늘 보이고 OPM, 매출 성장(최근 2년 연평균), 요청자는 \'필터 더보기\'에 있습니다. 묶음끼리는 함께 걸리고, 고른 필터는 위에 모여 한 번에 초기화합니다. 매출은 가장 최근 연간 실적이고, 2025년이 아니면 연도를 같이 적었습니다.',
     '회사를 펼치면 첫 칸에 이전 투자유치 히스토리(VC·PE·정책금융·메자닌)와 컨택 방법이 나옵니다. 이어서 개요·사업·브랜드·제품·재무·주주·투자 판단 칸이 있습니다.',
     '목록의 \'현재 투자 단계\'는 지금 지분·투자 상태이고, \'누적 투자\'는 외부 투자자가 신주·메자닌(RCPS·CB·BW)으로 넣은 돈의 합입니다. 창업자·가족 증자, 구주 거래, 경영권 인수 대금은 더하지 않고 단계에 적었습니다.',
     '요청한 회사는 매일 11:00·16:00에 처리되고, 처리 전에는 투자 단계 칸에 처리 시각이 나옵니다. 펼치면 원래 화면으로 가는 링크와 다시 요청 단추가 있습니다.',
@@ -149,8 +150,22 @@ function fsRow(x, i) {
       <div class="fs-c-grow"><span class="${x.cagr > 0 ? 'fs-up' : x.cagr < 0 ? 'fs-dn' : ''}">${fsPct(x.cagr, true)}</span></div>
       <div class="fs-c-stage${x.rounds.length ? ' has' : ''}">${x.stage ? fsT(x.stage) : stt ? '' : '<span class="muted">–</span>'}${stt ? `<div class="ipo-sub">${stt}</div>` : ''}</div>
       <div class="fs-c-total">${fsTotal(x.total)}</div>
-      <div class="fs-c-chev"><span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span></div>
+      <div class="fs-c-chev">${fsStar(x)}<span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span></div>
     </div>${open ? (x.kind === 'req' ? fsReqDetail(x) : fsDetail(x)) : ''}</div>`;
+}
+
+/* 관심·관심 없음(fav.js, 사람별 favs.json, 2026-11-24 사용자 "파이프라인도 관심 없음, 관심"). 키는 딜소싱 탭과 같은 ref:
+   요청한 회사는 요청 키(yesim:… · round:… · pp:…), 엑스포 목록은 파이프라인과 같은 facts:<번호>. 합친 줄은 두 키를 다 본다.
+   관심 없음은 딜소싱처럼 맨 아래 접힌 묶음(fvSkipTail, 범위 facts), 관심은 줄 오른쪽 별(누르면 켜고 끔)과 펼친 칸 머리 단추 */
+const fsRef = (x) => (x.kind === 'req' ? x.key : `facts:${x.key}`);
+const fsRefs = (x) => [fsRef(x), ...(x.kbKey ? [`facts:${x.kbKey}`] : [])];
+const fsFvOk = () => typeof fvS === 'object' && fvS.at && !fvS.err;
+const fsIsSkip = (x) => fsFvOk() && fsRefs(x).some(fvSkip);
+function fsStar(x) {
+  if (!fsFvOk()) return '';
+  const ref = fsRef(x), on = fsRefs(x).some(fvHas);
+  fvS.ctx.set(ref, { name: x.name });
+  return `<button type="button" class="fv-star fs-star${on ? ' on' : ''}" data-fv-tgl="${esc(ref)}" aria-pressed="${on}" aria-label="관심" title="관심">${FV_STAR}</button>`;
 }
 
 /* 요청한 회사 펼친 칸: 팩트시트 칸(fsq.js fqInner: 상태, 다시 요청, 탭 화면) + 원래 화면 링크·파이프라인 */
@@ -158,7 +173,7 @@ function fsReqDetail(x) {
   const r = fqS.req.find((y) => y.key === x.key);
   if (!fqS.ctx.has(x.key)) fqS.ctx.set(x.key, { name: x.name, label: x.src, legacy: null, hint: () => r?.hint || '' });
   const tab = typeof ppTabOf === 'function' ? ppTabOf(x.key) : null;
-  const go = (tab ? `<a class="ipo-a" href="${tab[0]}" data-fq-go="${esc(x.key)}">${esc(x.src || tab[1])}에서 보기${ico('right', 'sm')}</a>` : '') + (typeof fqPipe === 'function' ? fqPipe(x) : '');
+  const go = (typeof fvHead === 'function' ? fvHead(fsRef(x), x) : '') + (tab ? `<a class="ipo-a" href="${tab[0]}" data-fq-go="${esc(x.key)}">${esc(x.src || tab[1])}에서 보기${ico('right', 'sm')}</a>` : '') + (typeof fqPipe === 'function' ? fqPipe(x) : '');
   return `<div class="ipo-detail"><div class="ipo-pane"><div class="fq-box" data-fq="${esc(x.key)}">${fqInner(x.key, go)}</div></div></div>`;
 }
 
@@ -173,7 +188,7 @@ function fsPipe(x) {
 
 function fsDetail(x) {
   return `<div class="ipo-detail">
-    <div class="ipo-dhead"><p class="ipo-sum1">${esc(x.business?.['사업 정의'] || '')}</p>${fsPipe(x)}</div>
+    <div class="ipo-dhead"><p class="ipo-sum1">${esc(x.business?.['사업 정의'] || '')}</p>${typeof fvHead === 'function' ? `<span class="ipo-acts">${fvHead(fsRef(x), x)}</span>` : ''}${fsPipe(x)}</div>
     ${fsTabsPane(x)}
   </div>`;
 }
@@ -330,21 +345,30 @@ function fsSummary() {
   return `<span>${a.length}곳</span><span>요청 <b>${req.length}</b></span>${fsThemes(a).map(([t, n]) => `<span>${esc(t)} <b>${n}</b></span>`).join('')}${wait ? `<span>처리 대기 <b>${wait}</b></span>` : ''}`;
 }
 // 필터 칩 줄: 묶음 이름 + 칩. 요청자 묶음은 지금 자료에 있는 사람만
+const FS_MAIN = ['thm', 'rev', 'stg']; // 늘 보이는 묶음(테마, 최근 매출, 투자 단계). 나머지는 '필터 더보기'
 function fsFilterHtml() {
   const seg = (g, opts) => `<div class="seg" role="group">${opts.map(([k, l]) => `<button type="button" data-fs-fl="${g}" data-v="${esc(k)}" class="${fsS.fl[g] === k ? 'on' : ''}" aria-pressed="${fsS.fl[g] === k}">${esc(l)}</button>`).join('')}</div>`;
   const who = fsWhoList(fsAll());
   if (fsS.fl.who && !who.some(([w]) => w === fsS.fl.who)) who.push([fsS.fl.who, 0]);
   const thm = fsThemes(fsAll()).map(([t]) => [t, t]);
   if (fsS.fl.thm && !thm.some(([t]) => t === fsS.fl.thm)) thm.push([fsS.fl.thm, fsS.fl.thm]);
-  return `<div class="rd-fing"><span class="rd-finl">테마</span>${seg('thm', [['', '전체'], ...thm])}</div>`
-    + FS_FG.map(([g, l, opts]) => `<div class="rd-fing"><span class="rd-finl">${l}</span>${seg(g, opts)}</div>`).join('')
-    + `<div class="rd-fing"><span class="rd-finl">요청자</span>${seg('who', [['', '전체'], ...who.map(([w]) => [w, w])])}</div>`;
+  const fg = Object.fromEntries(FS_FG.map(([g, l, o]) => [g, [g, l, o]]));
+  const groups = [['thm', '테마', [['', '전체'], ...thm]], fg.rev, fg.stg, fg.opm, fg.gr, ['who', '요청자', [['', '전체'], ...who.map(([w]) => [w, w])]]];
+  const more = viewGet('fs.more', false) === true;
+  const on = groups.filter(([g]) => fsS.fl[g]);
+  const chip = ([g, l, opts]) => `<button type="button" class="fs-onchip" data-fs-clr="${g}" aria-label="${esc(l)} 필터 풀기">${esc(l)} ${esc(opts.find(([k]) => k === fsS.fl[g])?.[1] || fsS.fl[g])}<span aria-hidden="true">×</span></button>`;
+  const head = on.length ? `<div class="fs-on">${on.map(chip).join('')}<button type="button" class="btn ghost sm fs-clr" data-fs-clr="all">초기화</button></div>` : '';
+  const hid = groups.filter(([g]) => !FS_MAIN.includes(g) && fsS.fl[g]).length;
+  const row = ([g, l, opts]) => { const m = !FS_MAIN.includes(g); return `<div class="rd-fing${m ? ' fs-more' : ''}"${m && !more ? ' hidden' : ''}><span class="rd-finl">${esc(l)}</span>${seg(g, opts)}</div>`; };
+  return head + groups.map(row).join('')
+    + `<button type="button" class="fs-moretgl${more ? ' open' : ''}" data-fs-more aria-expanded="${more}">${more ? '필터 접기' : '필터 더보기'}${!more && hid ? `<b class="fs-n">${hid}</b>` : ''}${ico('right', 'sm')}</button>`;
 }
 function fsBody() {
   if (!fsS.at || (typeof fqS === 'object' && !fqS.at)) return '<div class="empty">불러오는 중…</div>'; // 두 자료를 다 읽고 한 번에
-  const a = fsListItems();
-  if (!a.length) return fsAll().length ? '<div class="empty">조건에 맞는 회사가 없습니다.</div>' : '<div class="empty">아직 올라간 팩트시트가 없습니다.</div>';
-  return `<div class="ipo-head fs-cols"><div>No.</div><div>회사</div><div class="fs-c-by">요청</div><div class="fs-c-rev">최근 매출</div><div class="fs-c-opm">OPM</div><div class="fs-c-grow">매출 성장</div><div class="fs-c-stage">현재 투자 단계</div><div class="fs-c-total">누적 투자</div><div></div></div>${a.map((x, i) => fsRow(x, i)).join('')}`;
+  const all = fsListItems();
+  const [a, skip] = typeof fvSplit === 'function' ? fvSplit(all, (x) => fsRefs(x).find((r) => fvSkip(r)) || fsRef(x)) : [all, []];
+  if (!a.length && !skip.length) return fsAll().length ? '<div class="empty">조건에 맞는 회사가 없습니다.</div>' : '<div class="empty">아직 올라간 팩트시트가 없습니다.</div>';
+  return `<div class="ipo-head fs-cols"><div>No.</div><div>회사</div><div class="fs-c-by">요청</div><div class="fs-c-rev">최근 매출</div><div class="fs-c-opm">OPM</div><div class="fs-c-grow">매출 성장</div><div class="fs-c-stage">현재 투자 단계</div><div class="fs-c-total">누적 투자</div><div></div></div>${a.map((x, i) => fsRow(x, i)).join('')}${typeof fvSkipTail === 'function' ? fvSkipTail(skip, 'facts', (x, i) => fsRow(x, a.length + i)) : ''}`;
 }
 function fsDraw() {
   const b = fsS.host?.querySelector('#fs-body'); if (!b || !b.isConnected) return;
@@ -397,6 +421,10 @@ function fsBind(root) {
     const t = ev.target;
     const irb = t.closest('[data-fs-ir]');
     if (irb) { fsIrOpen(irb.dataset.fsIr); return; }
+    if (t.closest('[data-fv-tgl], [data-fv-skipgrp]')) return; // 관심 별·관심 없음 묶음은 fav.js가 document에서 받는다
+    const cb = t.closest('[data-fs-clr]');
+    if (cb) { const g = cb.dataset.fsClr; if (g === 'all') Object.keys(fsS.fl).forEach((k) => { fsS.fl[k] = ''; }); else fsS.fl[g] = ''; viewSet('fs.fl', fsS.fl); fsDraw(); return; }
+    if (t.closest('[data-fs-more]')) { viewSet('fs.more', viewGet('fs.more', false) !== true); fsDraw(); return; }
     const fb = t.closest('[data-fs-fl]');
     if (fb) { fsS.fl[fb.dataset.fsFl] = fb.dataset.v; viewSet('fs.fl', fsS.fl); fsDraw(); return; }
     if (t.closest('#fs-ref')) { Promise.all([fsLoad(true), fqLoad(true)]).then(fsDraw).catch((e) => toast(e.message)); return; }
@@ -438,6 +466,9 @@ async function renderFacts(host) {
   if (fsS.host === host && host.isConnected) fsDraw();
   if (typeof pipeLoad === 'function') pipeLoad().then(() => { if (fsS.host === host && host.isConnected) fsDraw(); }).catch(() => {}); // '파이프라인에 있음' 표시
 }
+
+// 관심·관심 없음을 바꾸거나 처음 읽었을 때(fav.js)
+window.addEventListener('fv-change', () => { if (fsS.host?.isConnected && fsS.at) fsDraw(); });
 
 /* 다른 화면(파이프라인 '팩트시트에서 보기')에서 한 회사를 펼쳐 열 때. 주소 이동은 부르는 쪽이 한다. 엑스포 목록 번호로 오면 fsDraw가 합친 줄로 바꾼다 */
 function factsFocus(no) {
