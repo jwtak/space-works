@@ -343,7 +343,7 @@ function peHeirRow(x) {
       <div class="rd-mh">${h.main}<div class="ipo-sub">${h.sub}</div></div>
       <div class="rd-mh rd-c2">${x.years != null ? `${x.years}년` : PE_NA}<div class="ipo-sub">${x.est ? `${x.est.slice(0, 4)} 설립` : ''}</div></div>
       <div class="rd-mh rd-c2">${sig.length ? `<div class="pe-sigl">${sig.slice(0, 2).map((t) => `<span>${esc(t)}</span>`).join('')}</div>` : PE_NA}</div>
-      <div class="ipo-c-st">${peChip(st)}${peChev()}</div>
+      <div class="ipo-c-st">${typeof ctSel === 'function' ? ctSel('pe', x.id, st, x.key) : peChip(st)}${peChev()}</div>
     </div>${open ? peHeirDetail(x) : ''}</div>`;
 }
 
@@ -366,7 +366,7 @@ function peDupRow(x) {
       <div class="rd-mh rd-c2">${p.name ? peNm(p.name) : PE_NA}<div class="ipo-sub">${p.pct != null ? `지분 ${pePct(p.pct)}` : ''}</div></div>
       <div class="rd-mh">${sgt ? `<div class="rd-clamp">${esc(sgt)}</div>` : PE_NA}</div>
       <div class="rd-mh rd-c2">${f ? peDn(f.rev, peEok(f.rev)) : PE_NA}<div class="ipo-sub">${f?.op != null ? `영업이익 ${peDn(f.op, peEok(f.op))}` : ''}</div></div>
-      <div class="ipo-c-st">${peChip(st)}${peChev()}</div>
+      <div class="ipo-c-st">${typeof ctSel === 'function' ? ctSel('pe', x.id, st, x.key) : peChip(st)}${peChev()}</div>
     </div>${open ? peDupDetail(x) : ''}</div>`;
 }
 

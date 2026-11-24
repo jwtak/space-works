@@ -88,7 +88,7 @@ Object.assign(TAB_INFO, {
       '주관사 선정은 주관사를 정했다는 기사가 난 청구 전 회사이고 선정일 최근순입니다. 이미 청구한 회사는 펼친 칸 \'진행\'에 주관사 선정일이 나옵니다.',
       '주관사 선정 회사는 가장 최근 상장 관련 기사가 1년 안이면 목록에 남습니다. 선정일이 1년 넘게 지났어도 후속 기사가 있으면 남고, 선정일 아래 기사 날짜가 그 마지막 기사일입니다. 기사는 2년 치까지 찾습니다.',
       '매출 칸과 재무 필터는 감사보고서 재무를 쓰고, 재무가 없으면 Pre-IPO 후보 판정에 쓴 실적(최근 두 해)으로 채웁니다.',
-      '이미 본 회사나 볼 필요 없는 회사는 펼친 칸 맨 위 \'관심 없음\'을 누릅니다. 목록 맨 아래 접힌 \'관심 없음\' 묶음으로 내려가고, 사람마다 따로 기억합니다. 다시 누르면 원래 자리로 돌아옵니다.',
+      '컨택 상태는 목록 맨 오른쪽 칸에서 바로 고릅니다. 이미 본 회사나 볼 필요 없는 회사는 같은 칸에서 \'관심 없음\'을 고릅니다. 목록 맨 아래 접힌 \'관심 없음\' 묶음으로 내려가고, 사람마다 따로 기억합니다. 다시 누르면 원래 자리로 돌아옵니다.',
       '회사를 펼치면 3개년 매출·영업이익·순이익, 주관사, 기술특례 여부, 주요 주주(VC·조합은 FI 표시), 대표 연락처, 관련 기사, KIND·DART 원문 링크가 나옵니다.',
       '목록 위 \'청구 전 신호\'는 아직 청구 전인데 기술성평가·주관사 선정·프리IPO·상장 추진 기사가 난 회사입니다. KIND 목록이나 주관사 선정 목록에 이미 있는 회사는 뺍니다.',
       '스팩과 재상장은 뺐습니다. 자료는 매일 09:10에 KIND·DART·딜 뉴스에서 새로 받습니다.',
@@ -587,6 +587,8 @@ const rdExp = (s) => { const d = rdDay(s); if (!d) return ''; const n = diffDays
 const rdByText = (m) => (m && typeof m.at === 'string' && m.at ? `${rdStr(m.by)} ${rdMd(m.at.slice(0, 10))} ${m.at.slice(11, 16)}`.trim() : '');
 // 목록 행의 컨택 상태 칩: 미접촉(기본값)은 그리지 않는다 — 컨택한 곳은 '컨택한 곳' 묶음으로 내려가 칩만 보면 된다(2026-11-15 요소 줄이기)
 const rdChip = (st) => (st === RD_STATUS[0] ? '' : `<span class="ipo-st s-${RD_STATUS.indexOf(st)}">${esc(st)}</span>`);
+// 목록 칸에서 바로 고르는 칸(fav.js ctSel, 2026-11-24). 분류 전 임시 카드는 칩만
+const rdStSel = (tab, x, st) => (x.guess || typeof ctSel !== 'function' ? rdChip(st) : ctSel('rd', x.id, st, rdKey(tab, x.id), tab));
 // 폰 목록 둘째 줄: 값을 '·'로 잇지 않고 자리를 고정한 칸으로(첫 칸들은 폭 고정 cls, 마지막 칸은 남은 폭). 빈 값은 '–'로 자리를 지킨다
 const rdPair = (cells) => `<div class="rd-pair">${cells.map(([v, cls = '']) => `<span class="${cls}">${v || RD_NA}</span>`).join('')}</div>`;
 const rdChev = () => `<span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span>`;
@@ -772,7 +774,7 @@ function rdYsRow(x) {
       <div class="rd-mh">${br.length ? rdNm(br[0]) : RD_NA}</div>
       <div class="rd-mh rd-c2">${x.rev != null ? rdEok(x.rev) : RD_NA}</div>
       <div class="rd-mh rd-c2">${x.phone ? esc(x.phone) : RD_NA}</div>
-      <div class="ipo-c-st">${rdChip(st)}${rdChev()}</div>
+      <div class="ipo-c-st">${rdStSel('yesim', x, st)}${rdChev()}</div>
     </div>${open ? rdYsDetail(x) : ''}</div>`;
 }
 
@@ -832,7 +834,7 @@ function rdMnRow(x) {
       <div class="rd-mh">${x.lead.length ? rdClamp(x.lead.join(', '), rdNm) : RD_NA}</div>
       <div class="rd-mh rd-c2">${x.rev != null ? rdEok(x.rev) : '<span class="muted">확인 불가</span>'}</div>
       <div class="rd-mh rd-c2">${x.phone ? esc(x.phone) : RD_NA}</div>
-      <div class="ipo-c-st">${rdChip(st)}${rdChev()}</div>
+      <div class="ipo-c-st">${rdStSel('yesim', x, st)}${rdChev()}</div>
     </div>${open ? rdMnDetail(x) : ''}</div>`;
 }
 
@@ -969,7 +971,7 @@ function rdSellRow(x) {
       <div class="rd-mh">${p.rev != null ? rdEok(p.rev) : RD_NA}${p.fy ? `<div class="ipo-sub">${esc(p.fy)}년</div>` : ''}</div>
       <div class="rd-mh">${p.op != null ? rdOp(p.op) : RD_NA}${p.turn ? `<div class="ipo-sub">${RD_TURN}</div>` : ''}</div>
       <div class="rd-mh">${p.gr != null ? rdGr(p.gr) : RD_NA}</div>
-      <div class="ipo-c-st">${rdChip(st)}${rdChev()}</div>
+      <div class="ipo-c-st">${rdStSel('sell', x, st)}${rdChev()}</div>
     </div>${open ? rdSellDetail(x) : ''}</div>`;
 }
 
@@ -1051,7 +1053,7 @@ function rdBidsRow(x, go) {
       <div class="rd-mh rd-c2">${rdClamp(x.seller, rdNm)}</div>
       <div class="rd-mh">${adv.length ? rdClamp(adv.join(', '), rdNm) : RD_NA}</div>
       <div class="rd-mh rd-c2">${esc(x.size) || RD_NA}</div>
-      <div class="ipo-c-st">${rdChip(st)}${rdChev()}</div>
+      <div class="ipo-c-st">${go ? rdChip(st) : rdStSel('bids', x, st)}${rdChev()}</div>
     </div>${open ? rdBidsDetail(x) : ''}</div>`;
 }
 

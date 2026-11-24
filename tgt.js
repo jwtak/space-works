@@ -339,7 +339,7 @@ function tgConsRow(x, y) {
       <div class="rd-mh">${tgEok(x.rev)}<div class="ipo-sub">${ty}</div></div>
       <div class="rd-mh">${tgChg(x.cagr)}<div class="ipo-sub">${x.cagr != null ? '연평균' : ''}</div></div>
       <div class="rd-mh rd-c2">${holder || TG_NA}<div class="ipo-sub">${t ? esc(t.kind) : ''}</div></div>
-      <div class="ipo-c-st">${tgChip(tgSt(x.id))}${tgChev()}</div>
+      <div class="ipo-c-st">${typeof ctSel === 'function' ? ctSel('tg', x.id, tgSt(x.id), x.id) : tgChip(tgSt(x.id))}${tgChev()}</div>
     </div>${open ? tgDetail('cons', x) : ''}</div>`;
 }
 
@@ -359,7 +359,7 @@ function tgDeepRow(x) {
       <div class="rd-mh">${tgStage(x)}</div>
       <div class="rd-mh">${f && tgAge(f) ? tgAge(f) : TG_NA}<div class="ipo-sub">${fsub}</div></div>
       <div class="rd-mh rd-c2">${r?.amount || r?.round ? esc(r.amount || r.round) : TG_NA}<div class="ipo-sub">${r ? esc([tgYmd(r.date), r.amount ? r.round : ''].filter(Boolean).join(' ')) : ''}</div></div>
-      <div class="ipo-c-st">${tgChip(tgSt(x.id))}${tgChev()}</div>
+      <div class="ipo-c-st">${typeof ctSel === 'function' ? ctSel('tg', x.id, tgSt(x.id), x.id) : tgChip(tgSt(x.id))}${tgChev()}</div>
     </div>${open ? tgDetail('deep', x) : ''}</div>`;
 }
 

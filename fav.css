@@ -53,3 +53,17 @@
 .rd-grp.fv-skipgrp.open .i { transform: rotate(90deg); }
 .fv-skiprows > * { opacity: .6; }
 .fv-skiprows > *:hover, .fv-skiprows > .open { opacity: 1; }
+
+/* 목록 '컨택 상태' 칸 고르기(fav.js ctSel): 칩 모양 select, 꺾쇠는 pipeline.css .pp-stsel과 같게.
+   글자 시작선은 칩과 같은 좌 10이라 머리글(.rd-h-st·.ipo-h-st 좌 10)과 맞는다. .ipo-st.s-N 배경 줄임형이 꺾쇠를 지우지 않게 세 단계로 지정 */
+.ipo-line .ipo-st.ct-sel { appearance: none; -webkit-appearance: none; border: 0; cursor: pointer; font-family: inherit; padding-right: 26px; field-sizing: content; max-width: 100%; min-width: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236B7280' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 8px center; background-size: 12px; }
+.ipo-line .ipo-st.ct-sel.s-0 { background-color: transparent; color: var(--text3); font-weight: 400; } /* 미접촉: 칩 바탕 없이 흐린 글자 */
+.ipo-line .ipo-st.ct-sel:hover { filter: brightness(0.97); }
+.ipo-line .ipo-st.ct-sel.s-0:hover { background-color: var(--fill); filter: none; }
+.ipo-row.open > .ipo-line .ipo-st.ct-sel:not(.s-0) { background-color: var(--card); } /* 펼친 줄(파란 바탕)에서는 흰 칩 */
+.ct-sel:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+.ct-sel option { color: var(--ink); background: var(--card); }
+.ipo-line .ipo-st.ct-sel.ct-busy { opacity: .55; cursor: progress; }
+.ipo-line .ipo-st.ct-sel.ct-err { box-shadow: inset 0 0 0 1px var(--danger); color: var(--danger); }

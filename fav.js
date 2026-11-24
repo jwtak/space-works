@@ -97,6 +97,7 @@ function fvToggle(ref, kind) {
     throw new Error('다른 기기에서 동시에 수정 중입니다. 잠시 후 다시 해 주세요.');
   }).then(() => { fvPaint(); if (!add && old && !skip) toast(`${old.name || '이 회사'}를 관심 기업에서 뺐습니다`); if (add && skip) toast(`${rec.name || '이 회사'}: 관심 없음으로 목록 맨 아래에 접어 둡니다`); })
     .catch((e) => { toast(e.message || '저장하지 못했습니다.'); return fvLoad(true); });
+  return fvS.saving; // 목록 칸 고르기(ctPick)가 저장이 끝날 때까지 기다린다
 }
 // 이름을 못 받았을 때: 팩트시트 요청 기록의 이름
 const fqNameOf = (ref) => (typeof fqS === 'object' && (fqS.ctx.get(ref)?.name || fqS.req.find((r) => r.key === ref)?.name)) || ref;
@@ -188,4 +189,74 @@ document.addEventListener('click', (ev) => {
   if (b) { ev.preventDefault(); fvToggle(b.dataset.fvTgl, b.dataset.fvKind); return; }
   const g = ev.target.closest('[data-fv-skipgrp]');
   if (g) { ev.preventDefault(); ev.stopPropagation(); const k = `fv.sk.${g.dataset.fvSkipgrp}`; viewSet(k, viewGet(k, false) !== true); fvChanged(); }
+}, true);
+
+/* ---------- 목록 '컨택 상태' 칸에서 바로 고르기 (2026-11-24 사용자 "행을 열지 않고 이 화면에서 바로") ----------
+   칸 = 칩 모양 select(pipeline.js 단계 칸과 같은 모양). 위 다섯 줄은 컨택 상태(세 분 공유, 각 화면 펼친 칸 단추와 같은 저장 함수),
+   구분선 아래 '관심 없음'은 사람별 표시(fvToggle, favs.json). 두 값은 다른 파일에 따로 저장되고 서로 바꾸지 않는다.
+   각 화면 행 그리기에서 ctSel(kind, id, 상태, 관심 없음 ref, tab)을 부른다. 클릭·change는 document 캡처에서 받아 행 펼치기로 가지 않게 막는다.
+   저장 중에는 흐리게(ct-busy), 저장이 되돌려지면(권한·충돌·네트워크) 빨간 테두리(ct-err) 4초 + 각 화면이 띄우는 안내. */
+const CT_ST = ['미접촉', '연락함', '미팅', '보류', '검토 완료']; // radar.js RD_STATUS·ipo.js IPO_STATUS·pe.js·tgt.js와 같은 값·순서
+const CT_KIND = {
+  rd: { set: (id, s, tab) => rdSetStatus(tab, id, s), get: (id, tab) => rdSt(rdKey(tab, id)), wait: () => rdS.saving }, // 상장 준비·매각희망·입찰딜
+  ipo: { set: (id, s) => ipoSetStatus(id, s), get: (id) => ipoSt(id), wait: () => ipoState.saving }, // 신규상장(ipo_marks.json)
+  pe: { set: (id, s) => peSetStatus(id, s), get: (id) => { const x = peFind(id); return x ? peSt(x.key) : ''; }, wait: () => peS.saving }, // 오너기업·중복상장
+  tg: { set: (id, s) => tgSetStatus(id, s), get: (id) => tgSt(id), wait: () => tgS.saving }, // 소비재·딥테크
+  rn: { set: (id, s) => rnSetStatus(id, s), get: (id) => { const e = rnAll().find((y) => y.id === id); return e ? rnSt(e) : ''; }, wait: () => tgS.saving }, // 투자 라운드
+  si: { set: (id, s) => siSetStatus(id, s), get: (id) => { const e = siFind(id); return e ? siSt(e) : ''; }, wait: () => tgS.saving }, // SI 타깃
+};
+const ctS = new Map(); // `${kind}|${tab}|${id}` → 'busy' | 'err'
+const ctKey = (kind, tab, id) => `${kind}|${tab || ''}|${id}`;
+const CT_TIP = { busy: '저장 중', err: '저장하지 못했습니다' };
+
+function ctSel(kind, id, st, ref = '', tab = '') {
+  const b = ctS.get(ctKey(kind, tab, id)), i = Math.max(0, CT_ST.indexOf(st));
+  const fv = ref && fvS.at && !fvS.err; // 관심 없음을 아직 못 읽었으면 그 줄은 빼고, 다 읽으면 fv-change로 다시 그려진다
+  const opts = CT_ST.map((s) => `<option value="${s}"${s === st ? ' selected' : ''}>${s}</option>`).join('')
+    + (fv ? `<hr><option value="fv-skip">${fvSkip(ref) ? '✓ ' : ''}관심 없음</option>` : '');
+  return `<select class="ipo-st s-${i} ct-sel${b ? ` ct-${b}` : ''}" data-ct="${kind}" data-ct-id="${esc(id)}" data-ct-tab="${esc(tab)}" data-ct-ref="${esc(ref)}" aria-label="컨택 상태"${b ? ` title="${CT_TIP[b]}" aria-busy="${b === 'busy'}"` : ''}>${opts}</select>`;
+}
+
+function ctPaint(k) {
+  const b = ctS.get(k);
+  document.querySelectorAll('select[data-ct]').forEach((s) => {
+    if (ctKey(s.dataset.ct, s.dataset.ctTab, s.dataset.ctId) !== k) return;
+    s.classList.toggle('ct-busy', b === 'busy'); s.classList.toggle('ct-err', b === 'err');
+    if (b) { s.title = CT_TIP[b]; s.setAttribute('aria-busy', String(b === 'busy')); } else { s.removeAttribute('title'); s.removeAttribute('aria-busy'); }
+  });
+}
+
+function ctRun(k, go, ok) {
+  ctS.set(k, 'busy');
+  let p;
+  try { p = go(); } catch (e) { p = Promise.reject(e); }
+  ctPaint(k); // 행을 다시 그렸으면 새 칸에도
+  Promise.resolve(p).catch(() => {}).then(() => {
+    if (ok()) ctS.delete(k);
+    else { ctS.set(k, 'err'); setTimeout(() => { if (ctS.get(k) === 'err') { ctS.delete(k); ctPaint(k); } }, 4000); }
+    ctPaint(k);
+  });
+}
+
+function ctPick(sel) {
+  const { ct: kind, ctId: id, ctTab: tab, ctRef: ref } = sel.dataset, d = CT_KIND[kind], v = sel.value;
+  if (!d || !id) return;
+  const k = ctKey(kind, tab, id), cur = d.get(id, tab);
+  if (v === 'fv-skip') { // 관심 없음만 켜고 끈다. 컨택 상태 칸은 원래 값으로 돌려 둔다
+    sel.value = cur;
+    if (!ref || !fvS.at || fvS.err) return;
+    const want = !fvSkip(ref);
+    ctRun(k, () => fvToggle(ref, 'skip'), () => fvSkip(ref) === want);
+    return;
+  }
+  if (!CT_ST.includes(v) || v === cur) return;
+  ctRun(k, () => { d.set(id, v, tab); return d.wait(); }, () => d.get(id, tab) === v);
+}
+
+document.addEventListener('click', (ev) => { if (ev.target.closest?.('select[data-ct]')) ev.stopPropagation(); }, true); // 행 펼치기로 가지 않게
+document.addEventListener('change', (ev) => {
+  const t = ev.target;
+  if (!t.matches?.('select[data-ct]')) return;
+  ev.stopPropagation();
+  ctPick(t);
 }, true);

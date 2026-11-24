@@ -207,7 +207,7 @@ function siRow(e, fy) {
       <div class="rd-mh">${siEok(p.rev)}<div class="ipo-sub">${p.op != null ? `영업이익 ${siEok(p.op)}` : ''}${ty ? ` ${ty}` : ''}</div></div>
       <div class="rd-mh">${e.deal ? `<div class="rd-clamp">${esc(e.deal)}</div>` : TG_NA}<div class="ipo-sub">${esc(e.stage)}</div></div>
       <div class="rd-mh rd-c2">${e.from.length ? esc(e.from.join(', ')) : TG_NA}${e.signals.length ? `<div class="ipo-sub rd-clamp">${esc(e.signals.slice(0, 2).join(', '))}</div>` : ''}</div>
-      <div class="ipo-c-st">${tgChip(st)}${tgChev()}</div>
+      <div class="ipo-c-st">${typeof ctSel === 'function' ? ctSel('si', e.id, st, e.refs[0] || '') : tgChip(st)}${tgChev()}</div>
     </div>${open ? siDetail(e) : ''}</div>`;
 }
 

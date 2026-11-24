@@ -255,7 +255,7 @@ function ipoRow(x) {
       <div class="ipo-c-rev">${ipoEok(f25[0])}</div>
       <div class="ipo-c-writer">${ipoWriterCell(x)}</div>
       <div class="ipo-c-lock">${ipoLockCell(x)}</div>
-      <div class="ipo-c-st">${st === IPO_STATUS[0] ? '' : `<span class="ipo-st s-${IPO_STATUS.indexOf(st)}">${esc(st)}</span>`}<span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span></div>
+      <div class="ipo-c-st">${typeof ctSel === 'function' ? ctSel('ipo', x.code, st, `ipo:${x.code}`) : st === IPO_STATUS[0] ? '' : `<span class="ipo-st s-${IPO_STATUS.indexOf(st)}">${esc(st)}</span>`}<span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span></div>
     </div>${open ? ipoDetail(x) : ''}</div>`;
 }
 

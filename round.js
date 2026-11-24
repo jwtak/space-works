@@ -169,7 +169,7 @@ function rnRow(e) {
       <div class="rd-mh">${rnAmt(e) || (e.goal != null ? `목표 ${rnEok(e.goal)}` : RN_NA)}${e.val != null ? `<div class="ipo-sub">기업가치 ${rnEok(e.val)}</div>` : ''}</div>
       <div class="rd-mh rd-c2">${e.investors ? `<div class="rd-clamp">${esc(e.investors)}</div>` : RN_NA}</div>
       <div class="rd-mh">${p.rev != null ? rnEok(p.rev) : RN_NA}${p.op != null ? `<div class="ipo-sub">영업이익 ${rnOp(p.op)}${p.turn ? ' <span class="rd-turn">흑자 전환</span>' : ''}</div>` : ''}</div>
-      <div class="ipo-c-st">${rnChip(e)}${rnChev()}</div>
+      <div class="ipo-c-st">${typeof ctSel === 'function' ? ctSel('rn', e.id, rnSt(e), e.key) : rnChip(e)}${rnChev()}</div>
     </div>${open ? rnDetail(e) : ''}</div>`;
 }
 
