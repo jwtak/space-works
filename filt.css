@@ -1,0 +1,21 @@
+/* 딜소싱·팩트시트 공용 필터 틀(filt.js). 각 화면의 칩 묶음 줄(.ipo-filter.rd-finf > .rd-fing)에 .ff를 붙여 모양만 바꾼다 */
+.ff-on { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.ff-chip { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--primary); border-radius: var(--r-full); background: var(--primary-soft); color: var(--primary); font: inherit; font-size: var(--fs-md); font-weight: 600; cursor: pointer; }
+.ff-chip span { font-size: var(--fs-lg); line-height: 1; }
+.ff-tgl { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; height: 32px; padding: 0; border: 0; background: none; color: var(--text2); font: inherit; font-size: var(--fs-md); font-weight: 600; cursor: pointer; }
+.ff-tgl .i { transform: rotate(90deg); transition: transform .15s; }
+.ff-tgl.open .i { transform: rotate(-90deg); }
+.ff-n { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--r-full); background: var(--primary); color: #fff; font-size: var(--fs-xs); }
+.ipo-filter.ff > .rd-fing[hidden] { display: none; }
+@media (min-width: 761px) {
+  /* 한 줄에 한 묶음: 왼쪽 묶음 이름 고정 폭(가장 긴 '영업이익률'·'매출 성장'이 들어가는 80), 오른쪽 칩 */
+  #page .ipo-filter.ff { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 8px; padding-top: 12px; padding-bottom: 12px; }
+  #page .ipo-filter.ff > .rd-fing { display: grid; grid-template-columns: 80px minmax(0, 1fr); align-items: center; gap: 16px; }
+  #page .ipo-filter.ff > .rd-fing > .seg { justify-self: start; flex-wrap: wrap; max-width: 100%; }
+  #page .ipo-filter.ff > .rd-fing[hidden] { display: none; }
+}
+@media (max-width: 760px) {
+  /* 폰은 '필터' 단추로 여는 시트 안이라 묶음을 다 보이고 더보기는 뺀다 */
+  #page .ipo-filter.ff > .rd-fing[hidden] { display: flex; }
+  #page .ff-tgl { display: none; }
+}

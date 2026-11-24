@@ -28,7 +28,7 @@ TAB_INFO['deals/facts'] = { title: '팩트시트', asof: '딜소싱 각 화면�
   ['왜 보나', '컨택 전에 회사가 무엇을 하고, 얼마나 벌고, 누가 지분을 갖고 있으며, 누구에게 어떻게 연락할지를 한 화면에서 봅니다.'],
   ['어떻게 보나', [
     '기본은 최신 요청순입니다. 요청 칸에 요청한 사람과 날짜가 나오고, 엑스포 목록 회사는 목록 작성일(2026-11-06)로 뒤에 옵니다. 파이프라인에 올린 딜은 자동으로 요청되어 \'파이프라인 자동\'으로 나옵니다.',
-    '테마는 방산·항공우주와 K-Beauty(엑스포 목록)입니다. 투자 라운드에서 방산·항공우주로 분류된 회사는 새로 걸릴 때마다 요청자 \'방산 테마 자동\'으로 팩트시트가 요청됩니다.',
+    '테마는 직접 요청(사람이 요청한 회사), K-Beauty(엑스포 목록), 방산·항공우주입니다. 투자 라운드에서 방산·항공우주로 분류된 회사는 새로 걸릴 때마다 요청자 \'방산 테마 자동\'으로 팩트시트가 요청됩니다.',
     '줄 오른쪽 별은 관심 표시입니다. 펼친 칸의 \'관심 없음\'을 누르면 내 화면에서만 목록 맨 아래 접힌 묶음으로 내려가고, 딜소싱 탭에서 같은 회사에 누른 표시도 그대로 보입니다.',
     '필터는 테마, 최근 매출, 투자 단계가 늘 보이고 OPM, 매출 성장(최근 2년 연평균), 요청자는 \'필터 더보기\'에 있습니다. 묶음끼리는 함께 걸리고, 고른 필터는 위에 모여 한 번에 초기화합니다. 매출은 가장 최근 연간 실적이고, 2025년이 아니면 연도를 같이 적었습니다.',
     '회사를 펼치면 첫 칸에 이전 투자유치 히스토리(VC·PE·정책금융·메자닌)와 컨택 방법이 나옵니다. 이어서 개요·사업·브랜드·제품·재무·주주·투자 판단 칸이 있습니다.',
@@ -125,7 +125,7 @@ function fsListItems() {
   let a = fsAll().filter((x) => !q || x._q.includes(q));
   FS_FG.forEach(([g, , opts]) => { const o = opts.find(([k]) => k && k === fsS.fl[g]); if (o) a = a.filter(o[2]); });
   if (fsS.fl.who) a = a.filter((x) => x.by === fsS.fl.who);
-  if (fsS.fl.thm) a = a.filter((x) => x.theme === fsS.fl.thm);
+  if (fsS.fl.thm) a = a.filter((x) => fsHasTheme(x, fsS.fl.thm));
   const n = (v) => (v == null ? -Infinity : v), at = (x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0);
   const no = (x, y) => (x.kind !== y.kind ? (x.kind === 'kb' ? -1 : 1) : x.kind === 'kb' ? x.no - y.no : at(x, y));
   const by = { req: at, rev: (x, y) => n(y.r25) - n(x.r25), total: (x, y) => n(y.total) - n(x.total), op: (x, y) => n(y.o25) - n(x.o25), grow: (x, y) => n(y.cagr) - n(x.cagr), opm: (x, y) => n(y.opm) - n(x.opm), no }[fsS.sort] || at;
@@ -157,6 +157,8 @@ function fsRow(x, i) {
 /* 관심·관심 없음(fav.js, 사람별 favs.json, 2026-11-24 사용자 "파이프라인도 관심 없음, 관심"). 키는 딜소싱 탭과 같은 ref:
    요청한 회사는 요청 키(yesim:… · round:… · pp:…), 엑스포 목록은 파이프라인과 같은 facts:<번호>. 합친 줄은 두 키를 다 본다.
    관심 없음은 딜소싱처럼 맨 아래 접힌 묶음(fvSkipTail, 범위 facts), 관심은 줄 오른쪽 별(누르면 켜고 끔)과 펼친 칸 머리 단추 */
+// 관심 없음 표시(동그라미에 사선). 켜지면 진하게
+const FS_SKIP_ICO = '<svg class="i sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M6.5 17.5l11-11"/></svg>';
 const fsRef = (x) => (x.kind === 'req' ? x.key : `facts:${x.key}`);
 const fsRefs = (x) => [fsRef(x), ...(x.kbKey ? [`facts:${x.kbKey}`] : [])];
 const fsFvOk = () => typeof fvS === 'object' && fvS.at && !fvS.err;
@@ -165,7 +167,9 @@ function fsStar(x) {
   if (!fsFvOk()) return '';
   const ref = fsRef(x), on = fsRefs(x).some(fvHas);
   fvS.ctx.set(ref, { name: x.name });
-  return `<button type="button" class="fv-star fs-star${on ? ' on' : ''}" data-fv-tgl="${esc(ref)}" aria-pressed="${on}" aria-label="관심" title="관심">${FV_STAR}</button>`;
+  const off = fsRefs(x).some(fvSkip);
+  return `<button type="button" class="fv-star fs-star${on ? ' on' : ''}" data-fv-tgl="${esc(ref)}" aria-pressed="${on}" aria-label="관심" title="관심">${FV_STAR}</button>`
+    + `<button type="button" class="fv-star fs-skip${off ? ' on' : ''}" data-fv-tgl="${esc(fsRefs(x).find(fvSkip) || ref)}" data-fv-kind="skip" aria-pressed="${off}" aria-label="관심 없음" title="관심 없음">${FS_SKIP_ICO}</button>`;
 }
 
 /* 요청한 회사 펼친 칸: 팩트시트 칸(fsq.js fqInner: 상태, 다시 요청, 탭 화면) + 원래 화면 링크·파이프라인 */
@@ -338,30 +342,33 @@ function fsPaintImgs(root) {
 
 /* ---------- 그리기 ---------- */
 // 자료에 있는 테마와 회사 수(많은 순)
-const fsThemes = (a) => { const m = new Map(); a.forEach((x) => { if (x.theme) m.set(x.theme, (m.get(x.theme) || 0) + 1); }); return [...m].sort((p, q) => q[1] - p[1]); };
+// 테마: '직접 요청'(요청자가 사람인 줄, 2026-11-24 사용자 '자동으로 모으는 게 계속 올라오면 직접 요청한 게 안 보일 테니'. 파이프라인 자동은 빼기로 확정)
+// + 요청 기록·팩트시트 theme + 엑스포 목록 K-Beauty. 한 회사가 두 테마에 들어갈 수 있다
+const FS_DIRECT = '직접 요청';
+const fsDirect = (x) => !!x.by && x.by !== FS_EXPO && !/자동/.test(x.by);
+const fsHasTheme = (x, t) => (t === FS_DIRECT ? fsDirect(x) : x.theme === t);
+const FS_THEME_ORDER = [FS_DIRECT, FS_KB_THEME, '방산·항공우주'];
+const fsThemes = (a) => {
+  const m = new Map(); a.forEach((x) => { if (fsDirect(x)) m.set(FS_DIRECT, (m.get(FS_DIRECT) || 0) + 1); if (x.theme) m.set(x.theme, (m.get(x.theme) || 0) + 1); });
+  const rk = (t) => { const i = FS_THEME_ORDER.indexOf(t); return i < 0 ? 99 : i; };
+  return [...m].sort((p, q) => rk(p[0]) - rk(q[0]) || q[1] - p[1]);
+};
 function fsSummary() {
   const a = fsAll(); if (!a.length) return '';
   const req = a.filter((x) => x.kind === 'req'), wait = req.filter((x) => x.st?.wait && !x.st.failed).length;
   return `<span>${a.length}곳</span><span>요청 <b>${req.length}</b></span>${fsThemes(a).map(([t, n]) => `<span>${esc(t)} <b>${n}</b></span>`).join('')}${wait ? `<span>처리 대기 <b>${wait}</b></span>` : ''}`;
 }
 // 필터 칩 줄: 묶음 이름 + 칩. 요청자 묶음은 지금 자료에 있는 사람만
-const FS_MAIN = ['thm', 'rev', 'stg']; // 늘 보이는 묶음(테마, 최근 매출, 투자 단계). 나머지는 '필터 더보기'
+// 묶음 줄만 그린다. 한 줄에 한 묶음·필터 더보기·고른 필터 칩·초기화는 공용 틀(filt.js FF_MAIN 'deals/facts')
 function fsFilterHtml() {
   const seg = (g, opts) => `<div class="seg" role="group">${opts.map(([k, l]) => `<button type="button" data-fs-fl="${g}" data-v="${esc(k)}" class="${fsS.fl[g] === k ? 'on' : ''}" aria-pressed="${fsS.fl[g] === k}">${esc(l)}</button>`).join('')}</div>`;
-  const who = fsWhoList(fsAll());
+  const all = fsAll(), who = fsWhoList(all);
   if (fsS.fl.who && !who.some(([w]) => w === fsS.fl.who)) who.push([fsS.fl.who, 0]);
-  const thm = fsThemes(fsAll()).map(([t]) => [t, t]);
+  const thm = fsThemes(all).map(([t]) => [t, t]);
   if (fsS.fl.thm && !thm.some(([t]) => t === fsS.fl.thm)) thm.push([fsS.fl.thm, fsS.fl.thm]);
   const fg = Object.fromEntries(FS_FG.map(([g, l, o]) => [g, [g, l, o]]));
   const groups = [['thm', '테마', [['', '전체'], ...thm]], fg.rev, fg.stg, fg.opm, fg.gr, ['who', '요청자', [['', '전체'], ...who.map(([w]) => [w, w])]]];
-  const more = viewGet('fs.more', false) === true;
-  const on = groups.filter(([g]) => fsS.fl[g]);
-  const chip = ([g, l, opts]) => `<button type="button" class="fs-onchip" data-fs-clr="${g}" aria-label="${esc(l)} 필터 풀기">${esc(l)} ${esc(opts.find(([k]) => k === fsS.fl[g])?.[1] || fsS.fl[g])}<span aria-hidden="true">×</span></button>`;
-  const head = on.length ? `<div class="fs-on">${on.map(chip).join('')}<button type="button" class="btn ghost sm fs-clr" data-fs-clr="all">초기화</button></div>` : '';
-  const hid = groups.filter(([g]) => !FS_MAIN.includes(g) && fsS.fl[g]).length;
-  const row = ([g, l, opts]) => { const m = !FS_MAIN.includes(g); return `<div class="rd-fing${m ? ' fs-more' : ''}"${m && !more ? ' hidden' : ''}><span class="rd-finl">${esc(l)}</span>${seg(g, opts)}</div>`; };
-  return head + groups.map(row).join('')
-    + `<button type="button" class="fs-moretgl${more ? ' open' : ''}" data-fs-more aria-expanded="${more}">${more ? '필터 접기' : '필터 더보기'}${!more && hid ? `<b class="fs-n">${hid}</b>` : ''}${ico('right', 'sm')}</button>`;
+  return groups.map(([g, l, opts]) => `<div class="rd-fing"><span class="rd-finl">${esc(l)}</span>${seg(g, opts)}</div>`).join('');
 }
 function fsBody() {
   if (!fsS.at || (typeof fqS === 'object' && !fqS.at)) return '<div class="empty">불러오는 중…</div>'; // 두 자료를 다 읽고 한 번에
@@ -422,9 +429,6 @@ function fsBind(root) {
     const irb = t.closest('[data-fs-ir]');
     if (irb) { fsIrOpen(irb.dataset.fsIr); return; }
     if (t.closest('[data-fv-tgl], [data-fv-skipgrp]')) return; // 관심 별·관심 없음 묶음은 fav.js가 document에서 받는다
-    const cb = t.closest('[data-fs-clr]');
-    if (cb) { const g = cb.dataset.fsClr; if (g === 'all') Object.keys(fsS.fl).forEach((k) => { fsS.fl[k] = ''; }); else fsS.fl[g] = ''; viewSet('fs.fl', fsS.fl); fsDraw(); return; }
-    if (t.closest('[data-fs-more]')) { viewSet('fs.more', viewGet('fs.more', false) !== true); fsDraw(); return; }
     const fb = t.closest('[data-fs-fl]');
     if (fb) { fsS.fl[fb.dataset.fsFl] = fb.dataset.v; viewSet('fs.fl', fsS.fl); fsDraw(); return; }
     if (t.closest('#fs-ref')) { Promise.all([fsLoad(true), fqLoad(true)]).then(fsDraw).catch((e) => toast(e.message)); return; }

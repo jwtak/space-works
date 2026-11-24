@@ -1,36 +1,17 @@
 /* 딜소싱 › 팩트시트 (facts.js) — 목록·상자 모양은 ipo.css 를 그대로 쓰고 칸 나누기만 따로 */
 #fs-root { container-type: inline-size; }
 /* 위아래 여백은 ipo.css .ipo-line(12px)을 따른다: 좌우만 지정(padding 한 줄로 쓰면 위아래가 0이 되어 행이 붙는다) */
-.fs-cols { display: grid; grid-template-columns: 40px minmax(0, 1.6fr) minmax(0, 0.8fr) minmax(0, 0.8fr) 64px 80px minmax(0, 1.1fr) 88px 56px; gap: 16px; align-items: start; padding-left: 24px; padding-right: 24px; }
+.fs-cols { display: grid; grid-template-columns: 40px minmax(0, 1.6fr) minmax(0, 0.8fr) minmax(0, 0.8fr) 64px 80px minmax(0, 1.1fr) 88px 88px; gap: 16px; align-items: start; padding-left: 24px; padding-right: 24px; }
 .fs-c-no { color: var(--text3); font-variant-numeric: tabular-nums; }
 .ipo-head.fs-cols { align-items: center; } /* .fs-cols의 align-items: start가 머리줄 글자를 위로 붙이지 않게 */
-.fs-c-chev { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding-top: 2px; }
+.fs-c-chev { display: flex; align-items: center; justify-content: flex-end; gap: 4px; padding-top: 2px; }
 /* 줄 오른쪽 관심 별(fav.css .fv-star 크기 그대로, 위아래 여백만 줄 높이에 맞춤) */
 .fs-c-chev .fs-star { margin: -6px 0; }
-/* 필터: 한 줄에 한 묶음(왼쪽 묶음 이름 고정 폭), 위에 고른 필터 칩과 초기화, 자주 안 쓰는 묶음은 '필터 더보기' */
-.fs-onchip { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border: 1px solid var(--primary); border-radius: var(--r-full); background: var(--primary-soft); color: var(--primary); font: inherit; font-size: var(--fs-md); font-weight: 600; cursor: pointer; }
-.fs-onchip span { font-size: var(--fs-lg); line-height: 1; }
-.fs-on { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.fs-moretgl { display: inline-flex; align-items: center; gap: 6px; align-self: flex-start; height: 32px; padding: 0; border: 0; background: none; color: var(--text2); font: inherit; font-size: var(--fs-md); font-weight: 600; cursor: pointer; }
-.fs-moretgl .i { transform: rotate(90deg); transition: transform .15s; }
-.fs-moretgl.open .i { transform: rotate(-90deg); }
-.fs-n { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--r-full); background: var(--primary); color: #fff; font-size: var(--fs-xs); }
-.fs-finf .rd-fing[hidden] { display: none; }
-@media (min-width: 761px) {
-  .fs-page .fs-finf { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 8px; }
-  .fs-page .fs-finf > .rd-fing { display: grid; grid-template-columns: 72px minmax(0, 1fr); align-items: center; gap: 16px; }
-  .fs-page .fs-finf > .rd-fing > .seg { justify-self: start; flex-wrap: wrap; max-width: 100%; }
-  .fs-page .fs-finf > .rd-fing[hidden] { display: none; }
-}
-@media (max-width: 760px) {
-  /* 폰은 '필터' 단추로 여는 시트 안이라 묶음을 다 보이고 더보기는 뺀다 */
-  .fs-page .fs-finf .rd-fing[hidden] { display: flex; }
-  .fs-page .fs-moretgl { display: none; }
-}
+/* 줄 오른쪽 관심 없음 토글(별 옆). 켜지면 진한 글자색 */
+.fs-c-chev .fs-skip { margin: -6px 0; }
+.fv-star.fs-skip.on { color: var(--ink); }
 /* 요청 칸(요청자 + 날짜). 좁은 폭·폰에서는 접고 이름 아래 수치 두 칸(최근 매출 | 요청)으로 */
 .fs-c-by { min-width: 0; overflow-wrap: anywhere; }
-/* 필터 칩 줄 위아래 여백(상장 준비 radar.css .rd-finf와 같게) */
-.fs-page .fs-finf { padding-top: 12px; padding-bottom: 12px; gap: 8px 24px; }
 /* 좁은 폭·폰 목록 한 건의 수치 두 칸(최근 매출 | 요청): 이름표 위·값 아래, 자리 고정 */
 .fs-mg { display: none; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin: 8px 0 0; font-variant-numeric: tabular-nums; }
 .fs-mg > div { min-width: 0; }
@@ -83,7 +64,7 @@
   #fs-root .ipo-tabs { flex-wrap: wrap; row-gap: 0; }
   /* 카드가 좁으면 영업이익률·매출 성장 칸을 접는다(투자 단계·누적 투자는 남김) */
   @container (max-width: 899px) {
-    #fs-root .fs-cols { grid-template-columns: 40px minmax(0, 1.5fr) minmax(0, 0.8fr) minmax(0, 0.8fr) minmax(0, 1.1fr) 80px 56px; } /* 접힘: 칸 7개 */
+    #fs-root .fs-cols { grid-template-columns: 40px minmax(0, 1.5fr) minmax(0, 0.8fr) minmax(0, 0.8fr) minmax(0, 1.1fr) 80px 88px; } /* 접힘: 칸 7개 */
     #fs-root .fs-c-opm, #fs-root .fs-c-grow { display: none; }
   }
   @container (max-width: 719px) {
