@@ -18,7 +18,6 @@ const TG_CFG = {
   cons: { file: 'data/consumer.json', title: '소비재', stale: 2 },
   deep: { file: 'data/deeptech.json', title: '딥테크', stale: 8 },
 };
-const TG_OP = [['', '전체'], ['20', '20억+'], ['30', '30억+'], ['50', '50억+']];
 const TG_LST = [['', '전체'], ['private', '비상장'], ['listed', '상장']];
 const TG_CSORT = [['op', '영업이익순'], ['rev', '매출순'], ['opm', 'OPM순'], ['cagr', '성장률순']];
 const TG_DSORT = [['inv', '누적 투자순'], ['round', '최근 라운드순'], ['age', '창업자 나이순']];
@@ -27,9 +26,10 @@ const TG_LATE = 3; // '시리즈C 이상' = 단계 순위 3 이상(tgStageN)
 // 새로 고친 뒤에도 보던 분류·검색어·필터·정렬·펼친 행을 이어 보게 창마다 기억한다(app.js viewGet·viewSet, 키 tg.cons·tg.deep)
 function tgView(k, s) {
   const v = viewGet(`tg.${k}`, null) || {};
-  ['q', 'cat', 'op', 'lst', 'sort'].forEach((f) => { if (f in s && typeof v[f] === 'string') s[f] = v[f]; });
+  ['q', 'cat', 'op', 'opMode', 'nn', 'lst', 'sort'].forEach((f) => { if (f in s && typeof v[f] === 'string') s[f] = v[f]; });
   ['young', 'late', 'fi'].forEach((f) => { if (f in s && typeof v[f] === 'boolean') s[f] = v[f]; });
-  if ('op' in s && !TG_OP.some(([x]) => x === s.op)) s.op = '';
+  // 소비재 영업이익은 공용 슬라이더(filt.js, 2026-11-24): 'a:20'(20억 이상)·'m:10'(이익률 10% 이상). 옛 칩 값('20')은 금액으로
+  if ('op' in s && s.op && !/^[am]:-?\d+(\.\d+)?$/.test(s.op)) s.op = Number.isFinite(+s.op) ? `a:${+s.op}` : '';
   if ('lst' in s && !TG_LST.some(([x]) => x === s.lst)) s.lst = '';
   if (!(k === 'cons' ? TG_CSORT : TG_DSORT).some(([x]) => x === s.sort)) s.sort = k === 'cons' ? 'op' : 'inv';
   s.open = new Set(Array.isArray(v.open) ? v.open : []);
@@ -38,7 +38,7 @@ function tgView(k, s) {
 const tgS = {
   k: 'cons', host: null, focus: null, field: null,
   marks: { items: [], version: null }, dirty: new Map(), saving: Promise.resolve(),
-  cons: { data: null, err: '', at: 0, loading: null, v: tgView('cons', { q: '', cat: '', op: '', lst: '', fi: false, sort: 'op', open: new Set() }) },
+  cons: { data: null, err: '', at: 0, loading: null, v: tgView('cons', { q: '', cat: '', op: '', opMode: 'a', nn: '', lst: '', fi: false, sort: 'op', open: new Set() }) },
   deep: { data: null, err: '', at: 0, loading: null, v: tgView('deep', { q: '', cat: '', young: false, late: false, sort: 'inv', open: new Set() }) },
 };
 function tgViewSave(k = tgS.k) {
@@ -295,7 +295,7 @@ function tgRows(k) {
     age: (a, b) => (a.founder?.age ?? Infinity) - (b.founder?.age ?? Infinity),
   }[s.sort];
   const ok = k === 'cons'
-    ? (x) => (!s.op || (x.op != null && x.op >= +s.op)) && (!s.fi || tgHasInv(x)) && (!s.lst || (s.lst === 'private' ? x.listed === '비상장' : !!x.listed && x.listed !== '비상장'))
+    ? (x) => (typeof ffOk !== 'function' || ffOk(s, { rev: x.rev, op: x.op })) && (!s.fi || tgHasInv(x)) && (!s.lst || (s.lst === 'private' ? x.listed === '비상장' : !!x.listed && x.listed !== '비상장'))
     : (x) => (!s.young || x.young === true) && (!s.late || (x.stageN != null && x.stageN >= TG_LATE));
   return d.items.filter((x) => (!s.cat || x.tags.includes(s.cat)) && ok(x) && (!q || x.q.includes(q))).sort((a, b) => (by ? by(a, b) : 0) || a.idx - b.idx);
 }
@@ -453,8 +453,9 @@ function tgFilterHtml(k) {
   const search = `<div class="ipo-search"><span class="ipo-sic">${ico('search', 'sm')}</span><input class="input" id="tg-q" type="search" placeholder="${k === 'cons' ? '회사, 브랜드, 대표, 주주로 검색' : '회사, 기술, 창업자, 투자사로 검색'}" value="${esc(s.q)}" autocomplete="off" aria-label="검색"></div>`;
   const sel = `<select class="select" id="tg-sort" aria-label="정렬">${(k === 'cons' ? TG_CSORT : TG_DSORT).map(([v, l]) => `<option value="${v}"${s.sort === v ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
   const tg = (f, l) => `<button type="button" data-tg-tg="${f}" class="${s[f] ? 'on' : ''}" aria-pressed="${!!s[f]}">${l}</button>`;
+  if (k === 'cons' && typeof FF_RG === 'object') FF_RG['tg-cons'] = { st: () => tgS.cons.v, apply: () => { tgViewSave('cons'); tgDraw(); } };
   const second = k === 'cons'
-    ? `<div class="rd-fing"><span class="rd-finl">영업이익</span>${tgSeg('tg-op', TG_OP, s.op)}</div><div class="rd-fing"><span class="rd-finl">상장</span>${tgSeg('tg-lst', TG_LST, s.lst)}</div><div class="rd-fing"><span class="rd-finl">투자</span><div class="seg">${tg('fi', '투자 이력 있음')}</div></div>`
+    ? `${typeof ffRangeHtml === 'function' ? ffRangeHtml('tg-cons', 'op', '영업이익') : ''}<div class="rd-fing"><span class="rd-finl">상장</span>${tgSeg('tg-lst', TG_LST, s.lst)}</div><div class="rd-fing"><span class="rd-finl">투자</span><div class="seg">${tg('fi', '투자 이력 있음')}</div></div>${typeof ffRangeHtml === 'function' ? ffRangeHtml('tg-cons', 'nn', '값 없음') : ''}`
     : `<div class="rd-fing"><span class="rd-finl">조건</span><div class="seg">${tg('young', '젊은 창업자만')}${tg('late', '시리즈C 이상')}</div></div>`;
   return `<div class="ipo-filter">${search}${tgSeg('tg-cat', cats, s.cat)}${sel}</div><div class="ipo-filter rd-finf">${second}</div>`;
 }
@@ -616,7 +617,6 @@ function tgBind(root) {
   root.addEventListener('click', (ev) => {
     const t = ev.target, k = tgS.k, s = tgS[k].v;
     const cb = t.closest('[data-tg-cat]'); if (cb) { s.cat = cb.dataset.tgCat; segOn('[data-tg-cat]', cb); tgDraw(); return; }
-    const ob = t.closest('[data-tg-op]'); if (ob) { s.op = ob.dataset.tgOp; segOn('[data-tg-op]', ob); tgDraw(); return; }
     const lb = t.closest('[data-tg-lst]'); if (lb) { s.lst = lb.dataset.tgLst; segOn('[data-tg-lst]', lb); tgDraw(); return; }
     const tb = t.closest('[data-tg-tg]');
     if (tb) { const f = tb.dataset.tgTg; s[f] = !s[f]; tb.classList.toggle('on', s[f]); tb.setAttribute('aria-pressed', s[f]); tgDraw(); return; }
