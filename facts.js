@@ -7,12 +7,9 @@
 
 const FS_DIR = '_웍스/팩트시트';
 const FS_TTL = 10 * 60000;
-// 묶음별 칩 줄(상장 준비 화면과 같은 방식, 묶음끼리는 함께 걸림). 값 = [키, 이름, 통과 조건]. 요청자 묶음은 자료에서 만든다(fsWhoList)
+// 칩 묶음(묶음끼리는 함께 걸림). 값 = [키, 이름, 통과 조건]. 요청자 묶음은 자료에서 만든다(fsWhoList). 매출·영업이익·매출 성장은 공용 슬라이더(filt.js, 2026-11-24)
 const fsInvested = (x) => x.rounds.length > 0 || x.total > 0;
 const FS_FG = [
-  ['rev', '최근 매출', [['', '전체'], ['100', '100억+', (x) => x.r25 >= 100], ['300', '300억+', (x) => x.r25 >= 300], ['500', '500억+', (x) => x.r25 >= 500], ['1000', '1,000억+', (x) => x.r25 >= 1000]]],
-  ['opm', 'OPM', [['', '전체'], ['pos', '흑자', (x) => x.o25 > 0], ['5', '5%+', (x) => x.opm >= 0.05], ['10', '10%+', (x) => x.opm >= 0.1], ['15', '15%+', (x) => x.opm >= 0.15]]],
-  ['gr', '매출 성장', [['', '전체'], ['neg', '역성장', (x) => x.cagr < 0], ['0', '0%+', (x) => x.cagr >= 0], ['20', '20%+', (x) => x.cagr >= 0.2], ['50', '50%+', (x) => x.cagr >= 0.5]]],
   ['stg', '투자 단계', [['', '전체'], ['none', '외부 투자 없음', (x) => !fsInvested(x)], ['inv', '투자 이력 있음', fsInvested], ['sale', '매각 추진', (x) => /매각/.test(x.stage)],
     ['ipo', 'IPO 준비', (x) => /IPO|상장 ?준비|주관사/i.test(x.stage)], ['own', 'PE·SI 보유', (x) => /PEF?\b|SI\b|자회사|계열|편입|바이아웃/.test(x.stage) && !/없음|미확인/.test(x.stage)]]],
 ];
@@ -21,7 +18,14 @@ const FS_EXPO = '엑스포 목록'; // K-Beauty Expo 2026 목록에서 온 회�
 // 테마(2026-11-24 사용자 "팩트시트에 방산/항공우주 테마로 하나"): 요청 기록·팩트시트의 theme(fs_req.py THEMES 자동 요청), 엑스포 목록 회사는 K-Beauty. 묶음 단추 말고 필터로만
 const FS_KB_THEME = 'K-Beauty';
 const FS_TABS = [['inv', '투자유치·컨택'], ['ov', '개요'], ['biz', '사업·브랜드'], ['prod', '제품'], ['fin', '재무·주주'], ['view', '투자 판단']];
-const fsS = { data: null, at: 0, loading: null, q: viewGet('fs.q', ''), fl: { thm: '', rev: '', opm: '', gr: '', stg: '', who: '', ...viewGet('fs.fl', {}) }, sort: viewGet('fs.sort2', 'req'), tab: viewGet('fs.tab', 'inv'), open: new Set(viewGet('fs.open', [])), focus: null, host: null, imgs: new Map() };
+// 필터 상태. 11/24 칩 → 슬라이더: 옛 칩 값('pos'·'neg' 등 숫자가 아닌 것, opm)은 버린다
+function fsFlInit() {
+  const v = { thm: '', rev: '', op: '', opMode: 'a', gr: '', nn: '', stg: '', who: '', ...viewGet('fs.fl', {}) };
+  delete v.opm;
+  ['rev', 'gr'].forEach((k) => { if (v[k] && !Number.isFinite(+v[k])) v[k] = ''; });
+  return v;
+}
+const fsS = { data: null, at: 0, loading: null, q: viewGet('fs.q', ''), fl: fsFlInit(), sort: viewGet('fs.sort2', 'req'), tab: viewGet('fs.tab', 'inv'), open: new Set(viewGet('fs.open', [])), focus: null, host: null, imgs: new Map() };
 
 TAB_INFO['deals/facts'] = { title: '팩트시트', asof: '딜소싱 각 화면에서 요청한 회사와 K-Beauty Expo 2026 참가기업 목록(2026-11-06, 대표님이 고른 40곳)', rows: [
   ['무엇인가', '팩트시트를 요청한 회사와 엑스포 목록 회사를 공통 양식(PE 딜소싱 Fact Sheet)으로 한 장씩 조사한 자료입니다.'],
@@ -30,7 +34,7 @@ TAB_INFO['deals/facts'] = { title: '팩트시트', asof: '딜소싱 각 화면�
     '기본은 최신 요청순입니다. 요청 칸에 요청한 사람과 날짜가 나오고, 엑스포 목록 회사는 목록 작성일(2026-11-06)로 뒤에 옵니다. 파이프라인에 올린 딜은 자동으로 요청되어 \'파이프라인 자동\'으로 나옵니다.',
     '테마는 직접 요청(사람이 요청한 회사), K-Beauty(엑스포 목록), 방산·항공우주입니다. 투자 라운드에서 방산·항공우주로 분류된 회사는 새로 걸릴 때마다 요청자 \'방산 테마 자동\'으로 팩트시트가 요청됩니다.',
     '줄 오른쪽 별은 관심 표시입니다. 펼친 칸의 \'관심 없음\'을 누르면 내 화면에서만 목록 맨 아래 접힌 묶음으로 내려가고, 딜소싱 탭에서 같은 회사에 누른 표시도 그대로 보입니다.',
-    '필터는 테마, 최근 매출, 투자 단계가 늘 보이고 OPM, 매출 성장(최근 2년 연평균), 요청자는 \'필터 더보기\'에 있습니다. 묶음끼리는 함께 걸리고, 고른 필터는 위에 모여 한 번에 초기화합니다. 매출은 가장 최근 연간 실적이고, 2025년이 아니면 연도를 같이 적었습니다.',
+    '필터는 테마, 최근 매출·영업이익(금액 또는 이익률)·매출 성장(최근 2년 연평균) 슬라이더, 투자 단계, 요청자이고 묶음끼리는 함께 걸립니다. 슬라이더 조건을 걸면 값이 없는 회사는 빠지고, 값 없음을 켜면 남습니다. 고른 필터는 위에 모여 한 번에 초기화합니다. 매출은 가장 최근 연간 실적이고, 2025년이 아니면 연도를 같이 적었습니다.',
     '회사를 펼치면 첫 칸에 이전 투자유치 히스토리(VC·PE·정책금융·메자닌)와 컨택 방법이 나옵니다. 이어서 개요·사업·브랜드·제품·재무·주주·투자 판단 칸이 있습니다.',
     '목록의 \'현재 투자 단계\'는 지금 지분·투자 상태이고, \'누적 투자\'는 외부 투자자가 신주·메자닌(RCPS·CB·BW)으로 넣은 돈의 합입니다. 창업자·가족 증자, 구주 거래, 경영권 인수 대금은 더하지 않고 단계에 적었습니다.',
     '요청한 회사는 매일 11:00·16:00에 처리되고, 처리 전에는 투자 단계 칸에 처리 시각이 나옵니다. 펼치면 원래 화면으로 가는 링크와 다시 요청 단추가 있습니다.',
@@ -124,6 +128,7 @@ function fsListItems() {
   const q = fsS.q.trim().toLowerCase();
   let a = fsAll().filter((x) => !q || x._q.includes(q));
   FS_FG.forEach(([g, , opts]) => { const o = opts.find(([k]) => k && k === fsS.fl[g]); if (o) a = a.filter(o[2]); });
+  if (typeof ffOk === 'function') a = a.filter((x) => ffOk(fsS.fl, { rev: x.r25, op: x.o25, gr: x.cagr == null ? null : x.cagr * 100 }));
   if (fsS.fl.who) a = a.filter((x) => x.by === fsS.fl.who);
   if (fsS.fl.thm) a = a.filter((x) => fsHasTheme(x, fsS.fl.thm));
   const n = (v) => (v == null ? -Infinity : v), at = (x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0);
@@ -367,8 +372,11 @@ function fsFilterHtml() {
   const thm = fsThemes(all).map(([t]) => [t, t]);
   if (fsS.fl.thm && !thm.some(([t]) => t === fsS.fl.thm)) thm.push([fsS.fl.thm, fsS.fl.thm]);
   const fg = Object.fromEntries(FS_FG.map(([g, l, o]) => [g, [g, l, o]]));
-  const groups = [['thm', '테마', [['', '전체'], ...thm]], fg.rev, fg.stg, fg.opm, fg.gr, ['who', '요청자', [['', '전체'], ...who.map(([w]) => [w, w])]]];
-  return groups.map(([g, l, opts]) => `<div class="rd-fing"><span class="rd-finl">${esc(l)}</span>${seg(g, opts)}</div>`).join('');
+  if (typeof FF_RG === 'object') FF_RG.fs = { st: () => fsS.fl, apply: () => { viewSet('fs.fl', fsS.fl); fsDraw(true); } };
+  const rg = (k, l) => (typeof ffRangeHtml === 'function' ? ffRangeHtml('fs', k, l) : '');
+  const row = ([g, l, opts]) => `<div class="rd-fing"><span class="rd-finl">${esc(l)}</span>${seg(g, opts)}</div>`;
+  return row(['thm', '테마', [['', '전체'], ...thm]]) + rg('rev', '최근 매출') + rg('op', '영업이익') + rg('gr', '매출 성장')
+    + row(fg.stg) + row(['who', '요청자', [['', '전체'], ...who.map(([w]) => [w, w])]]) + rg('nn', '값 없음');
 }
 function fsBody() {
   if (!fsS.at || (typeof fqS === 'object' && !fqS.at)) return '<div class="empty">불러오는 중…</div>'; // 두 자료를 다 읽고 한 번에
@@ -377,12 +385,13 @@ function fsBody() {
   if (!a.length && !skip.length) return fsAll().length ? '<div class="empty">조건에 맞는 회사가 없습니다.</div>' : '<div class="empty">아직 올라간 팩트시트가 없습니다.</div>';
   return `<div class="ipo-head fs-cols"><div>No.</div><div>회사</div><div class="fs-c-by">요청</div><div class="fs-c-rev">최근 매출</div><div class="fs-c-opm">OPM</div><div class="fs-c-grow">매출 성장</div><div class="fs-c-stage">현재 투자 단계</div><div class="fs-c-total">누적 투자</div><div></div></div>${a.map((x, i) => fsRow(x, i)).join('')}${typeof fvSkipTail === 'function' ? fvSkipTail(skip, 'facts', (x, i) => fsRow(x, a.length + i)) : ''}`;
 }
-function fsDraw() {
+// listOnly: 슬라이더를 끄는 동안은 목록·요약만(필터 줄을 다시 그리면 끌기가 끊긴다)
+function fsDraw(listOnly) {
   const b = fsS.host?.querySelector('#fs-body'); if (!b || !b.isConnected) return;
   if (fsS.focus) { const x = fsFind(fsS.focus); if (x) { fsS.focus = x.key; fsS.open.add(x.key); } } // 엑스포 목록 번호로 왔으면 합친 줄로
   b.innerHTML = fsBody();
   const s = fsS.host.querySelector('#fs-sum'); if (s) s.innerHTML = fsSummary();
-  const f = fsS.host.querySelector('#fs-finf'); if (f) f.innerHTML = fsFilterHtml();
+  const f = !listOnly && fsS.host.querySelector('#fs-finf'); if (f) f.innerHTML = fsFilterHtml();
   fsPaintImgs(b);
   if (fsS.focus) {
     const r = b.querySelector(`.ipo-row[data-fs="${CSS.escape(fsS.focus)}"]`);
@@ -477,6 +486,6 @@ window.addEventListener('fv-change', () => { if (fsS.host?.isConnected && fsS.at
 /* 다른 화면(파이프라인 '팩트시트에서 보기')에서 한 회사를 펼쳐 열 때. 주소 이동은 부르는 쪽이 한다. 엑스포 목록 번호로 오면 fsDraw가 합친 줄로 바꾼다 */
 function factsFocus(no) {
   const k = String(no ?? ''); if (!k) return;
-  fsS.q = ''; fsS.fl = { thm: '', rev: '', opm: '', gr: '', stg: '', who: '' }; fsS.open.add(k); fsS.focus = k;
+  fsS.q = ''; fsS.fl = { thm: '', rev: '', op: '', opMode: fsS.fl.opMode || 'a', gr: '', nn: '', stg: '', who: '' }; fsS.open.add(k); fsS.focus = k;
   viewSet('fs.q', ''); viewSet('fs.fl', fsS.fl); viewSet('fs.open', fsS.open);
 }

@@ -15,17 +15,18 @@ const RN_QUICK = [['all', '전체'], ['pe', 'PE 참여'], ['deep', '딥테크'],
 const RN_ST = [['', '전체'], ['완료', '완료'], ['진행 중', '진행 중'], ['추진', '추진']];
 const RN_STG = [['', '전체'], ['a', 'A 이하'], ['b', 'B'], ['c', 'C'], ['d', 'D 이상'], ['pre', 'Pre-IPO']];
 const RN_AMT = [['', '전체'], ['100', '100억+'], ['300', '300억+'], ['1000', '1,000억+']];
-const RN_PROF = [['', '전체'], ['black', '흑자'], ['turn', '흑자 전환']];
+const RN_PROF = [['', '전체'], ['turn', '흑자 전환']]; // 흑자(영업이익 0억 이상)·매출·성장률은 공용 슬라이더(filt.js, 2026-11-24)
 const RN_IPO = [['', '전체'], ['1', '있음']];
 const RN_SORT = [['dt', '최근 라운드순'], ['amt', '금액순'], ['val', '기업가치순'], ['rev', '매출순'], ['op', '영업이익순'], ['gr', '성장률순']];
 const RN_BIG = 3000; // 기업가치 3,000억 이상은 '대형' 표시만(거르지 않음)
-const RN_KEYS = ['q', 'k', 'st', 'sec', 'stg', 'amt', 'prof', 'ipo', 'sort'];
+const RN_KEYS = ['q', 'k', 'st', 'sec', 'stg', 'amt', 'rev', 'op', 'opMode', 'gr', 'nn', 'prof', 'ipo', 'sort'];
 
 const rnS = (() => {
   const v = viewGet('rn2', null) || {};
-  const s = { q: '', k: 'all', st: '', sec: '', stg: '', amt: '', prof: '', ipo: '', sort: 'dt', open: new Set(), host: null, err: '', data: null, at: 0, loading: null, field: null };
+  const s = { q: '', k: 'all', st: '', sec: '', stg: '', amt: '', rev: '', op: '', opMode: 'a', gr: '', nn: '', prof: '', ipo: '', sort: 'dt', open: new Set(), host: null, err: '', data: null, at: 0, loading: null, field: null };
   RN_KEYS.forEach((k) => { if (typeof v[k] === 'string') s[k] = v[k]; });
   if (!RN_QUICK.some(([x]) => x === s.k)) s.k = 'all';
+  if (s.prof === 'black') { s.prof = ''; if (!s.op) s.op = 'a:0'; } // 옛 '흑자' 칩 → 영업이익 0억 이상
   if (!RN_SORT.some(([x]) => x === s.sort)) s.sort = 'dt';
   if (Array.isArray(v.open)) s.open = new Set(v.open.filter((x) => typeof x === 'string'));
   return s;
@@ -125,7 +126,7 @@ function rnOk(e, s, skipQuick) {
   if (s.sec && e.sector !== s.sec) return false;
   if (s.stg && rnStgOf(e.n) !== s.stg) return false;
   if (s.amt && !(e.amount != null && e.amount >= +s.amt)) return false;
-  if (s.prof === 'black' && !e.p.black) return false;
+  if (typeof ffOk === 'function' && !ffOk(s, { rev: e.p.rev, op: e.p.op, gr: e.p.gr })) return false;
   if (s.prof === 'turn' && !e.p.turn) return false;
   if (s.ipo && !rnHasIpo(e)) return false;
   return true;
@@ -275,13 +276,15 @@ function rnSummary(all) {
     `<span>컨택 <b>${all.filter((e) => rnSt(e) !== '미접촉').length}</b></span>`, ...fails].join('');
 }
 function rnQuickHtml(all) {
-  return RN_QUICK.map(([k, l]) => { const n = all.filter((e) => rnOk(e, { ...rnS, k, st: '', sec: '', stg: '', amt: '', prof: '', ipo: '' })).length;
+  return RN_QUICK.map(([k, l]) => { const n = all.filter((e) => rnOk(e, { ...rnS, k, st: '', sec: '', stg: '', amt: '', rev: '', op: '', gr: '', prof: '', ipo: '' })).length;
     return `<button type="button" class="${rnS.k === k ? 'on' : ''}" aria-pressed="${rnS.k === k}" data-rn-k="${k}">${esc(l)}<span class="rd-qn">${n}</span></button>`; }).join('');
 }
 const rnSeg = (attr, opts, cur) => `<div class="seg">${opts.map(([v, l]) => `<button type="button" data-${attr}="${v}" class="${cur === v ? 'on' : ''}" aria-pressed="${cur === v}">${esc(l)}</button>`).join('')}</div>`;
 const rnSel = (id, label, opts, cur) => `<select class="select" id="${id}" aria-label="${label}">${opts.map(([v, l]) => `<option value="${esc(v)}"${cur === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
 function rnFilterHtml(all) {
   const s = rnS, secs = new Map();
+  if (typeof FF_RG === 'object') FF_RG.rn = { st: () => rnS, apply: () => rnDraw() }; // 슬라이더: 끌 때는 목록만(필터 줄은 그대로)
+  const rg = (k, l) => (typeof ffRangeHtml === 'function' ? ffRangeHtml('rn', k, l) : '');
   all.forEach((e) => { if (e.sector) secs.set(e.sector, (secs.get(e.sector) || 0) + 1); });
   if (s.sec && !secs.has(s.sec)) secs.set(s.sec, 0);
   const secOpts = [['', '업종 전체'], ...[...secs].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko')).map(([k, n]) => [k, `${k} ${n}`])];
@@ -289,8 +292,9 @@ function rnFilterHtml(all) {
     ${rnSeg('rn-st', RN_ST, s.st)}${rnSel('rn-sec', '업종', secOpts, s.sec)}${rnSel('rn-sort', '정렬', RN_SORT, s.sort)}</div>
     <div class="ipo-filter rd-finf" id="rn-f2"><div class="rd-fing"><span class="rd-finl">라운드</span>${rnSeg('rn-stg', RN_STG, s.stg)}</div>
     <div class="rd-fing"><span class="rd-finl">금액</span>${rnSeg('rn-amt', RN_AMT, s.amt)}</div>
-    <div class="rd-fing"><span class="rd-finl">영업이익</span>${rnSeg('rn-prof', RN_PROF, s.prof)}</div>
-    <div class="rd-fing"><span class="rd-finl">상장 목표</span>${rnSeg('rn-ipo', RN_IPO, s.ipo)}</div></div>`;
+    ${rg('rev', '매출')}${rg('op', '영업이익')}${rg('gr', '매출 성장')}
+    <div class="rd-fing"><span class="rd-finl">흑자 전환</span>${rnSeg('rn-prof', RN_PROF, s.prof)}</div>
+    <div class="rd-fing"><span class="rd-finl">상장 목표</span>${rnSeg('rn-ipo', RN_IPO, s.ipo)}</div>${rg('nn', '값 없음')}</div>`;
 }
 
 /* ---------- 그리기 ---------- */
@@ -433,7 +437,7 @@ function rnFixIds() {
 function roundFocus(ref) {
   const id = rnId(String(ref || '').replace(/^round:(?=round:)/, '')); // 키가 round:<id>(id 자체도 round:…)로 와도 같은 행. 예전 id면 대표 id로(자료를 아직 안 읽었으면 읽은 뒤 rnFixIds)
   if (!id) return '';
-  Object.assign(rnS, { q: '', k: 'all', st: '', sec: '', stg: '', amt: '', prof: '', ipo: '' });
+  Object.assign(rnS, { q: '', k: 'all', st: '', sec: '', stg: '', amt: '', rev: '', op: '', gr: '', prof: '', ipo: '' });
   rnS.open.add(id); rnS.focus = id;
   const e = rnAll().find((y) => y.id === id);
   if (typeof fvSkip === 'function' && fvSkip(e ? rnRef(e) : id)) viewSet('fv.sk.round', true); // 관심 없음 회사면 맨 아래 묶음을 펼쳐 둔다

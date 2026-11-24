@@ -20,34 +20,25 @@ const RD_TAB = {
   bids: { file: 'data/bids.json', label: '입찰딜', unit: '건' },
 };
 const RD_YS_F = [['all', '전체'], ['mandate', '주관사 선정'], ['review', '심사 중'], ['ok', '승인'], ['drop', '철회·미승인'], ['new', '새 소식']];
-// 재무 필터(최근 연도 기준, 억원·%) — 고르면 재무가 없는 회사('확인 불가')는 빠진다
-const RD_YS_REV = [['', '전체'], ['100', '100억+'], ['300', '300억+'], ['500', '500억+'], ['1000', '1,000억+']];
-const RD_YS_OPM = [['', '전체'], ['0', '흑자'], ['5', '5%+'], ['10', '10%+'], ['15', '15%+']];
+// 재무 필터(최근 연도 기준): 매출·영업이익은 공용 슬라이더(filt.js ffOk, 2026-11-24). 고르면 재무가 없는 회사('확인 불가')는 '값 없음'을 켜야 남는다
 // 주관사 필터(2026-11-15 사용자): 대표·공동 주관사 어느 쪽이든. 이름은 (주)·주식회사·띄어쓰기를 빼고 비교
 const rdBrNorm = (n) => rdStr(n).replace(/\(주\)|㈜|주식회사/g, '').replace(/\s+/g, '');
 const rdBrs = (x) => (x.mn ? [...x.lead, ...x.co] : rdSplit(x.broker)).map(rdBrNorm).filter(Boolean);
 function rdFinOk(x, s) {
   if (s.br && !rdBrs(x).includes(s.br)) return false;
-  if (!s.rev && !s.opm) return true;
-  const f = x.fy ? x.fin.years[x.fy] : null, rev = f ? rdNum(f[0]) : null, op = f ? rdNum(f[1]) : null;
-  if (s.rev && !(rev != null && rev >= +s.rev)) return false;
-  if (s.opm && !(op != null && rev > 0 && (s.opm === '0' ? op > 0 : (op / rev) * 100 >= +s.opm))) return false;
-  return true;
+  if (!s.rev && !s.op) return true;
+  const f = x.fy ? x.fin.years[x.fy] : null;
+  return typeof ffOk !== 'function' || ffOk(s, { rev: f ? rdNum(f[0]) : null, op: f ? rdNum(f[1]) : null });
 }
 const RD_YS_SORT = [['filed', '청구일순'], ['decided', '결과일순'], ['rev', '매출순'], ['broker', '주관사순']];
 const RD_YS_ORDER = ['주관사선정', '심사중', '승인', '상장', '미승인', '철회']; // 전체 보기 묶음 순서 = 진행 순서
 const RD_KINDS = ['철회', '만기', '뉴스'];
-const RD_SELL_SORT = [['prio', '우선순'], ['rev', '매출순'], ['op', '영업이익순'], ['gr', '성장률순'], ['near', '가까운 날짜순'], ['pct', '지분율순'], ['name', '회사명순']];
 // 구주 매물 실적 필터(2026-11-18 사용자 "후보 기준을 좁히지 말고 다 리스트업한 뒤 필터로"). 고르면 실적이 없는 회사는 빠진다
-const RD_SELL_REV = [['', '전체'], ['100', '100억+'], ['300', '300억+'], ['500', '500억+']];
-const RD_SELL_PROF = [['', '전체'], ['black', '흑자'], ['turn', '흑자 전환']];
-const RD_SELL_GR = [['', '전체'], ['20', '20%+'], ['50', '50%+']];
+const RD_SELL_PROF = [['', '전체'], ['turn', '흑자 전환']]; // 흑자(영업이익 0억 이상)는 영업이익 슬라이더로
+const RD_SELL_PRE = [['', '전체'], ['1', 'Pre-IPO 후보만']];
 const RD_SELL_IPO = [['', '전체'], ['1', '있음']];
 // 근거(2026-11-18 저녁, CONTRACT.md 만기 행 src·est): 감사보고서 근거만 = 기사 투자사로 이은 행·조합 추정 행 빼기
 const RD_SELL_AUDIT = [['', '전체'], ['1', '감사보고서 근거만']];
-// 빠른 보기: 필터 조합 한 번에. 실적 좋은 순 = 매출 100억+ 흑자, 영업이익순(딜레이더 노트 17.3절 기준)
-const RD_SELL_QUICK = [['good', '실적 좋은 순', { rev: '100', prof: 'black', gr: '', ipo: '', f: 'all', sort: 'op' }], ['grow', '매출 20%+ 성장', { rev: '100', prof: 'black', gr: '20', ipo: '', f: 'all', sort: 'gr' }],
-  ['turn', '흑자 전환', { rev: '', prof: 'turn', gr: '', ipo: '', f: 'all', sort: 'op' }], ['ipo', '상장 목표 있음', { rev: '', prof: '', gr: '', ipo: '1', f: 'all', sort: 'rev' }], ['all', '전체', { rev: '', prof: '', gr: '', ipo: '', audit: '', f: 'all', sort: 'prio' }]];
 const RD_STAGES = ['매각 추진', '주관사 선정', '예비입찰', '숏리스트', '본입찰', '우선협상', '계약', '무산', '공시 검토', '회생 M&A'];
 const RD_FITS = ['상', '중']; // 하는 bids.json에 넣지 않음
 const RD_BIDS_DONE = ['우선협상', '계약', '무산']; // 인수자가 정해졌거나 끝난 단계 — 목록 아래로
@@ -185,9 +176,9 @@ Object.assign(TAB_INFO, {
       '감사보고서에 주주 표가 없는 회사는 기사와 THE VC의 투자사로 조합을 잇고 \'출처: 기사\'로 표시합니다. 기사에 조합 이름이 없으면 운용사와 투자 시점으로 조합을 추정해 \'조합 추정\'으로 표시하니, 컨택 전에 실제 보유를 확인합니다.',
       '철회: 예심을 철회해 FI 회수가 늦어진 회사입니다. 매도 후보는 그 회사의 FI입니다.',
       '뉴스: 매각 기사 중 우선협상 전이고 우리가 낄 여지(입찰딜 적합도 상·중)가 있는 것만 남깁니다.',
-      '기본 정렬은 우선순이고 다섯 묶음으로 나눠 보입니다. ① Pre-IPO 후보: 비상장, 최근 매출 100억 이상, 영업흑자, 매출 20% 이상 성장 또는 흑자 전환(영업이익순) ② 만기 지난 조합: 연장 기간에 들어간 조합이 가진 비상장 회사 ③ 만기 임박 조합: 6개월 안에 만기가 오는 조합의 비상장 회사 ④ 매각 뉴스와 상장사(참고용) ⑤ 예심 철회. ②부터는 오늘에서 가까운 날짜 순입니다.',
+      '정렬은 만기 가까운 순 하나입니다. 다가오는 만기가 가까운 순으로 먼저, 이미 지난 만기는 지난 지 얼마 안 된 순으로 그다음, 만기가 없는 철회와 뉴스는 맨 뒤에 최근 날짜순으로 옵니다. Pre-IPO 후보(비상장, 최근 매출 100억 이상, 영업흑자, 매출 20% 이상 성장 또는 흑자 전환)는 회사 이름 옆에 표시하고 필터로도 고릅니다.',
       '행마다 감사보고서 기준 최근 매출, 영업이익, 매출 성장률이 보이고, 흑자 전환과 상장 목표(상장 준비 목록에 있는 회사)도 표시합니다. 매출 3,000억 이상은 대형으로 표시만 하고 거르지 않습니다.',
-      '맨 위 빠른 보기 버튼(실적 좋은 순, 매출 20%+ 성장, 흑자 전환, 상장 목표 있음)은 아래 필터를 한 번에 맞춥니다. 필터는 최근 매출, 영업이익(흑자, 흑자 전환), 매출 성장, 상장 목표, 근거(감사보고서 근거만 고르면 기사로 이은 행과 조합 추정 행은 빠짐)이고 정렬은 매출, 영업이익, 성장률 순도 됩니다. 실적 필터를 고르면 실적이 없는 회사는 빠집니다.',
+      '필터는 최근 매출, 영업이익(금액 또는 이익률), 매출 성장 슬라이더와 흑자 전환, Pre-IPO 후보, 상장 목표, 근거(감사보고서 근거만 고르면 기사로 이은 행과 조합 추정 행은 빠짐)입니다. 슬라이더 조건을 걸면 실적이 없는 회사는 빠지고, 값 없음의 \'확인 불가 회사도 보기\'를 켜면 남습니다.',
       '새로 걸림은 이번 주에 처음 Pre-IPO 후보에 들어온 회사이고, 대시보드 홈 카드와 아침 딜 뉴스 메일 맨 위에도 나옵니다.',
       '펼치면 근거 한 줄, 매도 후보, 조합, 주요 손익, 상장 준비 진행, 원문 링크가 나옵니다.',
     ]],
@@ -218,18 +209,22 @@ Object.assign(TAB_INFO, {
 });
 
 // 새로 고친 뒤에도 보던 검색어·필터·정렬·펼친 행을 이어 보게 창마다 기억한다(app.js viewGet·viewSet). 자료에 없는 id는 그리지 않을 뿐이다
-const RD_VIEW = { yesim: ['q', 'f', 'sort', 'rev', 'opm', 'br'], sell: ['q', 'f', 'sort', 'rev', 'prof', 'gr', 'ipo', 'audit'], bids: ['q', 'view', 'fit', 'stage'] };
+const RD_VIEW = { yesim: ['q', 'f', 'sort', 'rev', 'op', 'opMode', 'nn', 'br'], sell: ['q', 'f', 'rev', 'op', 'opMode', 'gr', 'nn', 'prof', 'pre', 'ipo', 'audit'], bids: ['q', 'view', 'fit', 'stage'] };
 const rdView = (tab, s) => {
   const v = viewGet(`rd:${tab}`, null) || {}; RD_VIEW[tab].forEach((k) => { if (typeof v[k] === 'string') s[k] = v[k]; }); s.open = new Set(Array.isArray(v.open) ? v.open : []);
   if (tab === 'yesim' && !RD_YS_F.some(([k]) => k === s.f)) s.f = 'all'; // 없앤 '가린 회사'(hidden) 등 기억된 옛 필터
+  // 11/24 칩 → 슬라이더: 옛 영업이익률 칩(opm '0' 흑자, '5' 5%+)과 구주 매물 '흑자'(prof black)는 영업이익 슬라이더 값으로
+  if (tab === 'yesim' && typeof v.opm === 'string' && v.opm && !s.op) s.op = v.opm === '0' ? 'a:0' : `m:${v.opm}`;
+  if (tab === 'sell' && s.prof === 'black') { s.prof = ''; if (!s.op) s.op = 'a:0'; }
+  ['rev', 'gr'].forEach((k) => { if (k in s && s[k] && !Number.isFinite(+s[k])) s[k] = ''; });
   return s;
 };
 const rdViewSave = (tab) => { const s = rdS[tab]; viewSet(`rd:${tab}`, Object.fromEntries([...RD_VIEW[tab].map((k) => [k, s[k]]), ['open', [...s.open]]])); };
 const rdS = {
   tab: null, host: null, field: null, // field = 쓰고 있는 메모 칸 {el, tab}
   marks: { items: [], version: null }, dirty: new Map(), saving: Promise.resolve(),
-  yesim: rdView('yesim', { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'filed', rev: '', opm: '', br: '', open: new Set(), focus: null }),
-  sell: rdView('sell', { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'prio', rev: '', prof: '', gr: '', ipo: '', audit: '', open: new Set(), focus: null }),
+  yesim: rdView('yesim', { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'filed', rev: '', op: '', opMode: 'a', nn: '', br: '', open: new Set(), focus: null }),
+  sell: rdView('sell', { data: null, at: 0, loading: null, q: '', f: 'all', rev: '', op: '', opMode: 'a', gr: '', nn: '', prof: '', pre: '', ipo: '', audit: '', open: new Set(), focus: null }),
   bids: rdView('bids', { data: null, at: 0, loading: null, q: '', view: 'deal', fit: '', stage: '', open: new Set(), focus: null }),
 };
 
@@ -903,41 +898,24 @@ function rdSignals() {
 /* ---------- 구주 매물(옛 이름 매각희망, FI 회수) ---------- */
 function rdSellOk(x, s) {
   const p = x.p;
-  if (s.rev && !(p.rev != null && p.rev >= +s.rev)) return false;
-  if (s.prof === 'black' && !p.black) return false;
+  if (typeof ffOk === 'function' && !ffOk(s, { rev: p.rev, op: p.op, gr: p.gr })) return false;
   if (s.prof === 'turn' && !p.turn) return false;
-  if (s.gr && !(p.gr != null && p.gr >= +s.gr)) return false;
+  if (s.pre && !x.pre) return false;
   if (s.ipo && !x.ipo) return false;
   if (s.audit && (x.art || x.est)) return false;
   return true;
 }
-// 빠른 보기: 지금 필터가 그 조합과 같으면 켜진 버튼
-const rdSellQuickOn = (s) => RD_SELL_QUICK.find(([, , v]) => Object.entries(v).every(([k, val]) => s[k] === val))?.[0] || '';
 function rdSellList() {
   const s = rdS.sell, d = s.data; if (!d) return [];
   const q = s.q.trim().toLowerCase();
   let list = d.items.filter((x) => (!q || x.q.includes(q)) && rdSellOk(x, s));
   if (s.f !== 'all') list = list.filter((x) => x.kind === s.f);
-  const near = (a, b) => Math.abs(a.dd ?? 1e9) - Math.abs(b.dd ?? 1e9) || b.date.localeCompare(a.date) || a.name.localeCompare(b.name, 'ko');
-  // 실적 정렬: 값이 없는 회사는 맨 아래(가까운 날짜순)
-  const pv = (k) => (a, b) => (b.p[k] ?? -Infinity) - (a.p[k] ?? -Infinity) || near(a, b);
-  if (['rev', 'op', 'gr'].includes(s.sort)) return list.sort(pv(s.sort));
-  // 우선순(2026-11-17 사용자): 만기 지난 조합의 비상장 → 만기 임박 조합의 비상장(6개월 안) → 매각 뉴스와 상장사 → 예심 철회.
-  // 11/18: 맨 위에 Pre-IPO 후보(pre, 실적 좋은 비상장) 묶음, 그 안은 영업이익순(여신티켓이 134건 중 92번째로 묻혔던 일, 딜레이더 노트 17.1)
-  const grp = (x) => (x.pre ? 0 : x.kind === '뉴스' || x.code ? 3 : x.kind === '만기' ? (x.dd != null && x.dd < 0 ? 1 : 2) : 4);
-  const prio = (a, b) => grp(a) - grp(b) || (grp(a) === 0 ? (b.p.op ?? -Infinity) - (a.p.op ?? -Infinity) : 0) || near(a, b);
-  if (!RD_SELL_SORT.some(([v]) => v === s.sort) || s.sort === 'prio') { // 우선순은 묶음마다 머리줄(이름·건수·설명, 2026-11-17 사용자)
-    const out = [];
-    list.sort(prio).forEach((x, i, a) => { const g = grp(x); if (!i || grp(a[i - 1]) !== g) out.push({ grp: g, n: a.filter((y) => grp(y) === g).length }); out.push(x); });
-    return out;
-  }
-  const by = {
-    prio,
-    near,
-    pct: (a, b) => (b.pct ?? -1) - (a.pct ?? -1) || near(a, b),
-    name: (a, b) => a.name.localeCompare(b.name, 'ko') || near(a, b),
-  }[s.sort] || prio;
-  return list.sort(by);
+  // 만기 가까운 순 하나(2026-11-24 사용자 "구주 매물은 만기 가까운 순으로 정렬만 남겨놔. 나머지는 필터로").
+  // ① 다가오는 만기(오늘 0일부터 가까운 순) ② 지난 만기(지난 지 얼마 안 된 순, 연장 기간이라 팔 압박이 큼) ③ 만기가 없는 철회·뉴스(최근 날짜순).
+  // 묶음 머리 없이 한 목록, Pre-IPO 후보는 행 표시와 필터로
+  const rank = (x) => (x.kind === '만기' && x.dd != null ? (x.dd >= 0 ? 0 : 1) : 2);
+  const key = (x) => (rank(x) === 0 ? x.dd : rank(x) === 1 ? -x.dd : 0);
+  return list.sort((a, b) => rank(a) - rank(b) || key(a) - key(b) || String(b.date || '').localeCompare(String(a.date || '')) || a.name.localeCompare(b.name, 'ko'));
 }
 
 // 칸(2026-11-18): 날짜(신호·때) | 회사(상장 목표) | 매도 후보(지분율) | 매출 | 영업이익 | 성장률 | 컨택 상태. 근거 한 줄은 펼친 칸 머리에.
@@ -962,7 +940,7 @@ function rdSellRow(x) {
   const when = [kind && `<span class="rd-lb">${kind}</span>`, dd || esc(rdMd(x.date))].filter(Boolean).join(' ');
   const perf = [p.rev != null ? `<span class="rd-lb">매출</span> ${rdEok(p.rev)}` : '', p.op != null ? `<span class="rd-lb">영업이익</span> ${rdOp(p.op)}` : ''].filter(Boolean).join(' ');
   const ipoT = x.ipo ? x.ipo.target || (x.ipo.broker ? `주관사 ${x.ipo.broker}` : x.ipo.stage) : '';
-  const tags = `${x.isNew ? '<span class="rd-fs-tag">새로 걸림</span>' : ''}${p.rev != null && p.rev >= RD_BIG ? '<span class="rd-fs-tag rd-big">대형</span>' : ''}${rdArtTags(x)}`;
+  const tags = `${x.pre ? '<span class="rd-fs-tag">Pre-IPO 후보</span>' : ''}${x.isNew ? '<span class="rd-fs-tag">새로 걸림</span>' : ''}${p.rev != null && p.rev >= RD_BIG ? '<span class="rd-fs-tag rd-big">대형</span>' : ''}${rdArtTags(x)}`;
   return `<div class="ipo-row${open ? ' open' : ''}${rdDoneCls(st)}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div>${rdMd(x.date) || RD_NA}<div class="ipo-sub">${kind ? `${kind} ` : ''}${dd}</div></div>
@@ -1087,11 +1065,8 @@ function rdStageOpts() {
 
 /* ---------- 그리기 ---------- */
 const RD_LIST = { yesim: rdYsList, sell: rdSellList, bids: rdBidsList };
-// FI 회수 우선순 묶음 머리: [이름, 설명]
 const RD_SELL_EXP_MAX = 183; // 다가오는 만기는 6개월(183일) 안만 보인다
-const RD_SELL_GRP = [['Pre-IPO 후보', '매출 100억+ 영업흑자, 매출 20%+ 성장 또는 흑자 전환'], ['만기 지난 조합', '연장 기간에 들어가 팔 압박이 가장 큰 곳'], ['만기 임박 조합', '6개월 안에 만기가 오는 조합의 비상장 회사'], ['매각 뉴스와 상장사', '참고용'], ['예심 철회', '상장이 늦어져 FI 회수가 밀린 곳']];
-const rdSellGrpRow = (x) => `<div class="rd-grp"><b>${RD_SELL_GRP[x.grp]?.[0] || ''}</b><span>${x.n}건</span><span>${RD_SELL_GRP[x.grp]?.[1] || ''}</span></div>`;
-const RD_ROW = { yesim: (x) => (x.grp != null ? rdGrpRow(x) : x.mn ? rdMnRow(x) : rdYsRow(x)), sell: (x) => (x.grp != null ? rdSellGrpRow(x) : rdSellRow(x)), bids: (x) => (x.grp != null ? `<div class="rd-grp"><b>${esc(x.grp)}</b><span>${x.n}건</span></div>` : rdBidsRow(x, false)) };
+const RD_ROW = { yesim: (x) => (x.grp != null ? rdGrpRow(x) : x.mn ? rdMnRow(x) : rdYsRow(x)), sell: (x) => rdSellRow(x), bids: (x) => (x.grp != null ? `<div class="rd-grp"><b>${esc(x.grp)}</b><span>${x.n}건</span></div>` : rdBidsRow(x, false)) };
 const RD_HEAD = { yesim: RD_YS_HEAD, sell: RD_SELL_HEAD, bids: RD_BIDS_HEAD };
 // 컨택한 곳(연락함·미팅·보류)은 맨 아래 '컨택한 곳' 묶음으로 내리고 흐리게(사용자 2026-11-10). 검토 완료는 제자리에 진한 회색으로 둔다(11-16).
 // 묶음 머리가 있는 목록(예심청구 전체·주관사순, 구주 매물 우선순)은 남은 행 수로 머리를 다시 세고, 다 빠진 묶음은 지운다(관심 없음을 뗀 뒤에도)
@@ -1249,7 +1224,6 @@ function rdDraw() {
     if (ex) ex.innerHTML = tab === 'yesim' ? rdSignals() : tab === 'sell' ? rdFunds() : '';
   } finally { rdDrawing = false; }
   rdSumDraw();
-  if (tab === 'sell') { const qk = host.querySelector('#rd-quick'), h = rdQuickHtml(); if (qk && qk.innerHTML !== h) qk.innerHTML = h; }
   rdKeepBack(tab, keep);
   rdViewSave(tab);
   if (s.focus != null) {
@@ -1270,33 +1244,21 @@ function rdRefreshRow(tab, id) {
   rdKeepBack(tab, keep);
 }
 
-// 구주 매물 빠른 보기 버튼(필터 조합). 지금 조합과 같은 버튼이 켜진다. 옆 숫자 = 그 조합으로 보일 건수(검색어 빼고)
-function rdQuickHtml() {
-  const on = rdSellQuickOn(rdS.sell), d = rdS.sell.data;
-  const n = (v) => (d ? d.items.filter((x) => rdSellOk(x, { ...rdS.sell, ...v })).length : null);
-  return RD_SELL_QUICK.map(([k, l, v]) => { const c = n(v); return `<button type="button" class="${on === k ? 'on' : ''}" aria-pressed="${on === k}" data-rd-qk="${k}">${esc(l)}${c != null ? `<span class="rd-qn">${c}</span>` : ''}</button>`; }).join('');
-}
-// 빠른 보기로 여러 값을 한 번에 바꿨을 때 필터 줄을 새 값으로 다시 그린다
-function rdFiltersSync(tab) {
-  const h = rdS.host; if (!h) return;
-  const a = h.querySelector('#rd-filter'), b = h.querySelector('#rd-finf');
-  if (a) a.innerHTML = rdFilterHtml(tab);
-  if (b) b.innerHTML = rdFilterHtml(`${tab}-fin`);
-}
 function rdFilterHtml(tab) {
   const s = rdS[tab] || {};
   const search = (ph) => `<div class="ipo-search"><span class="ipo-sic">${ico('search', 'sm')}</span><input class="input" id="rd-q" type="search" placeholder="${ph}" value="${esc(s.q)}" autocomplete="off" aria-label="검색"></div>`;
   const seg = (attr, opts, cur) => `<div class="seg">${opts.map(([k, l]) => `<button type="button" data-${attr}="${esc(k)}" class="${cur === k ? 'on' : ''}" aria-pressed="${cur === k}">${esc(l)}</button>`).join('')}</div>`;
   const sel = (id, label, opts, cur) => `<select class="select" id="${id}" aria-label="${label}">${opts.map(([k, l]) => `<option value="${esc(k)}"${cur === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   if (tab === 'yesim') return search('회사·업종·주관사·주주 검색') + `<select class="select" id="rd-br" aria-label="주관사">${rdBrOpts()}</select>` + seg('rd-f', RD_YS_F, s.f).replace(/(data-rd-f="([a-z]+)"[^>]*>)([^<]+)</g, '$1$3<span class="rd-fc" data-fc="$2"></span><') + sel('rd-sort', '정렬', RD_YS_SORT, s.sort); // 칩 옆 개수 자리(폰에서만 보임, rdFcDraw)
-  if (tab === 'yesim-fin') return `<div class="rd-fing"><span class="rd-finl">최근 매출</span>${seg('rd-rev', RD_YS_REV, rdS.yesim.rev)}</div>`
-    + `<div class="rd-fing"><span class="rd-finl">영업이익률</span>${seg('rd-opm', RD_YS_OPM, rdS.yesim.opm)}</div>`;
-  if (tab === 'sell') return search('회사·매도 후보·조합 검색') + seg('rd-f', [['all', '전체'], ...RD_KINDS.map((k) => [k, k])], s.f) + sel('rd-sort', '정렬', RD_SELL_SORT, s.sort);
-  if (tab === 'sell-fin') return `<div class="rd-fing"><span class="rd-finl">최근 매출</span>${seg('rd-rev', RD_SELL_REV, rdS.sell.rev)}</div>`
-    + `<div class="rd-fing"><span class="rd-finl">영업이익</span>${seg('rd-prof', RD_SELL_PROF, rdS.sell.prof)}</div>`
-    + `<div class="rd-fing"><span class="rd-finl">매출 성장</span>${seg('rd-gr', RD_SELL_GR, rdS.sell.gr)}</div>`
+  const rg = (k, l) => (typeof ffRangeHtml === 'function' ? ffRangeHtml(`rd-${tab.split('-')[0]}`, k, l) : '');
+  if (tab.endsWith('-fin') && typeof FF_RG === 'object') { const t = tab.split('-')[0]; FF_RG[`rd-${t}`] = { st: () => rdS[t], apply: () => { rdViewSave(t); rdDraw(); } }; }
+  if (tab === 'yesim-fin') return rg('rev', '최근 매출') + rg('op', '영업이익') + rg('nn', '값 없음');
+  if (tab === 'sell') return search('회사·매도 후보·조합 검색') + seg('rd-f', [['all', '전체'], ...RD_KINDS.map((k) => [k, k])], s.f); // 정렬은 만기 가까운 순 하나라 고르는 칸 없음(11/24)
+  if (tab === 'sell-fin') return rg('rev', '최근 매출') + rg('op', '영업이익') + rg('gr', '매출 성장')
+    + `<div class="rd-fing"><span class="rd-finl">흑자 전환</span>${seg('rd-prof', RD_SELL_PROF, rdS.sell.prof)}</div>`
+    + `<div class="rd-fing"><span class="rd-finl">Pre-IPO</span>${seg('rd-pre', RD_SELL_PRE, rdS.sell.pre)}</div>`
     + `<div class="rd-fing"><span class="rd-finl">상장 목표</span>${seg('rd-ipo', RD_SELL_IPO, rdS.sell.ipo)}</div>`
-    + `<div class="rd-fing"><span class="rd-finl">근거</span>${seg('rd-audit', RD_SELL_AUDIT, rdS.sell.audit)}</div>`;
+    + `<div class="rd-fing"><span class="rd-finl">근거</span>${seg('rd-audit', RD_SELL_AUDIT, rdS.sell.audit)}</div>` + rg('nn', '값 없음');
   return search('대상·매도자·자문사 검색') + seg('rd-view', [['deal', '딜별'], ['adv', '자문사별']], s.view)
     + sel('rd-fit', '적합도', [['', '적합도 전체'], ...RD_FITS.map((k) => [k, `적합도 ${k}`])], s.fit) + sel('rd-stage', '단계', rdStageOpts(), s.stage);
 }
@@ -1308,12 +1270,10 @@ function rdBind(root, tab) {
     const t = ev.target;
     const fb = t.closest('[data-rd-f]');
     if (fb) { s.f = fb.dataset.rdF; segOn('[data-rd-f]', fb); rdDraw(); return; }
-    const rb = t.closest('[data-rd-rev], [data-rd-opm], [data-rd-prof], [data-rd-gr], [data-rd-ipo], [data-rd-audit]');
-    if (rb) { const k = ['rev', 'opm', 'prof', 'gr', 'ipo', 'audit'].find((f) => `rd${f[0].toUpperCase()}${f.slice(1)}` in rb.dataset); s[k] = rb.dataset[`rd${k[0].toUpperCase()}${k.slice(1)}`]; segOn(`[data-rd-${k}]`, rb); rdDraw(); return; }
+    const rb = t.closest('[data-rd-prof], [data-rd-pre], [data-rd-ipo], [data-rd-audit]');
+    if (rb) { const k = ['prof', 'pre', 'ipo', 'audit'].find((f) => `rd${f[0].toUpperCase()}${f.slice(1)}` in rb.dataset); s[k] = rb.dataset[`rd${k[0].toUpperCase()}${k.slice(1)}`]; segOn(`[data-rd-${k}]`, rb); rdDraw(); return; }
     const yl = t.closest('[data-rd-ys]');
     if (yl) { const y = rdS.yesim; Object.assign(y, { q: yl.dataset.rdYs, f: 'all', rev: '', opm: '', br: '' }); rdViewSave('yesim'); return; } // 링크(#deals/yesim)가 옮긴다
-    const qb = t.closest('[data-rd-qk]');
-    if (qb) { const q = RD_SELL_QUICK.find(([k]) => k === qb.dataset.rdQk); if (q) { Object.assign(s, q[2]); rdFiltersSync(tab); rdDraw(); } return; }
     const vb = t.closest('[data-rd-view]');
     if (vb) { if (s.view !== vb.dataset.rdView) { s.view = vb.dataset.rdView; segOn('[data-rd-view]', vb); rdDraw(); } return; }
     if (t.closest('#rd-ref')) {
@@ -1388,7 +1348,6 @@ async function rdRender(tab, host) {
       ${typeof ipoDownload === 'function' ? `<button class="btn ghost" type="button" id="rd-xlsx">${ico('file', 'sm')}엑셀 다운로드</button>` : ''}
       <button class="btn ghost" type="button" id="rd-ref">${ico('refresh', 'sm')}새로고침</button></div>
     <section class="card ipo-card">
-      ${tab === 'sell' ? `<div class="rd-quick" id="rd-quick">${rdQuickHtml()}</div>` : ''}
       <div class="ipo-filter" id="rd-filter">${rdFilterHtml(tab)}</div>
       ${tab === 'yesim' || tab === 'sell' ? `<div class="ipo-filter rd-finf" id="rd-finf">${rdFilterHtml(`${tab}-fin`)}</div>` : ''}
       <div class="ipo-body" id="rd-body"><div class="empty">불러오는 중…</div></div>
@@ -1417,8 +1376,8 @@ function radarFocus(ref) {
   const s = rdS[m[1]];
   s.q = ''; // 검색·필터에 걸려 목록에서 빠져 있으면 펼칠 수 없으므로 풀어 둔다
   if (m[1] === 'bids') { s.view = 'deal'; s.fit = ''; s.stage = ''; } else s.f = m[1] === 'yesim' && rdIsMn(m[2]) ? 'mandate' : 'all';
-  if (m[1] === 'yesim') { s.rev = ''; s.opm = ''; }
-  if (m[1] === 'sell') { s.rev = ''; s.prof = ''; s.gr = ''; s.ipo = ''; s.audit = ''; }
+  if (m[1] === 'yesim') { s.rev = ''; s.op = ''; }
+  if (m[1] === 'sell') { s.rev = ''; s.op = ''; s.gr = ''; s.prof = ''; s.pre = ''; s.ipo = ''; s.audit = ''; }
   s.open.add(m[2]); s.focus = m[2];
   rdViewSave(m[1]);
   return `#deals/${m[1]}`;
