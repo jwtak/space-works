@@ -38,6 +38,10 @@
 .fs-rounds th:nth-child(1) { width: 88px; } .fs-rounds th:nth-child(2) { width: 128px; } .fs-rounds th:nth-child(3) { width: 160px; } .fs-rounds th:nth-child(5) { width: 22%; }
 .fs-inv-pane .ipo-kv { grid-template-columns: 120px minmax(0, 1fr); } /* 상자가 전체 폭이라 항목 이름 칸을 넓힌다 */
 .fs-inv-pane .ipo-p { max-width: none; }
+/* 방산 항목 상자(방산·항공우주 테마, 개요 탭 맨 아래 전체 폭) */
+.fs-def { margin-top: 16px; }
+.fs-def .ipo-kv { grid-template-columns: 120px minmax(0, 1fr); }
+.fs-def .ipo-p { max-width: none; }
 
 .fs-pics { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; }
 .fs-pic { margin: 0; min-width: 0; }
@@ -92,6 +96,7 @@
   .fs-c-chev { grid-column: 2; grid-row: 2; }
   .fs-pics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .fs-inv-pane .ipo-kv { grid-template-columns: 84px minmax(0, 1fr); }
+  .fs-def .ipo-kv { grid-template-columns: 84px minmax(0, 1fr); }
 
   /* 목록: 순번은 이름 왼쪽 칸, 업종 한 줄은 두 줄까지, 매출·투자 줄은 본문 크기 */
   .fs-page .fs-cols { grid-template-columns: 24px minmax(0, 1fr) auto; column-gap: 8px; }

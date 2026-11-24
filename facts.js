@@ -239,7 +239,15 @@ function fsPaneOv(x) {
   return `<div class="${x.finList ? 'ipo-stack' : 'ipo-two-col'}">
     ${fsBox('기업 개요', `${fsKvs(x.overview, ['기업명', '산업군 / 섹터', '대표자', '설립', '본사 소재지', '사업자등록번호', '상장 여부', '기업 형태'])}${fsKv('부스', x.booth)}${links ? `<div class="ipo-links">${links}</div>` : ''}` || '<p class="ipo-p muted">없음</p>')}
     <div class="ipo-stack">${fsPnl(x)}${x.growth ? fsBox('성장 요약', `<p class="ipo-p">${fsT(x.growth)}</p>`) : ''}</div>
-  </div>`;
+  </div>${fsDefBox(x)}`;
+}
+/* 방산 항목(방산·항공우주 테마 팩트시트만, fs_req.py DF): 방산업체 지정, 주요 납품처, 수출 허가, 국방 R&D 과제, 국방 보안 요건 */
+const FS_DEF = ['방산업체 지정', '주요 납품처', '수출 허가', '국방 R&D 과제', '국방 보안 요건'];
+function fsDefBox(x) {
+  const d = x.defense && typeof x.defense === 'object' ? x.defense : null;
+  if (!d || !FS_DEF.some((k) => d[k])) return '';
+  const kv = (k) => (d[k] ? `<div class="ipo-kv"><div class="k">${esc(k)}</div><div class="v">${fsNums(d[k])}</div></div>` : '');
+  return `<div class="fs-def">${fsBox('방산 항목', FS_DEF.map(kv).join(''))}</div>`;
 }
 
 function fsPaneBiz(x) {
