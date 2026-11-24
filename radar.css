@@ -91,12 +91,9 @@
 .fq-bar .ipo-a + .btn { margin-left: 0; }
 .fq-bar > .btn:last-child { margin-left: auto; }
 .fq-bar .ipo-a ~ .btn:last-child { margin-left: 0; }
-/* 팩트시트 탭 '요청한 회사' 목록: 회사 | 화면 | 상태 | 요청 | 펼침 */
-.fq-cols { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1.2fr) 24px; gap: 16px; align-items: start; padding-left: 24px; padding-right: 24px; } /* 위아래는 .ipo-line 12px(padding 한 줄로 쓰면 0이 되어 행이 붙는다, 11/16) */
-.ipo-head.fq-cols { align-items: center; }
+/* 팩트시트 탭 요청한 회사 처리 상태(facts.js fsReqState) */
 .fq-wait { color: var(--primary); }
 .fq-bad { color: var(--danger); }
-.fs-kb-only[hidden] { display: none !important; }
 /* 팩트시트가 있는 회사: 목록 회사명 옆 표시(신규상장 '직통' 표시와 같은 크기) */
 .rd-fs-tag { display: inline-flex; align-items: center; height: 20px; margin-left: 6px; padding: 0 8px; border-radius: var(--r-full); font-size: var(--fs-sm); font-weight: 500; line-height: 20px; background: var(--primary-soft); color: var(--primary); vertical-align: 1px; white-space: nowrap; }
 /* 펼친 칸 팩트시트 묶음: 묶음 제목(팩트시트 · 작성일 / 회사 정보), 포인트·리스크 소제목 */

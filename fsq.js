@@ -5,15 +5,15 @@
                직접 넣은 파이프라인 딜은 pp:<딜 id>(pipeline.js ppFsKey, fqEnsure로 자동 요청)
    결과: data/fs.json {generated, slots, items{key → 팩트시트}, fail{key → {at, n, err}}} — PC 딜레이더 fs_req.py가 하루 두 번(slots) 만든다(읽기 공유).
    형식: 딜레이더\CONTRACT_fs.md. 내용 그리기는 radar.js rdFsN·rdFsGroup, 원래 화면 이동은 pipeline.js PP_TABS·ppGoTab.
-   진입: fqBox(ref, x, label) — 펼친 칸에 넣을 HTML(x = 그 행 자료, 요청 때 조사 단서로 보낸다). 팩트시트 탭 '요청한 회사': fqList()·fqCount().
+   진입: fqBox(ref, x, label) — 펼친 칸에 넣을 HTML(x = 그 행 자료, 요청 때 조사 단서로 보낸다). 팩트시트 탭 목록: fqItems()(facts.js fsAll이 엑스포 목록과 합친다, fqPaint 때 fsReqPaint로 다시 그림).
    요청 버튼은 펼친 칸 머리(컨택 상태 줄)에 둔다(2026-11-12 사용자 "너무 안 보여"): 머리를 그릴 때 fqHead(ref)를 넣고, 같은 펼친 칸에서 그 뒤에 fqBox(ref)를 부른다.
    그러면 팩트시트 칸에는 버튼 없이 상태·내용만 나온다. fqHead 없이 부른 fqBox(팩트시트 탭 목록 등)는 예전처럼 칸 안에 버튼.
    버튼 클릭은 document에서 받는다(각 탭 클릭 처리는 펼친 칸 안 클릭을 건너뛴다).
-   fqHead는 '관심'(☆) 버튼도 같이 넣는다(fav.js fvHead, 사람별 관심 기업, 2026-11-16). '요청한 회사'는 [전체 | 내 요청]으로 거른다(fqS.who, 요청자 by·byEmail). */
+   fqHead는 '관심'(☆) 버튼도 같이 넣는다(fav.js fvHead, 사람별 관심 기업, 2026-11-16). 요청자는 by·byEmail(파이프라인 딜 자동 요청은 by '파이프라인 자동'), 팩트시트 탭 요청자 필터가 by로 거른다. */
 
 const FQ_TTL = 5 * 60000;
 const FQ_TRIES = 3; // fs_req.py TRIES와 같게: 이만큼 실패하면 다시 요청할 때까지 멈춘다
-const fqS = { req: [], ver: null, out: null, at: 0, loading: null, err: '', saving: Promise.resolve(), ctx: new Map(), open: new Set(viewGet('fq.open', [])), head: new Set(), who: viewGet('fq.who', 'all') === 'me' ? 'me' : 'all' };
+const fqS = { req: [], ver: null, out: null, at: 0, loading: null, err: '', saving: Promise.resolve(), ctx: new Map(), head: new Set() };
 
 const fqNow = () => { const d = new Date(); return `${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const fqWhen = (s) => (s ? `${md(s.slice(0, 10))} ${s.slice(11, 16)}`.trim() : '');
@@ -132,8 +132,7 @@ function fqInner(ref, nameLink = '', head = false) {
 function fqPaint(ref) {
   document.querySelectorAll('.fq-box[data-fq]').forEach((b) => { if (!ref || b.dataset.fq === ref) b.innerHTML = fqInner(b.dataset.fq, '', b.dataset.fqHead === '1'); });
   document.querySelectorAll('.fq-slot[data-fq]').forEach((s) => { if (!ref || s.dataset.fq === ref) s.innerHTML = fqSlotInner(s.dataset.fq); });
-  document.querySelectorAll('.fq-list').forEach((l) => { l.innerHTML = fqListBody(); });
-  document.querySelectorAll('[data-fq-count]').forEach((s) => { s.textContent = fqCount(); });
+  if (typeof fsReqPaint === 'function') fsReqPaint(); // 팩트시트 탭 목록(facts.js)
 }
 
 /* ---------- 요청·취소 ---------- */
@@ -185,15 +184,10 @@ async function fqEnsure(list) {
   }).catch(() => fqLoad(true));
 }
 
-/* ---------- 팩트시트 탭 '요청한 회사' ---------- */
-// 나: 이메일(새 요청부터 byEmail)이 있으면 그것으로, 옛 기록은 이름으로 비교. 옛 주소(@spaceinve.com)도 같은 사람
+/* ---------- 팩트시트 탭 목록 자료 ---------- */
+// 요청자 이메일: 옛 주소(@spaceinve.com)도 같은 사람
 const fqMail = (s) => String(s || '').toLowerCase().replace(/@spaceinve\.com$/, '@universeinvest.co.kr');
 const fqMe = () => ({ email: fqMail(G.account?.username), name: G.account?.name || '' });
-function fqMine(r) {
-  if (!r) return false;
-  const me = fqMe();
-  return r.byEmail ? !!me.email && fqMail(r.byEmail) === me.email : !!me.name && r.by === me.name;
-}
 // 요청한 회사 + 요청 없이 만들어진 것(옛 주관사 선정). 대기·실패 먼저, 그다음 최근 작성순
 function fqItems() {
   const keys = new Set([...fqS.req.map((r) => r.key), ...Object.keys(fqS.out?.items || {})]);
@@ -202,32 +196,6 @@ function fqItems() {
     return { key: k, name: r?.name || fs?.name || k, src: r?.src || fs?.src || '', st, sortAt: st.wait ? `9${r?.at || ''}` : String(fs?.madeAt || '') };
   }).sort((a, b) => (a.sortAt < b.sortAt ? 1 : -1));
 }
-const fqCount = () => (fqS.at && !fqS.err ? String(fqItems().length) : '');
-
-function fqListBody() {
-  if (!fqS.at) return '<div class="empty">불러오는 중…</div>';
-  if (fqS.err) return `<div class="empty">${esc(fqS.err)}</div>`;
-  const all = fqItems(), mine = all.filter((x) => fqMine(fqS.req.find((r) => r.key === x.key)));
-  if (!all.length) return '<div class="empty">아직 요청한 회사가 없습니다. 딜소싱 각 화면에서 회사를 펼쳐 \'팩트시트 요청\'을 누르면 여기에 모입니다.</div>';
-  const one = (k, l, n) => `<button type="button" data-fq-who="${k}" class="${fqS.who === k ? 'on' : ''}" aria-pressed="${fqS.who === k}">${l}<span class="fq-n">${n}</span></button>`;
-  const seg = `<div class="ipo-filter fq-who"><div class="seg" role="group" aria-label="요청자">${one('all', '전체', all.length)}${one('me', '내 요청', mine.length)}</div></div>`;
-  const a = fqS.who === 'me' ? mine : all;
-  if (!a.length) return `${seg}<div class="empty">내가 요청한 회사가 없습니다.</div>`;
-  return `${seg}<div class="ipo-head fq-cols"><div>회사</div><div>화면</div><div>상태</div><div>요청</div><div></div></div>${a.map(fqRow).join('')}`;
-}
-
-function fqRow(x) {
-  const open = fqS.open.has(x.key), { st } = x, r = fqS.req.find((y) => y.key === x.key);
-  const state = st.failed ? '<span class="fq-bad">만들지 못함</span>' : st.wait ? `<span class="fq-wait">${fqNext()} 처리</span>` : st.fs ? `작성 ${esc(yymd(st.fs.made || ''))}` : '–';
-  const tab = typeof ppTabOf === 'function' ? ppTabOf(x.key) : null;
-  const go = (tab ? `<a class="ipo-a" href="${tab[0]}" data-fq-go="${esc(x.key)}">${esc(x.src || tab[1])}에서 보기${ico('right', 'sm')}</a>` : '') + fqPipe(x);
-  if (open && !fqS.ctx.has(x.key)) fqS.ctx.set(x.key, { name: x.name, label: x.src, legacy: null, hint: () => r?.hint || '' });
-  return `<div class="ipo-row fq-row${open ? ' open' : ''}" data-fq-row="${esc(x.key)}">
-    <div class="ipo-line fq-cols"><div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${esc(x.name)}</button></div>
-      <div>${esc(x.src)}</div><div>${state}</div><div class="muted">${esc(r ? [r.by, fqWhen(r.at)].filter(Boolean).join(' ') : '')}</div><div class="ipo-c-st"><span class="ipo-chev" aria-hidden="true">${ico('right', 'sm')}</span></div></div>
-    ${open ? `<div class="ipo-detail"><div class="ipo-pane"><div class="fq-box" data-fq="${esc(x.key)}">${fqInner(x.key, go)}</div></div></div>` : ''}</div>`;
-}
-
 /* 펼친 칸 '파이프라인에 올리기'(11/16 사용자). ref = 팩트시트 키(다른 탭에서 올릴 때와 같은 키라 중복이 안 생긴다). 'pp:'는 이미 파이프라인 딜 */
 function fqPipe(x) {
   if (typeof pipeAdd !== 'function') return '';
@@ -245,11 +213,6 @@ async function fqPipeAdd(btn) {
   fqPaint();
 }
 
-function fqList() {
-  if (!fqS.loading && (!fqS.at || Date.now() - fqS.at > FQ_TTL)) fqLoad(); // 열어 둔 화면도 5분이 지나면 다시 읽는다(11:00 처리 뒤에도 '요청됨'이 남던 문제, 2026-11-16)
-  return `<div class="fq-list">${fqListBody()}</div>`;
-}
-
 document.addEventListener('click', (ev) => {
   const t = ev.target;
   const b = t.closest('[data-fq-req]');
@@ -262,18 +225,8 @@ document.addEventListener('click', (ev) => {
     box.outerHTML = fsReqBody(ref, fs, fqS.ctx.get(ref)?.name);
     return;
   }
-  const wb = t.closest('[data-fq-who]');
-  if (wb) { fqS.who = wb.dataset.fqWho === 'me' ? 'me' : 'all'; viewSet('fq.who', fqS.who); document.querySelectorAll('.fq-list').forEach((l) => { l.innerHTML = fqListBody(); }); return; }
   const pb = t.closest('[data-fq-pipe]');
   if (pb) { fqPipeAdd(pb); return; }
   const go = t.closest('[data-fq-go]');
   if (go) { if (typeof ppGoTab === 'function') ppGoTab(go.dataset.fqGo); return; } // 이동은 링크 주소로
-  if (t.closest('a, input, select, .ipo-detail')) return;
-  const row = t.closest('[data-fq-row]');
-  if (row && row.closest('.fq-list')) {
-    const k = row.dataset.fqRow;
-    if (fqS.open.has(k)) fqS.open.delete(k); else fqS.open.add(k);
-    viewSet('fq.open', fqS.open);
-    fqPaint();
-  }
 });
