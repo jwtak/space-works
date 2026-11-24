@@ -18,15 +18,18 @@ const FS_FG = [
 ];
 const FS_SORTS = [['req', '최신 요청순'], ['rev', '최근 매출순'], ['total', '누적 투자순'], ['op', '영업이익순'], ['grow', '매출 성장률순'], ['opm', '영업이익률순'], ['no', '목록 번호순']];
 const FS_EXPO = '엑스포 목록'; // K-Beauty Expo 2026 목록에서 온 회사의 요청자 칸
+// 테마(2026-11-24 사용자 "팩트시트에 방산/항공우주 테마로 하나"): 요청 기록·팩트시트의 theme(fs_req.py THEMES 자동 요청), 엑스포 목록 회사는 K-Beauty. 묶음 단추 말고 필터로만
+const FS_KB_THEME = 'K-Beauty';
 const FS_TABS = [['inv', '투자유치·컨택'], ['ov', '개요'], ['biz', '사업·브랜드'], ['prod', '제품'], ['fin', '재무·주주'], ['view', '투자 판단']];
-const fsS = { data: null, at: 0, loading: null, q: viewGet('fs.q', ''), fl: { rev: '', opm: '', gr: '', stg: '', who: '', ...viewGet('fs.fl', {}) }, sort: viewGet('fs.sort2', 'req'), tab: viewGet('fs.tab', 'inv'), open: new Set(viewGet('fs.open', [])), focus: null, host: null, imgs: new Map() };
+const fsS = { data: null, at: 0, loading: null, q: viewGet('fs.q', ''), fl: { thm: '', rev: '', opm: '', gr: '', stg: '', who: '', ...viewGet('fs.fl', {}) }, sort: viewGet('fs.sort2', 'req'), tab: viewGet('fs.tab', 'inv'), open: new Set(viewGet('fs.open', [])), focus: null, host: null, imgs: new Map() };
 
 TAB_INFO['deals/facts'] = { title: '팩트시트', asof: '딜소싱 각 화면에서 요청한 회사와 K-Beauty Expo 2026 참가기업 목록(2026-11-06, 대표님이 고른 40곳)', rows: [
   ['무엇인가', '팩트시트를 요청한 회사와 엑스포 목록 회사를 공통 양식(PE 딜소싱 Fact Sheet)으로 한 장씩 조사한 자료입니다.'],
   ['왜 보나', '컨택 전에 회사가 무엇을 하고, 얼마나 벌고, 누가 지분을 갖고 있으며, 누구에게 어떻게 연락할지를 한 화면에서 봅니다.'],
   ['어떻게 보나', [
     '기본은 최신 요청순입니다. 요청 칸에 요청한 사람과 날짜가 나오고, 엑스포 목록 회사는 목록 작성일(2026-11-06)로 뒤에 옵니다. 파이프라인에 올린 딜은 자동으로 요청되어 \'파이프라인 자동\'으로 나옵니다.',
-    '필터는 최근 매출, OPM, 매출 성장(최근 2년 연평균), 투자 단계, 요청자 묶음이고 묶음끼리는 함께 걸립니다. 매출은 가장 최근 연간 실적이고, 2025년이 아니면 연도를 같이 적었습니다.',
+    '테마는 방산·항공우주와 K-Beauty(엑스포 목록)입니다. 투자 라운드에서 방산·항공우주로 분류된 회사는 새로 걸릴 때마다 요청자 \'방산 테마 자동\'으로 팩트시트가 요청됩니다.',
+    '필터는 테마, 최근 매출, OPM, 매출 성장(최근 2년 연평균), 투자 단계, 요청자 묶음이고 묶음끼리는 함께 걸립니다. 매출은 가장 최근 연간 실적이고, 2025년이 아니면 연도를 같이 적었습니다.',
     '회사를 펼치면 첫 칸에 이전 투자유치 히스토리(VC·PE·정책금융·메자닌)와 컨택 방법이 나옵니다. 이어서 개요·사업·브랜드·제품·재무·주주·투자 판단 칸이 있습니다.',
     '목록의 \'현재 투자 단계\'는 지금 지분·투자 상태이고, \'누적 투자\'는 외부 투자자가 신주·메자닌(RCPS·CB·BW)으로 넣은 돈의 합입니다. 창업자·가족 증자, 구주 거래, 경영권 인수 대금은 더하지 않고 단계에 적었습니다.',
     '요청한 회사는 매일 11:00·16:00에 처리되고, 처리 전에는 투자 단계 칸에 처리 시각이 나옵니다. 펼치면 원래 화면으로 가는 링크와 다시 요청 단추가 있습니다.',
@@ -96,7 +99,7 @@ function fsReqNums(x) {
   return { fy, r25: r, o25: o, opm: r > 0 && o != null ? o / r : null, cagr: r2 > 0 && r > 0 ? (r / r2) ** 0.5 - 1 : r1 > 0 && r > 0 ? r / r1 - 1 : null };
 }
 function fsAll() {
-  const d = fsS.data, kb = d ? d.items.map((x) => ({ ...x, kind: 'kb', fy: '2025', by: FS_EXPO, at: String(d.generated || ''), src: '' })) : [];
+  const d = fsS.data, kb = d ? d.items.map((x) => ({ ...x, kind: 'kb', fy: '2025', theme: FS_KB_THEME, by: FS_EXPO, at: String(d.generated || ''), src: '' })) : [];
   const req = typeof fqItems === 'function' && fqS.at && !fqS.err ? fqItems() : [];
   const used = new Set();
   const rq = req.map((q) => {
@@ -106,7 +109,7 @@ function fsAll() {
     const k = kb.find((y) => !used.has(y.key) && fsNm(y.name) === fsNm(q.name));
     if (k) used.add(k.key);
     const base = x ? { ...x, ...fsReqNums(x), ir: [] } : k || { r25: null, o25: null, opm: null, cagr: null, stage: '', total: null, rounds: [], ir: [], fy: '', overview: {}, _q: '' };
-    return { ...base, key: q.key, kbKey: k?.key || '', name: q.name, kind: 'req', st: q.st, src: q.src,
+    return { ...base, key: q.key, kbKey: k?.key || '', name: q.name, kind: 'req', st: q.st, src: q.src, theme: String(r?.theme || fs?.theme || (k ? FS_KB_THEME : '')),
       by: r?.by || (fs ? '자동 작성' : ''), at: String(r?.at || fs?.madeAt || ''), _q: `${base._q || ''} ${q.name} ${q.src} ${r?.by || ''}`.toLowerCase() };
   });
   return [...rq, ...kb.filter((x) => !used.has(x.key))];
@@ -121,6 +124,7 @@ function fsListItems() {
   let a = fsAll().filter((x) => !q || x._q.includes(q));
   FS_FG.forEach(([g, , opts]) => { const o = opts.find(([k]) => k && k === fsS.fl[g]); if (o) a = a.filter(o[2]); });
   if (fsS.fl.who) a = a.filter((x) => x.by === fsS.fl.who);
+  if (fsS.fl.thm) a = a.filter((x) => x.theme === fsS.fl.thm);
   const n = (v) => (v == null ? -Infinity : v), at = (x, y) => (x.at < y.at ? 1 : x.at > y.at ? -1 : 0);
   const no = (x, y) => (x.kind !== y.kind ? (x.kind === 'kb' ? -1 : 1) : x.kind === 'kb' ? x.no - y.no : at(x, y));
   const by = { req: at, rev: (x, y) => n(y.r25) - n(x.r25), total: (x, y) => n(y.total) - n(x.total), op: (x, y) => n(y.o25) - n(x.o25), grow: (x, y) => n(y.cagr) - n(x.cagr), opm: (x, y) => n(y.opm) - n(x.opm), no }[fsS.sort] || at;
@@ -310,17 +314,22 @@ function fsPaintImgs(root) {
 }
 
 /* ---------- 그리기 ---------- */
+// 자료에 있는 테마와 회사 수(많은 순)
+const fsThemes = (a) => { const m = new Map(); a.forEach((x) => { if (x.theme) m.set(x.theme, (m.get(x.theme) || 0) + 1); }); return [...m].sort((p, q) => q[1] - p[1]); };
 function fsSummary() {
   const a = fsAll(); if (!a.length) return '';
   const req = a.filter((x) => x.kind === 'req'), wait = req.filter((x) => x.st?.wait && !x.st.failed).length;
-  return `<span>${a.length}곳</span><span>요청 <b>${req.length}</b></span><span>${FS_EXPO} <b>${a.length - req.length}</b></span>${wait ? `<span>처리 대기 <b>${wait}</b></span>` : ''}`;
+  return `<span>${a.length}곳</span><span>요청 <b>${req.length}</b></span>${fsThemes(a).map(([t, n]) => `<span>${esc(t)} <b>${n}</b></span>`).join('')}${wait ? `<span>처리 대기 <b>${wait}</b></span>` : ''}`;
 }
 // 필터 칩 줄: 묶음 이름 + 칩. 요청자 묶음은 지금 자료에 있는 사람만
 function fsFilterHtml() {
   const seg = (g, opts) => `<div class="seg" role="group">${opts.map(([k, l]) => `<button type="button" data-fs-fl="${g}" data-v="${esc(k)}" class="${fsS.fl[g] === k ? 'on' : ''}" aria-pressed="${fsS.fl[g] === k}">${esc(l)}</button>`).join('')}</div>`;
   const who = fsWhoList(fsAll());
   if (fsS.fl.who && !who.some(([w]) => w === fsS.fl.who)) who.push([fsS.fl.who, 0]);
-  return FS_FG.map(([g, l, opts]) => `<div class="rd-fing"><span class="rd-finl">${l}</span>${seg(g, opts)}</div>`).join('')
+  const thm = fsThemes(fsAll()).map(([t]) => [t, t]);
+  if (fsS.fl.thm && !thm.some(([t]) => t === fsS.fl.thm)) thm.push([fsS.fl.thm, fsS.fl.thm]);
+  return `<div class="rd-fing"><span class="rd-finl">테마</span>${seg('thm', [['', '전체'], ...thm])}</div>`
+    + FS_FG.map(([g, l, opts]) => `<div class="rd-fing"><span class="rd-finl">${l}</span>${seg(g, opts)}</div>`).join('')
     + `<div class="rd-fing"><span class="rd-finl">요청자</span>${seg('who', [['', '전체'], ...who.map(([w]) => [w, w])])}</div>`;
 }
 function fsBody() {
@@ -355,8 +364,8 @@ function fsCsv() {
   const a = fsListItems(); if (!a.length) { toast('받을 회사가 없습니다.'); return; }
   const cell = (v) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
   const r1 = (v) => (v == null ? '' : Math.round(v * 10) / 10), pc = (v) => (v == null ? '' : Math.round(v * 1000) / 10);
-  const head = ['번호', '회사', '요청자', '요청일', '요청 화면', '업종', '매출 연도', '매출(억)', '영업이익(억)', 'OPM(%)', '매출 성장(%)', '현재 투자 단계', '누적 투자(억)', '처리 상태'];
-  const rows = a.map((x, i) => [i + 1, x.name, x.by, x.at.slice(0, 10), x.kind === 'req' ? x.src : FS_EXPO, x.overview?.['산업군 / 섹터'] || x.biz || '', x.r25 != null ? x.fy : '',
+  const head = ['번호', '회사', '테마', '요청자', '요청일', '요청 화면', '업종', '매출 연도', '매출(억)', '영업이익(억)', 'OPM(%)', '매출 성장(%)', '현재 투자 단계', '누적 투자(억)', '처리 상태'];
+  const rows = a.map((x, i) => [i + 1, x.name, x.theme, x.by, x.at.slice(0, 10), x.kind === 'req' ? x.src : FS_EXPO, x.overview?.['산업군 / 섹터'] || x.biz || '', x.r25 != null ? x.fy : '',
     r1(x.r25), r1(x.o25), pc(x.opm), pc(x.cagr), x.stage, x.total, x.kind === 'req' ? (x.st?.failed ? '만들지 못함' : x.st?.wait ? '처리 대기' : '작성') : '작성']);
   const csv = '﻿' + [head, ...rows].map((r) => r.map(cell).join(',')).join('\r\n');
   const el = document.createElement('a');
@@ -425,6 +434,6 @@ async function renderFacts(host) {
 /* 다른 화면(파이프라인 '팩트시트에서 보기')에서 한 회사를 펼쳐 열 때. 주소 이동은 부르는 쪽이 한다. 엑스포 목록 번호로 오면 fsDraw가 합친 줄로 바꾼다 */
 function factsFocus(no) {
   const k = String(no ?? ''); if (!k) return;
-  fsS.q = ''; fsS.fl = { rev: '', opm: '', gr: '', stg: '', who: '' }; fsS.open.add(k); fsS.focus = k;
+  fsS.q = ''; fsS.fl = { thm: '', rev: '', opm: '', gr: '', stg: '', who: '' }; fsS.open.add(k); fsS.focus = k;
   viewSet('fs.q', ''); viewSet('fs.fl', fsS.fl); viewSet('fs.open', fsS.open);
 }
