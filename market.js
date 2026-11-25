@@ -1,5 +1,5 @@
 /* 투자업무 › 시장동향 — 손PB 시장 동향 화면(MarketTrendScreen.jsx)을 웍스용으로 옮긴 것 + 공모주 통계.
-   데이터: OneDrive data/market.json(00. 대시보드\market\collect_market.py, 평일 07:20), data/ipo_stats.json(같은 폴더 ipo_stats.py).
+   데이터: OneDrive data/market.json(00. 대시보드\market\collect_market.py, 평일 09:03), data/ipo_stats.json(같은 폴더 ipo_stats.py).
    탭: #market = 시장 지표, #market/ipo = 공모주 통계, #market/pe = PE 동향(딜레이더 yesim·bids.json 집계 + 공표 통계), #market/ma = M&A 거래(ma.js), #market/vc = 벤처투자(vc.js). 차트는 인라인 SVG(라이브러리 없음).
    국내 관행대로 상승은 빨강, 하락은 파랑. */
 const MK_TTL = 600000;

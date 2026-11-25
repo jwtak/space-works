@@ -1,5 +1,5 @@
 /* SPACE WORKS — 딜소싱 › 신규상장: 신규 상장사 컨택 리스트 (작성책임자·재무·FI·락업·자금수요)
-   매일 07:00 PC 작업(05. 딜소싱\_자동화\신규상장\daily.py)이 회사 OneDrive SPACE WORKS/data/ipo.json 을 올린다(이 화면은 읽기만).
+   매일 09:00 PC 작업(05. 딜소싱\_자동화\신규상장\daily.py)이 회사 OneDrive SPACE WORKS/data/ipo.json 을 올린다(이 화면은 읽기만).
    컨택 상태·메모는 data/ipo_marks.json — 다음 날 엑셀(딜소싱 리스트.xlsx)에도 반영된다.
    진입: renderIpo(host) — host 안에만 그린다. 홈 카드: ipoHomeBlock().
    app.js 전역($, esc, pad, ymd, parse, today, addDays, diffDays, md, ico, toast)과 graph.js 의 STORE 를 쓴다. */
