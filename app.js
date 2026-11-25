@@ -114,18 +114,33 @@ function errLogOpen() {
   }, 'el-sheet');
 }
 
+/* 딜 노트 목록 사본(2026-11-26 사용자 "불러오는 중이 느림"): 딜 폴더 $batch가 0.8초 걸려 첫 화면을 붙잡았다.
+   처음 열 때는 지난 목록(이 기기 사본)으로 먼저 그리고, 새 목록은 뒤에서 받아 바뀌었으면 기록 목록과 홈 카드만 다시 그린다 */
+const dnKey = () => `works.dealNotes:${(G.account?.username || '').toLowerCase()}`;
+function dnCacheGet() { try { const a = JSON.parse(localStorage.getItem(dnKey()) || '[]'); return Array.isArray(a) ? a.filter((n) => n && n.deal && n.name) : []; } catch { return []; } }
+function dnCachePut(a) { try { localStorage.setItem(dnKey(), JSON.stringify(a)); } catch { /* 사본이 없어도 된다 */ } }
+function dnLate(deal) {
+  if (!S) return;
+  const sig = (a) => JSON.stringify(a.filter((n) => n.deal).map((n) => [n.name, n.version]).sort());
+  if (sig(S.notes) === sig(deal)) return;
+  S.notes = [...S.notes.filter((n) => !n.deal), ...deal].sort((a, b) => b.mtime - a.mtime);
+  const r = route();
+  if (r === 'notes' && !(cur && (cur.dirty || cur.saving)) && !document.activeElement?.matches('input,textarea,select')) render();
+  else if (r === 'home') { const ul = PAGE.querySelector('.sec-notes .list'); if (ul) { ul.innerHTML = homeNotesHtml(); homeNotesBind(ul); } }
+}
 async function load() {
-  const prevN = S?.notes || [], prevT = prevN.filter((n) => n.team && !n.deal), prevD = prevN.filter((n) => n.deal);
+  const first = !S;
+  const prevN = S?.notes || [], prevT = prevN.filter((n) => n.team && !n.deal), prevD = first ? dnCacheGet() : prevN.filter((n) => n.deal);
   const meP = S?.me ? Promise.resolve(S.me) : G.get('/me?$select=displayName,jobTitle,department,mail').catch(() => ({})); // 자료와 같이 묻는다
   // 딜 노트: 파이프라인 딜 폴더마다 02. 작성자료(graph.js listDealNotes). 파이프라인을 못 읽으면 지난 목록 그대로
   const dealP = (typeof pipeLoad === 'function' ? pipeLoad() : Promise.reject())
-    .then(() => STORE.listDealNotes(ppS.items.filter((x) => ppOk(x) && x.folder).map((x) => x.folder), prevD)).catch(() => prevD);
+    .then(() => STORE.listDealNotes(ppS.items.filter((x) => ppOk(x) && x.folder).map((x) => x.folder), prevD)).then((d) => { dnCachePut(d); return d; }).catch(() => prevD);
   const [todos, programs, milestones, brief, mine, team, , deal] = await Promise.all([
     STORE.readJSON('todos'), STORE.readJSON('programs'), STORE.readJSON('milestones'),
     STORE.readText('data/briefing.md'), STORE.listNotes(prevN.filter((n) => !n.team)),
     STORE.listTeamNotes(prevT).catch(() => prevT), // 팀 회의록을 못 읽어도 내 기록은 보인다
     ttLoad().catch(() => false), // 팀 할 일도 같이(못 읽으면 지난 것 그대로)
-    dealP,
+    first ? prevD : dealP, // 처음엔 기다리지 않는다(dnLate)
   ]);
   const notes = [...mine, ...team, ...deal].sort((a, b) => b.mtime - a.mtime);
   const me = await meP;
@@ -134,7 +149,12 @@ async function load() {
   counts(); foot(); mailUnread(); if (mailSeen === null) mailNotify();
   if (typeof rqInit === 'function') rqInit();
   tcSync(1500); // 할 일 마감 일정 맞추기(바뀐 게 없으면 서버를 부르지 않는다)
+  if (first) dealP.then(dnLate);
 }
+
+const homeNotesHtml = () => S.notes.slice(0, 4).map((n) => `
+            <li class="click" data-note="${esc(n.name)}"><div class="t"><div class="ttl">${noteTag(n.name)}${esc(noteTitle(n.name))}</div><div class="meta">${relTime(n.mtime)} 수정</div></div></li>`).join('') || '<div class="empty">기록이 없습니다.</div>';
+const homeNotesBind = (root) => root.querySelectorAll('[data-note]').forEach((el) => el.addEventListener('click', () => { ui.note = el.dataset.note; location.hash = '#notes'; }));
 
 /* 로그인한 사람 이름·직급 (대표님도 각자 계정으로 쓴다) */
 const myName = () => (S?.me?.displayName || G.account?.name || '').replace(/\s*\(.*\)$/, '');
@@ -599,8 +619,7 @@ function renderHome() {
         </section>
         <section class="card sec-notes">
           <div class="card-head"><h2>업무일지·회의록</h2><a class="btn sm act" href="#notes">전체</a></div>
-          <div class="card-body" style="padding-top:0"><ul class="list">${S.notes.slice(0, 4).map((n) => `
-            <li class="click" data-note="${esc(n.name)}"><div class="t"><div class="ttl">${noteTag(n.name)}${esc(noteTitle(n.name))}</div><div class="meta">${relTime(n.mtime)} 수정</div></div></li>`).join('') || '<div class="empty">기록이 없습니다.</div>'}</ul></div>
+          <div class="card-body" style="padding-top:0"><ul class="list">${homeNotesHtml()}</ul></div>
         </section>
         <section class="card sec-prog">
           <div class="card-head"><h2>진행 중 프로그램</h2><a class="btn sm act" href="#programs">전체</a></div>
@@ -610,7 +629,7 @@ function renderHome() {
       </div>
     </div>`;
   PAGE.querySelectorAll('[data-toggle]').forEach((el) => el.addEventListener('change', () => toggleTodo(el.dataset.toggle)));
-  PAGE.querySelectorAll('[data-note]').forEach((el) => el.addEventListener('click', () => { ui.note = el.dataset.note; location.hash = '#notes'; }));
+  homeNotesBind(PAGE);
   PAGE.querySelectorAll('[data-tab-link]').forEach((el) => el.addEventListener('click', () => { ui.todoTab = el.dataset.tabLink; }));
   homeCalendar();
   mountMonth($('#home-month'));
@@ -1907,4 +1926,5 @@ function updReload() {
   updDone = true; location.reload(); return true;
 }
 // mail.js·events.js 등 뒤에 붙는 스크립트까지 다 읽힌 다음 시작 (그 전에 그리면 renderMail 등이 아직 없다)
-if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+// 스크립트는 defer로 한꺼번에 받는다(2026-11-26: 하나씩 차례로 받느라 배포 뒤 첫 화면이 8초). defer 스크립트가 다 실행된 뒤 DOMContentLoaded가 온다
+if (document.readyState === 'complete') start(); else document.addEventListener('DOMContentLoaded', start);

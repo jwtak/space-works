@@ -37,10 +37,11 @@
 /* 예약 메일(보낸편지함 맨 위): '예약' 표시와 맨 오른쪽 취소 */
 .mail-draft.sched { background: var(--primary-soft); color: var(--primary); }
 .mail-mdate .mail-draft { margin-right: 8px; }
-.mail-item.sched .mail-subj, .mail-item.sched .mail-pv { padding-right: 64px; }
-.mail-unsched { position: absolute; right: 16px; bottom: 12px; height: 32px; padding: 0 12px; border: 1px solid var(--line2); border-radius: var(--r-sm); background: var(--card); color: var(--text2); font-size: var(--fs-md); font-weight: 500; cursor: pointer; }
+.mail-sx { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.mail-sx:empty { display: none; }
+.mail-unsched { height: 32px; padding: 0 12px; border: 1px solid var(--line2); border-radius: var(--r-sm); background: var(--card); color: var(--text2); font-size: var(--fs-md); font-weight: 500; white-space: nowrap; cursor: pointer; }
 .mail-unsched:hover { border-color: var(--danger); color: var(--danger); }
-span.mail-unsched { display: none; }
+.mail-unsched.now:hover { border-color: var(--primary); color: var(--primary); }
 
 /* 읽기 */
 .mail-pane { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
@@ -424,9 +425,10 @@ span.mail-unsched { display: none; }
   .mail-pv { display: none; }
   .mail-item.unread .mail-who, .mail-item.unread .mail-subj { color: var(--ink); font-weight: 600; }
   .mail-items > .empty { padding: 48px 0; }
-  .mail-items.has-sched .mail-item { grid-template-columns: 24px 28px 24px 180px 20px minmax(0, 1fr) 104px 48px; }
-  .mail-item.sched .mail-subj, .mail-item.sched .mail-pv { padding-right: 0; }
-  .mail-unsched { position: static; grid-column: 8; justify-self: start; height: 28px; padding: 0 10px; }
+  .mail-items.has-sched .mail-item { grid-template-columns: 24px 28px 24px 180px 20px minmax(0, 1fr) 104px 144px; }
+  .mail-sx { grid-column: 8; justify-content: flex-start; margin-top: 0; }
+  .mail-sx:empty { display: block; }
+  .mail-unsched { height: 28px; padding: 0 10px; }
 
   /* 읽기: 목록 자리에 — 위 버튼 줄(← 목록 · 답장 · 전체 답장 · 전달 · 삭제) */
   .mail-pane { min-width: 0; }
@@ -555,7 +557,7 @@ span.mail-unsched { display: none; }
 @media (min-width: 761px) and (max-width: 1100px) {
   .mail-shell, .mail-shell.composing { grid-template-columns: 200px minmax(0, 1fr); }
   .mail-item { grid-template-columns: 24px 28px 24px 130px 20px minmax(0, 1fr) 96px; column-gap: 8px; }
-  .mail-items.has-sched .mail-item { grid-template-columns: 24px 28px 24px 130px 20px minmax(0, 1fr) 96px 48px; }
+  .mail-items.has-sched .mail-item { grid-template-columns: 24px 28px 24px 130px 20px minmax(0, 1fr) 96px 144px; }
   .mail-dhead, .mail-items { padding-left: 20px; padding-right: 20px; }
   .mail-bar { margin: 0 20px; }
   .mail-dhead .mail-search { flex-basis: 240px; }

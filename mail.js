@@ -892,11 +892,14 @@ function mailDrawList() {
       <div class="mail-pv">${esc((x.bodyPreview || '').replace(/\s+/g, ' ').slice(0, 120))}</div></li>`;
   }).join('') + mailPager();
   box.querySelectorAll('[data-id]').forEach((li) => li.addEventListener('click', (e) => {
-    if (e.target.closest('.mail-ck, .mail-lstar, .mail-unsched')) return;
+    if (e.target.closest('.mail-ck, .mail-lstar, .mail-sx')) return;
     mailOpen(li.dataset.id);
   }));
   box.querySelectorAll('[data-unsched]').forEach((b) => b.addEventListener('click', () => {
     const x = m.list.find((i) => i.id === b.dataset.unsched); if (x) mailUnsched(x);
+  }));
+  box.querySelectorAll('[data-sendnow]').forEach((b) => b.addEventListener('click', () => {
+    const x = m.list.find((i) => i.id === b.dataset.sendnow); if (x) mailSendNow(x);
   }));
   // Shift를 누른 채 체크하면 마지막으로 누른 메일부터 여기까지 같은 상태로(Gmail·Outlook처럼, 2026-11-10 사용자)
   box.querySelectorAll('[data-ck]').forEach((ck) => {
@@ -934,7 +937,7 @@ function mailSchedRow(x, fl) {
       <span class="mail-lclip">${x.hasAttachments ? `<span title="첨부">${ico('clip', 'sm')}</span>` : ''}</span>
       <div class="mail-subj">${x.hasAttachments ? `<span class="mail-clip" title="첨부">${ico('clip', 'sm')}</span>` : ''}${fl ? `<span class="mail-fl">${esc(fl)}</span>` : ''}<span class="mail-subj-t">${esc(x.subject || '(제목 없음)')}</span></div>
       <div class="mail-pv">${esc((x.bodyPreview || '').replace(/\s+/g, ' ').slice(0, 120))}</div>
-      ${x._sched > Date.now() ? `<button type="button" class="mail-unsched" data-unsched="${esc(x.id)}">취소</button>` : '<span class="mail-unsched"></span>'}</li>`;
+      ${x._sched > Date.now() ? `<span class="mail-sx"><button type="button" class="mail-unsched now" data-sendnow="${esc(x.id)}">지금 보내기</button><button type="button" class="mail-unsched" data-unsched="${esc(x.id)}">취소</button></span>` : '<span class="mail-sx"></span>'}</li>`;
 }
 
 /* 예약 취소: 잠긴 원본은 옮길 수 없어(500) 지운편지함에 복사하고 원본을 지운다. 복사본은 예약 시각을 지난 시각으로 덮어 다시 꺼내 보내도 다시 예약되지 않게 */
@@ -957,6 +960,38 @@ async function mailUnsched(x) {
   if (m.sel === x.id) { m.sel = null; m.msg = null; m.view = 'list'; mailDrawShell(); mailDrawPane(); }
   mailDrawList(); mailLoadCounts();
   toast('예약을 취소하고 지운편지함으로 옮겼습니다');
+}
+
+/* 지금 보내기(2026-11-26 사용자 "지금 보내기 버튼 같은 거"): 잠긴 원본은 예약 시각을 못 바꾸므로(403) 취소와 같이 복사본을 만들어 예약 시각을 지난 시각으로 덮고 보낸다.
+   두 번 나가지 않게 원본을 먼저 지운 뒤 복사본을 보낸다. 원본을 못 지우면 복사본을 지우고 멈추고, 보내기만 실패하면 복사본은 보통 초안으로 임시보관함에 남는다 */
+async function mailSendNow(x) {
+  const m = ui.mail, box = mailBoxX(x);
+  if (!x._sched || x._sched <= Date.now()) return toast('이미 보내는 중입니다');
+  const ok = await mailConfirm({ title: '지금 보낼까요?', rows: [['받는 사람', mailAddrList(x.toRecipients)], ['제목', x.subject || '(제목 없음)'], ['예약', mailFullTime(new Date(x._sched).toISOString())]], ok: '보내기', no: '닫기' });
+  if (!ok) return;
+  let cp = null;
+  try {
+    cp = await G.post(`${mailMsgP(x.id, box)}/copy`, { destinationId: 'drafts' });
+    mailOutAdd(cp.id, box); // 보내는 동안 임시보관함 숫자에 잡히지 않게
+    await G.patch(mailMsgP(cp.id, box), { singleValueExtendedProperties: [{ id: 'SystemTime 0x3FEF', value: new Date(Date.now() - 60e3).toISOString() }] });
+    await G.post(`${mailMsgP(x.id, box)}/permanentDelete`, {}, { type: 'none' });
+  } catch (e) {
+    if (cp) { MAIL_OUT.delete(cp.id); G.del(mailMsgP(cp.id, box)).catch(() => {}); }
+    return toast(e.status === 404 ? '이미 보냈거나 취소된 메일입니다' : e.message);
+  }
+  if (m.sched?.[box]) m.sched[box] = m.sched[box].filter((s) => s.id !== x.id);
+  m.list = m.list.filter((i) => i.id !== x.id);
+  if (m.sel === x.id) { m.sel = null; m.msg = null; m.view = 'list'; mailDrawShell(); mailDrawPane(); }
+  mailDrawList();
+  try {
+    await G.post(`${mailMsgP(cp.id, box)}/send`, {}, { type: 'none' });
+    toast('보냈습니다');
+  } catch (e) {
+    MAIL_OUT.delete(cp.id);
+    toast(`보내지 못해 임시보관함에 남겨 두었습니다: ${e.message}`);
+  }
+  mailLoadCounts();
+  setTimeout(() => { if (route() === 'mail' && mailFid(ui.mail.folder) === 'sentitems' && !ui.mail.compose && !ui.mail.sel) mailLoadList(); }, 3000); // 보낸 메일이 보낸편지함에 보이게
 }
 
 /* 도구 줄: 체크한 게 있으면 일괄 작업 버튼을 보인다 */
@@ -1107,7 +1142,7 @@ function mailDrawPane() {
   pane.innerHTML = `
     <div class="mail-mhead">
       <button class="iconbtn" type="button" id="mail-mback" aria-label="목록">${ico('left')}</button>
-      <span class="mail-mhead-r">${sched ? `${sched > Date.now() ? '<button class="btn sm" type="button" data-act="unsched">예약 취소</button>' : ''}` : `
+      <span class="mail-mhead-r">${sched ? `${sched > Date.now() ? '<button class="btn sm" type="button" data-act="sendnow">지금 보내기</button><button class="btn sm" type="button" data-act="unsched">예약 취소</button>' : ''}` : `
         <button class="iconbtn" type="button" data-act="reply" aria-label="답장">${ico('reply')}</button>
         <button class="iconbtn" type="button" data-act="${inTrash ? 'purge' : 'delete'}" aria-label="${inTrash ? '영구 삭제' : '삭제'}">${ico('trash')}</button>
         <button class="iconbtn" type="button" id="mail-rmore" aria-label="더보기">${mi('more')}</button>`}
@@ -1116,7 +1151,7 @@ function mailDrawPane() {
     <div class="mail-rhead" id="mail-rhead">
       <div class="mail-tools">
         <button class="mail-tbtn mail-tlist" type="button" id="mail-back">${mi('list')}목록</button>${sched ? `
-        ${sched > Date.now() ? '<button class="mail-tbtn" type="button" data-act="unsched">예약 취소</button>' : ''}
+        ${sched > Date.now() ? '<button class="mail-tbtn" type="button" data-act="sendnow">지금 보내기</button><button class="mail-tbtn" type="button" data-act="unsched">예약 취소</button>' : ''}
         <button class="mail-tbtn" type="button" id="mail-print">인쇄</button>` : `
         <button class="mail-tbtn" type="button" data-act="reply">답장</button>
         <button class="mail-tbtn" type="button" data-act="replyAll">전체답장</button>
@@ -1382,6 +1417,7 @@ async function mailAction(act, x, arg) {
   try {
     if (act === 'reply' || act === 'replyAll' || act === 'forward') return mailOpenCompose({ mode: act, id: x.id, box: mailBoxX(x) });
     if (act === 'unsched') return mailUnsched(x);
+    if (act === 'sendnow') return mailSendNow(x);
     if (act === 'read') {
       const it = m.list.find((i) => i.id === x.id), was = it ? it.isRead : x.isRead;
       await G.patch(p, { isRead: true });

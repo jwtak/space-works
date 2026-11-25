@@ -121,6 +121,9 @@ const G = {
     try { return await fn(); } finally { const next = G.waiting.shift(); if (next) next(); else G.busy--; }
   },
 
+  // 파일(OneDrive·팀 파일함)은 메일함 동시 한도와 상관없어 줄을 세우지 않는다(2026-11-26: 첫 화면 자료 9개가 3개씩 기다렸다)
+  isDrive: (url) => /^https:\/\/graph\.microsoft\.com\/v1\.0\/(me\/drives?\/|drives\/|sites\/|users\/[^/]+\/drives?\/)/.test(url),
+
   /* type: 'json'(기본) | 'text' | 'blob' | 'none' */
   async raw(method, path, { body, headers = {}, type = 'json' } = {}) {
     const url = path.startsWith('https://') ? path : `https://graph.microsoft.com/v1.0${path}`;
@@ -137,7 +140,8 @@ const G = {
     const ms = type === 'blob' ? 0 : b !== undefined ? 120000 : 45000; // 응답 없는 요청이 자리를 계속 차지하지 않게
     let r, renewed = false;
     for (let i = 0; ; i++) {
-      try { r = await G.slot(() => fetch(url, { method, headers: h, body: b, signal: ms && AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined })); }
+      const go = () => fetch(url, { method, headers: h, body: b, signal: ms && AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined });
+      try { r = await (G.isDrive(url) ? go() : G.slot(go)); }
       catch (e) {
         // 응답 없음, 네트워크 끊김('Failed to fetch' 같은 영어 원문을 그대로 띄우지 않는다)
         const t = e.name === 'TimeoutError' || e.name === 'AbortError';
