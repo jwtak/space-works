@@ -22,11 +22,14 @@ const MAIL_LIST_SEL = 'id,subject,from,toRecipients,receivedDateTime,sentDateTim
    그래서 취소는 복사(잠금 없는 보통 초안)를 지운편지함에 만들고 원본을 지운다(사용자 같은 날 "취소된 건 지운편지함으로"). 자세한 시험 결과는 웍스 기능 점검 노트 「예약 발송」 */
 const MAIL_SCHED_EXP = "singleValueExtendedProperties($filter=id eq 'Integer 0x0E14' or id eq 'SystemTime 0x3FEF')";
 const MAIL_SCHED_FLT = "singleValueExtendedProperties/any(ep: ep/id eq 'Integer 0x0E14' and cast(ep/value, Edm.Int32) eq 1)";
+// 예약을 풀 때 덮는 시각(바로 보내기, 취소, 쓰기 창에서 예약 끄기). 보내는 몇 초 동안 잠긴 채 임시보관함에 남아도 이 값이면 예약으로 보지 않는다
+// (2026-11-26: 바로 보내기 복사본이 '지금-1분'을 달고 있어 보낸 뒤에도 예약 줄로 남았음)
+const MAIL_SCHED_OFF = '2000-01-01T00:00:00Z';
 function mailSchedAt(x) { // 예약 메일이면 예약 시각(ms), 아니면 0
   if (!x?.isDraft) return 0;
   const ps = x.singleValueExtendedProperties || [], v = (tag) => ps.find((p) => parseInt(String(p.id).split(' ').pop(), 16) === tag)?.value; // Graph는 id를 'Integer 0xe14'처럼 줄여 돌려준다
   const at = Date.parse(v(0x3FEF) || '');
-  return Number(v(0x0E14)) === 1 && Number.isFinite(at) ? at : 0;
+  return Number(v(0x0E14)) === 1 && Number.isFinite(at) && at > Date.parse(MAIL_SCHED_OFF) + 864e5 ? at : 0;
 }
 const MAIL_MAX_ATTACH = 3 * 1024 * 1024; // 이 크기까지는 한 번에 올리고, 넘으면 업로드 세션으로 조각내 올린다
 const MAIL_MAX_BIG = 150 * 1024 * 1024; // 업로드 세션 한도
@@ -949,7 +952,7 @@ async function mailUnsched(x) {
   let cp = null;
   try {
     cp = await G.post(`${mailMsgP(x.id, box)}/copy`, { destinationId: 'deleteditems' });
-    await G.patch(mailMsgP(cp.id, box), { singleValueExtendedProperties: [{ id: 'SystemTime 0x3FEF', value: new Date(Date.now() - 60e3).toISOString() }] });
+    await G.patch(mailMsgP(cp.id, box), { singleValueExtendedProperties: [{ id: 'SystemTime 0x3FEF', value: MAIL_SCHED_OFF }] });
     await G.post(`${mailMsgP(x.id, box)}/permanentDelete`, {}, { type: 'none' });
   } catch (e) {
     if (cp) G.del(mailMsgP(cp.id, box)).catch(() => {}); // 원본이 그대로면 복사본은 남기지 않는다
@@ -973,7 +976,7 @@ async function mailSendNow(x) {
   try {
     cp = await G.post(`${mailMsgP(x.id, box)}/copy`, { destinationId: 'drafts' });
     mailOutAdd(cp.id, box); // 보내는 동안 임시보관함 숫자에 잡히지 않게
-    await G.patch(mailMsgP(cp.id, box), { singleValueExtendedProperties: [{ id: 'SystemTime 0x3FEF', value: new Date(Date.now() - 60e3).toISOString() }] });
+    await G.patch(mailMsgP(cp.id, box), { singleValueExtendedProperties: [{ id: 'SystemTime 0x3FEF', value: MAIL_SCHED_OFF }] });
     await G.post(`${mailMsgP(x.id, box)}/permanentDelete`, {}, { type: 'none' });
   } catch (e) {
     if (cp) { MAIL_OUT.delete(cp.id); G.del(mailMsgP(cp.id, box)).catch(() => {}); }
@@ -991,7 +994,7 @@ async function mailSendNow(x) {
     toast(`보내지 못해 임시보관함에 남겨 두었습니다: ${e.message}`);
   }
   mailLoadCounts();
-  setTimeout(() => { if (route() === 'mail' && mailFid(ui.mail.folder) === 'sentitems' && !ui.mail.compose && !ui.mail.sel) mailLoadList(); }, 3000); // 보낸 메일이 보낸편지함에 보이게
+  for (const t of [3000, 10000]) setTimeout(() => { if (route() === 'mail' && mailFid(ui.mail.folder) === 'sentitems' && !ui.mail.compose && !ui.mail.sel) mailLoadList(); }, t); // 보낸 메일이 보낸편지함에 보통 줄로 보이게
 }
 
 /* 도구 줄: 체크한 게 있으면 일괄 작업 버튼을 보인다 */
@@ -2436,7 +2439,7 @@ async function mailSaveDraft(c, notify) {
     };
   } catch (e) { toast(e.message); return null; }
   // 발송 예약: PidTagDeferredSendTime. 예약을 껐으면 지난 시각으로 덮어 바로 보내지게 한다
-  const at = c.sched ? mailSchedDate(c.sched) : c.schedSaved ? Date.now() - 60e3 : 0;
+  const at = c.sched ? mailSchedDate(c.sched) : c.schedSaved ? Date.parse(MAIL_SCHED_OFF) : 0;
   const ep = at ? [{ id: 'SystemTime 0x3FEF', value: new Date(at).toISOString() }] : [];
   if (ep.length) msg.singleValueExtendedProperties = ep;
   // contact@: 초안을 공유 사서함에 만들고 보낸 사람도 contact@로(SendAs). 보낸 메일은 공유 사서함 보낸편지함에 남는다
