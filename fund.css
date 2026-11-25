@@ -1,0 +1,25 @@
+/* 딜소싱 › 출자사업(fund.js). 목록·펼친 행은 ipo.css, 보기 전환은 pe.css(.pe-grp·.pe-gn), 필터 줄은 radar.css·filt.css.
+   표는 열 간격 고르게, 왼쪽 정렬, 머리글과 값 시작선 일치. 간격 4·8·12·16. */
+.fc-page { container-type: inline-size; }
+/* 공고 목록: 출자기관 | 사업명 | 분야 | 규모 | 접수 시기 | PEF | Co-GP | 상태 | 펼침. 사업명 칸 안의 기관 줄과 둘째 줄은 좁을 때만 */
+.fc-page .ipo-cols { grid-template-columns: repeat(8, minmax(0, 1fr)) 16px; }
+.fc-page .ipo-cols.fc-plan { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.fc-page .ipo-cols.fc-scan { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.fc-page .fc-org, .fc-page .rd-pair { display: none; }
+.fc-yn.on { color: var(--t-green-c); font-weight: 500; }
+.fc-yn.off { color: var(--text3); }
+.fc-hit { color: var(--primary); }
+.fc-err { margin: 12px 24px 0; padding: 8px 12px; border-radius: var(--r); background: var(--t-amber); color: var(--t-amber-c); font-size: var(--fs-md); }
+
+@container (max-width: 760px) {
+  .fc-page .ipo-top { flex-wrap: wrap; row-gap: 4px; }
+  .fc-page .ipo-sumrow { flex: 1 1 100%; }
+  .fc-page .ipo-head { display: none; }
+  .fc-page .ipo-cols, .fc-page .ipo-cols.fc-plan, .fc-page .ipo-cols.fc-scan { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
+  .fc-page .ipo-line > .ipo-c-name { grid-column: 1; grid-row: 1; display: block; font-size: inherit; color: inherit; }
+  .fc-page .ipo-line > .rd-mh { display: none; }
+  .fc-page .ipo-line.fc-scan > div:first-child { display: none; }
+  .fc-page .ipo-line > .ipo-c-st { display: flex; grid-column: 2; grid-row: 1; }
+  .fc-page .fc-org { display: block; margin-top: 2px; }
+  .fc-page .rd-pair { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: var(--fs-md); line-height: 20px; color: var(--text2); }
+}

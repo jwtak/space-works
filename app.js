@@ -716,10 +716,11 @@ const DEAL_SCREENS = {
   cons: ['소비재', 'box', () => (typeof renderCons === 'function' ? renderCons : null)],
   deep: ['딥테크', 'spark', () => (typeof renderDeep === 'function' ? renderDeep : null)],
   si: ['SI 타깃', 'link', () => (typeof renderSi === 'function' ? renderSi : null)], // si.js: SI별로 들고 갈 회사(2026-11-18)
+  fund: ['출자사업', 'file', () => (typeof renderFund === 'function' ? renderFund : null)], // fund.js: 우주항공 펀드 출자 공고 트래커(2026-11-25)
   space: ['우주·방산', 'spark', () => (typeof renderSpace === 'function' ? renderSpace : null)], // space.js: 우주·방산 섹터 리서치 후보(2026-11-25)
   pipeline: ['파이프라인', 'inbox', () => (typeof renderPipeline === 'function' ? renderPipeline : null)],
 };
-const DEAL_GROUPS = [['events', '행사', 'ticket', ['events']], ['listing', '상장', 'flag', ['round', 'yesim', 'ipo']], ['offer', '매물', 'upload', ['bids', 'sell', 'kmx']], ['target', '타깃', 'link', ['heir', 'dup', 'delist', 'sector', 'cons', 'deep', 'space', 'si']]];
+const DEAL_GROUPS = [['events', '행사', 'ticket', ['events']], ['listing', '상장', 'flag', ['round', 'yesim', 'ipo']], ['offer', '매물', 'upload', ['bids', 'sell', 'kmx']], ['target', '타깃', 'link', ['heir', 'dup', 'delist', 'sector', 'cons', 'deep', 'space', 'si']], ['fund', '출자사업', 'file', ['fund']]];
 const DEAL_PIPE = ['facts', 'pipeline', 'fav']; // 사이드바 '파이프라인' 화면의 탭
 const DEAL_PAGE = { news: 'news', pipeline: 'pipeline', facts: 'pipeline', fav: 'pipeline' }; // 나머지는 딜소싱
 // 주소 끝 → 화면 키. 빈 값은 첫 묶음, 묶음 이름은 그 묶음에서 마지막으로 본 화면, pe는 PE 앵글에서 보던 묶음
