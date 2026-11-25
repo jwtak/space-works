@@ -27,7 +27,7 @@ const PE_SIG_N = 10;
 const peDupGrp = (st) => (st === '매각 완료' || /^해소/.test(st) ? 'end' : st === '실제 매물' ? 'sale' : st === '진행 중' ? 'ing' : ['철회', '지연·철회', '보류'].includes(st) ? 'drop' : 'watch');
 
 // 새로 고친 뒤에도 보던 묶음·검색어·필터·정렬·펼친 행을 이어 보게 창마다 기억한다(app.js viewGet·viewSet, 키 pe.grp·pe.heir·pe.dup)
-const PE_VIEW = { heir: ['q', 'f', 'rev', 'opm', 'sort'], dup: ['q', 'f', 'sort'] };
+const PE_VIEW = { heir: ['q', 'f', 'rev', 'opm', 'sp', 'sort'], dup: ['q', 'f', 'sort'] };
 function peView(g, s) {
   const v = viewGet(`pe.${g}`, null) || {};
   PE_VIEW[g].forEach((k) => { if (typeof v[k] === 'string') s[k] = v[k]; });
@@ -40,7 +40,7 @@ const peS = {
   data: null, at: 0, loading: null, host: null, focus: null, field: null,
   grp: viewGet('pe.grp', 'heir') === 'dup' ? 'dup' : 'heir',
   marks: { items: [], version: null }, dirty: new Map(), saving: Promise.resolve(),
-  heir: peView('heir', { q: '', f: 'pass', rev: '', opm: '', old: false, team: false, sort: 'score', open: new Set() }),
+  heir: peView('heir', { q: '', f: 'pass', rev: '', opm: '', sp: '', old: false, team: false, sort: 'score', open: new Set() }),
   dup: peView('dup', { q: '', f: 'live', team: false, big: false, sort: 'last', open: new Set() }), // big: 공시대상기업집단 소속도 보기(팀 기준상 기본 제외)
 };
 function peViewSave() {
@@ -125,7 +125,7 @@ function peLoad(force) {
       let d, mk, sv;
       do {
         sv = peS.saving; await sv.catch(() => {});
-        [d, mk] = await Promise.all([STORE.readText(PE_FILE), peReadMarks()]);
+        [d, mk] = await Promise.all([STORE.readText(PE_FILE), peReadMarks(), typeof spLoad === 'function' ? spLoad(force) : null]);
       } while (sv !== peS.saving);
       let raw = null;
       if (d.text) { try { raw = JSON.parse(d.text); } catch { throw new Error('PE 앵글 자료 형식이 올바르지 않습니다'); } }
@@ -271,6 +271,8 @@ const peDlOk = () => typeof dlLoad === 'function' && typeof delistFocus === 'fun
 const peDlLink = (code) => (peDlOk() && dlS.data?.byCode?.has(code) ? `<a class="ipo-a" href="#deals/delist" data-pe-dl="${esc(code)}">상폐 위험·CB에서 보기${ico('right', 'sm')}</a>` : '');
 
 /* ---------- 목록 ---------- */
+// 우주·방산 테마(space.js): 오너기업은 회사 개요 글이 없어 이름(후보 목록)과 업종 코드만 본다. 약한 업종(기타 무선 통신장비 등)은 후보 목록에 있을 때만
+const peSp = (x) => (typeof spOf === 'function' ? spOf(x, (y) => ({ name: y.name, ind: y.induty })) : { sp: false, coi: false });
 function peHeirList() {
   const s = peS.heir, d = peS.data?.heir; if (!d) return [];
   const q = s.q.trim().toLowerCase(), [lo, hi] = s.rev ? s.rev.split('-').map((v) => (v === '' ? null : +v)) : [null, null];
@@ -283,7 +285,7 @@ function peHeirList() {
   return d.items.filter((x) => (s.f === 'all' || (s.f === 'pass') === x.pass)
     && (!s.rev || (x.last?.rev != null && (lo == null || x.last.rev >= lo) && (hi == null || x.last.rev < hi)))
     && (!s.opm || (x.opm != null && x.opm >= +s.opm))
-    && (!s.old || (x.years != null && x.years >= PE_OLD)) && (!s.team || x.team) && (!q || x.q.includes(q)))
+    && (!s.old || (x.years != null && x.years >= PE_OLD)) && (!s.team || x.team) && (!s.sp || peSp(x).sp) && (!q || x.q.includes(q)))
     .sort((a, b) => by(a, b) || a.idx - b.idx);
 }
 
@@ -337,7 +339,7 @@ function peHeirRow(x) {
   return `<div class="ipo-row${open ? ' open' : ''}${peDoneCls(st)}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div>${x.score != null ? `${peFmt(x.score, 0)}점` : PE_NA}${pass}</div>
-      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${peNm(x.name)}</button>${s.team ? '' : peTeam(x)}${x.induty ? `<div class="ipo-sub">${esc(x.induty)}</div>` : ''}${mg}</div>
+      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${peNm(x.name)}</button>${s.team ? '' : peTeam(x)}${typeof spBadge === 'function' ? spBadge(peSp(x)) : ''}${x.induty ? `<div class="ipo-sub">${esc(x.induty)}</div>` : ''}${mg}</div>
       <div class="rd-mh">${f ? peEok(f.rev) : PE_NA}<div class="ipo-sub">${f ? esc(f.y) : ''}</div></div>
       <div class="rd-mh">${x.opm != null ? peDn(x.opm, pePct(x.opm)) : PE_NA}<div class="ipo-sub">${f?.op != null ? `영업이익 ${peDn(f.op, peEok(f.op))}` : ''}</div></div>
       <div class="rd-mh">${h.main}<div class="ipo-sub">${h.sub}</div></div>
@@ -481,8 +483,10 @@ function peFilterHtml() {
   const sel = (opts) => `<select class="select" id="pe-sort" aria-label="정렬">${opts.map(([k, l]) => `<option value="${k}"${s.sort === k ? ' selected' : ''}>${l}</option>`).join('')}</select>`;
   const tg = (k, l) => `<button type="button" data-pe-tg="${k}" class="${s[k] ? 'on' : ''}" aria-pressed="${!!s[k]}">${l}</button>`;
   if (g === 'heir') {
+    if (typeof FF_RG === 'object') FF_RG['pe-heir'] = { st: () => peS.heir, apply: () => peDraw(), spN: () => (peS.data ? peS.data.heir.items.filter((x) => (s.f === 'all' || (s.f === 'pass') === x.pass) && peSp(x).sp).length : null) }; // 수는 통과·근접 고른 범위 안
+    const sp = typeof ffRangeHtml === 'function' ? ffRangeHtml('pe-heir', 'sp', '테마') : '';
     return `<div class="ipo-filter">${search('회사·업종·대표·주주 검색')}${peSeg('pe-f', PE_HF, s.f)}${sel(PE_HSORT)}</div>
-      <div class="ipo-filter rd-finf"><div class="rd-fing"><span class="rd-finl">최근 매출</span>${peSeg('pe-rev', PE_REV, s.rev)}</div>
+      <div class="ipo-filter rd-finf">${sp}<div class="rd-fing"><span class="rd-finl">최근 매출</span>${peSeg('pe-rev', PE_REV, s.rev)}</div>
         <div class="rd-fing"><span class="rd-finl">영업이익률</span>${peSeg('pe-opm', PE_OPM, s.opm)}</div>
         <div class="rd-fing"><span class="rd-finl">조건</span><div class="seg">${tg('old', `업력 ${PE_OLD}년+`)}${tg('team', '팀 리스트만')}</div></div></div>`;
   }
@@ -566,6 +570,8 @@ function peDraw() {
   const keep = peKeepNote(b);
   peDrawing = true;
   try { b.innerHTML = peBody(); } finally { peDrawing = false; }
+  const sg = host.querySelector('.ff-rg[data-ff-k="sp"]'); // 테마 단추 옆 수: 자료를 읽은 뒤, 통과·근접을 바꾼 뒤
+  if (sg && peS.grp === 'heir' && typeof ffRangeHtml === 'function') { const h = ffRangeHtml('pe-heir', 'sp', '테마'); if (sg.outerHTML !== h) sg.outerHTML = h; }
   peSumDraw();
   peKeepBack(keep);
   peViewSave();
@@ -731,7 +737,7 @@ function peFocus(ref) {
   if (!m) return '';
   const g = m[1], s = peS[g], id = `${g}:${m[2]}`;
   peS.grp = g; s.q = ''; s.team = false; s.f = 'all';
-  if (g === 'heir') { s.rev = ''; s.opm = ''; s.old = false; }
+  if (g === 'heir') { s.rev = ''; s.opm = ''; s.old = false; s.sp = ''; }
   s.open.add(id); peS.focus = id;
   if (typeof fvSkip === 'function' && fvSkip(String(ref))) viewSet(`fv.sk.pe-${g}`, true); // 관심 없음 회사면 맨 아래 묶음을 펼쳐 둔다
   peViewSave();

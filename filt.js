@@ -4,7 +4,7 @@
    - 맨 위에 고른 필터 칩(누르면 그 묶음을 '전체'로)과 '초기화'
    - 매출·영업이익·매출 성장은 칩 대신 슬라이더(ffRangeHtml, 11/24 사용자 "bar로 해서 몇 억 이상, 10% 이렇게"). 화면이 FF_RG[id]에 상태와 다시 그리기를 걸고,
      거를 때 ffOk(상태, {rev 억, op 억, gr %})를 부른다. 상태 값: rev = '300'(억 이상), op = 'a:10'(영업이익 10억 이상) · 'm:5'(영업이익률 5% 이상), gr = '20'(% 이상),
-     nn = '1'(값이 없는 회사도 보기). 끌 때마다 목록만 다시 그린다(필터 줄은 그대로 두어야 끌기가 끊기지 않는다).
+     nn = '1'(값이 없는 회사도 보기), sp = '1'(테마 우주·방산만, space.js). 끌 때마다 목록만 다시 그린다(필터 줄은 그대로 두어야 끌기가 끊기지 않는다).
    단추를 누르는 일은 각 화면의 원래 클릭 처리(data-rd-*·data-fs-fl 등)를 그대로 탄다: 칩·초기화는 그 묶음의 '전체' 단추(없으면 켜진 단추)를 대신 누른다.
    화면이 필터 줄을 다시 그려도 #page 변화를 보고 다시 붙인다(app.js mfApply와 같은 방식). 폰(760 이하)은 app.js의 '필터' 단추 시트 안이다. */
 
@@ -41,6 +41,10 @@ function ffCur(s, k) {
 const ffChipText = (k, label, mode, v) => (v == null ? '' : `${k === 'op' ? (mode === 'opm' ? '영업이익률' : '영업이익') : label} ${ffFmt(mode, v)} 이상`);
 function ffRangeHtml(id, k, label) {
   const s = FF_RG[id]?.st(); if (!s) return '';
+  if (k === 'sp') { // 테마 묶음(2026-11-25 우주·방산, space.js spTag). 화면이 FF_RG[id].spN()으로 우주·방산 수를 준다
+    const on = s.sp === '1', n = FF_RG[id].spN?.();
+    return `<div class="rd-fing ff-rg" data-ff-id="${id}" data-ff-k="sp" data-ff-label="${esc(label)}" data-ff-on="${on ? '우주·방산' : ''}"><span class="rd-finl">${esc(label)}</span><div class="seg">${[['', '전체'], ['1', '우주·방산']].map(([v, l]) => `<button type="button" data-ff-sp="${v}" class="${(s.sp || '') === v ? 'on' : ''}" aria-pressed="${(s.sp || '') === v}">${l}${v && n != null ? `<span class="rd-qn">${n}</span>` : ''}</button>`).join('')}</div></div>`;
+  }
   if (k === 'nn') {
     const on = s.nn === '1';
     return `<div class="rd-fing ff-rg" data-ff-id="${id}" data-ff-k="nn" data-ff-on="${on ? '값 없는 회사 포함' : ''}"><span class="rd-finl">${esc(label)}</span><label class="ff-nn"><input type="checkbox" class="ff-nnc"${on ? ' checked' : ''}>확인 불가 회사도 보기</label></div>`;
@@ -133,6 +137,8 @@ function ffClear(c) {
 
 document.addEventListener('click', (ev) => {
   const t = ev.target, box = t.closest?.('.ipo-filter.rd-finf'); if (!box) return;
+  const sb = t.closest('[data-ff-sp]');
+  if (sb) { ev.stopPropagation(); const g = sb.closest('.ff-rg'); ffSet(g.dataset.ffId, 'sp', sb.dataset.ffSp, true); return; }
   const mb = t.closest('[data-ff-mode]');
   if (mb) { // 영업이익 금액 ↔ 이익률: 값은 비우고 눈금만 바꾼다
     ev.stopPropagation();

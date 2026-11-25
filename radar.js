@@ -24,7 +24,17 @@ const RD_YS_F = [['all', '전체'], ['mandate', '주관사 선정'], ['review', 
 // 주관사 필터(2026-11-15 사용자): 대표·공동 주관사 어느 쪽이든. 이름은 (주)·주식회사·띄어쓰기를 빼고 비교
 const rdBrNorm = (n) => rdStr(n).replace(/\(주\)|㈜|주식회사/g, '').replace(/\s+/g, '');
 const rdBrs = (x) => (x.mn ? [...x.lead, ...x.co] : rdSplit(x.broker)).map(rdBrNorm).filter(Boolean);
+// 우주·방산 테마(space.js). 상장 준비 = 이름 + DART 업종 + 주요 제품(주관사 선정은 기사 한 줄·팩트시트 사업), 구주 매물 = 이름 + 조합 이름(회사 설명 칸이 없음)
+const RD_SP_IN = {
+  yesim: (x) => ({ name: x.name, names: [x.dartName], ind: x.sector, text: [x.product, x.line, x.fs?.biz, x.fs?.product] }),
+  sell: (x) => ({ name: x.name, fund: [x.fund?.name, x.seller].filter(Boolean).join(' ') }),
+};
+const rdSp = (tab, x) => (typeof spOf === 'function' && RD_SP_IN[tab] ? spOf(x, RD_SP_IN[tab]) : { sp: false, coi: false });
+const rdSpB = (tab, x) => (typeof spBadge === 'function' ? spBadge(rdSp(tab, x)) : '');
+// 테마 묶음 단추 옆 수: 상장 준비 = 청구 회사 + 청구 전 주관사 선정, 구주 매물 = 전체 행
+const rdSpN = (t) => { const d = rdS[t]?.data; if (!d) return null; const l = t === 'yesim' ? [...d.items, ...d.mandates.filter((m) => m.pre)] : d.items; return l.filter((x) => rdSp(t, x).sp).length; };
 function rdFinOk(x, s) {
+  if (s.sp && !rdSp('yesim', x).sp) return false;
   if (s.br && !rdBrs(x).includes(s.br)) return false;
   if (!s.rev && !s.op) return true;
   const f = x.fy ? x.fin.years[x.fy] : null;
@@ -209,7 +219,7 @@ Object.assign(TAB_INFO, {
 });
 
 // 새로 고친 뒤에도 보던 검색어·필터·정렬·펼친 행을 이어 보게 창마다 기억한다(app.js viewGet·viewSet). 자료에 없는 id는 그리지 않을 뿐이다
-const RD_VIEW = { yesim: ['q', 'f', 'sort', 'rev', 'op', 'opMode', 'nn', 'br'], sell: ['q', 'f', 'rev', 'op', 'opMode', 'gr', 'nn', 'prof', 'pre', 'ipo', 'audit'], bids: ['q', 'view', 'fit', 'stage'] };
+const RD_VIEW = { yesim: ['q', 'f', 'sort', 'rev', 'op', 'opMode', 'nn', 'br', 'sp'], sell: ['q', 'f', 'rev', 'op', 'opMode', 'gr', 'nn', 'prof', 'pre', 'ipo', 'audit', 'sp'], bids: ['q', 'view', 'fit', 'stage'] };
 const rdView = (tab, s) => {
   const v = viewGet(`rd:${tab}`, null) || {}; RD_VIEW[tab].forEach((k) => { if (typeof v[k] === 'string') s[k] = v[k]; }); s.open = new Set(Array.isArray(v.open) ? v.open : []);
   if (tab === 'yesim' && !RD_YS_F.some(([k]) => k === s.f)) s.f = 'all'; // 없앤 '가린 회사'(hidden) 등 기억된 옛 필터
@@ -223,8 +233,8 @@ const rdViewSave = (tab) => { const s = rdS[tab]; viewSet(`rd:${tab}`, Object.fr
 const rdS = {
   tab: null, host: null, field: null, // field = 쓰고 있는 메모 칸 {el, tab}
   marks: { items: [], version: null }, dirty: new Map(), saving: Promise.resolve(),
-  yesim: rdView('yesim', { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'filed', rev: '', op: '', opMode: 'a', nn: '', br: '', open: new Set(), focus: null }),
-  sell: rdView('sell', { data: null, at: 0, loading: null, q: '', f: 'all', rev: '', op: '', opMode: 'a', gr: '', nn: '', prof: '', pre: '', ipo: '', audit: '', open: new Set(), focus: null }),
+  yesim: rdView('yesim', { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'filed', rev: '', op: '', opMode: 'a', nn: '', br: '', sp: '', open: new Set(), focus: null }),
+  sell: rdView('sell', { data: null, at: 0, loading: null, q: '', f: 'all', rev: '', op: '', opMode: 'a', gr: '', nn: '', prof: '', pre: '', ipo: '', audit: '', sp: '', open: new Set(), focus: null }),
   bids: rdView('bids', { data: null, at: 0, loading: null, q: '', view: 'deal', fit: '', stage: '', open: new Set(), focus: null }),
 };
 
@@ -238,7 +248,7 @@ function rdLoad(tab, force) {
       let d, mk, sv;
       do {
         sv = rdS.saving; await sv.catch(() => {});
-        [d, mk] = await Promise.all([STORE.readText(RD_TAB[tab].file), rdReadMarks()]);
+        [d, mk] = await Promise.all([STORE.readText(RD_TAB[tab].file), rdReadMarks(), typeof spLoad === 'function' && tab !== 'bids' ? spLoad(force) : null]);
       } while (sv !== rdS.saving);
       let raw = null;
       if (d.text) { try { raw = JSON.parse(d.text); } catch { throw new Error(`${RD_TAB[tab].label} 자료 형식이 올바르지 않습니다`); } }
@@ -764,7 +774,7 @@ function rdYsRow(x) {
   return `<div class="ipo-row${open ? ' open' : ''}${rdDoneCls(st)}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div>${rdMd(x.filed) || RD_NA}</div>
-      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${rdNm(x.name)}</button><div class="ipo-sub">${esc(x.product || x.sector)}</div>${rdYsPair(x, br[0], x.product || x.sector)}</div>
+      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${rdNm(x.name)}</button>${rdSpB('yesim', x)}<div class="ipo-sub">${esc(x.product || x.sector)}</div>${rdYsPair(x, br[0], x.product || x.sector)}</div>
       <div class="rd-mh">${rdProgCell(x, p)}</div>
       <div class="rd-mh">${br.length ? rdNm(br[0]) : RD_NA}</div>
       <div class="rd-mh rd-c2">${x.rev != null ? rdEok(x.rev) : RD_NA}</div>
@@ -824,7 +834,7 @@ function rdMnRow(x) {
   return `<div class="ipo-row${open ? ' open' : ''}${rdDoneCls(st)}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div>${rdMd(x.selected) || RD_NA}${x.last && x.last !== x.selected ? `<div class="ipo-sub" title="마지막 기사일">기사 ${esc(rdMd(x.last))}</div>` : ''}</div>
-      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${rdNm(x.name)}</button>${x.isNewC ? '<span class="rd-fs-tag">새로 걸림</span>' : ''}${x.fs ? '<span class="rd-fs-tag">팩트시트</span>' : ''}<div class="ipo-sub">${esc(x.sector)}</div>${rdYsPair(x, x.lead[0], x.sector)}</div>
+      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${rdNm(x.name)}</button>${x.isNewC ? '<span class="rd-fs-tag">새로 걸림</span>' : ''}${x.fs ? '<span class="rd-fs-tag">팩트시트</span>' : ''}${rdSpB('yesim', x)}<div class="ipo-sub">${esc(x.sector)}</div>${rdYsPair(x, x.lead[0], x.sector)}</div>
       <div class="rd-mh">${rdProgCell(x, p)}</div>
       <div class="rd-mh">${x.lead.length ? rdClamp(x.lead.join(', '), rdNm) : RD_NA}</div>
       <div class="rd-mh rd-c2">${x.rev != null ? rdEok(x.rev) : '<span class="muted">확인 불가</span>'}</div>
@@ -898,6 +908,7 @@ function rdSignals() {
 /* ---------- 구주 매물(옛 이름 매각희망, FI 회수) ---------- */
 function rdSellOk(x, s) {
   const p = x.p;
+  if (s.sp && !rdSp('sell', x).sp) return false;
   if (typeof ffOk === 'function' && !ffOk(s, { rev: p.rev, op: p.op, gr: p.gr })) return false;
   if (s.prof === 'turn' && !p.turn) return false;
   if (s.pre && !x.pre) return false;
@@ -940,7 +951,7 @@ function rdSellRow(x) {
   const when = [kind && `<span class="rd-lb">${kind}</span>`, dd || esc(rdMd(x.date))].filter(Boolean).join(' ');
   const perf = [p.rev != null ? `<span class="rd-lb">매출</span> ${rdEok(p.rev)}` : '', p.op != null ? `<span class="rd-lb">영업이익</span> ${rdOp(p.op)}` : ''].filter(Boolean).join(' ');
   const ipoT = x.ipo ? x.ipo.target || (x.ipo.broker ? `주관사 ${x.ipo.broker}` : x.ipo.stage) : '';
-  const tags = `${x.pre ? '<span class="rd-fs-tag">Pre-IPO 후보</span>' : ''}${x.isNew ? '<span class="rd-fs-tag">새로 걸림</span>' : ''}${p.rev != null && p.rev >= RD_BIG ? '<span class="rd-fs-tag rd-big">대형</span>' : ''}${rdArtTags(x)}`;
+  const tags = `${x.pre ? '<span class="rd-fs-tag">Pre-IPO 후보</span>' : ''}${x.isNew ? '<span class="rd-fs-tag">새로 걸림</span>' : ''}${p.rev != null && p.rev >= RD_BIG ? '<span class="rd-fs-tag rd-big">대형</span>' : ''}${rdArtTags(x)}${rdSpB('sell', x)}`;
   return `<div class="ipo-row${open ? ' open' : ''}${rdDoneCls(st)}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div>${rdMd(x.date) || RD_NA}<div class="ipo-sub">${kind ? `${kind} ` : ''}${dd}</div></div>
@@ -1251,10 +1262,10 @@ function rdFilterHtml(tab) {
   const sel = (id, label, opts, cur) => `<select class="select" id="${id}" aria-label="${label}">${opts.map(([k, l]) => `<option value="${esc(k)}"${cur === k ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   if (tab === 'yesim') return search('회사·업종·주관사·주주 검색') + `<select class="select" id="rd-br" aria-label="주관사">${rdBrOpts()}</select>` + seg('rd-f', RD_YS_F, s.f).replace(/(data-rd-f="([a-z]+)"[^>]*>)([^<]+)</g, '$1$3<span class="rd-fc" data-fc="$2"></span><') + sel('rd-sort', '정렬', RD_YS_SORT, s.sort); // 칩 옆 개수 자리(폰에서만 보임, rdFcDraw)
   const rg = (k, l) => (typeof ffRangeHtml === 'function' ? ffRangeHtml(`rd-${tab.split('-')[0]}`, k, l) : '');
-  if (tab.endsWith('-fin') && typeof FF_RG === 'object') { const t = tab.split('-')[0]; FF_RG[`rd-${t}`] = { st: () => rdS[t], apply: () => { rdViewSave(t); rdDraw(); } }; }
-  if (tab === 'yesim-fin') return rg('rev', '최근 매출') + rg('op', '영업이익') + rg('nn', '값 없음');
+  if (tab.endsWith('-fin') && typeof FF_RG === 'object') { const t = tab.split('-')[0]; FF_RG[`rd-${t}`] = { st: () => rdS[t], apply: () => { rdViewSave(t); rdDraw(); }, spN: () => rdSpN(t) }; }
+  if (tab === 'yesim-fin') return rg('sp', '테마') + rg('rev', '최근 매출') + rg('op', '영업이익') + rg('nn', '값 없음');
   if (tab === 'sell') return search('회사·매도 후보·조합 검색') + seg('rd-f', [['all', '전체'], ...RD_KINDS.map((k) => [k, k])], s.f); // 정렬은 만기 가까운 순 하나라 고르는 칸 없음(11/24)
-  if (tab === 'sell-fin') return rg('rev', '최근 매출') + rg('op', '영업이익') + rg('gr', '매출 성장')
+  if (tab === 'sell-fin') return rg('sp', '테마') + rg('rev', '최근 매출') + rg('op', '영업이익') + rg('gr', '매출 성장')
     + `<div class="rd-fing"><span class="rd-finl">흑자 전환</span>${seg('rd-prof', RD_SELL_PROF, rdS.sell.prof)}</div>`
     + `<div class="rd-fing"><span class="rd-finl">Pre-IPO</span>${seg('rd-pre', RD_SELL_PRE, rdS.sell.pre)}</div>`
     + `<div class="rd-fing"><span class="rd-finl">상장 목표</span>${seg('rd-ipo', RD_SELL_IPO, rdS.sell.ipo)}</div>`
@@ -1360,7 +1371,11 @@ async function rdRender(tab, host) {
     if (b) b.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
     return;
   }
-  if (rdS.host === host && rdS.tab === tab && host.isConnected) rdDraw();
+  if (rdS.host === host && rdS.tab === tab && host.isConnected) {
+    rdDraw();
+    const g = host.querySelector('.ff-rg[data-ff-k="sp"]'); // 테마 단추 옆 수는 자료를 읽은 뒤에 안다
+    if (g && typeof ffRangeHtml === 'function') g.outerHTML = ffRangeHtml(`rd-${tab}`, 'sp', '테마');
+  }
   // '파이프라인에 있음' 표시가 처음부터 맞게 미리 읽고, 다 읽으면 펼친 행의 버튼만 다시 그림(ipo.js와 같이)
   if (typeof pipeLoad === 'function') pipeLoad().then(() => { if (rdS.host === host && rdS.tab === tab) rdPipeDraw(tab); }).catch(() => {});
 }
@@ -1376,8 +1391,8 @@ function radarFocus(ref) {
   const s = rdS[m[1]];
   s.q = ''; // 검색·필터에 걸려 목록에서 빠져 있으면 펼칠 수 없으므로 풀어 둔다
   if (m[1] === 'bids') { s.view = 'deal'; s.fit = ''; s.stage = ''; } else s.f = m[1] === 'yesim' && rdIsMn(m[2]) ? 'mandate' : 'all';
-  if (m[1] === 'yesim') { s.rev = ''; s.op = ''; }
-  if (m[1] === 'sell') { s.rev = ''; s.op = ''; s.gr = ''; s.prof = ''; s.pre = ''; s.ipo = ''; s.audit = ''; }
+  if (m[1] === 'yesim') { s.rev = ''; s.op = ''; s.sp = ''; }
+  if (m[1] === 'sell') { s.rev = ''; s.op = ''; s.gr = ''; s.prof = ''; s.pre = ''; s.ipo = ''; s.audit = ''; s.sp = ''; }
   s.open.add(m[2]); s.focus = m[2];
   rdViewSave(m[1]);
   return `#deals/${m[1]}`;

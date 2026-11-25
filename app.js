@@ -716,9 +716,10 @@ const DEAL_SCREENS = {
   cons: ['소비재', 'box', () => (typeof renderCons === 'function' ? renderCons : null)],
   deep: ['딥테크', 'spark', () => (typeof renderDeep === 'function' ? renderDeep : null)],
   si: ['SI 타깃', 'link', () => (typeof renderSi === 'function' ? renderSi : null)], // si.js: SI별로 들고 갈 회사(2026-11-18)
+  space: ['우주·방산', 'spark', () => (typeof renderSpace === 'function' ? renderSpace : null)], // space.js: 우주·방산 섹터 리서치 후보(2026-11-25)
   pipeline: ['파이프라인', 'inbox', () => (typeof renderPipeline === 'function' ? renderPipeline : null)],
 };
-const DEAL_GROUPS = [['events', '행사', 'ticket', ['events']], ['listing', '상장', 'flag', ['round', 'yesim', 'ipo']], ['offer', '매물', 'upload', ['bids', 'sell', 'kmx']], ['target', '타깃', 'link', ['heir', 'dup', 'delist', 'sector', 'cons', 'deep', 'si']]];
+const DEAL_GROUPS = [['events', '행사', 'ticket', ['events']], ['listing', '상장', 'flag', ['round', 'yesim', 'ipo']], ['offer', '매물', 'upload', ['bids', 'sell', 'kmx']], ['target', '타깃', 'link', ['heir', 'dup', 'delist', 'sector', 'cons', 'deep', 'space', 'si']]];
 const DEAL_PIPE = ['facts', 'pipeline', 'fav']; // 사이드바 '파이프라인' 화면의 탭
 const DEAL_PAGE = { news: 'news', pipeline: 'pipeline', facts: 'pipeline', fav: 'pipeline' }; // 나머지는 딜소싱
 // 주소 끝 → 화면 키. 빈 값은 첫 묶음, 묶음 이름은 그 묶음에서 마지막으로 본 화면, pe는 PE 앵글에서 보던 묶음
@@ -772,7 +773,7 @@ function mfApply() {
     const open = MF_OPEN.has(key);
     // 켜 둔 조건 수: 숨는 묶음에서 첫 칸이 아닌 것을 고른 수 + 정렬이 아닌 선택 상자에서 첫 항목이 아닌 것
     const segOn = (g) => { const b = [...g.querySelectorAll('button')], i = b.findIndex((x) => x.classList.contains('on')); return i > 0 ? 1 : 0; };
-    const n = [...hide, ...secs].reduce((a, el) => a + (el.matches('.seg') ? segOn(el) : el.matches('select') ? (el.selectedIndex > 0 && !/순$/.test(el.options[el.selectedIndex]?.text || '') ? 1 : 0) : [...el.querySelectorAll('.seg:not(.ff-mode)')].reduce((b, g) => b + segOn(g), 0) + el.querySelectorAll('.ff-rg[data-ff-on]:not([data-ff-on=""])').length + [...el.querySelectorAll('select')].filter((x) => x.selectedIndex > 0 && !/순$/.test(x.options[x.selectedIndex]?.text || '')).length), 0);
+    const n = [...hide, ...secs].reduce((a, el) => a + (el.matches('.seg') ? segOn(el) : el.matches('select') ? (el.selectedIndex > 0 && !/순$/.test(el.options[el.selectedIndex]?.text || '') ? 1 : 0) : [...el.querySelectorAll('.seg:not(.ff-mode)')].filter((g) => !g.closest('.ff-rg')).reduce((b, g) => b + segOn(g), 0) + el.querySelectorAll('.ff-rg[data-ff-on]:not([data-ff-on=""])').length + [...el.querySelectorAll('select')].filter((x) => x.selectedIndex > 0 && !/순$/.test(x.options[x.selectedIndex]?.text || '')).length), 0);
     const html = `필터${n ? `<b class="mf-n">${n}</b>` : ''}`;
     if (t.innerHTML !== html) t.innerHTML = html;
     t.setAttribute('aria-expanded', open); t.classList.toggle('on', open);

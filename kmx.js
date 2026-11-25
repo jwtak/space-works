@@ -14,7 +14,15 @@ const kmxS = {
   data: null, at: 0, loading: null, host: null, byId: new Map(), open: new Set(),
   side: viewGet('kmx.side', '매도') === '매수' ? '매수' : '매도',
   q: (() => { const v = viewGet('kmx.q', ''); return typeof v === 'string' ? v : ''; })(),
+  sp: viewGet('kmx.sp', '') === '1' ? '1' : '', // 테마 우주·방산(space.js, filt.js '테마' 묶음)
 };
+// 우주·방산 테마: 업종·찾는 대상·특징·원문 문장(회사 이름은 가려져 있어 이름 대조는 없음)
+const kmxSp = (x) => (typeof spOf === 'function' ? spOf(x, (y) => ({ ind: y.industry, text: [y.industry, y.want, y.point, y.text] })) : { sp: false, coi: false });
+function kmxSpHtml() {
+  if (typeof ffRangeHtml !== 'function') return '';
+  FF_RG.kmx = { st: () => kmxS, apply: () => { viewSet('kmx.sp', kmxS.sp); kmxDraw(); }, spN: () => (kmxS.data ? kmxS.data.items.filter((x) => x.side === kmxS.side && kmxSp(x).sp).length : null) };
+  return ffRangeHtml('kmx', 'sp', '테마');
+}
 
 /* ---------- 데이터 ---------- */
 const kmxStr = (v) => (v == null || typeof v === 'object' ? '' : String(v).trim());
@@ -62,7 +70,7 @@ function kmxLoad(force) {
 function kmxList() {
   const d = kmxS.data; if (!d) return [];
   const q = kmxS.q.trim().toLowerCase();
-  return d.items.filter((x) => x.side === kmxS.side && (!q || x.q.includes(q)));
+  return d.items.filter((x) => x.side === kmxS.side && (!q || x.q.includes(q)) && (!kmxS.sp || kmxSp(x).sp));
 }
 
 /* ---------- 그리기 ---------- */
@@ -78,7 +86,7 @@ function kmxRow(x) {
   const meta = [x.corp, x.industry].filter(Boolean).map((t) => `<span>${esc(t)}</span>`).join('');
   return `<div class="ipo-row${open ? ' open' : ''}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols${kmxColCls(x.side)}">
-      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${esc(x.name || '분류 전 글')}</button>${meta ? `<div class="ipo-sub kmx-meta">${meta}</div>` : ''}${kmxPair(x)}</div>
+      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${esc(x.name || '분류 전 글')}</button>${typeof spBadge === 'function' ? spBadge(kmxSp(x)) : ''}${meta ? `<div class="ipo-sub kmx-meta">${meta}</div>` : ''}${kmxPair(x)}</div>
       ${x.side === '매도' ? kmxCell(c2, [x.size, x.price].filter(Boolean).join(', ')) : kmxCell(c2, x.size) + kmxCell(c3, x.want)}
       <div class="kmx-c kmx-pt${x.point ? '' : ' kmx-none'}"><span class="kmx-v rd-clamp">${x.point ? esc(x.point) : '–'}</span></div>
       <div class="ipo-c-st">${kmxChev()}</div>
@@ -136,6 +144,7 @@ function kmxDraw() {
   const b = h.querySelector('#kmx-body'); if (b) b.innerHTML = kmxBody();
   const s = h.querySelector('#kmx-sum'); if (s) s.innerHTML = kmxSummary();
   const g = h.querySelector('#kmx-side'); if (g) g.innerHTML = kmxSideHtml();
+  const f = h.querySelector('#kmx-finf'); if (f) f.innerHTML = kmxSpHtml(); // 매도·매수를 바꾸면 테마 수도 바뀐다
 }
 
 function kmxBind(root) {
@@ -165,10 +174,11 @@ async function renderKmx(host) {
       <button class="btn ghost" type="button" id="kmx-ref">${ico('refresh', 'sm')}새로고침</button></div>
     <section class="card ipo-card">
       <div class="ipo-filter"><div class="ipo-search"><span class="ipo-sic">${ico('search', 'sm')}</span><input class="input" id="kmx-q" type="search" placeholder="업종 검색" value="${esc(kmxS.q)}" autocomplete="off" aria-label="업종 검색"></div></div>
+      <div class="ipo-filter rd-finf" id="kmx-finf">${kmxSpHtml()}</div>
       <div class="ipo-body" id="kmx-body"><div class="empty">불러오는 중…</div></div>
     </section></div>`;
   kmxBind(host.querySelector('#kmx-root'));
-  try { await kmxLoad(); }
+  try { await Promise.all([kmxLoad(), typeof spLoad === 'function' ? spLoad() : null]); }
   catch (e) {
     const b = kmxS.host === host && host.querySelector('#kmx-body');
     if (b) b.innerHTML = `<div class="empty">${esc(e.message)}</div>`;

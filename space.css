@@ -1,0 +1,24 @@
+/* 우주·방산 테마 표시와 딜소싱 › 타깃 › 우주·방산 후보(space.js). 목록·펼친 행은 ipo.css, 묶음 제목·필터 줄은 radar.css·filt.css.
+   표는 왼쪽 정렬, 머리글과 값 시작선 일치. 간격 4·8·12·16. */
+
+/* 행 표시: 우주·방산(기본 파랑 rd-fs-tag), 이해상충 확인(호박색) */
+.rd-fs-tag.rd-coi { background: var(--t-amber); color: var(--t-amber-c); cursor: help; }
+.rd-fs-tag.rd-sp { cursor: help; }
+.ff-rg .seg .rd-qn { margin-left: 4px; }
+
+.sp-page { container-type: inline-size; }
+/* 회사 | 주력 제품 | 최근 매출 | 영업이익 | 나라스페이스 | 펼침 */
+.sp-page .ipo-cols { grid-template-columns: repeat(5, minmax(0, 1fr)) 16px; }
+.sp-page .rd-pair { display: none; }
+
+@container (max-width: 760px) {
+  .sp-page .ipo-top { flex-wrap: wrap; row-gap: 4px; }
+  .sp-page .ipo-sumrow { flex: 1 1 100%; }
+  .sp-page .ipo-head { display: none; }
+  .sp-page .ipo-cols { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
+  .sp-page .ipo-line > .ipo-c-name { grid-column: 1; display: block; font-size: inherit; color: inherit; }
+  .sp-page .ipo-line > .rd-mh { display: none; }
+  .sp-page .ipo-line > .ipo-c-st { display: flex; grid-column: 2; grid-row: 1; }
+  .sp-page .rd-pair { display: flex; gap: 12px; margin-top: 4px; font-size: var(--fs-md); line-height: 20px; color: var(--text2); }
+  .sp-page .rd-pair > .sp-w1 { flex: none; width: 96px; }
+}

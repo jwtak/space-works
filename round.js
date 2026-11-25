@@ -19,11 +19,11 @@ const RN_PROF = [['', '전체'], ['turn', '흑자 전환']]; // 흑자(영업이
 const RN_IPO = [['', '전체'], ['1', '있음']];
 const RN_SORT = [['dt', '최근 라운드순'], ['amt', '금액순'], ['val', '기업가치순'], ['rev', '매출순'], ['op', '영업이익순'], ['gr', '성장률순']];
 const RN_BIG = 3000; // 기업가치 3,000억 이상은 '대형' 표시만(거르지 않음)
-const RN_KEYS = ['q', 'k', 'st', 'sec', 'stg', 'amt', 'rev', 'op', 'opMode', 'gr', 'nn', 'prof', 'ipo', 'sort'];
+const RN_KEYS = ['q', 'k', 'st', 'sec', 'stg', 'amt', 'rev', 'op', 'opMode', 'gr', 'nn', 'prof', 'ipo', 'sp', 'sort'];
 
 const rnS = (() => {
   const v = viewGet('rn2', null) || {};
-  const s = { q: '', k: 'all', st: '', sec: '', stg: '', amt: '', rev: '', op: '', opMode: 'a', gr: '', nn: '', prof: '', ipo: '', sort: 'dt', open: new Set(), host: null, err: '', data: null, at: 0, loading: null, field: null };
+  const s = { q: '', k: 'all', st: '', sec: '', stg: '', amt: '', rev: '', op: '', opMode: 'a', gr: '', nn: '', prof: '', ipo: '', sp: '', sort: 'dt', open: new Set(), host: null, err: '', data: null, at: 0, loading: null, field: null };
   RN_KEYS.forEach((k) => { if (typeof v[k] === 'string') s[k] = v[k]; });
   if (!RN_QUICK.some(([x]) => x === s.k)) s.k = 'all';
   if (s.prof === 'black') { s.prof = ''; if (!s.op) s.op = 'a:0'; } // 옛 '흑자' 칩 → 영업이익 0억 이상
@@ -62,7 +62,7 @@ function rnNorm(raw) {
       round: rnStr(x.round), n: rnNum(x.stageN), status: rnStr(x.status), dt: rnDay(x.dt), amount: rnNum(x.amount), amountTxt: rnStr(x.amountTxt), goal: rnNum(x.goal),
       val: rnNum(x.val), valTxt: rnStr(x.valTxt), investors: rnStr(x.investors), pe: x.pe === true, target: rnStr(x.target), broker: rnStr(x.broker),
       p: rnPerf(x.perf), inv: rnNum(x.inv), rounds, news, from: (Array.isArray(x.from) ? x.from : []).map(rnStr).filter(Boolean),
-      isNew: x.isNew === true, newAt: rnDay(x.newAt), src: 'rounds', aliases,
+      isNew: x.isNew === true, newAt: rnDay(x.newAt), src: 'rounds', aliases, tags: (Array.isArray(x.tags) ? x.tags : []).map(rnStr).filter(Boolean),
     };
     e.q = [name, ...aliases.map((a) => a.slice(6)), e.brand, e.sector, e.line, e.round, e.status, e.investors, e.target, e.broker, ...e.from, ...rounds.map((r) => r.investors)].join(' ').toLowerCase();
     return e;
@@ -115,6 +115,9 @@ async function rnRead() {
 const rnStgOf = (n) => (n == null ? '' : n >= 9 ? 'pre' : n >= 4 ? 'd' : n >= 3 ? 'c' : n >= 2 ? 'b' : 'a');
 const rnHasIpo = (e) => !!(e.target || e.broker);
 const rnTgOf = (e) => e.tg || (typeof tgS === 'object' ? ['deep', 'cons'].map((k) => (tgS[k].data?.items || []).find((x) => (e.cc && x.code === e.cc) || rnCo(x.name) === rnCo(e.name))).find(Boolean) : null);
+// 우주·방산 테마(space.js): 이름·옛 이름·브랜드, 수집기 태그(Claude 분류), 업종, 회사 설명과 기사 제목(강한 말만)
+const rnSpIn = (e) => ({ name: e.name, names: [e.brand, ...(e.aliases || []).map((a) => a.slice(6))], text: [e.line, e.brand], titles: [...e.news, ...e.rounds].map((n) => n.title), tags: e.tags, sector: e.sector });
+const rnSp = (e) => (typeof spOf === 'function' ? spOf(e, rnSpIn) : { sp: false, coi: false });
 function rnOk(e, s, skipQuick) {
   if (!skipQuick) {
     if (s.k === 'pe' && !e.pe) return false;
@@ -129,6 +132,7 @@ function rnOk(e, s, skipQuick) {
   if (typeof ffOk === 'function' && !ffOk(s, { rev: e.p.rev, op: e.p.op, gr: e.p.gr })) return false;
   if (s.prof === 'turn' && !e.p.turn) return false;
   if (s.ipo && !rnHasIpo(e)) return false;
+  if (s.sp && !rnSp(e).sp) return false;
   return true;
 }
 function rnAll() { return rnS.data ? rnS.data.items : rnFromTg(); }
@@ -159,7 +163,7 @@ const RN_HEAD = '<div class="ipo-head ipo-cols"><div>날짜</div><div>회사</di
 
 function rnRow(e) {
   const open = rnS.open.has(e.id), p = e.p;
-  const tags = `${e.isNew ? '<span class="rd-fs-tag">새로 걸림</span>' : ''}${e.pe ? '<span class="rd-fs-tag">PE 참여</span>' : ''}${e.val != null && e.val >= RN_BIG ? '<span class="rd-fs-tag rd-big">대형</span>' : ''}`;
+  const tags = `${e.isNew ? '<span class="rd-fs-tag">새로 걸림</span>' : ''}${e.pe ? '<span class="rd-fs-tag">PE 참여</span>' : ''}${e.val != null && e.val >= RN_BIG ? '<span class="rd-fs-tag rd-big">대형</span>' : ''}${typeof spBadge === 'function' ? spBadge(rnSp(e)) : ''}`;
   const sub = [e.sector, e.line || e.brand].filter(Boolean).join(', ');
   const p1 = [rnYmd(e.dt), e.round, rnAmt(e)].filter(Boolean).join(' ');
   return `<div class="ipo-row${open ? ' open' : ''}${typeof tgDoneCls === 'function' ? tgDoneCls(rnSt(e)) : ''}" data-id="${esc(e.id)}">
@@ -276,21 +280,21 @@ function rnSummary(all) {
     `<span>컨택 <b>${all.filter((e) => rnSt(e) !== '미접촉').length}</b></span>`, ...fails].join('');
 }
 function rnQuickHtml(all) {
-  return RN_QUICK.map(([k, l]) => { const n = all.filter((e) => rnOk(e, { ...rnS, k, st: '', sec: '', stg: '', amt: '', rev: '', op: '', gr: '', prof: '', ipo: '' })).length;
+  return RN_QUICK.map(([k, l]) => { const n = all.filter((e) => rnOk(e, { ...rnS, k, st: '', sec: '', stg: '', amt: '', rev: '', op: '', gr: '', prof: '', ipo: '', sp: '' })).length;
     return `<button type="button" class="${rnS.k === k ? 'on' : ''}" aria-pressed="${rnS.k === k}" data-rn-k="${k}">${esc(l)}<span class="rd-qn">${n}</span></button>`; }).join('');
 }
 const rnSeg = (attr, opts, cur) => `<div class="seg">${opts.map(([v, l]) => `<button type="button" data-${attr}="${v}" class="${cur === v ? 'on' : ''}" aria-pressed="${cur === v}">${esc(l)}</button>`).join('')}</div>`;
 const rnSel = (id, label, opts, cur) => `<select class="select" id="${id}" aria-label="${label}">${opts.map(([v, l]) => `<option value="${esc(v)}"${cur === v ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
 function rnFilterHtml(all) {
   const s = rnS, secs = new Map();
-  if (typeof FF_RG === 'object') FF_RG.rn = { st: () => rnS, apply: () => rnDraw() }; // 슬라이더: 끌 때는 목록만(필터 줄은 그대로)
+  if (typeof FF_RG === 'object') FF_RG.rn = { st: () => rnS, apply: () => rnDraw(), spN: () => all.filter((e) => rnSp(e).sp).length }; // 슬라이더: 끌 때는 목록만(필터 줄은 그대로)
   const rg = (k, l) => (typeof ffRangeHtml === 'function' ? ffRangeHtml('rn', k, l) : '');
   all.forEach((e) => { if (e.sector) secs.set(e.sector, (secs.get(e.sector) || 0) + 1); });
   if (s.sec && !secs.has(s.sec)) secs.set(s.sec, 0);
   const secOpts = [['', '업종 전체'], ...[...secs].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko')).map(([k, n]) => [k, `${k} ${n}`])];
   return `<div class="ipo-filter" id="rn-f1"><div class="ipo-search"><span class="ipo-sic">${ico('search', 'sm')}</span><input class="input" id="rn-q" type="search" placeholder="회사, 업종, 투자사로 검색" value="${esc(s.q)}" autocomplete="off" aria-label="검색"></div>
     ${rnSeg('rn-st', RN_ST, s.st)}${rnSel('rn-sec', '업종', secOpts, s.sec)}${rnSel('rn-sort', '정렬', RN_SORT, s.sort)}</div>
-    <div class="ipo-filter rd-finf" id="rn-f2"><div class="rd-fing"><span class="rd-finl">라운드</span>${rnSeg('rn-stg', RN_STG, s.stg)}</div>
+    <div class="ipo-filter rd-finf" id="rn-f2">${rg('sp', '테마')}<div class="rd-fing"><span class="rd-finl">라운드</span>${rnSeg('rn-stg', RN_STG, s.stg)}</div>
     <div class="rd-fing"><span class="rd-finl">금액</span>${rnSeg('rn-amt', RN_AMT, s.amt)}</div>
     ${rg('rev', '매출')}${rg('op', '영업이익')}${rg('gr', '매출 성장')}
     <div class="rd-fing"><span class="rd-finl">흑자 전환</span>${rnSeg('rn-prof', RN_PROF, s.prof)}</div>
@@ -401,7 +405,7 @@ async function rnLoad(force) {
     if (!rnS.loading) rnS.loading = rnRead().then((d) => { rnS.data = d; rnS.at = Date.now(); rnFixIds(); }).finally(() => { rnS.loading = null; });
   }
   // 딥테크·소비재 자료는 컨택 상태(radar_marks)와 '딥테크에서 보기' 연결에, rounds.json이 없으면 목록 자체에 쓴다
-  const r = await Promise.allSettled([rnS.loading || Promise.resolve(), tgLoad('deep', force), tgLoad('cons', force)]);
+  const r = await Promise.allSettled([rnS.loading || Promise.resolve(), tgLoad('deep', force), tgLoad('cons', force), typeof spLoad === 'function' ? spLoad(force) : null]);
   if (rnS.host !== host || !host || !host.isConnected) return;
   const bad = r.find((y) => y.status === 'rejected');
   rnS.err = bad && !rnS.data && !tgS.deep.data && !tgS.cons.data ? (bad.reason?.message || '자료를 불러오지 못했습니다') : '';
@@ -437,7 +441,7 @@ function rnFixIds() {
 function roundFocus(ref) {
   const id = rnId(String(ref || '').replace(/^round:(?=round:)/, '')); // 키가 round:<id>(id 자체도 round:…)로 와도 같은 행. 예전 id면 대표 id로(자료를 아직 안 읽었으면 읽은 뒤 rnFixIds)
   if (!id) return '';
-  Object.assign(rnS, { q: '', k: 'all', st: '', sec: '', stg: '', amt: '', rev: '', op: '', gr: '', prof: '', ipo: '' });
+  Object.assign(rnS, { q: '', k: 'all', st: '', sec: '', stg: '', amt: '', rev: '', op: '', gr: '', prof: '', ipo: '', sp: '' });
   rnS.open.add(id); rnS.focus = id;
   const e = rnAll().find((y) => y.id === id);
   if (typeof fvSkip === 'function' && fvSkip(e ? rnRef(e) : id)) viewSet('fv.sk.round', true); // 관심 없음 회사면 맨 아래 묶음을 펼쳐 둔다

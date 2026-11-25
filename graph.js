@@ -34,6 +34,7 @@ const CFG = {
       'data/deeptech.json': '012DPUXZWNZKHMU42RDNC2CULHR547V3PI', // 딜소싱 › 타깃 › 딥테크(2026-11-16)
       'data/vc_trend.json': '012DPUXZVERNQZAJLLA5G3RWOAT7QVAI3O', // 시장동향 › 벤처투자(DIVA, 2026-11-17)
       'data/si_targets.json': '012DPUXZXFEUXZ22JC3NG3DFKAUMJMJZPE', // 딜소싱 › 타깃 › SI 타깃(2026-11-18)
+      'data/space_cands.json': '012DPUXZW5ALVCHXAVWNDJMVZVODLS4YKG', // 딜소싱 › 타깃 › 우주·방산 후보, 다른 탭 우주·방산 표시(2026-11-25)
     },
     folders: { 'data/valuation/': '012DPUXZTFWV4ARG2NLRAIGXW24GJWPVDA' }, // 가치평가 엑셀(사례마다 파일이 늘어 폴더째 읽기 공유, 2026-11-16)
     writable: ['data/event_marks.json', 'data/ipo_marks.json', 'data/news_marks.json', 'data/radar_marks.json', 'data/pipeline.json', 'data/fs_req.json'], // 수집기는 같은 파일을 덮어쓰므로 id가 바뀌지 않는다
