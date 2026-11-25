@@ -1,4 +1,4 @@
-/* SPACE WORKS — 딜소싱 › 파이프라인: 개인 소개 딜과 다른 탭(신규상장·상장 준비·구주 매물·입찰딜 등)에서 올린 딜을 단계별로 관리하는 보드
+/* SPACE WORKS — 딜소싱 › 파이프라인: 개인 소개 딜과 다른 탭(신규상장·상장 준비·펀드 만기·입찰딜 등)에서 올린 딜을 단계별로 관리하는 보드
    데이터: 회사 OneDrive SPACE WORKS/data/pipeline.json — 탁지원·대표님 두 분, 세 사람이 같이 고친다.
    항목 형식은 05. 딜소싱\_자동화\딜레이더\CONTRACT.md 의 pipeline (매일 엑셀 통합 작업도 같은 파일을 읽는다).
    진입: renderPipeline(host) — host 안에만 그린다. 홈 카드: pipeHomeBlock(). 다른 탭 상세 버튼: pipeHas(ref)·pipeAdd({...}), '있음' 링크에 data-pp-ref="<ref>"를 달면 그 딜을 펼쳐 연다.
@@ -8,7 +8,7 @@
 const PP_STAGES = ['발굴', '검토', '미팅', '실사', '투자심의', '완료', '드롭'];
 const PP_END = ['완료', '드롭'];            // '진행 중'에서 빼는 단계
 const PP_HOT = ['미팅', '실사', '투자심의'];  // 목록 칩을 파랑으로
-const PP_SRCS = ['소개', '투자 라운드', '신규상장', '상장 준비', '구주 매물', '입찰딜', '행사·IR', '상폐 위험·CB', '오너기업', '중복상장', '소비재', '딥테크', 'SI 타깃', '기타'];
+const PP_SRCS = ['소개', '투자 라운드', '신규상장', '상장 준비', '펀드 만기', '입찰딜', '행사·IR', '상폐 위험·CB', '오너기업', '중복상장', '소비재', '딥테크', 'SI 타깃', '기타'];
 const PP_TYPES = ['메자닌', '구주', '프리IPO', '경영권', '기타'];
 // 구분(kind) = 주간회의 '진행중인 딜' 회사 옆 칸 값. 딜 폴더 이름 '번호. 회사명(구분)'에 들어간다(2026-11-20)
 const PP_KINDS = ['Buyout', 'Bolt-on', 'Growth Cap.', 'Pre-IPO', 'Series-A', 'Series-B', 'Series-C'];
@@ -41,7 +41,7 @@ TAB_INFO['deals/pipeline'] = { title: '파이프라인', rows: [
   ]],
 ] };
 // ref 앞부분 → 그 딜이 있는 탭
-const PP_TABS = { ipo: ['#deals/ipo', '신규상장'], yesim: ['#deals/yesim', '상장 준비'], sell: ['#deals/sell', '구주 매물'], bids: ['#deals/bids', '입찰딜'], events: ['#deals/events', '행사·IR'], facts: ['#deals/facts', '팩트시트'], delist: ['#deals/delist', '상폐 위험·CB'], heir: ['#deals/heir', '오너기업'], dup: ['#deals/dup', '중복상장'], cons: ['#deals/cons', '소비재'], deep: ['#deals/deep', '딥테크'], round: ['#deals/round', '투자 라운드'], si: ['#deals/si', 'SI 타깃'], space: ['#deals/space', '우주·방산'] };
+const PP_TABS = { ipo: ['#deals/ipo', '신규상장'], yesim: ['#deals/yesim', '상장 준비'], sell: ['#deals/sell', '펀드 만기'], bids: ['#deals/bids', '입찰딜'], events: ['#deals/events', '행사·IR'], facts: ['#deals/facts', '팩트시트'], delist: ['#deals/delist', '상폐 위험·CB'], heir: ['#deals/heir', '오너기업'], dup: ['#deals/dup', '중복상장'], cons: ['#deals/cons', '소비재'], deep: ['#deals/deep', '딥테크'], round: ['#deals/round', '투자 라운드'], si: ['#deals/si', 'SI 타깃'], space: ['#deals/space', '우주·방산'] };
 // ref → 탭. PE 쪽 ref(pe:heir:… · pe:dup:…)는 오너기업·중복상장 탭으로
 const ppTabOf = (ref) => { const p = String(ref || '').split(':'); return PP_TABS[p[0] === 'pe' ? (p[1] === 'dup' ? 'dup' : 'heir') : p[0]]; };
 const PP_HASH = '#deals/pipeline';
@@ -64,9 +64,10 @@ const ppViewSave = () => viewSet('pp', { q: ppS.q, stage: ppS.stage, sort: ppS.s
 // 파일은 배열이어야 한다. 다른 모양이거나 깨졌으면 덮어쓰지 않도록 읽기부터 멈춘다
 const PP_BAD = '파이프라인 자료 형식이 올바르지 않습니다';
 // 옛 출처 이름은 읽을 때 새 이름으로(다음 저장 때 파일에도 반영).
-// 출처: 11/17 매각희망 → FI 회수, 11/18 FI 회수 → 구주 매물, 예심청구 → 상장 준비, PE 앵글 → 오너기업·중복상장.
+// 출처: 11/17 매각희망 → FI 회수, 11/18 FI 회수 → 구주 매물, 11/25 구주 매물 → 펀드 만기, 예심청구 → 상장 준비, 옛 PE 앵글 탭 → 오너기업·중복상장.
+// 펀드 만기 안의 새 'PE 앵글' 보기(ref sell:pe:…)는 출처를 '펀드 만기'로 저장하므로 옛 'PE 앵글' 출처 고침(ppFixOld)과 겹치지 않는다.
 // 딜 폴더(folder): 11/20 공용 06. 진행중인 딜로 옮기며 pipeline.json 값을 바로 고침. 번호와 구분은 deal_order.py(05. 딜소싱 _자동화 딜 폴더 순서)가 주간회의 순서로 맞춘다
-const PP_SRC_OLD = { 매각희망: '구주 매물', 'FI 회수': '구주 매물', 예심청구: '상장 준비' };
+const PP_SRC_OLD = { 매각희망: '펀드 만기', 'FI 회수': '펀드 만기', '구주 매물': '펀드 만기', 예심청구: '상장 준비' };
 function ppFixOld(x) {
   if (!x) return;
   if (PP_SRC_OLD[x.src]) x.src = PP_SRC_OLD[x.src];

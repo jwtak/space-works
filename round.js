@@ -450,10 +450,10 @@ function roundFocus(ref) {
 }
 
 /* ---------- 홈 카드: 이번 주 새로 걸린 후보(prenew.json, 세 탭 모음) ----------
-   행을 누르면 그 탭에서 그 회사를 펼친다(구주 매물·상장 준비 = radar.js radarFocus, 투자 라운드 = roundFocus) */
+   행을 누르면 그 탭에서 그 회사를 펼친다(펀드 만기·상장 준비 = radar.js radarFocus, 투자 라운드 = roundFocus) */
 const PN_FILE = 'data/prenew.json';
 const PN_MAX = 5;
-const PN_TAB = { sell: '구주 매물', mandate: '상장 준비', round: '투자 라운드' };
+const PN_TAB = { sell: '펀드 만기', mandate: '상장 준비', round: '투자 라운드' };
 async function prenewLoad() {
   let d;
   try { d = await STORE.readText(PN_FILE); } catch (e) { if (e.status === 404) return null; throw e; }

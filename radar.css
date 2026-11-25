@@ -286,3 +286,7 @@
 .ipo-row.ct-done.open { border-color: #C4C9D1; }
 .ipo-row.ct-done.open > .ipo-line { background: #E5E7EB; }
 .ipo-row.ct-done .ipo-st.s-4 { background: var(--card); color: var(--text); }
+
+/* 펀드 만기 › PE 앵글 회수 끝 행(.rd-pe-out): 자리는 맨 아래, 글자만 흐리게(2026-11-25) */
+.ipo-row.rd-pe-out > .ipo-line { color: var(--text3); }
+.ipo-row.rd-pe-out > .ipo-line .ipo-ttl { color: var(--text2); }
