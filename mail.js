@@ -2020,7 +2020,10 @@ function mailBook(tok) {
       const qs = term ? `$search=${encodeURIComponent(`"${term.replace(/"/g, '')}"`)}&` : '';
       const j = await G.get(`/me/people?${qs}$top=40&$select=displayName,scoredEmailAddresses`);
       if (my !== seq) return;
-      rows = (j.value || []).flatMap((p) => (p.scoredEmailAddresses || []).slice(0, 1).map((s) => ({ name: p.displayName || '', address: s.address }))).filter((p) => p.address);
+      // 이름이나 주소로 찾을 땐 주고받은 메일 주소록(외부 주소)을 앞에, /me/people를 뒤에
+      const local = term ? mailAbFind(term, new Set()).slice(0, 20) : [], seen = new Set(local.map((p) => p.address));
+      rows = [...local, ...(j.value || []).flatMap((p) => (p.scoredEmailAddresses || []).slice(0, 1).map((s) => ({ name: p.displayName || '', address: (s.address || '').toLowerCase() })))
+        .filter((p) => p.address && !seen.has(p.address) && seen.add(p.address))];
       draw();
     } catch (e) { if (my === seq) list.innerHTML = `<li class="empty">${esc(errShow(e.message))}</li>`; }
   };
@@ -2037,6 +2040,7 @@ function mailBook(tok) {
   });
   inp.focus();
   load('');
+  mailAbSync().then(() => { if (inp.isConnected && inp.value.trim()) load(inp.value.trim()); });
 }
 
 /* 보낸 사람 선택지: 나, 그리고 contact@를 열 수 있으면 contact@ */
@@ -2118,8 +2122,71 @@ async function mailRemoveFile(c, it) {
   if (ui.mail.compose === c) mailDrawCompose();
 }
 
-/* 받는이 칸: 마지막 주소 조각으로 /me/people 검색. 후보가 뜨면 첫 번째가 기본 선택이라 Enter 한 번에 들어간다.
-   한글 조합 중 Enter는 조합이 끝난 뒤 그 글자로 다시 찾아 첫 후보를 넣고, 후보가 없으면 입력값을 주소로 확정한다. */
+/* 주고받은 메일 주소록(2026-11-25): 내 메일함의 보낸 사람, 받는 사람, 참조, 숨은참조를 주소별로 모아 이름과 마지막으로 주고받은 때를 둔다.
+   /me/people는 회사 사람 위주라 네이버 같은 외부 주소가 잘 안 나오고(이훈구 0건), 이름 없이 주소로만 온 칸은 이름으로 못 찾는다(배청준 네이버).
+   기기 localStorage에 계정별로만 둔다(메일 목록 사본과 같은 방식, 저장소와 서버에 안 올림). 처음엔 최근 1년 최대 3,000통, 그 뒤엔 마지막으로 읽은 때 이후 메일만. */
+const MAIL_AB = { key: () => { const u = (typeof G !== 'undefined' && G.account?.username || '').toLowerCase(); return u ? `mailBook:${u}` : null; }, d: null, run: null, wait: new Set() };
+const mailAbSkip = (a) => /^(no-?reply|do-?not-?reply|mailer-daemon|postmaster|bounce)/i.test(a);
+function mailAbLoad() {
+  if (MAIL_AB.d) return MAIL_AB.d;
+  const k = MAIL_AB.key(); let v = null;
+  try { v = k && JSON.parse(localStorage.getItem(k) || 'null'); } catch { v = null; }
+  MAIL_AB.d = v && v.c ? v : { v: 1, at: '', chk: 0, c: {} };
+  return MAIL_AB.d;
+}
+function mailAbPut(d, r, t) {
+  const e = r?.emailAddress; if (!e?.address) return;
+  const a = e.address.trim().toLowerCase(); if (!a.includes('@') || mailAbSkip(a)) return;
+  const x = d.c[a] || (d.c[a] = { n: {}, t: 0 });
+  const nm = (e.name || '').trim().replace(/^['"]|['"]$/g, '');
+  if (nm && !nm.includes('@')) x.n[nm] = (x.n[nm] || 0) + 1;
+  if (t > x.t) x.t = t;
+}
+/* 마지막으로 읽은 때 이후 메일을 모은다. 10분 안에 읽었으면 건너뛴다. 끝나면 열려 있는 후보 칸을 다시 찾는다 */
+function mailAbSync() {
+  const d = mailAbLoad(), k = MAIL_AB.key();
+  if (!k) return Promise.resolve();
+  if (MAIL_AB.run) return MAIL_AB.run;
+  if (d.chk && Date.now() - d.chk < 600000) return Promise.resolve();
+  MAIL_AB.run = (async () => {
+    const since = d.at || `${new Date(Date.now() - 365 * 864e5).toISOString().slice(0, 19)}Z`;
+    let junk = '';
+    try { junk = (await G.get('/me/mailFolders/junkemail?$select=id')).id || ''; } catch { /* 못 읽으면 거르지 않는다 */ }
+    let url = `/me/messages?$select=from,toRecipients,ccRecipients,bccRecipients,receivedDateTime,parentFolderId&$filter=${encodeURIComponent(`receivedDateTime ge ${since}`)}&$orderby=receivedDateTime desc&$top=500`;
+    let newest = d.at, n = 0;
+    while (url && n < 3000) {
+      const j = await G.get(url);
+      for (const x of j.value || []) {
+        n++;
+        if (x.receivedDateTime > (newest || '')) newest = x.receivedDateTime;
+        if (junk && x.parentFolderId === junk) continue;
+        const t = Date.parse(x.receivedDateTime) || 0;
+        [x.from, ...(x.toRecipients || []), ...(x.ccRecipients || []), ...(x.bccRecipients || [])].forEach((r) => mailAbPut(d, r, t));
+      }
+      url = j['@odata.nextLink'] || null;
+    }
+    d.at = newest || d.at; d.chk = Date.now();
+    try { localStorage.setItem(k, JSON.stringify(d)); } catch { /* 용량이 차면 이번 실행에만 쓴다 */ }
+  })().catch(() => {}).finally(() => { MAIL_AB.run = null; MAIL_AB.wait.forEach((f) => f()); });
+  return MAIL_AB.run;
+}
+const mailAbName = (x) => Object.entries(x?.n || {}).sort((p, q) => q[1] - p[1])[0]?.[0] || '';
+const mailAbDom = (a) => (a.split('@')[1] || '').toLowerCase();
+/* 이름(한글, 영문)이나 주소 일부로 찾는다. 최근 주고받은 순 */
+function mailAbFind(term, skip) {
+  const d = mailAbLoad(), q = term.toLowerCase().replace(/\s+/g, '');
+  if (!q) return [];
+  const out = [];
+  for (const [a, x] of Object.entries(d.c)) {
+    if (skip.has(a)) continue;
+    if (a.includes(q) || Object.keys(x.n).some((nm) => nm.toLowerCase().replace(/\s+/g, '').includes(q))) out.push({ name: mailAbName(x), address: a, t: x.t });
+  }
+  return out.sort((p, r) => r.t - p.t);
+}
+
+/* 받는이 칸: 마지막 주소 조각으로 주고받은 메일 주소록(바로)과 /me/people(회사 사람, 자주 연락한 사람)을 같이 찾는다.
+   후보가 뜨면 첫 번째가 기본 선택이라 Enter 한 번에 들어간다. 한글 조합 중 Enter는 조합이 끝난 뒤 그 글자로 다시 찾아 첫 후보를 넣고,
+   후보가 없으면 입력값을 주소로 확정한다. */
 function mailAutocomplete(box) {
   const input = box.querySelector('input:not([type=hidden])'), sug = box.querySelector('.mail-sug');
   let timer = null, items = [], idx = -1, seq = 0, pending = false, loading = false;
@@ -2135,7 +2202,7 @@ function mailAutocomplete(box) {
     input.focus();
   };
   const draw = () => {
-    sug.innerHTML = items.map((p, i) => `<li class="${i === idx ? 'on' : ''}" data-i="${i}"><b>${esc(p.name)}</b><span class="muted">${esc(p.address)}</span></li>`).join('');
+    sug.innerHTML = items.map((p, i) => `<li class="${i === idx ? 'on' : ''}" data-i="${i}"><b>${esc(p.name || p.address)}</b>${p.name ? `<span class="muted">${esc(p.address)}</span>` : ''}<span class="mail-sug-d">${esc(mailAbDom(p.address))}</span></li>`).join('');
     sug.hidden = !items.length;
     sug.querySelectorAll('[data-i]').forEach((li) => li.addEventListener('mousedown', (e) => { e.preventDefault(); pick(Number(li.dataset.i)); }));
   };
@@ -2145,34 +2212,54 @@ function mailAutocomplete(box) {
     pending = false;
     if (items.length) pick(0); else if (box.mailCommit) box.mailCommit();
   };
+  // 나와 이 칸에 이미 넣은 주소는 후보에서 뺀다
+  const skipSet = () => {
+    const s = new Set([typeof S !== 'undefined' && S?.me?.mail, G.account?.username].filter(Boolean).map((a) => a.toLowerCase()));
+    (box.mailToks ? box.mailToks() : []).forEach((t) => s.add(((t.match(/<([^>]+)>$/) || [, t])[1] || '').trim().toLowerCase()));
+    return s;
+  };
   const search = (immediate) => {
     clearTimeout(timer);
     const my = ++seq;
     const term = input.value.split(/[,;]/).pop().trim();
-    if (term.length < 1 || term.includes('@')) { loading = false; close(); finish(my); return; }
+    if (term.length < 1) { loading = false; close(); finish(my); return; }
+    const skip = skipSet(), local = mailAbFind(term, skip);
+    items = local.slice(0, 8); idx = items.length ? 0 : -1; draw();
+    if (items.length) finish(my);
+    if (term.includes('@')) { loading = false; finish(my); return; } // 주소를 치는 중이면 주고받은 주소록만
     loading = true;
     timer = setTimeout(async () => {
+      let ppl = [];
       try {
         const j = await G.get(`/me/people?$search=${encodeURIComponent(`"${term.replace(/"/g, '')}"`)}&$top=6&$select=displayName,scoredEmailAddresses`);
-        if (my !== seq) return;
-        items = (j.value || []).flatMap((p) => (p.scoredEmailAddresses || []).slice(0, 1).map((s) => ({ name: p.displayName || '', address: s.address }))).filter((p) => p.address);
-        idx = items.length ? 0 : -1; draw();
-      } catch { if (my === seq) close(); }
-      if (my === seq) loading = false;
+        ppl = (j.value || []).flatMap((p) => (p.scoredEmailAddresses || []).map((s) => ({ name: p.displayName && !p.displayName.includes('@') ? p.displayName : '', address: (s.address || '').toLowerCase() })))
+          .filter((p) => p.address && !skip.has(p.address));
+      } catch { /* 주고받은 주소록 결과만 */ }
+      if (my !== seq) return;
+      const d = mailAbLoad(), seen = new Set(local.map((p) => p.address)), was = items[idx]?.address;
+      ppl.forEach((p) => { if (!p.name) p.name = mailAbName(d.c[p.address]); });
+      items = [...local, ...ppl.filter((p) => !seen.has(p.address) && seen.add(p.address))].slice(0, 8);
+      idx = items.length ? Math.max(0, items.findIndex((p) => p.address === was)) : -1;
+      draw();
+      loading = false;
       finish(my);
     }, immediate ? 0 : 250);
   };
+  // 주소록을 처음 다 읽으면, 그사이 쳐 둔 글자로 다시 찾는다
+  const again = () => { if (!input.isConnected) { MAIL_AB.wait.delete(again); return; } if (document.activeElement === input && input.value.trim()) search(true); };
+  MAIL_AB.wait.add(again);
+  input.addEventListener('focus', () => { mailAbSync(); });
   input.addEventListener('input', () => search(false));
   input.addEventListener('compositionend', () => { if (pending) search(true); });
   input.addEventListener('keydown', (e) => {
     const enter = e.key === 'Enter' || e.code === 'Enter' || e.code === 'NumpadEnter';
     if (enter && (e.isComposing || e.keyCode === 229)) { e.stopImmediatePropagation(); pending = true; return; }
-    // 검색 결과가 오기 전에 누른 Enter도 결과를 기다렸다 첫 후보를 넣는다
-    if (enter && (pending || loading)) { e.preventDefault(); e.stopImmediatePropagation(); pending = true; return; }
+    // 후보가 아직 없을 때 누른 Enter는 검색 결과를 기다렸다 첫 후보를 넣는다
+    if (enter && (pending || (loading && !items.length))) { e.preventDefault(); e.stopImmediatePropagation(); pending = true; return; }
     if (sug.hidden) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); idx = (idx + 1) % items.length; draw(); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); idx = (idx - 1 + items.length) % items.length; draw(); }
-    else if (enter && items.length) { e.preventDefault(); e.stopImmediatePropagation(); pick(Math.max(idx, 0)); }
+    else if (enter && items.length) { e.preventDefault(); e.stopImmediatePropagation(); clearTimeout(timer); seq++; loading = false; pick(Math.max(idx, 0)); }
     else if (e.key === 'Escape') close();
   }, true); // 캡처: 주소 칩 칸의 Enter(입력값 그대로 확정)보다 먼저
   input.addEventListener('blur', () => setTimeout(() => { if (!pending) close(); }, 120));
