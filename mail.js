@@ -19,7 +19,7 @@ const MAIL_SHARED_FOLDERS = [
 const MAIL_LIST_SEL = 'id,subject,from,toRecipients,receivedDateTime,sentDateTime,lastModifiedDateTime,bodyPreview,isRead,hasAttachments,isDraft,flag,parentFolderId';
 /* 예약 메일(2026-11-25 사용자 "임시보관함 말고 보낸편지함에 예약 표시, 취소는 맨 오른쪽"). /send 한 예약 메일은 예약 시각까지 임시보관함에
    isDraft 그대로 남고 제출 잠금(PR_SUBMIT_FLAGS 0x0E14 = 1)과 예약 시각(0x3FEF)을 단다. 잠긴 동안 이동·속성 변경은 막히고(500, 403) 삭제만 된다.
-   그래서 취소는 복사(잠금 없는 보통 초안)를 임시보관함에 만들고 원본을 지운다. 자세한 시험 결과는 웍스 기능 점검 노트 「예약 발송」 */
+   그래서 취소는 복사(잠금 없는 보통 초안)를 지운편지함에 만들고 원본을 지운다(사용자 같은 날 "취소된 건 지운편지함으로"). 자세한 시험 결과는 웍스 기능 점검 노트 「예약 발송」 */
 const MAIL_SCHED_EXP = "singleValueExtendedProperties($filter=id eq 'Integer 0x0E14' or id eq 'SystemTime 0x3FEF')";
 const MAIL_SCHED_FLT = "singleValueExtendedProperties/any(ep: ep/id eq 'Integer 0x0E14' and cast(ep/value, Edm.Int32) eq 1)";
 function mailSchedAt(x) { // 예약 메일이면 예약 시각(ms), 아니면 0
@@ -937,15 +937,15 @@ function mailSchedRow(x, fl) {
       ${x._sched > Date.now() ? `<button type="button" class="mail-unsched" data-unsched="${esc(x.id)}">취소</button>` : '<span class="mail-unsched"></span>'}</li>`;
 }
 
-/* 예약 취소: 잠긴 원본은 고칠 수 없어 임시보관함에 복사(보통 초안)하고 예약 시각을 지난 시각으로 덮은 뒤 원본을 지운다 */
+/* 예약 취소: 잠긴 원본은 옮길 수 없어(500) 지운편지함에 복사하고 원본을 지운다. 복사본은 예약 시각을 지난 시각으로 덮어 다시 꺼내 보내도 다시 예약되지 않게 */
 async function mailUnsched(x) {
   const m = ui.mail, box = mailBoxX(x);
   if (!x._sched || x._sched <= Date.now()) return toast('이미 보내는 중입니다');
-  const ok = await mailConfirm({ title: '예약을 취소할까요?', rows: [['받는 사람', mailAddrList(x.toRecipients)], ['제목', x.subject || '(제목 없음)'], ['예약', mailFullTime(new Date(x._sched).toISOString())]], ok: '예약 취소', no: '닫기' });
+  const ok = await mailConfirm({ title: '예약을 취소하고 삭제할까요?', rows: [['받는 사람', mailAddrList(x.toRecipients)], ['제목', x.subject || '(제목 없음)'], ['예약', mailFullTime(new Date(x._sched).toISOString())]], ok: '삭제', no: '닫기' });
   if (!ok) return;
   let cp = null;
   try {
-    cp = await G.post(`${mailMsgP(x.id, box)}/copy`, { destinationId: 'drafts' });
+    cp = await G.post(`${mailMsgP(x.id, box)}/copy`, { destinationId: 'deleteditems' });
     await G.patch(mailMsgP(cp.id, box), { singleValueExtendedProperties: [{ id: 'SystemTime 0x3FEF', value: new Date(Date.now() - 60e3).toISOString() }] });
     await G.post(`${mailMsgP(x.id, box)}/permanentDelete`, {}, { type: 'none' });
   } catch (e) {
@@ -956,7 +956,7 @@ async function mailUnsched(x) {
   m.list = m.list.filter((i) => i.id !== x.id);
   if (m.sel === x.id) { m.sel = null; m.msg = null; m.view = 'list'; mailDrawShell(); mailDrawPane(); }
   mailDrawList(); mailLoadCounts();
-  toast('예약을 취소했습니다. 임시보관함에서 고쳐 보낼 수 있습니다');
+  toast('예약을 취소하고 지운편지함으로 옮겼습니다');
 }
 
 /* 도구 줄: 체크한 게 있으면 일괄 작업 버튼을 보인다 */
