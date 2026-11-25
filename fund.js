@@ -3,6 +3,9 @@
    근거는 04. 펀드 결성\우주항공 펀드 출자 리서치 노트.md. 이 화면은 읽기만.
    보기 넷: 공고 목록(기본 다가오는 접수순) | 2027 일정 | 새 공고(원천 게시판에서 받은 최근 공고, 선정 결과 제외) | 선정 이력(11/25 사용자 "어떤 출자기관의 어떤 사업을 어떤 곳이 가져갔고, LP한테 나눠줬다면 어느 GP가 했는지").
    선정 이력: 자료 hist(한 줄에 선정 1건, 엑셀 '우주항공 출자사업 선정 이력 (날짜).xlsx'). 출자기관 › 사업 › 회차로 묶고, 모펀드 경유 건은 상위 운용기관 줄 아래 자펀드 GP를 들여씀.
+   반자동(11/25 사용자 "반자동으로 ㄱㄱ"): fund_sel.py가 선정 결과 공고 첨부 표에서 뽑은 줄은 auto(확인 전). 화면에서 확인, 고쳐서 확정, 제외를 누르면
+   data/fund_hist_marks.json(세 분 편집 공유, [{id, st: '확인'|'제외', fix: {gp, cogp, field, amt, size, kind}, by, at}])에 id별로 남기고, 읽을 때 원래 줄에 얹는다(fcApplyMarks).
+   표가 깨져 못 읽은 공고(histManual)는 원문 링크와 '수동 입력 필요'로만 보여 준다.
    검색은 GP·Co-GP·상위 운용기관 이름까지 보므로 GP 이름을 넣으면 그 GP가 가져간 사업이 다 남는다. 공고 목록에서 '선정 이력'을 누르면 그 사업(이름 키 fcBizKey)만 걸러 보여 준다.
    PEF 가능, Co-GP 가능은 엑셀 '지원 자격' 문장에서 뽑은 값(fund_calls.py pef_of·cogp_of). 필터 줄은 공용 틀(filt.js)이 꾸민다.
    ipo.css(목록·펼친 행)·radar.css(.rd-page·.rd-grp·.rd-clamp)·pe.css(.pe-grp·.pe-gn) 클래스를 쓰고 새것만 fund.css. */
@@ -16,11 +19,14 @@ const FC_ST = [['', '전체'], ['예정', '예정'], ['수시', '수시'], ['완
 const FC_YN = [['', '전체'], ['가능', '가능'], ['불가', '불가'], ['확인 필요', '확인 필요']];
 const FC_PATH = [['', '전체'], ['go', '우리 길 있음'], ['watch', '관찰'], ['none', '참고·해당 없음']];
 const FC_GO = /직접|Co-GP|프로젝트|매칭|공동투자/;
-const FC_KEYS = ['view', 'q', 'st', 'pef', 'cogp', 'path', 'hq', 'horg', 'hroute', 'hkind', 'hsp', 'hord', 'biz', 'bizName'];
+const FC_KEYS = ['view', 'q', 'st', 'pef', 'cogp', 'path', 'hq', 'horg', 'hroute', 'hkind', 'hsp', 'hchk', 'hord', 'biz', 'bizName'];
+const FC_MARKS = 'fund_hist_marks';
+const FC_HCHK = [['', '전체'], ['wait', '확인 전'], ['ok', '확인됨'], ['drop', '제외']];
+const FC_FIX = [['gp', '선정 GP'], ['cogp', 'Co-GP'], ['field', '분야·리그'], ['amt', '출자 약정(억)'], ['size', '결성 목표(억)'], ['kind', '운용사 유형']];
 
 const fcS = (() => {
   const v = viewGet('fund', null) || {};
-  const s = { view: 'list', q: '', st: '', pef: '', cogp: '', path: '', hq: '', horg: '', hroute: '', hkind: '', hsp: '', hord: 'date', biz: '', bizName: '', data: null, at: 0, loading: null, host: null, open: new Set(), err: '' };
+  const s = { view: 'list', q: '', st: '', pef: '', cogp: '', path: '', hq: '', horg: '', hroute: '', hkind: '', hsp: '', hchk: '', hord: 'date', marks: { items: [], version: null }, edit: '', biz: '', bizName: '', data: null, at: 0, loading: null, host: null, open: new Set(), err: '' };
   FC_KEYS.forEach((k) => { if (typeof v[k] === 'string') s[k] = v[k]; });
   if (!FC_VIEWS.some(([k]) => k === s.view)) s.view = 'list';
   return s;
@@ -45,15 +51,45 @@ function fcNorm(raw) {
   const scan = fcArr(raw.scan).map((x) => ({ src: fcStr(x.src), title: fcStr(x.title), date: fcStr(x.date).slice(0, 10), url: fcHttp(x.url), sector: fcStr(x.sector) }));
   const num = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
   const hist = fcArr(raw.hist).map((x, i) => {
-    const o = Object.fromEntries(['date', 'round', 'org', 'name', 'field', 'path', 'parent', 'gp', 'cogp', 'kind'].map((k) => [k, fcStr(x[k])]));
+    const o = Object.fromEntries(['id', 'date', 'round', 'org', 'name', 'field', 'path', 'parent', 'gp', 'cogp', 'kind', 'title', 'file', 'note'].map((k) => [k, fcStr(x[k])]));
     o.date = o.date.slice(0, 10); o.amt = num(x.amt); o.size = num(x.size); o.sp = x.sp === true; o.url = fcHttp(x.url); o.i = i;
+    o.auto = x.auto === true; if (!o.id) o.id = `h${i}`;
     o.biz = fcBizKey(o.name); o.q = [o.gp, o.cogp, o.parent, o.org, o.name, o.field].join(' ').toLowerCase();
     return o;
   });
   const scanSel = fcArr(raw.scanSel).map((x) => ({ src: fcStr(x.src), title: fcStr(x.title), date: fcStr(x.date).slice(0, 10), url: fcHttp(x.url), sector: fcStr(x.sector) }));
   items.forEach((x) => { x.biz = fcBizKey(x.name); x.hn = x.biz ? hist.filter((h) => fcBizHit(h.biz, x.biz)).length : 0; });
-  return { generated: fcStr(raw.generated), source: fcStr(raw.source), scanAt: fcStr(raw.scanAt), scanErr: (Array.isArray(raw.scanErr) ? raw.scanErr : []).map(fcStr).filter(Boolean), items, plan, scan, hasScan: Array.isArray(raw.scan), hist, histSrc: fcStr(raw.histSrc), scanSel };
+  const histManual = fcArr(raw.histManual).map((x) => ({ id: fcStr(x.id), date: fcStr(x.date).slice(0, 10), title: fcStr(x.title), src: fcStr(x.src), url: fcHttp(x.url), why: fcStr(x.why), files: fcArr(x.files).map((f) => ({ name: fcStr(f.name), url: fcHttp(f.url) })).filter((f) => f.url) }));
+  return { histRaw: hist, histManual, histAuto: fcStr(raw.histAuto), generated: fcStr(raw.generated), source: fcStr(raw.source), scanAt: fcStr(raw.scanAt), scanErr: (Array.isArray(raw.scanErr) ? raw.scanErr : []).map(fcStr).filter(Boolean), items, plan, scan, hasScan: Array.isArray(raw.scan), hist, histSrc: fcStr(raw.histSrc), scanSel };
 }
+/* ---------- 선정 이력 확인·고친 값(data/fund_hist_marks.json) ---------- */
+const fcMarkOf = (id) => fcS.marks.items.find((m) => m && m.id === id) || null;
+// auto 줄에 확인 상태와 고친 값을 얹은 목록(제외 줄도 남기고 chk로 가림). 엑셀 줄은 이미 확정본
+function fcApplyMarks() {
+  const d = fcS.data; if (!d) return;
+  d.hist = d.histRaw.map((h) => {
+    if (!h.auto) return { ...h, chk: 'xlsx' };
+    const m = fcMarkOf(h.id), f = m?.fix && typeof m.fix === 'object' ? m.fix : {};
+    const o = { ...h, chk: m?.st === '확인' ? 'ok' : m?.st === '제외' ? 'drop' : 'wait', by: fcStr(m?.by), at: fcStr(m?.at), fixed: !!(m && Object.keys(f).length) };
+    FC_FIX.forEach(([k]) => { if (k in f) o[k] = k === 'amt' || k === 'size' ? (typeof f[k] === 'number' ? f[k] : null) : fcStr(f[k]); });
+    o.q = [o.gp, o.cogp, o.parent, o.org, o.name, o.field].join(' ').toLowerCase();
+    return o;
+  });
+}
+async function fcReadMarks() {
+  try { const r = await STORE.readJSON(FC_MARKS); fcS.marks = { items: Array.isArray(r.items) ? r.items.filter((m) => m && typeof m === 'object') : [], version: r.version }; } catch (e) { if (e instanceof SyntaxError) throw new Error('선정 이력 확인 자료 형식이 올바르지 않습니다'); throw e; }
+}
+// 한 줄 저장: 최신본을 읽어 그 id만 바꿔 쓴다(다른 분이 그사이 고쳤으면 409 → 다시 읽고 다시 씀)
+async function fcMark(id, patch) {
+  const me = (typeof G === 'object' && (G.account?.name || '')) || '';
+  for (let i = 0; i < 3; i++) {
+    const cur = fcS.marks.items.filter((m) => m.id !== id), old = fcMarkOf(id) || {};
+    const next = patch ? [...cur, { ...old, ...patch, id, by: me, at: new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16) }] /* 한국 시각 */ : cur;
+    try { fcS.marks.version = await STORE.writeJSON(FC_MARKS, next, fcS.marks.version); fcS.marks.items = next; fcApplyMarks(); return; }
+    catch (e) { if (e.status !== 409 || i === 2) throw e; await fcReadMarks(); }
+  }
+}
+
 function fcLoad(force) {
   if (!force && fcS.at && Date.now() - fcS.at < FC_TTL) return Promise.resolve();
   if (!fcS.loading) {
@@ -62,6 +98,8 @@ function fcLoad(force) {
       let raw = null;
       if (d.text) { try { raw = JSON.parse(d.text); } catch { throw new Error('출자사업 자료 형식이 올바르지 않습니다'); } }
       fcS.data = raw && typeof raw === 'object' ? fcNorm(raw) : null;
+      try { await fcReadMarks(); } catch (e) { fcS.markErr = e.message; }
+      fcApplyMarks();
       fcS.at = Date.now();
     })().finally(() => { fcS.loading = null; });
   }
@@ -139,7 +177,8 @@ const fcIsMo = (h) => /모펀드/.test(h.path) && !!h.parent;
 function fcHistList() {
   const s = fcS, q = s.hq.trim().toLowerCase();
   return (s.data?.hist || []).filter((h) => (!q || h.q.includes(q)) && (!s.horg || h.org === s.horg) && (!s.hroute || h.path.includes(s.hroute))
-    && (!s.hkind || h.kind === s.hkind) && (!s.hsp || h.sp) && (!s.biz || fcBizHit(h.biz, s.biz)));
+    && (!s.hkind || h.kind === s.hkind) && (!s.hsp || h.sp) && (!s.biz || fcBizHit(h.biz, s.biz))
+    && (s.hchk === 'drop' ? h.chk === 'drop' : h.chk !== 'drop' && (!s.hchk || (s.hchk === 'wait' ? h.chk === 'wait' : h.chk !== 'wait'))));
 }
 // 한 번의 선정(출자기관 · 사업 · 회차)을 한 덩어리로. 덩어리 안은 직접 건 먼저, 모펀드 경유는 상위 운용기관별로 묶음
 function fcHistBlocks(list) {
@@ -151,13 +190,27 @@ function fcHistBlocks(list) {
   return bs;
 }
 const FC_HHEAD = '<div class="ipo-head ipo-cols fc-hist"><div>선정 GP</div><div>Co-GP</div><div>분야·리그</div><div>경로</div><div>출자 약정</div><div>결성 목표</div><div>운용사 유형</div><div>발표일</div></div>';
+// 확인 전 줄: 표시와 단추(확인, 고치기, 제외). 확인됨·제외 줄은 되돌리기만
+function fcChkHtml(h) {
+  if (!h.auto) return '';
+  const tip = esc([h.title, h.file && `첨부 ${h.file}`, h.note].filter(Boolean).join(' / '));
+  if (h.chk === 'wait') return `<div class="fc-acts"><span class="rd-fs-tag fc-wait" title="${tip}">확인 전</span><button type="button" class="btn sm" data-fc-ok="${esc(h.id)}">확인</button><button type="button" class="btn sm ghost" data-fc-edit="${esc(h.id)}">고치기</button><button type="button" class="btn sm ghost" data-fc-drop="${esc(h.id)}">제외</button></div>`;
+  const who = [h.by, h.at && h.at.slice(5, 10).replace('-', '.')].filter(Boolean).join(' ');
+  return `<div class="fc-acts fc-done"><span class="muted" title="${tip}">${h.chk === 'drop' ? '제외' : h.fixed ? '고쳐서 확정' : '확인'}${who ? ` ${esc(who)}` : ''}</span><button type="button" class="btn sm ghost" data-fc-undo="${esc(h.id)}">되돌리기</button>${h.chk === 'ok' ? `<button type="button" class="btn sm ghost" data-fc-edit="${esc(h.id)}">고치기</button>` : ''}</div>`;
+}
+function fcEditRow(h, sub) {
+  const f = (k, l) => `<label class="fc-fx"><span>${l}</span><input class="input" data-fc-fx="${k}" value="${esc(h[k] == null ? '' : String(h[k]))}"${k === 'amt' || k === 'size' ? ' inputmode="decimal"' : ''}></label>`;
+  return `<div class="ipo-row rd-static fc-hrow fc-editing${sub ? ' fc-sub' : ''}" data-hid="${esc(h.id)}"><div class="fc-form">${FC_FIX.map(([k, l]) => f(k, l)).join('')}
+    <div class="fc-acts"><button type="button" class="btn sm" data-fc-save="${esc(h.id)}">확정</button><button type="button" class="btn sm ghost" data-fc-cancel>취소</button>${h.url ? `<a class="rd-link" href="${esc(h.url)}" target="_blank" rel="noopener noreferrer">원문</a>` : ''}</div></div></div>`;
+}
 function fcHistRow(h, sub) {
+  if (fcS.edit === h.id) return fcEditRow(h, sub);
   const gp = h.url ? `<a class="rd-link" href="${esc(h.url)}" target="_blank" rel="noopener noreferrer">${esc(h.gp)}</a>` : esc(h.gp);
-  return `<div class="ipo-row rd-static fc-hrow${sub ? ' fc-sub' : ''}"><div class="ipo-line ipo-cols fc-hist">
+  return `<div class="ipo-row rd-static fc-hrow${sub ? ' fc-sub' : ''}${h.chk === 'wait' ? ' fc-w' : ''}"><div class="ipo-line ipo-cols fc-hist">
     <div class="ipo-c-name"><span class="rd-strong">${gp}</span>${h.sp ? '<span class="rd-fs-tag rd-sp">우주·방산</span>' : ''}<div class="rd-pair"><span>${esc([h.cogp && `Co-GP ${h.cogp}`, h.field, fcEok(h.amt)].filter(Boolean).join(', ')) || FC_NA}</span></div></div>
     <div class="rd-mh">${fcCell(h.cogp)}</div><div class="rd-mh">${fcCell(h.field)}</div><div class="rd-mh">${fcCell(h.path)}</div>
     <div class="rd-mh">${h.amt != null ? esc(fcEok(h.amt)) : FC_NA}</div><div class="rd-mh">${h.size != null ? esc(fcEok(h.size)) : FC_NA}</div>
-    <div class="rd-mh">${fcCell(h.kind)}</div><div class="rd-mh">${h.date ? esc(yymd(h.date)) : FC_NA}</div></div></div>`;
+    <div class="rd-mh">${fcCell(h.kind)}</div><div class="rd-mh">${h.date ? esc(yymd(h.date)) : FC_NA}</div></div>${fcChkHtml(h)}</div>`;
 }
 function fcHistBlock(b) {
   const direct = b.rows.filter((h) => !fcIsMo(h)), mo = new Map();
@@ -169,11 +222,13 @@ function fcHistBlock(b) {
 function fcHistBody() {
   const d = fcS.data;
   const sel = d?.scanSel?.length ? `<details class="fc-sel"><summary>원천 게시판의 선정 결과 공고 ${d.scanSel.length}건</summary>${d.scanSel.map((x) => `<div class="fc-selr"><span>${x.date ? esc(yymd(x.date)) : ''}</span>${x.url ? `<a class="rd-link" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title)}</a>` : esc(x.title)}<span class="muted">${esc(x.src)}</span></div>`).join('')}</details>` : '';
-  if (!d?.hist.length) return `<div class="empty">선정 이력 자료를 준비하고 있습니다.</div>${sel}`;
+  const man = d?.histManual?.length && !fcS.hq.trim() && !fcS.biz ? `<div class="fc-man"><div class="fc-man-h"><span class="rd-fs-tag fc-need">수동 입력 필요</span><span>${d.histManual.length}건, 첨부 표를 읽지 못한 선정 결과 공고</span></div>${d.histManual.map((x) => `<div class="fc-selr"><span>${x.date ? esc(yymd(x.date)) : ''}</span><span>${x.url ? `<a class="rd-link" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer">${esc(x.title)}</a>` : esc(x.title)}${x.files.map((f) => ` <a class="rd-link fc-file" href="${esc(f.url)}" target="_blank" rel="noopener noreferrer">${esc(f.name || '첨부')}</a>`).join('')}</span><span class="muted">${esc(x.why)}</span></div>`).join('')}</div>` : '';
+  const err = fcS.markErr ? `<div class="fc-err">${esc(fcS.markErr)}</div>` : '';
+  if (!d?.hist.length) return `${err}${man}<div class="empty">선정 이력 자료를 준비하고 있습니다.</div>${sel}`;
   const bs = fcHistBlocks(fcHistList());
-  if (!bs.length) return `<div class="empty">조건에 맞는 선정 이력이 없습니다.</div>${sel}`;
+  if (!bs.length) return `${err}${man}<div class="empty">조건에 맞는 선정 이력이 없습니다.</div>${sel}`;
   let org = '';
-  return FC_HHEAD + bs.map((b) => { const oh = fcS.hord === 'org' && b.org !== org ? (org = b.org, `<div class="fc-org-h">${esc(b.org)}</div>`) : ''; return oh + fcHistBlock(b); }).join('') + sel;
+  return err + man + FC_HHEAD + bs.map((b) => { const oh = fcS.hord === 'org' && b.org !== org ? (org = b.org, `<div class="fc-org-h">${esc(b.org)}</div>`) : ''; return oh + fcHistBlock(b); }).join('') + sel;
 }
 
 function fcBody() {
@@ -188,7 +243,7 @@ function fcBody() {
 function fcSummary() {
   const d = fcS.data; if (!d) return '';
   const n = (st) => d.items.filter((x) => x.st === st).length, go = d.items.filter((x) => fcPathOf(x) === 'go' && x.st !== '완료').length;
-  return `${d.generated ? `<span>${yymd(d.generated)} 갱신</span>` : ''}<span>공고 <b>${d.items.length}</b></span><span>예정 <b>${n('예정')}</b></span><span>수시 <b>${n('수시')}</b></span><span>우리 길 있음 <b>${go}</b></span>${d.scanAt ? `<span>새 공고 ${esc(d.scanAt.slice(2, 10).replace(/-/g, '.'))} 확인</span>` : ''}${fcS.view === 'hist' && d.hist.length ? `<span>선정 <b>${d.hist.length}</b></span>` : ''}`;
+  return `${d.generated ? `<span>${yymd(d.generated)} 갱신</span>` : ''}<span>공고 <b>${d.items.length}</b></span><span>예정 <b>${n('예정')}</b></span><span>수시 <b>${n('수시')}</b></span><span>우리 길 있음 <b>${go}</b></span>${d.scanAt ? `<span>새 공고 ${esc(d.scanAt.slice(2, 10).replace(/-/g, '.'))} 확인</span>` : ''}${fcS.view === 'hist' && d.hist.length ? `<span>선정 <b>${d.hist.filter((h) => h.chk !== 'drop').length}</b></span><span>확인 전 <b>${d.hist.filter((h) => h.chk === 'wait').length}</b></span>${d.histAuto ? `<span>선정 결과 ${esc(d.histAuto.slice(2, 10).replace(/-/g, '.'))} 읽음</span>` : ''}` : ''}`;
 }
 const fcSeg = (attr, opts, cur) => `<div class="seg">${opts.map(([v, l]) => `<button type="button" data-${attr}="${esc(v)}" class="${cur === v ? 'on' : ''}" aria-pressed="${cur === v}">${esc(l)}</button>`).join('')}</div>`;
 function fcFilterHtml() {
@@ -213,11 +268,12 @@ function fcHistFilterHtml() {
     <div class="ipo-filter rd-finf">${s.biz ? `<div class="rd-fing"><span class="rd-finl">사업</span>${fcSeg('fc-biz', [['', '전체'], [s.biz, s.bizName || '고른 사업']], s.biz)}</div>` : ''}
       <div class="rd-fing"><span class="rd-finl">경로</span>${fcSeg('fc-hroute', FC_HROUTE, s.hroute)}</div>
       ${kinds.length ? `<div class="rd-fing"><span class="rd-finl">운용사 유형</span>${fcSeg('fc-hkind', [['', '전체'], ...kinds.map((k) => [k, k])], s.hkind)}</div>` : ''}
-      <div class="rd-fing"><span class="rd-finl">우주·방산</span>${fcSeg('fc-hsp', [['', '전체'], ['1', '관련']], s.hsp)}</div></div>`;
+      <div class="rd-fing"><span class="rd-finl">우주·방산</span>${fcSeg('fc-hsp', [['', '전체'], ['1', '관련']], s.hsp)}</div>
+      ${h.some((x) => x.auto) ? `<div class="rd-fing"><span class="rd-finl">확인 상태</span>${fcSeg('fc-hchk', FC_HCHK, s.hchk)}</div>` : ''}</div>`;
 }
 function fcViewHtml() {
   const d = fcS.data;
-  const n = { list: d?.items.length, plan: d?.plan.length, scan: d?.hasScan ? d.scan.length : null, hist: d?.hist.length || null };
+  const n = { list: d?.items.length, plan: d?.plan.length, scan: d?.hasScan ? d.scan.length : null, hist: d?.hist.filter((h) => h.chk !== 'drop').length || null };
   return `<div class="seg" role="tablist">${FC_VIEWS.map(([k, l]) => `<button type="button" role="tab" data-fc-view="${k}" class="${fcS.view === k ? 'on' : ''}" aria-selected="${fcS.view === k}">${l}${n[k] != null ? `<span class="pe-gn">${n[k]}</span>` : ''}</button>`).join('')}</div>`;
 }
 function fcDraw(full) {
@@ -238,13 +294,15 @@ function fcBind(root) {
       Object.assign(fcS, { view: 'hist', biz: x.biz, bizName: x.name.replace(/\s*\d+\s*(호|차년도|차|기)$/, ''), hq: '', horg: '', hroute: '', hkind: '', hsp: '' });
       fcDraw(true); root.scrollIntoView({ block: 'start' }); return;
     }
-    const fb = t.closest('[data-fc-st], [data-fc-pef], [data-fc-cogp], [data-fc-path], [data-fc-hroute], [data-fc-hkind], [data-fc-hsp], [data-fc-biz]');
+    const fb = t.closest('[data-fc-st], [data-fc-pef], [data-fc-cogp], [data-fc-path], [data-fc-hroute], [data-fc-hkind], [data-fc-hsp], [data-fc-hchk], [data-fc-biz]');
     if (fb) {
-      const k = ['st', 'pef', 'cogp', 'path', 'hroute', 'hkind', 'hsp', 'biz'].find((y) => `fc${y[0].toUpperCase()}${y.slice(1)}` in fb.dataset);
+      const k = ['st', 'pef', 'cogp', 'path', 'hroute', 'hkind', 'hsp', 'hchk', 'biz'].find((y) => `fc${y[0].toUpperCase()}${y.slice(1)}` in fb.dataset);
       fcS[k] = fb.dataset[`fc${k[0].toUpperCase()}${k.slice(1)}`];
       root.querySelectorAll(`[data-fc-${k}]`).forEach((b) => { b.classList.toggle('on', b === fb); b.setAttribute('aria-pressed', b === fb); });
       fcDraw(k === 'biz'); return;
     }
+    const mk = t.closest('[data-fc-ok], [data-fc-drop], [data-fc-undo], [data-fc-edit], [data-fc-save], [data-fc-cancel]');
+    if (mk) { fcMarkClick(mk); return; }
     if (t.closest('#fc-ref')) { fcLoad(true).then(() => fcDraw(true)).catch((e) => toast(e.message)); return; }
     if (t.closest('a, input, select, .ipo-detail, .rd-static')) return;
     const row = t.closest('.ipo-row[data-id]'), x = row && fcS.data?.items.find((y) => y.id === row.dataset.id);
@@ -260,6 +318,32 @@ function fcBind(root) {
     if (ev.target.id === 'fc-horg') { fcS.horg = ev.target.value; fcDraw(); }
     if (ev.target.id === 'fc-hord') { fcS.hord = ev.target.value === 'org' ? 'org' : 'date'; fcDraw(); }
   });
+}
+
+async function fcMarkClick(b) {
+  const ds = b.dataset;
+  if ('fcCancel' in ds) { fcS.edit = ''; fcDraw(); return; }
+  if (ds.fcEdit) { fcS.edit = ds.fcEdit; fcDraw(); const r = fcS.host?.querySelector('.fc-editing input'); if (r) r.focus(); return; }
+  let id, patch;
+  if (ds.fcOk) { id = ds.fcOk; patch = { st: '확인' }; }
+  else if (ds.fcDrop) { id = ds.fcDrop; patch = { st: '제외' }; }
+  else if (ds.fcUndo) { id = ds.fcUndo; patch = null; }
+  else if (ds.fcSave) {
+    id = ds.fcSave;
+    const row = b.closest('.fc-editing'), h = fcS.data?.histRaw.find((x) => x.id === id); if (!row || !h) return;
+    const fix = {};
+    row.querySelectorAll('[data-fc-fx]').forEach((inp) => {
+      const k = inp.dataset.fcFx, v = inp.value.trim();
+      const val = k === 'amt' || k === 'size' ? (v === '' ? null : Number(v.replace(/[,억\s]/g, ''))) : v;
+      if ((k === 'amt' || k === 'size') && val != null && !Number.isFinite(val)) return;
+      if (val !== h[k] && !(val === '' && h[k] == null)) fix[k] = val;
+    });
+    if (!fix.gp && 'gp' in fix) { toast('선정 GP를 넣어 주세요'); return; }
+    patch = { st: '확인', fix };
+  }
+  if (!id) return;
+  b.disabled = true;
+  try { await fcMark(id, patch); fcS.edit = ''; fcDraw(true); } catch (e) { b.disabled = false; toast(e.message || '저장하지 못했습니다'); }
 }
 
 async function renderFund(host) {
