@@ -22,8 +22,16 @@ const RD_TAB = {
 // 펀드 만기 두 보기(2026-11-25 사용자 "구주 매물을 펀드 만기로 수정한 다음 VC 앵글, PE 앵글로 나눠서"). VC 앵글 = sell.json 전부(조합 만기·철회·뉴스),
 // PE 앵글 = PE가 경영권을 인수한 지 3～7년 된 회사(딜레이더 sell_pe.py → data/sell_pe.json, CONTRACT.md). PE 행 id는 'pe:<고유번호>'라 컨택·파이프라인 키는 sell:pe:<…>
 const RD_PE_FILE = 'data/sell_pe.json';
-const RD_ANG = [['vc', 'VC 앵글'], ['pe', 'PE 앵글']];
+// 공동 투자(2026-11-25 사용자 "이름 있는 SV인베 등등 해서 2군데가 동시 투자한 기업 있으면 볼 수 있게", 같은 날 "시리즈A 완료하면 시리즈B 라운드니까"로 시리즈A 이상) =
+// 주요 투자사 목록(딜레이더 major_investors.json)의 VC·PE 두 곳 이상이 라운드나 주주 명단에 같이 있는 시리즈A 이상 비상장사(co_invest.py → data/co_invest.json). 행 id 'co:<고유번호>', 컨택 키 sell:co:<…>
+const RD_CO_FILE = 'data/co_invest.json';
+const RD_ANG = [['vc', 'VC 앵글'], ['pe', 'PE 앵글'], ['co', '공동 투자']];
 const rdIsPe = (id) => String(id).startsWith('pe:');
+const rdIsCo = (id) => String(id).startsWith('co:');
+const RD_CO_STG = [['', '전체'], ['a', '시리즈A'], ['b', '시리즈B'], ['c', '시리즈C 이상'], ['est', '추정']];
+const RD_CO_SAME = [['', '전체'], ['1', '같은 라운드']];
+const RD_CO_VC = [['', '전체'], ['1', '2곳 이상']]; // VC 앵글·투자 라운드의 '주요 투자사' 필터
+const rdCoStg = (x) => (x.est ? 'est' : x.stageN == null ? '' : x.stageN >= 3 ? 'c' : x.stageN === 2 ? 'b' : 'a');
 const RD_PE_F = [['all', '전체'], ['sig', '매각 신호'], ['hold', '보유 중'], ['check', '확인 필요'], ['done', '회수 끝']];
 const RD_PE_ST = { hold: '보유 중', check: '확인 필요', done: '회수 끝' };
 const RD_PE_YR = [['', '전체'], ['5', '5년 이상']];
@@ -187,7 +195,7 @@ Object.assign(TAB_INFO, {
     ]],
   ] },
   'deals/sell': { title: '펀드 만기', rows: [
-    ['무엇인가', '다른 PE·VC가 펀드 만기를 앞두고 지분을 팔아야 하거나 팔려는 신호를 모은 목록입니다. VC 앵글은 벤처 조합 만기와 FI 소수지분, PE 앵글은 PE가 경영권을 가진 포트폴리오 회사입니다. 상장 주식 블록은 사지 않으므로 지분 축소 공시, 락업 해제, 타법인 EB는 넣지 않습니다.'],
+    ['무엇인가', '다른 PE·VC가 펀드 만기를 앞두고 지분을 팔아야 하거나 팔려는 신호를 모은 목록입니다. VC 앵글은 벤처 조합 만기와 FI 소수지분, PE 앵글은 PE가 경영권을 가진 포트폴리오 회사, 공동 투자는 이름 있는 VC·PE 두 곳 이상이 같이 들어간 회사입니다. 상장 주식 블록은 사지 않으므로 지분 축소 공시, 락업 해제, 타법인 EB는 넣지 않습니다.'],
     ['왜 보나', '파는 쪽이 급할수록 구주·세컨더리를 할인된 값에 살 수 있습니다. 신생 GP가 딜을 얻는 현실적인 경로입니다.'],
     ['VC 앵글', [
       '만기: 만기가 1년 안에 지났거나 6개월 안에 오는 투자조합과 그 조합이 가진 회사입니다. 매도 후보는 그 조합입니다.',
@@ -209,9 +217,19 @@ Object.assign(TAB_INFO, {
       '매각 추진, 주관사 선정, 원매자, 펀드 만기 같은 말이 나온 기사가 있으면 매각 신호로 표시하고 위로 올립니다. 그다음은 인수한 지 오래된 순입니다.',
       '필터는 상태, 최근 매출, 영업이익, 매출 성장, 인수 후 5년 이상, 상장 여부입니다.',
     ]],
+    ['공동 투자', [
+      '주요 투자사 목록에 있는 VC·PE 가운데 두 곳 이상이 같은 회사에 들어가 있는 시리즈A 이상 비상장사입니다. 시리즈A를 마친 회사는 다음이 시리즈B라 미리 봐 둘 만합니다.',
+      '주요 투자사는 DIVA 조합현황(2026년 9월 공시)에서 만기 전 조합 약정총액이 큰 VC 30곳에 SV인베스트먼트, 하나벤처스, 아주IB투자, 알토스벤처스와 그로스 투자를 하는 PE(IMM PE, 스틱인베스트먼트, 스카이레이크 등)를 더한 목록입니다. 같은 그룹(IMM인베스트먼트와 IMM PE 등)은 한 곳으로 셉니다.',
+      '같은 라운드에 같이 들어간 경우뿐 아니라 감사보고서, 예심, 투자설명서 주주 명단에 같이 있거나 운용사 분기보고서의 조합 투자 회사로 잡힌 경우도 넣습니다. 같은 라운드에 두 곳 이상이 들어간 회사는 \'같은 라운드\'로 표시합니다.',
+      '산업은행, IBK, 한국성장금융, 신용보증기금 같은 정책금융은 펼친 칸에 따로 보여 주고 두 곳 세는 데는 넣지 않습니다.',
+      '단계는 기사에 나온 라운드 이름 기준입니다. 라운드 이름을 모르는 회사는 외감 대상이거나 누적 투자가 200억 이상이면 \'추정\'으로 넣으니 컨택 전에 단계를 확인합니다.',
+      '정렬은 주요 투자사 수가 많은 순, 그다음 최근 라운드 순입니다. 필터는 단계(시리즈A, 시리즈B, 시리즈C 이상, 추정), 투자사, 같은 라운드, 최근 매출, 영업이익, 매출 성장입니다.',
+      '투자 라운드 탭과 VC 앵글 행에도 \'주요 투자사 n\' 표시가 붙고, 그 표시로 거르는 필터가 있습니다.',
+    ]],
     ['그래서 할 일', [
       '매도 후보(조합 운용사, 철회 회사의 FI)에 지분 매입 의사를 타진합니다.',
       'PE 앵글 회사는 그 PE나 매각 주관사에 매각 일정과 조건을 묻고, 공동 인수나 일부 지분 인수 여지를 봅니다.',
+      '공동 투자 회사는 들어가 있는 투자사에 다음 라운드 일정과 구주 매각 여지를 묻습니다. 조합 만기가 가까우면 그 운용사부터 연락합니다.',
       '만기가 지난 조합은 연장 기간이라 팔 압박이 가장 큽니다. 먼저 연락합니다.',
       '예심을 청구한 회사의 구주를 사면 의무보유가 걸리는지 주관사에 먼저 확인합니다.',
       '연락하면 상태와 메모를 남기고, 진행할 딜은 파이프라인에 올립니다.',
@@ -237,7 +255,7 @@ Object.assign(TAB_INFO, {
 });
 
 // 새로 고친 뒤에도 보던 검색어·필터·정렬·펼친 행을 이어 보게 창마다 기억한다(app.js viewGet·viewSet). 자료에 없는 id는 그리지 않을 뿐이다
-const RD_VIEW = { yesim: ['q', 'f', 'sort', 'rev', 'op', 'opMode', 'nn', 'br', 'sp'], sell: ['q', 'f', 'rev', 'op', 'opMode', 'gr', 'nn', 'prof', 'pre', 'ipo', 'audit', 'sp', 'ang', 'pf', 'yr', 'lst'], bids: ['q', 'view', 'fit', 'stage'] };
+const RD_VIEW = { yesim: ['q', 'f', 'sort', 'rev', 'op', 'opMode', 'nn', 'br', 'sp'], sell: ['q', 'f', 'rev', 'op', 'opMode', 'gr', 'nn', 'prof', 'pre', 'ipo', 'audit', 'sp', 'ang', 'pf', 'yr', 'lst', 'cst', 'csame', 'cinv', 'cof'], bids: ['q', 'view', 'fit', 'stage'] };
 const rdView = (tab, s) => {
   const v = viewGet(`rd:${tab}`, null) || {}; RD_VIEW[tab].forEach((k) => { if (typeof v[k] === 'string') s[k] = v[k]; }); s.open = new Set(Array.isArray(v.open) ? v.open : []);
   if (tab === 'yesim' && !RD_YS_F.some(([k]) => k === s.f)) s.f = 'all'; // 없앤 '가린 회사'(hidden) 등 기억된 옛 필터
@@ -253,7 +271,7 @@ const rdS = {
   tab: null, host: null, field: null, // field = 쓰고 있는 메모 칸 {el, tab}
   marks: { items: [], version: null }, dirty: new Map(), saving: Promise.resolve(),
   yesim: rdView('yesim', { data: null, at: 0, loading: null, q: '', f: 'all', sort: 'filed', rev: '', op: '', opMode: 'a', nn: '', br: '', sp: '', open: new Set(), focus: null }),
-  sell: rdView('sell', { data: null, at: 0, loading: null, q: '', f: 'all', rev: '', op: '', opMode: 'a', gr: '', nn: '', prof: '', pre: '', ipo: '', audit: '', sp: '', ang: 'vc', pf: 'all', yr: '', lst: '', open: new Set(), focus: null }),
+  sell: rdView('sell', { data: null, at: 0, loading: null, q: '', f: 'all', rev: '', op: '', opMode: 'a', gr: '', nn: '', prof: '', pre: '', ipo: '', audit: '', sp: '', ang: 'vc', pf: 'all', yr: '', lst: '', cst: '', csame: '', cinv: '', cof: '', open: new Set(), focus: null }),
   bids: rdView('bids', { data: null, at: 0, loading: null, q: '', view: 'deal', fit: '', stage: '', open: new Set(), focus: null }),
 };
 
@@ -268,7 +286,7 @@ function rdLoad(tab, force) {
       do {
         sv = rdS.saving; await sv.catch(() => {});
         [d, mk, , pd] = await Promise.all([STORE.readText(RD_TAB[tab].file), rdReadMarks(), typeof spLoad === 'function' && tab !== 'bids' ? spLoad(force) : null,
-          tab === 'sell' ? STORE.readText(RD_PE_FILE).catch(() => ({ text: '' })) : null]); // PE 앵글 자료는 없거나 못 읽어도 VC 앵글은 그린다
+          tab === 'sell' ? STORE.readText(RD_PE_FILE).catch(() => ({ text: '' })) : null, tab === 'sell' ? coLoad(force) : null]); // PE 앵글·공동 투자 자료는 없거나 못 읽어도 VC 앵글은 그린다
       } while (sv !== rdS.saving);
       let raw = null;
       if (d.text) { try { raw = JSON.parse(d.text); } catch { throw new Error(`${RD_TAB[tab].label} 자료 형식이 올바르지 않습니다`); } }
@@ -277,8 +295,8 @@ function rdLoad(tab, force) {
         let pr = null;
         try { pr = pd?.text ? JSON.parse(pd.text) : null; } catch { pr = null; }
         const pe = pr && typeof pr === 'object' ? rdNormPe(pr) : null;
-        if (!s.data && pe) s.data = { generated: '', sources: null, items: [], funds: [] };
-        if (s.data) s.data.pe = pe;
+        if (!s.data && (pe || CO.data)) s.data = { generated: '', sources: null, items: [], funds: [] };
+        if (s.data) { s.data.pe = pe; s.data.co = CO.data; }
       }
       rdS.marks = { items: rdApplyDirty(mk.items), version: mk.version };
       s.at = Date.now();
@@ -505,6 +523,47 @@ function rdNormPe(raw) {
   return { generated: rdStr(raw.generated), sources: raw.sources, items };
 }
 
+// 공동 투자(co_invest.json). 투자 라운드(round.js)와 VC 앵글 행의 '주요 투자사 n' 표시도 이 자료를 rid(rounds id)·sids(sell 만기 행 id)로 찾는다
+const CO = { data: null, at: 0, loading: null };
+function rdNormCo(raw) {
+  const ob = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : null);
+  const dk = (v) => { const t = rdStr(v); return /^\d{4}-\d{2}(-\d{2})?/.exec(t)?.[0] || ''; };
+  const items = rdUniq(rdArr(raw.items).filter((x) => rdStr(x.name)).map((x) => {
+    const f = ob(x.fund), sm = ob(x.same);
+    const inv = rdArr(x.investors).filter((i) => rdStr(i.name)).map((i) => ({ name: rdStr(i.name), kind: rdStr(i.kind),
+      src: (Array.isArray(i.src) ? i.src : []).map(rdStr).filter(Boolean), basis: (Array.isArray(i.basis) ? i.basis : []).map(rdStr).filter(Boolean) }));
+    const o = {
+      id: rdIsCo(rdStr(x.id)) ? rdStr(x.id) : `co:${rdStr(x.cc) || rdCo(x.name)}`, isCo: true, name: rdStr(x.name), cc: rdStr(x.cc),
+      sector: rdStr(x.sector), line: rdStr(x.line), round: rdStr(x.round), stageN: rdNum(x.stageN), est: x.est === true, estWhy: rdStr(x.estWhy),
+      dt: dk(x.dt), n: rdNum(x.n) || 0, inv, vp: inv.filter((i) => i.kind !== '정책').map((i) => i.name), pol: inv.filter((i) => i.kind === '정책').map((i) => i.name),
+      same: sm && rdNum(sm.n) ? { round: rdStr(sm.round), dt: dk(sm.dt), n: rdNum(sm.n) } : null,
+      amt: rdNum(x.inv), amtBasis: rdStr(x.invBasis), val: rdNum(x.val), valTxt: rdStr(x.valTxt), p: rdPerfN(x.perf) || RD_P0,
+      fund: f && rdDay(f.expiry) ? { name: rdStr(f.name), gp: rdStr(f.gp), expiry: rdDay(f.expiry) } : null,
+      rid: rdStr(x.rid), sids: (Array.isArray(x.sids) ? x.sids : []).map(rdStr).filter(Boolean), links: rdLinksN(x.links),
+    };
+    o.q = rdQ(o.name, o.sector, o.line, o.round, inv.map((i) => i.name), o.fund ? [o.fund.name, o.fund.gp] : [], o.same ? '같은 라운드' : '', o.est ? '추정' : '');
+    return o;
+  }));
+  const byRid = new Map(), bySid = new Map(), cnt = new Map();
+  items.forEach((x) => { if (x.rid) byRid.set(x.rid, x); x.sids.forEach((i) => bySid.set(i, x)); x.vp.forEach((n) => cnt.set(n, (cnt.get(n) || 0) + 1)); });
+  return { generated: rdStr(raw.generated), sources: raw.sources, items, byRid, bySid, cnt };
+}
+function coLoad(force) {
+  if (!force && CO.at && Date.now() - CO.at < RD_TTL) return Promise.resolve();
+  if (!CO.loading) {
+    CO.loading = STORE.readText(RD_CO_FILE).then((d) => {
+      let raw = null;
+      try { raw = d?.text ? JSON.parse(d.text) : null; } catch { raw = null; }
+      CO.data = raw && typeof raw === 'object' ? rdNormCo(raw) : null; CO.at = Date.now();
+    }).catch(() => {}).finally(() => { CO.loading = null; });
+  }
+  return CO.loading;
+}
+// 투자 라운드 행(id·예전 id) → 공동 투자 행, VC 앵글 행 id → 공동 투자 행
+const coOfRound = (ids) => (CO.data ? ids.map((i) => CO.data.byRid.get(i)).find(Boolean) || null : null);
+const coOfSell = (id) => CO.data?.bySid.get(id) || null;
+const coBadge = (c) => (c ? `<span class="rd-fs-tag" title="${esc(c.vp.join(', '))}">주요 투자사 ${c.n}</span>` : '');
+
 const RD_NORM = { yesim: rdNormYesim, sell: rdNormSell, bids: rdNormBids };
 
 /* ---------- 컨택 상태·메모 (radar_marks.json, 세 탭 공용) ----------
@@ -517,7 +576,7 @@ const rdIsSkip = (tab, id) => typeof fvSkip === 'function' && fvSkip(rdKey(tab, 
 const rdSplitSkip = (tab, list) => (typeof fvSplit === 'function' ? fvSplit(list, (x) => (x.grp != null ? null : rdKey(tab, x.id))) : [list, []]);
 const rdSkipTail = (tab, skip, rowFn) => (skip.length && typeof fvSkipTail === 'function' ? fvSkipTail(skip, tab, rowFn) : '');
 // 예심청구 화면의 주관사 선정 행(id = mandate:…)은 mandates에서 찾는다. key는 rdKey 그대로 yesim:mandate:… 라 예심 행 key와 겹치지 않는다
-const rdFind = (tab, id) => (tab === 'yesim' && rdIsMn(id) ? rdS.yesim.data?.mandates : tab === 'sell' && rdIsPe(id) ? rdS.sell.data?.pe?.items : rdS[tab].data?.items)?.find((x) => x.id === id);
+const rdFind = (tab, id) => (tab === 'yesim' && rdIsMn(id) ? rdS.yesim.data?.mandates : tab === 'sell' && rdIsPe(id) ? rdS.sell.data?.pe?.items : tab === 'sell' && rdIsCo(id) ? rdS.sell.data?.co?.items : rdS[tab].data?.items)?.find((x) => x.id === id);
 const rdMark = (key) => rdS.marks.items.find((m) => m && m.key === key);
 const rdSt = (key) => { const s = rdMark(key)?.status; return RD_STATUS.includes(s) ? s : '미접촉'; };
 const rdNow = () => { const d = new Date(); return `${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
@@ -963,6 +1022,7 @@ function rdSellOk(x, s) {
   if (s.pre && !x.pre) return false;
   if (s.ipo && !x.ipo) return false;
   if (s.audit && (x.art || x.est)) return false;
+  if (s.cof && !coOfSell(x.id)) return false;
   return true;
 }
 function rdSellList() {
@@ -1000,7 +1060,7 @@ function rdSellRow(x) {
   const when = [kind && `<span class="rd-lb">${kind}</span>`, dd || esc(rdMd(x.date))].filter(Boolean).join(' ');
   const perf = [p.rev != null ? `<span class="rd-lb">매출</span> ${rdEok(p.rev)}` : '', p.op != null ? `<span class="rd-lb">영업이익</span> ${rdOp(p.op)}` : ''].filter(Boolean).join(' ');
   const ipoT = x.ipo ? x.ipo.target || (x.ipo.broker ? `주관사 ${x.ipo.broker}` : x.ipo.stage) : '';
-  const tags = `${x.pre ? '<span class="rd-fs-tag">Pre-IPO 후보</span>' : ''}${x.isNew ? '<span class="rd-fs-tag">새로 걸림</span>' : ''}${p.rev != null && p.rev >= RD_BIG ? '<span class="rd-fs-tag rd-big">대형</span>' : ''}${rdArtTags(x)}${rdSpB('sell', x)}`;
+  const tags = `${x.pre ? '<span class="rd-fs-tag">Pre-IPO 후보</span>' : ''}${x.isNew ? '<span class="rd-fs-tag">새로 걸림</span>' : ''}${p.rev != null && p.rev >= RD_BIG ? '<span class="rd-fs-tag rd-big">대형</span>' : ''}${rdArtTags(x)}${rdSpB('sell', x)}${coBadge(coOfSell(x.id))}`;
   return `<div class="ipo-row${open ? ' open' : ''}${rdDoneCls(st)}" data-id="${esc(x.id)}">
     <div class="ipo-line ipo-cols">
       <div>${rdMd(x.date) || RD_NA}<div class="ipo-sub">${kind ? `${kind} ` : ''}${dd}</div></div>
@@ -1086,6 +1146,65 @@ function rdPeDetail(x) {
     <div class="ipo-pane"><div class="ipo-stack">${fqBox(rdKey('sell', x.id), x, '펀드 만기')}
       ${right ? `<div class="ipo-two-col">${left}<div class="ipo-stack">${right}</div></div>` : left}
       ${rdLinkRow(x.links)}${rdNewsBox(x.news)}
+    </div></div>
+  </div>`;
+}
+
+/* ---------- 펀드 만기 › 공동 투자 ---------- */
+function rdCoOk(x, s) {
+  const p = x.p;
+  if (typeof ffOk === 'function' && !ffOk(s, { rev: p.rev, op: p.op, gr: p.gr })) return false;
+  if (s.cst && rdCoStg(x) !== s.cst) return false;
+  if (s.csame && !x.same) return false;
+  if (s.cinv && !x.vp.includes(s.cinv)) return false;
+  return true;
+}
+// 정렬: 주요 투자사 수 많은 순, 그다음 최근 라운드 순(라운드를 모르는 회사는 뒤)
+function rdCoList() {
+  const s = rdS.sell, d = s.data?.co; if (!d) return [];
+  const q = s.q.trim().toLowerCase();
+  const dk = (v) => (v.length === 7 ? `${v}-00` : v);
+  return d.items.filter((x) => (!q || x.q.includes(q)) && rdCoOk(x, s))
+    .sort((a, b) => b.n - a.n || !!b.dt - !!a.dt || dk(b.dt).localeCompare(dk(a.dt)) || a.name.localeCompare(b.name, 'ko'));
+}
+// 칸: 최근 라운드 | 회사 | 주요 투자사 | 누적 투자 | 매출 | 영업이익 | 조합 만기 | 컨택 상태(radar.css .rd-co). 카드가 좁으면 누적 투자·조합 만기를 접는다(.rd-c2)
+const RD_CO_HEAD = '<div class="ipo-head ipo-cols rd-co"><div>최근 라운드</div><div>회사</div><div>주요 투자사</div><div class="rd-c2">누적 투자</div><div>매출</div><div>영업이익</div><div class="rd-c2">조합 만기</div><div class="rd-h-st">컨택 상태</div></div>';
+const rdCoDt = (d) => (d.length === 7 ? `${d.slice(2, 4)}.${d.slice(5, 7)}` : rdMd(d));
+const rdCoRd = (x) => (x.round ? esc(x.round) : x.est ? '<span class="muted">추정</span>' : '');
+const rdCoSame = (x) => (x.same ? `<span class="rd-fs-tag" title="${esc([x.same.round, rdCoDt(x.same.dt)].filter(Boolean).join(' '))}">같은 라운드</span>` : '');
+
+function rdCoRow(x) {
+  const open = rdS.sell.open.has(x.id), st = rdSt(rdKey('sell', x.id)), p = x.p, f = x.fund, names = x.vp.join(', ');
+  const sub = [x.sector, x.line].filter(Boolean).join(', ');
+  const rd = x.round || (x.est ? '추정' : '') || rdCoDt(x.dt); // 폰 둘째 줄은 폭이 좁아 라운드 이름만
+  return `<div class="ipo-row${open ? ' open' : ''}${rdDoneCls(st)}" data-id="${esc(x.id)}">
+    <div class="ipo-line ipo-cols rd-co">
+      <div>${rdCoRd(x) || RD_NA}<div class="ipo-sub"${x.est ? ` title="${esc(x.estWhy)}"` : ''}>${x.est && x.round ? '추정 ' : ''}${esc(rdCoDt(x.dt))}</div></div>
+      <div class="ipo-c-name"><button type="button" class="ipo-ttl" aria-expanded="${open}">${rdNm(x.name)}</button>${rdCoSame(x)}${sub ? `<div class="ipo-sub">${esc(sub)}</div>` : ''}${rdPair([[esc(rd), 'rd-w2'], [`<span class="rd-lb">${x.n}곳</span> ${rdNm(names)}`]])}</div>
+      <div class="rd-mh"><div class="rd-clamp" title="${esc(names)}">${rdNm(names)}</div><div class="ipo-sub">${x.n}곳</div></div>
+      <div class="rd-mh rd-c2">${x.amt != null ? `<span title="${esc(x.amtBasis)}">${rdEok(x.amt)}</span>` : RD_NA}${x.val != null ? `<div class="ipo-sub">기업가치 ${rdEok(x.val)}</div>` : ''}</div>
+      <div class="rd-mh">${p.rev != null ? rdEok(p.rev) : RD_NA}${p.fy ? `<div class="ipo-sub">${esc(p.fy)}년</div>` : ''}</div>
+      <div class="rd-mh">${p.op != null ? rdOp(p.op) : RD_NA}${p.turn ? `<div class="ipo-sub">${RD_TURN}</div>` : ''}</div>
+      <div class="rd-mh rd-c2">${f ? `<span title="${esc([f.name, f.gp].filter(Boolean).join(', '))}">${rdMd(f.expiry)}</span><div class="ipo-sub">${rdExp(f.expiry)}</div>` : RD_NA}</div>
+      <div class="ipo-c-st">${rdStSel('sell', x, st)}${rdChev()}</div>
+    </div>${open ? rdCoDetail(x) : ''}</div>`;
+}
+
+function rdCoDetail(x) {
+  const p = x.p, f = x.fund;
+  const tr = (i) => `<tr><td>${rdNm(i.name)}</td><td>${esc(i.kind)}</td><td>${i.basis.map(esc).join('<br>') || '–'}</td></tr>`;
+  const tbl = rdBox('주요 투자사', `<table class="ipo-tbl rd-tbl-h rd-tbl-co"><thead><tr><th>투자사</th><th>구분</th><th>근거</th></tr></thead><tbody>${x.inv.map(tr).join('')}</tbody></table>`, `${x.n}곳`);
+  const iv = `${rdKv('최근 라운드', esc([x.round, rdCoDt(x.dt)].filter(Boolean).join(' ')))}${rdKv('단계', x.est ? esc(`추정, ${x.estWhy}`) : '')}
+      ${rdKv('같은 라운드', x.same ? esc([x.same.round, rdCoDt(x.same.dt), `${x.same.n}곳`].filter(Boolean).join(' ')) : '')}
+      ${rdKv('누적 투자', x.amt != null ? esc(`${rdEok(x.amt)}, ${x.amtBasis}`) : '')}${rdKv('기업가치', esc(x.valTxt || (x.val != null ? rdEok(x.val) : '')))}
+      ${rdKv('정책금융', esc(x.pol.join(', ')))}${rdKv('업종', esc(x.sector))}${rdKv('내용', esc(x.line))}`;
+  const fb = f ? rdBox('가장 가까운 조합 만기', `${rdKv('조합명', rdNm(f.name))}${rdKv('운용사', rdNm(f.gp))}${rdKv('만기일', rdDateDd(f.expiry, rdExp(f.expiry)))}`) : '';
+  const go = `${x.rid && typeof roundFocus === 'function' ? `<a class="ipo-a" href="#deals/round" data-rd-rn="${esc(x.rid)}">투자 라운드에서 보기${ico('right', 'sm')}</a>` : ''}${x.sids.length ? `<a class="ipo-a" href="#deals/sell" data-rd-tovc="${esc(x.sids[0])}">VC 앵글에서 보기${ico('right', 'sm')}</a>` : ''}`;
+  const right = [p.fin ? rdPnl(p.fin, p.years) : '', fb].join('');
+  return `<div class="ipo-detail">${rdDhead('sell', x, x.line)}
+    <div class="ipo-pane"><div class="ipo-stack">${fqBox(rdKey('sell', x.id), x, '펀드 만기')}${tbl}
+      ${right ? `<div class="ipo-two-col"><div class="ipo-stack">${rdBox('투자', iv.trim() || RD_NONE)}</div><div class="ipo-stack">${right}</div></div>` : rdBox('투자', iv.trim() || RD_NONE)}
+      ${go ? `<div class="ipo-links">${go}</div>` : ''}${rdLinkRow(x.links)}
     </div></div>
   </div>`;
 }
@@ -1181,9 +1300,9 @@ function rdStageOpts() {
 }
 
 /* ---------- 그리기 ---------- */
-const RD_LIST = { yesim: rdYsList, sell: () => (rdS.sell.ang === 'pe' ? rdPeList() : rdSellList()), bids: rdBidsList };
+const RD_LIST = { yesim: rdYsList, sell: () => (rdS.sell.ang === 'pe' ? rdPeList() : rdS.sell.ang === 'co' ? rdCoList() : rdSellList()), bids: rdBidsList };
 const RD_SELL_EXP_MAX = 183; // 다가오는 만기는 6개월(183일) 안만 보인다
-const RD_ROW = { yesim: (x) => (x.grp != null ? rdGrpRow(x) : x.mn ? rdMnRow(x) : rdYsRow(x)), sell: (x) => (x.isPe ? rdPeRow(x) : rdSellRow(x)), bids: (x) => (x.grp != null ? `<div class="rd-grp"><b>${esc(x.grp)}</b><span>${x.n}건</span></div>` : rdBidsRow(x, false)) };
+const RD_ROW = { yesim: (x) => (x.grp != null ? rdGrpRow(x) : x.mn ? rdMnRow(x) : rdYsRow(x)), sell: (x) => (x.isPe ? rdPeRow(x) : x.isCo ? rdCoRow(x) : rdSellRow(x)), bids: (x) => (x.grp != null ? `<div class="rd-grp"><b>${esc(x.grp)}</b><span>${x.n}건</span></div>` : rdBidsRow(x, false)) };
 const RD_HEAD = { yesim: RD_YS_HEAD, sell: RD_SELL_HEAD, bids: RD_BIDS_HEAD };
 // 컨택한 곳(연락함·미팅·보류)은 맨 아래 '컨택한 곳' 묶음으로 내리고 흐리게(사용자 2026-11-10). 검토 완료는 제자리에 진한 회색으로 둔다(11-16).
 // 묶음 머리가 있는 목록(예심청구 전체·주관사순, 구주 매물 우선순)은 남은 행 수로 머리를 다시 세고, 다 빠진 묶음은 지운다(관심 없음을 뗀 뒤에도)
@@ -1206,7 +1325,7 @@ const rdLowRow = (x) => `<div class="rd-grp rd-low"><b>컨택한 곳</b><span>${
 const rdRowEl = (root, id) => [...root.querySelectorAll('.ipo-row[data-id]')].find((r) => r.dataset.id === id);
 
 function rdSummary(tab) {
-  const pe = tab === 'sell' && rdS.sell.ang === 'pe', d = pe ? rdS.sell.data?.pe : rdS[tab].data;
+  const pe = tab === 'sell' && rdS.sell.ang === 'pe', co = tab === 'sell' && rdS.sell.ang === 'co', d = pe ? rdS.sell.data?.pe : co ? rdS.sell.data?.co : rdS[tab].data;
   if (!d) return '';
   const g = d.generated ? new Date(d.generated) : null, ok = g && !isNaN(g), it = d.items;
   const gl = ok ? `${ymd(g) === today() ? '오늘' : `${g.getMonth() + 1}/${g.getDate()}`} ${pad(g.getHours())}:${pad(g.getMinutes())} 수집` : '';
@@ -1215,6 +1334,7 @@ function rdSummary(tab) {
   const parts = {
     yesim: () => [...(d.hasMn ? [['주관사 선정', mn.length]] : []), ['심사 중', n((x) => x.status === '심사중')], ['승인', n((x) => x.status === '승인')], ['새 소식', n((x) => x.isNew)]],
     sell: () => (pe ? [['매각 신호', n((x) => x.sig && x.st !== 'done')], ...Object.entries(RD_PE_ST).map(([k, l]) => [l, n((x) => x.st === k)])]
+      : co ? [['3곳 이상', n((x) => x.n >= 3)], ['같은 라운드', n((x) => x.same)]]
       : [...RD_KINDS.map((k) => [k, n((x) => x.kind === k)]), ...(it.some((x) => x.pre) ? [['Pre-IPO 후보', n((x) => x.pre)]] : [])]),
     bids: () => [['적합도 상', n((x) => x.fit === '상')], ['자문사', d.advisors.length]],
   }[tab]();
@@ -1222,7 +1342,7 @@ function rdSummary(tab) {
   // 실패한 출처만 이름으로. 분류(Claude 단계)는 출처가 아니라 뺀다(sheets.py와 같은 기준), '출처 · 운용사' 같은 세부 출처는 앞 이름으로 묶고, 실패 원문은 싣지 않는다
   const fails = d.sources && typeof d.sources === 'object'
     ? [...new Set(Object.entries(d.sources).filter(([k, v]) => k !== '분류' && /^실패/.test(rdStr(v))).map(([k]) => k.split(' · ')[0]))] : [];
-  return `${gl ? `<span class="ipo-gen${ok && Date.now() - g > 36 * 3600000 ? ' ipo-stale' : ''}">${gl}</span>` : ''}<span class="rd-sc">${it.length}${pe ? '곳' : RD_TAB[tab].unit}</span>`
+  return `${gl ? `<span class="ipo-gen${ok && Date.now() - g > 36 * 3600000 ? ' ipo-stale' : ''}">${gl}</span>` : ''}<span class="rd-sc">${it.length}${pe || co ? '곳' : RD_TAB[tab].unit}</span>`
     + `${parts.map(([l, v]) => `<span class="rd-sc">${l} <b>${v}</b></span>`).join('')}<span>컨택 <b>${done}</b></span>`
     + fails.map((k) => `<span class="ipo-stale">${esc(k)} 실패</span>`).join('');
 }
@@ -1263,11 +1383,12 @@ function rdBody(tab) {
   const [raw, skip] = rdSplitSkip(tab, RD_LIST[tab]());
   if (tab === 'bids' && s.view === 'adv') return rdAdvBody(raw, skip);
   const list = rdSink(tab, tab === 'bids' ? rdBidsGroups(raw) : raw), tail = rdSkipTail(tab, skip, RD_ROW[tab]);
-  const pe = tab === 'sell' && s.ang === 'pe';
+  const pe = tab === 'sell' && s.ang === 'pe', co = tab === 'sell' && s.ang === 'co';
   if (pe && !s.data.pe) return '<div class="empty">PE 앵글 자료를 준비하고 있습니다.</div>';
-  if (!list.length && !tail) return `<div class="empty">조건에 맞는 ${tab === 'yesim' || pe ? '회사가' : tab === 'sell' ? '신호가' : '딜이'} 없습니다.</div>`;
+  if (co && !s.data.co) return '<div class="empty">공동 투자 자료를 준비하고 있습니다.</div>';
+  if (!list.length && !tail) return `<div class="empty">조건에 맞는 ${tab === 'yesim' || pe || co ? '회사가' : tab === 'sell' ? '신호가' : '딜이'} 없습니다.</div>`;
   // 예심청구 전체는 주관사 선정(선정일)과 예심(청구일)이 섞이므로 첫 칸 머리를 '날짜'로
-  const head = pe ? RD_PE_HEAD : tab !== 'yesim' ? RD_HEAD[tab] : s.f === 'mandate' ? RD_MN_HEAD : s.f === 'all' ? RD_YS_HEAD.replace('청구일', '날짜') : RD_HEAD[tab];
+  const head = pe ? RD_PE_HEAD : co ? RD_CO_HEAD : tab !== 'yesim' ? RD_HEAD[tab] : s.f === 'mandate' ? RD_MN_HEAD : s.f === 'all' ? RD_YS_HEAD.replace('청구일', '날짜') : RD_HEAD[tab];
   return head + list.map((x) => (x.grp === '__low' ? rdLowRow(x) : RD_ROW[tab](x))).join('') + tail;
 }
 
@@ -1344,7 +1465,7 @@ function rdDraw() {
   try {
     b.innerHTML = rdBody(tab);
     const ex = host.querySelector('#rd-extra');
-    if (ex) ex.innerHTML = tab === 'yesim' ? rdSignals() : tab === 'sell' && s.ang !== 'pe' ? rdFunds() : '';
+    if (ex) ex.innerHTML = tab === 'yesim' ? rdSignals() : tab === 'sell' && s.ang === 'vc' ? rdFunds() : '';
   } finally { rdDrawing = false; }
   rdSumDraw();
   rdKeepBack(tab, keep);
@@ -1377,6 +1498,14 @@ function rdFilterHtml(tab) {
   if (tab.endsWith('-fin') && typeof FF_RG === 'object') { const t = tab.split('-')[0]; FF_RG[`rd-${t}`] = { st: () => rdS[t], apply: () => { rdViewSave(t); rdDraw(); }, spN: () => rdSpN(t) }; }
   if (tab === 'yesim-fin') return rg('sp', '테마') + rg('rev', '최근 매출') + rg('op', '영업이익') + rg('nn', '값 없음');
   if (tab === 'sell' && s.ang === 'pe') return search('회사·PE·최대주주 검색') + seg('rd-pf', RD_PE_F, s.pf);
+  if (tab === 'sell' && s.ang === 'co') {
+    const cnt = rdS.sell.data?.co?.cnt || new Map();
+    if (s.cinv && !cnt.has(s.cinv)) cnt.set(s.cinv, 0);
+    const invs = [['', '투자사 전체'], ...[...cnt].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'ko')).map(([k, n]) => [k, `${k} ${n}`])];
+    return search('회사·투자사·조합 검색') + seg('rd-cst', RD_CO_STG, s.cst) + sel('rd-cinv', '투자사', invs, s.cinv);
+  }
+  if (tab === 'sell-fin' && rdS.sell.ang === 'co') return rg('rev', '최근 매출') + rg('op', '영업이익') + rg('gr', '매출 성장')
+    + `<div class="rd-fing"><span class="rd-finl">같이 투자</span>${seg('rd-csame', RD_CO_SAME, rdS.sell.csame)}</div>` + rg('nn', '값 없음');
   if (tab === 'sell-fin' && rdS.sell.ang === 'pe') return rg('rev', '최근 매출') + rg('op', '영업이익') + rg('gr', '매출 성장')
     + `<div class="rd-fing"><span class="rd-finl">인수 후</span>${seg('rd-yr', RD_PE_YR, rdS.sell.yr)}</div>`
     + `<div class="rd-fing"><span class="rd-finl">상장</span>${seg('rd-lst', RD_PE_LST, rdS.sell.lst)}</div>` + rg('nn', '값 없음');
@@ -1385,7 +1514,8 @@ function rdFilterHtml(tab) {
     + `<div class="rd-fing"><span class="rd-finl">흑자 전환</span>${seg('rd-prof', RD_SELL_PROF, rdS.sell.prof)}</div>`
     + `<div class="rd-fing"><span class="rd-finl">Pre-IPO</span>${seg('rd-pre', RD_SELL_PRE, rdS.sell.pre)}</div>`
     + `<div class="rd-fing"><span class="rd-finl">상장 목표</span>${seg('rd-ipo', RD_SELL_IPO, rdS.sell.ipo)}</div>`
-    + `<div class="rd-fing"><span class="rd-finl">근거</span>${seg('rd-audit', RD_SELL_AUDIT, rdS.sell.audit)}</div>` + rg('nn', '값 없음');
+    + `<div class="rd-fing"><span class="rd-finl">근거</span>${seg('rd-audit', RD_SELL_AUDIT, rdS.sell.audit)}</div>`
+    + `<div class="rd-fing"><span class="rd-finl">주요 투자사</span>${seg('rd-cof', RD_CO_VC, rdS.sell.cof)}</div>` + rg('nn', '값 없음');
   return search('대상·매도자·자문사 검색') + seg('rd-view', [['deal', '딜별'], ['adv', '자문사별']], s.view)
     + sel('rd-fit', '적합도', [['', '적합도 전체'], ...RD_FITS.map((k) => [k, `적합도 ${k}`])], s.fit) + sel('rd-stage', '단계', rdStageOpts(), s.stage);
 }
@@ -1401,8 +1531,12 @@ function rdBind(root, tab) {
     if (ab) { if (s.ang !== ab.dataset.rdAng) { s.ang = ab.dataset.rdAng; rdAngSwitch(root); } return; }
     const pf = t.closest('[data-rd-pf]');
     if (pf) { s.pf = pf.dataset.rdPf; segOn('[data-rd-pf]', pf); rdDraw(); return; }
-    const rb = t.closest('[data-rd-prof], [data-rd-pre], [data-rd-ipo], [data-rd-audit], [data-rd-yr], [data-rd-lst]');
-    if (rb) { const k = ['prof', 'pre', 'ipo', 'audit', 'yr', 'lst'].find((f) => `rd${f[0].toUpperCase()}${f.slice(1)}` in rb.dataset); s[k] = rb.dataset[`rd${k[0].toUpperCase()}${k.slice(1)}`]; segOn(`[data-rd-${k}]`, rb); rdDraw(); return; }
+    const rb = t.closest('[data-rd-prof], [data-rd-pre], [data-rd-ipo], [data-rd-audit], [data-rd-yr], [data-rd-lst], [data-rd-cst], [data-rd-csame], [data-rd-cof]');
+    if (rb) { const k = ['prof', 'pre', 'ipo', 'audit', 'yr', 'lst', 'cst', 'csame', 'cof'].find((f) => `rd${f[0].toUpperCase()}${f.slice(1)}` in rb.dataset); s[k] = rb.dataset[`rd${k[0].toUpperCase()}${k.slice(1)}`]; segOn(`[data-rd-${k}]`, rb); rdDraw(); return; }
+    const rl = t.closest('[data-rd-rn]');
+    if (rl) { ev.preventDefault(); location.hash = roundFocus(`round:${rl.dataset.rdRn}`) || '#deals/round'; return; }
+    const vl = t.closest('[data-rd-tovc]');
+    if (vl) { ev.preventDefault(); radarFocus(`sell:${vl.dataset.rdTovc}`); rdAngSwitch(root); return; } // 같은 탭 안 보기 전환이라 주소는 그대로
     const yl = t.closest('[data-rd-ys]');
     if (yl) { const y = rdS.yesim; Object.assign(y, { q: yl.dataset.rdYs, f: 'all', rev: '', opm: '', br: '' }); rdViewSave('yesim'); return; } // 링크(#deals/yesim)가 옮긴다
     const vb = t.closest('[data-rd-view]');
@@ -1441,6 +1575,7 @@ function rdBind(root, tab) {
     if (t.id === 'rd-br') { s.br = t.value; rdDraw(); }
     if (t.id === 'rd-fit') { s.fit = t.value; rdDraw(); }
     if (t.id === 'rd-stage') { s.stage = t.value; rdDraw(); }
+    if (t.id === 'rd-cinv') { s.cinv = t.value; rdDraw(); }
     if (t.matches('[data-rd-note]') && !rdDrawing) rdSetNote(tab, t.closest('.ipo-row').dataset.id, t.value);
   });
   // 메모를 쓰다가 다른 분 저장으로 칸이 다시 그려졌으면 change가 안 올 수 있어 칸을 떠날 때도 저장한다
@@ -1504,7 +1639,8 @@ async function rdRender(tab, host) {
 // 펀드 만기 보기 전환(VC 앵글 n | PE 앵글 n, 출자사업·PE 묶음 전환과 같은 모양). 수는 관심 없음·회수 끝을 뺀 행
 function rdAngHtml() {
   const s = rdS.sell, d = s.data;
-  const n = { vc: d ? d.items.filter((x) => !rdIsSkip('sell', x.id)).length : null, pe: d?.pe ? d.pe.items.filter((x) => x.st !== 'done' && !rdIsSkip('sell', x.id)).length : null };
+  const n = { vc: d ? d.items.filter((x) => !rdIsSkip('sell', x.id)).length : null, pe: d?.pe ? d.pe.items.filter((x) => x.st !== 'done' && !rdIsSkip('sell', x.id)).length : null,
+    co: d?.co ? d.co.items.filter((x) => !rdIsSkip('sell', x.id)).length : null };
   return `<div class="seg" role="tablist">${RD_ANG.map(([k, l]) => `<button type="button" role="tab" data-rd-ang="${k}" class="${s.ang === k ? 'on' : ''}" aria-selected="${s.ang === k}">${l}${n[k] != null ? `<span class="pe-gn">${n[k]}</span>` : ''}</button>`).join('')}</div>`;
 }
 function rdAngSwitch(root) {
@@ -1529,7 +1665,7 @@ function radarFocus(ref) {
   s.q = ''; // 검색·필터에 걸려 목록에서 빠져 있으면 펼칠 수 없으므로 풀어 둔다
   if (m[1] === 'bids') { s.view = 'deal'; s.fit = ''; s.stage = ''; } else s.f = m[1] === 'yesim' && rdIsMn(m[2]) ? 'mandate' : 'all';
   if (m[1] === 'yesim') { s.rev = ''; s.op = ''; s.sp = ''; }
-  if (m[1] === 'sell') { s.rev = ''; s.op = ''; s.gr = ''; s.prof = ''; s.pre = ''; s.ipo = ''; s.audit = ''; s.sp = ''; s.ang = rdIsPe(m[2]) ? 'pe' : 'vc'; s.pf = 'all'; s.yr = ''; s.lst = ''; }
+  if (m[1] === 'sell') { s.rev = ''; s.op = ''; s.gr = ''; s.prof = ''; s.pre = ''; s.ipo = ''; s.audit = ''; s.sp = ''; s.ang = rdIsPe(m[2]) ? 'pe' : rdIsCo(m[2]) ? 'co' : 'vc'; s.pf = 'all'; s.yr = ''; s.lst = ''; s.cst = ''; s.csame = ''; s.cinv = ''; s.cof = ''; }
   s.open.add(m[2]); s.focus = m[2];
   rdViewSave(m[1]);
   return `#deals/${m[1]}`;

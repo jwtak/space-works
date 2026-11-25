@@ -11,7 +11,9 @@
 
 const RN_FILE = 'data/rounds.json';
 const RN_TTL = 5 * 60000;
-const RN_QUICK = [['all', '전체'], ['pe', 'PE 참여'], ['deep', '딥테크'], ['cons', '소비재'], ['good', '흑자']];
+// co: 주요 투자사(딜레이더 major_investors.json) VC·PE 두 곳 이상, 펀드 만기 › 공동 투자와 같은 자료(radar.js coOfRound, 2026-11-25)
+const RN_QUICK = [['all', '전체'], ['pe', 'PE 참여'], ['co', '주요 투자사 2곳 이상'], ['deep', '딥테크'], ['cons', '소비재'], ['good', '흑자']];
+const rnCoOf = (e) => (typeof coOfRound === 'function' ? coOfRound([e.id, ...(e.aliases || [])]) : null);
 const RN_ST = [['', '전체'], ['완료', '완료'], ['진행 중', '진행 중'], ['추진', '추진']];
 const RN_STG = [['', '전체'], ['a', 'A 이하'], ['b', 'B'], ['c', 'C'], ['d', 'D 이상'], ['pre', 'Pre-IPO']];
 const RN_AMT = [['', '전체'], ['100', '100억+'], ['300', '300억+'], ['1000', '1,000억+']];
@@ -121,6 +123,7 @@ const rnSp = (e) => (typeof spOf === 'function' ? spOf(e, rnSpIn) : { sp: false,
 function rnOk(e, s, skipQuick) {
   if (!skipQuick) {
     if (s.k === 'pe' && !e.pe) return false;
+    if (s.k === 'co' && !rnCoOf(e)) return false;
     if (s.k === 'deep' && !e.from.includes('딥테크')) return false;
     if (s.k === 'cons' && !e.from.includes('소비재')) return false;
     if (s.k === 'good' && !e.p.black) return false;
@@ -163,7 +166,7 @@ const RN_HEAD = '<div class="ipo-head ipo-cols"><div>날짜</div><div>회사</di
 
 function rnRow(e) {
   const open = rnS.open.has(e.id), p = e.p;
-  const tags = `${e.isNew ? '<span class="rd-fs-tag">새로 걸림</span>' : ''}${e.pe ? '<span class="rd-fs-tag">PE 참여</span>' : ''}${e.val != null && e.val >= RN_BIG ? '<span class="rd-fs-tag rd-big">대형</span>' : ''}${typeof spBadge === 'function' ? spBadge(rnSp(e)) : ''}`;
+  const tags = `${e.isNew ? '<span class="rd-fs-tag">새로 걸림</span>' : ''}${e.pe ? '<span class="rd-fs-tag">PE 참여</span>' : ''}${e.val != null && e.val >= RN_BIG ? '<span class="rd-fs-tag rd-big">대형</span>' : ''}${typeof spBadge === 'function' ? spBadge(rnSp(e)) : ''}${typeof coBadge === 'function' ? coBadge(rnCoOf(e)) : ''}`;
   const sub = [e.sector, e.line || e.brand].filter(Boolean).join(', ');
   const p1 = [rnYmd(e.dt), e.round, rnAmt(e)].filter(Boolean).join(' ');
   return `<div class="ipo-row${open ? ' open' : ''}${typeof tgDoneCls === 'function' ? tgDoneCls(rnSt(e)) : ''}" data-id="${esc(e.id)}">
@@ -405,7 +408,7 @@ async function rnLoad(force) {
     if (!rnS.loading) rnS.loading = rnRead().then((d) => { rnS.data = d; rnS.at = Date.now(); rnFixIds(); }).finally(() => { rnS.loading = null; });
   }
   // 딥테크·소비재 자료는 컨택 상태(radar_marks)와 '딥테크에서 보기' 연결에, rounds.json이 없으면 목록 자체에 쓴다
-  const r = await Promise.allSettled([rnS.loading || Promise.resolve(), tgLoad('deep', force), tgLoad('cons', force), typeof spLoad === 'function' ? spLoad(force) : null]);
+  const r = await Promise.allSettled([rnS.loading || Promise.resolve(), tgLoad('deep', force), tgLoad('cons', force), typeof spLoad === 'function' ? spLoad(force) : null, typeof coLoad === 'function' ? coLoad(force) : null]);
   if (rnS.host !== host || !host || !host.isConnected) return;
   const bad = r.find((y) => y.status === 'rejected');
   rnS.err = bad && !rnS.data && !tgS.deep.data && !tgS.cons.data ? (bad.reason?.message || '자료를 불러오지 못했습니다') : '';
@@ -494,7 +497,8 @@ function rnInfo() {
       ['왜 보나', ['상장 준비에 들어가기 전 단계의 회사를 미리 찾아 다음 라운드, 구주, 공동투자 기회를 보기 위한 목록입니다.',
         'PE 참여는 사모펀드가 소수지분으로 들어가거나 PE 컨소시엄이 조달을 추진하는 라운드입니다. 컨소시엄 LP나 2차 클로징으로 같이 들어갈 여지가 있습니다.']],
       ['어떻게 보나', [
-        '맨 위 버튼으로 전체, PE 참여, 딥테크, 소비재, 흑자 회사를 바로 고릅니다.',
+        '맨 위 버튼으로 전체, PE 참여, 주요 투자사 2곳 이상, 딥테크, 소비재, 흑자 회사를 바로 고릅니다.',
+        '\'주요 투자사 n\'은 이름 있는 VC·PE 가운데 n곳이 이 회사에 들어가 있다는 표시입니다. 기준과 목록은 펀드 만기 › 공동 투자와 같습니다.',
         '상태, 업종, 라운드 단계, 금액, 영업이익(흑자, 흑자 전환), 상장 목표로 좁히고 최근 라운드, 금액, 기업가치, 매출, 영업이익, 성장률 순으로 정렬합니다.',
         '기업가치 3,000억 이상은 대형으로 표시만 하고 거르지 않습니다. 새로 걸림은 이번 주에 처음 들어온 회사입니다.',
         '행을 펼치면 라운드 이력, 투자, 주요 손익, 회사 정보, 기사가 나오고 컨택 상태와 메모를 바로 남깁니다.',

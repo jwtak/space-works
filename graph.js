@@ -38,6 +38,7 @@ const CFG = {
       'data/fund_hist_marks.json': '012DPUXZQ6PFITLGLWNJE3CGKPJZZLTWT7', // 출자사업 선정 이력 확인·고친 값(세 분 편집 공유, 2026-11-25)
       'data/space_cands.json': '012DPUXZW5ALVCHXAVWNDJMVZVODLS4YKG', // 딜소싱 › 타깃 › 우주·방산 후보, 다른 탭 우주·방산 표시(2026-11-25)
       'data/sell_pe.json': '012DPUXZVYOE7HTET53RCZRKZXWR2URQEP', // 딜소싱 › 매물 › 펀드 만기 › PE 앵글(2026-11-25)
+      'data/co_invest.json': '012DPUXZUHICPPQBLA5FG25CBCHVIH2LGS', // 펀드 만기 › 공동 투자, 투자 라운드 '주요 투자사 n'(2026-11-25)
     },
     folders: { 'data/valuation/': '012DPUXZTFWV4ARG2NLRAIGXW24GJWPVDA' }, // 가치평가 엑셀(사례마다 파일이 늘어 폴더째 읽기 공유, 2026-11-16)
     writable: ['data/event_marks.json', 'data/ipo_marks.json', 'data/news_marks.json', 'data/radar_marks.json', 'data/pipeline.json', 'data/fs_req.json', 'data/fund_hist_marks.json'], // 수집기는 같은 파일을 덮어쓰므로 id가 바뀌지 않는다
