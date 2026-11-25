@@ -13,7 +13,7 @@ const SF_MG = { opm: 'op', ebitdam: 'ebitda', npm: 'ni' }; // 회사 줄 마진 
 const SF_ROWS = 20; // 펼친 업종에 처음 보이는 회사 수
 const SF_FS = { CFS: '연결', OFS: '별도' };
 const sfBasis = (b) => String(b).replace(/^TTM (\d{4})-(\d{2})$/, (m, y, mm) => `TTM ${y}-${Math.ceil(+mm / 3)}Q`); // 회사 줄 'TTM 2026-09'를 머리 'TTM 2026-3Q' 꼴로
-vaS.sf = { lv: 'sector', amt: 'mean', mg: 'agg', k: null, dir: -1, open: {}, more: {}, ...(vaS.sf || {}) };
+vaS.sf = { lv: 'sector', amt: 'mean', mg: 'median', k: null, dir: -1, open: {}, more: {}, ...(vaS.sf || {}) };
 
 function sfLoad() {
   if (vaS.sfAt && Date.now() - vaS.sfAt < VA_TTL) return Promise.resolve();
@@ -58,7 +58,9 @@ function sfSort(xs, val, base) { // 고른 열로 정렬(값 없는 줄은 맨 �
 function sfCell(fin, c, v, g) { // g: 업종 줄이면 계산에 들어간 회사 수가 업종 회사 수보다 적을 때 툴팁(EBITDA n_ebitda, 마진 n·n_mean)
   if (fin && c[3]) return '<td class="sf-na">해당 없음</td>';
   const cnt = !g || v == null ? null : c[0] === 'ebitda' ? g.n_ebitda : c[2] === 'mg' ? g[c[0]]?.[vaS.sf.mg === 'agg' ? 'n' : 'n_mean'] : null;
-  return `<td${cnt != null && cnt < g.n ? ` title="${vaNum(cnt)}곳 기준"` : ''}>${c[2] === 'amt' ? sfAmt(v) : sfPct(v)}</td>`;
+  const m = g && c[2] === 'mg' ? g[c[0]] : null; // 마진 칸 툴팁: 세 가지 값을 같이(합계 기준은 큰 회사 몇 곳에 끌려갈 수 있어서)
+  const tip = [m ? `중앙값 ${sfPct(m.median)}, 평균 ${sfPct(m.mean)}, 합계 기준 ${sfPct(m.agg)}` : '', cnt != null && cnt < g.n ? `${vaNum(cnt)}곳 기준` : ''].filter(Boolean).join(', ');
+  return `<td${tip && v != null ? ` title="${tip}"` : ''}>${c[2] === 'amt' ? sfAmt(v) : sfPct(v)}</td>`;
 }
 
 function sfTab() {
@@ -86,7 +88,7 @@ function sfTab() {
   };
   const allRow = d.all ? grow({ ...d.all, level: 'all', name: '전체 상장사' }, true) : '';
   const body = `<div class="mk-scroll"><table class="mk-tbl sf-tbl">${head}<tbody>${allRow}${gs.map((g) => grow(g, false)).join('')}</tbody></table></div>`;
-  const ctl = `<div class="va-mctl"><div><span class="va-lab">금액</span>${sfSeg('amt', [['mean', '평균'], ['median', '중앙값']], s.amt)}</div><div><span class="va-lab">마진</span>${sfSeg('mg', [['agg', '합계 기준'], ['mean', '평균'], ['median', '중앙값']], s.mg)}</div></div>`;
+  const ctl = `<div class="va-mctl"><div><span class="va-lab">금액</span>${sfSeg('amt', [['mean', '평균'], ['median', '중앙값']], s.amt)}</div><div><span class="va-lab">마진</span>${sfSeg('mg', [['median', '중앙값'], ['mean', '평균'], ['agg', '합계 기준']], s.mg)}</div></div>`;
   const meta = [d.basis ? `${esc(d.basis)} 기준` : '', `단위 ${esc(d.unit || '억원')}`].filter(Boolean).join(', ');
   return vaSec(`업종 실적 <span class="meta">${vaNum(gs.length)}개 업종, ${meta}</span>`, sfSeg('lv', SF_LV, lv), `${ctl}${body}`, 'sf');
 }
