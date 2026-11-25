@@ -30,6 +30,8 @@
 .fc-page .fc-sub .ipo-line > .ipo-c-name::before { content: '└'; position: absolute; top: 0; left: 4px; color: var(--text3); }
 .fc-par { display: flex; align-items: baseline; gap: 8px; padding: 12px 24px 4px; font-size: var(--fs-base); }
 .fc-par > span { font-size: var(--fs-md); color: var(--text3); }
+.fc-parb { padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--primary); cursor: pointer; text-align: left; }
+.rd-fs-tag.rd-sp.fc-part { background: var(--fill); color: var(--text2); }
 .fc-org-h { padding: 20px 24px 4px; font-size: var(--fs-lg); font-weight: 700; color: var(--ink); }
 .fc-hl { display: inline-flex; align-items: center; height: 20px; margin-left: 8px; padding: 0 8px; border: 1px solid var(--line2); border-radius: var(--r-full); background: var(--card); color: var(--primary); font-size: var(--fs-sm); font-weight: 500; cursor: pointer; vertical-align: 1px; }
 .fc-sel { margin: 16px 24px; font-size: var(--fs-md); }
