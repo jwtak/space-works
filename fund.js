@@ -2,7 +2,7 @@
    자료: data/fund_calls.json(04. 펀드 결성\_자동화\fund_calls.py가 트래커 엑셀을 바꿔 올림, 수동 실행. --scan이면 fund_scan.py 원천 8곳 최근 공고도 실음).
    근거는 04. 펀드 결성\우주항공 펀드 출자 리서치 노트.md. 이 화면은 읽기만.
    보기 넷: 공고 목록(기본 다가오는 접수순) | 2027 일정 | 새 공고(원천 게시판에서 받은 최근 공고, 선정 결과 제외) | 선정 이력(11/25 사용자 "어떤 출자기관의 어떤 사업을 어떤 곳이 가져갔고, LP한테 나눠줬다면 어느 GP가 했는지").
-   선정 이력: 자료 hist(한 줄에 선정 1건, 엑셀 '우주항공 출자사업 선정 이력 (날짜).xlsx'). 출자기관 › 사업 › 회차로 묶고, 모펀드 경유 건은 상위 운용기관 줄 아래 자펀드 GP를 들여씀.
+   선정 이력: 자료 hist(한 줄에 선정 1건, 엑셀 '우주항공 출자사업 선정 이력 (날짜).xlsx'). 출자기관 › 사업 › 회차로 묶어 회차마다 접고(머리줄을 누르면 펼침), 모펀드 경유 건은 상위 운용기관 줄 아래 자펀드 GP를 들여씀.
    반자동(11/25 사용자 "반자동으로 ㄱㄱ"): fund_sel.py가 선정 결과 공고 첨부 표에서 뽑은 줄은 auto(확인 전). 화면에서 확인, 고쳐서 확정, 제외를 누르면
    data/fund_hist_marks.json(세 분 편집 공유, [{id, st: '확인'|'제외', fix: {gp, cogp, field, amt, size, kind}, by, at}])에 id별로 남기고, 읽을 때 원래 줄에 얹는다(fcApplyMarks).
    표가 깨져 못 읽은 공고(histManual)는 원문 링크와 '수동 입력 필요'로만 보여 준다.
@@ -26,12 +26,12 @@ const FC_FIX = [['gp', '선정 GP'], ['cogp', 'Co-GP'], ['field', '분야·리�
 
 const fcS = (() => {
   const v = viewGet('fund', null) || {};
-  const s = { view: 'list', q: '', st: '', pef: '', cogp: '', path: '', hq: '', horg: '', hroute: '', hkind: '', hsp: '', hchk: '', hord: 'date', marks: { items: [], version: null }, edit: '', biz: '', bizName: '', data: null, at: 0, loading: null, host: null, open: new Set(), err: '' };
+  const s = { view: 'list', q: '', st: '', pef: '', cogp: '', path: '', hq: '', horg: '', hroute: '', hkind: '', hsp: '', hchk: '', hord: 'date', marks: { items: [], version: null }, edit: '', biz: '', bizName: '', data: null, at: 0, loading: null, host: null, open: new Set(), hopen: new Set(viewGet('fund_hopen', [])), hclose: new Set(), hsig: '', err: '' };
   FC_KEYS.forEach((k) => { if (typeof v[k] === 'string') s[k] = v[k]; });
   if (!FC_VIEWS.some(([k]) => k === s.view)) s.view = 'list';
   return s;
 })();
-const fcSave = () => viewSet('fund', Object.fromEntries(FC_KEYS.map((k) => [k, fcS[k]])));
+const fcSave = () => { viewSet('fund', Object.fromEntries(FC_KEYS.map((k) => [k, fcS[k]]))); viewSet('fund_hopen', fcS.hopen); };
 
 /* ---------- 자료 ---------- */
 const fcStr = (v) => (v == null || typeof v === 'object' ? '' : String(v).trim());
@@ -193,7 +193,11 @@ function fcHistBlocks(list) {
   else bs.sort((a, b) => b.date.localeCompare(a.date) || a.org.localeCompare(b.org, 'ko'));
   return bs;
 }
-const FC_HHEAD = '<div class="ipo-head ipo-cols fc-hist"><div>선정 GP</div><div>Co-GP</div><div>분야·리그</div><div>경로</div><div>출자 약정</div><div>결성 목표</div><div>운용사 유형</div><div>발표일</div></div>';
+const FC_HHEAD = '<div class="ipo-head ipo-cols fc-hist"><div>선정 GP</div><div>Co-GP</div><div>분야·리그</div><div>경로</div><div>출자 약정</div><div>결성 목표</div><div>운용사 유형</div></div>';
+// 회차 묶음은 기본 접힘(11/25 사용자 "펀드별로 묶어서 눌러야 선정된 GP 나오게"). 검색어, 공고 목록에서 고른 사업, '확인 전' 필터로 걸러 들어오면 걸린 묶음을 펼쳐 둠.
+// 사용자가 연 묶음(hopen)은 필터를 바꿔도 열려 있고, 자동으로 펼친 묶음을 접은 것(hclose)은 걸러 들어온 조건이 바뀌면 지움
+const fcHAuto = () => !!(fcS.hq.trim() || fcS.biz || fcS.hchk === 'wait');
+const fcHOpen = (k) => fcS.hopen.has(k) || (fcHAuto() && !fcS.hclose.has(k));
 // 확인 전 줄: 표시와 단추(확인, 고치기, 제외). 확인됨·제외 줄은 되돌리기만
 function fcChkHtml(h) {
   if (!h.auto) return '';
@@ -214,14 +218,17 @@ function fcHistRow(h, sub) {
     <div class="ipo-c-name"><span class="rd-strong">${gp}</span>${h.sp ? `<span class="rd-fs-tag rd-sp${fcSpMain(h) ? '' : ' fc-part'}">${fcSpMain(h) ? esc(h.spv === '관련' ? '우주·방산' : h.spv) : '우주·방산 일부'}</span>` : ''}<div class="rd-pair"><span>${esc([h.cogp && `Co-GP ${h.cogp}`, h.field, fcEok(h.amt)].filter(Boolean).join(', ')) || FC_NA}</span></div></div>
     <div class="rd-mh">${fcCell(h.cogp)}</div><div class="rd-mh">${fcCell(h.field)}</div><div class="rd-mh">${fcCell(h.path)}</div>
     <div class="rd-mh">${h.amt != null ? esc(fcEok(h.amt)) : FC_NA}</div><div class="rd-mh">${h.size != null ? esc(fcEok(h.size)) : FC_NA}</div>
-    <div class="rd-mh">${fcCell(h.kind)}</div><div class="rd-mh">${fcYmd(h.date) ? esc(fcYmd(h.date)) : FC_NA}</div></div>${fcChkHtml(h)}</div>`;
+    <div class="rd-mh">${fcCell(h.kind)}</div></div>${fcChkHtml(h)}</div>`;
 }
 function fcHistBlock(b) {
+  const open = fcHOpen(b.k), amt = b.rows.reduce((a, h) => (h.amt == null ? a : a + h.amt), 0), wait = b.rows.filter((h) => h.chk === 'wait').length;
+  const meta = [b.round, fcS.hord === 'org' ? '' : b.org, fcYmd(b.date) || '발표일 확인 불가', `선정 GP ${b.rows.length}곳`, amt ? `출자 약정 ${fcEok(amt)}` : ''].filter(Boolean);
+  const head = `<button type="button" class="fc-hgrp" data-fc-hb="${esc(b.k)}" aria-expanded="${open}">${fcChev()}<span class="fc-hgt"><b>${esc(b.name)}</b><span class="fc-hgm">${meta.map((m) => `<span>${esc(m)}</span>`).join('')}${wait ? `<span class="rd-fs-tag fc-wait">확인 전 ${wait}</span>` : ''}</span></span></button>`;
+  if (!open) return `<div class="fc-hb">${head}</div>`;
   const direct = b.rows.filter((h) => !fcIsMo(h)), mo = new Map();
   b.rows.filter(fcIsMo).forEach((h) => { if (!mo.has(h.parent)) mo.set(h.parent, []); mo.get(h.parent).push(h); });
-  const head = `<div class="rd-grp fc-hgrp"><b>${esc(b.name)}</b>${b.round ? `<span>${esc(b.round)}</span>` : ''}${fcS.hord === 'org' ? '' : `<span>${esc(b.org)}</span>`}<span>${fcYmd(b.date) ? esc(fcYmd(b.date)) : '발표일 확인 불가'}</span><span>${b.rows.length}곳</span></div>`;
-  return head + direct.map((h) => fcHistRow(h, false)).join('')
-    + [...mo].map(([p, rs]) => `<div class="fc-par"><button type="button" class="fc-parb" data-fc-hq="${esc(p)}" title="${esc(p)}가 들어간 선정 이력 모두 보기">${esc(p)}</button><span>${/매칭/.test(rs[0].path) ? '매칭 출자' : '모펀드 운용'}, 자펀드 GP ${rs.length}곳</span></div>${rs.map((h) => fcHistRow(h, true)).join('')}`).join('');
+  return `<div class="fc-hb open">${head}<div class="fc-hbody">${FC_HHEAD}${direct.map((h) => fcHistRow(h, false)).join('')}`
+    + [...mo].map(([p, rs]) => `<div class="fc-par"><button type="button" class="fc-parb" data-fc-hq="${esc(p)}" title="${esc(p)}가 들어간 선정 이력 모두 보기">${esc(p)}</button><span>${/매칭/.test(rs[0].path) ? '매칭 출자' : '모펀드 운용'}, 자펀드 GP ${rs.length}곳</span></div>${rs.map((h) => fcHistRow(h, true)).join('')}`).join('') + '</div></div>';
 }
 function fcHistBody() {
   const d = fcS.data;
@@ -231,8 +238,13 @@ function fcHistBody() {
   if (!d?.hist.length) return `${err}${man}<div class="empty">선정 이력 자료를 준비하고 있습니다.</div>${sel}`;
   const bs = fcHistBlocks(fcHistList());
   if (!bs.length) return `${err}${man}<div class="empty">조건에 맞는 선정 이력이 없습니다.</div>${sel}`;
+  const sig = `${fcS.hq.trim()}|${fcS.biz}|${fcS.hchk}`;
+  if (sig !== fcS.hsig) { fcS.hsig = sig; fcS.hclose.clear(); }
+  fcS.hkeys = bs.map((b) => b.k);
+  const all = bs.every((b) => fcHOpen(b.k));
+  const bar = `<div class="fc-hbar"><span>회차 <b>${bs.length}</b></span><button type="button" class="btn sm ghost" data-fc-hall="${all ? 'close' : 'open'}">${all ? '모두 접기' : '모두 펼치기'}</button></div>`;
   let org = '';
-  return err + man + FC_HHEAD + bs.map((b) => { const oh = fcS.hord === 'org' && b.org !== org ? (org = b.org, `<div class="fc-org-h">${esc(b.org)}</div>`) : ''; return oh + fcHistBlock(b); }).join('') + sel;
+  return err + man + bar + bs.map((b) => { const oh = fcS.hord === 'org' && b.org !== org ? (org = b.org, `<div class="fc-org-h">${esc(b.org)}</div>`) : ''; return oh + fcHistBlock(b); }).join('') + sel;
 }
 
 function fcBody() {
@@ -307,6 +319,10 @@ function fcBind(root) {
     }
     const pq = t.closest('[data-fc-hq]');
     if (pq) { fcS.hq = pq.dataset.fcHq; fcS.biz = ''; fcDraw(true); fcS.host?.querySelector('#fc-root')?.scrollIntoView({ block: 'start' }); return; } // 상위 운용기관 이름 → 그 이름이 GP·상위 운용기관으로 나온 이력 모두
+    const hb2 = t.closest('[data-fc-hb]');
+    if (hb2) { const k = hb2.dataset.fcHb; if (fcHOpen(k)) { fcS.hopen.delete(k); fcS.hclose.add(k); } else { fcS.hopen.add(k); fcS.hclose.delete(k); } fcDraw(); return; }
+    const ha = t.closest('[data-fc-hall]');
+    if (ha) { const ks = fcS.hkeys || []; if (ha.dataset.fcHall === 'open') ks.forEach((k) => { fcS.hopen.add(k); fcS.hclose.delete(k); }); else ks.forEach((k) => { fcS.hopen.delete(k); fcS.hclose.add(k); }); fcDraw(); return; }
     const mk = t.closest('[data-fc-ok], [data-fc-drop], [data-fc-undo], [data-fc-edit], [data-fc-save], [data-fc-cancel]');
     if (mk) { fcMarkClick(mk); return; }
     if (t.closest('#fc-ref')) { fcLoad(true).then(() => fcDraw(true)).catch((e) => toast(e.message)); return; }
@@ -376,7 +392,8 @@ TAB_INFO['deals/fund'] = {
     ['어떻게 보나', [
       '공고 목록은 다가오는 접수순(예정, 수시, 확인 불가, 완료 순)입니다. 우리 경로가 직접, Co-GP, 프로젝트, 매칭, 공동투자인 사업은 우리 길 있음으로 거를 수 있습니다.',
       '2027 일정은 출자기관별 예상 시기와 올해 실제 시기, 새 공고는 원천 게시판에서 받은 최근 90일 공고(선정 결과 제외)입니다.',
-      '선정 이력은 어느 출자기관의 어느 사업을 어느 GP가 가져갔는지 회차별로 묶은 것입니다. 모펀드를 거친 사업은 상위 운용기관 아래에 자펀드 GP가 들여써져 있고, GP 이름으로 찾으면 그 GP가 가져간 사업이 모두 나옵니다. 공고 목록에서 선정 이력을 누르면 그 사업만 보입니다.',
+      '선정 이력은 어느 출자기관의 어느 사업을 어느 GP가 가져갔는지 출자사업 회차별로 묶은 것입니다. 회차마다 접혀 있고, 누르면 선정된 GP가 펼쳐집니다. 모펀드를 거친 사업은 상위 운용기관 아래에 자펀드 GP가 들여써져 있습니다.',
+      'GP 이름으로 찾거나 공고 목록에서 선정 이력을 눌러 들어오면 걸린 회차가 펼쳐진 채로 보입니다. 확인 상태를 확인 전으로 골랐을 때도 같습니다.',
     ]],
   ],
 };
