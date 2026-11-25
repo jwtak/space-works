@@ -9,7 +9,7 @@
    함정 말(방산시장, 위성방송, 로켓배송, 무기화학, '투자 레이더' 연재명, 차량 레이더, 드론 라이트쇼 등)은 먼저 지우고 본다. 회사 이름의 '스페이스'만으로는 붙이지 않는다.
    이해상충 확인: 후보 엑셀의 이해상충 칸이 '겹침'인 회사(자료 coi·coiWith). 저장소가 공개라 회사 이름과 관계는 코드에 두지 않고 자료 파일에만 둔다.
    후보 탭: 엑셀(우주·방산 후보 기업 (2026-11-25).xlsx)을 딜레이더 space_cands.py가 JSON으로 바꿔 올린다. 이 화면은 읽기만.
-   팩트시트·관심(☆)은 ref space:<이름>(fs_req.py ANGLES 'space:'). ipo.css·radar.css·filt.css 클래스를 쓰고 새것만 space.css. */
+   팩트시트·관심(☆)은 ref space:<이름>(fs_req.py ANGLES 'space:'). ipo.css·radar.css·filt.css 클래스를 쓰고 새것만 space.css(갈래 묶음 sp-hb는 출자사업 선정 이력 fc-hb와 같은 모양). */
 
 const SP_TAG = '우주·방산';
 const SP_FILE = 'data/space_cands.json';
@@ -90,7 +90,7 @@ const spOk = (s, t) => !s.sp || t.sp;
 
 /* ---------- 후보 목록 ---------- */
 const spS = {
-  data: null, at: 0, loading: null, ver: 0, names: new Map(), coi: new Set(), host: null, open: new Set(), err: '',
+  data: null, at: 0, loading: null, ver: 0, names: new Map(), coi: new Set(), host: null, open: new Set(), err: '', close: new Set(), gsig: '', gkeys: [],
   ...(() => { const v = viewGet('space', null) || {}; const s = { q: '', br: '', nara: '', lst: '', rev: '', op: '', opMode: 'a', nn: '' }; Object.keys(s).forEach((k) => { if (typeof v[k] === 'string') s[k] = v[k]; }); return s; })(),
 };
 const SP_KEYS = ['q', 'br', 'nara', 'lst', 'rev', 'op', 'opMode', 'nn'];
@@ -201,13 +201,28 @@ function spFilterHtml() {
       <div class="rd-fing"><span class="rd-finl">상장</span>${spSeg('sp-lst', SP_LST, s.lst)}</div>
       ${rg('rev', '최근 매출')}${rg('op', '영업이익')}${rg('nn', '값 없음')}</div>`;
 }
+/* 갈래 묶음(sp-hb): 머리줄(sp-hgrp)은 갈래 이름 + 회사 수, 비상장 수, 이해상충 대상과 겹침·보완 수. 누르면 접고 펼침, 기본은 펼침.
+   출자사업 › 선정 이력 회차 묶음(fund.css fc-hb)과 같은 모양. 검색어나 갈래를 바꾸면 접어 둔 것을 풀어 걸린 묶음을 다 펼친다 */
+function spGrpBlock(k, rows) {
+  const open = !spS.close.has(k), un = rows.filter((x) => !spListed(x)).length, w = spS.data?.coiWith || '이해상충';
+  const ov = rows.filter((x) => x.nara === '겹침').length, cp = rows.filter((x) => x.nara === '보완').length;
+  const rel = [ov ? `겹침 ${ov}` : '', cp ? `보완 ${cp}` : ''].filter(Boolean).join(', ');
+  const meta = [`${rows.length}곳`, un ? `비상장 ${un}` : '', rel ? `${w} ${rel}` : ''].filter(Boolean);
+  const head = `<button type="button" class="sp-hgrp" data-sp-grp="${esc(k)}" aria-expanded="${open}">${spChev()}<span class="sp-hgt"><b>${esc(spBrName(rows[0]))}</b><span class="sp-hgm">${meta.map((m) => `<span>${esc(m)}</span>`).join('')}</span></span></button>`;
+  return open ? `<div class="sp-hb open">${head}<div class="sp-hbody">${spHead()}${rows.map(spRow).join('')}</div></div>` : `<div class="sp-hb">${head}</div>`;
+}
 function spBody() {
   if (!spS.data) return `<div class="empty">${spS.err || '아직 올라온 우주·방산 후보 자료가 없습니다.'}</div>`;
   const [list, skip] = typeof fvSplit === 'function' ? fvSplit(spList(), (x) => x.id) : [spList(), []];
   if (!list.length && !skip.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
-  let last = '';
-  const rows = list.map((x) => { const g = spS.br ? '' : x.brN !== last ? (last = x.brN, `<div class="rd-grp"><b>${esc(spBrName(x))}</b><span>${list.filter((y) => y.brN === x.brN).length}곳</span></div>`) : ''; return g + spRow(x); }).join('');
-  return spHead() + rows + (skip.length && typeof fvSkipTail === 'function' ? fvSkipTail(skip, 'space', spRow) : '');
+  const sig = `${spS.q.trim()}|${spS.br}`;
+  if (sig !== spS.gsig) { spS.gsig = sig; spS.close.clear(); }
+  const gs = new Map();
+  list.forEach((x) => { const k = String(x.brN); if (!gs.has(k)) gs.set(k, []); gs.get(k).push(x); });
+  spS.gkeys = [...gs.keys()];
+  const all = spS.gkeys.every((k) => !spS.close.has(k));
+  const bar = gs.size > 1 ? `<div class="sp-hbar"><span>갈래 <b>${gs.size}</b></span><button type="button" class="btn sm ghost" data-sp-gall="${all ? 'close' : 'open'}">${all ? '모두 접기' : '모두 펼치기'}</button></div>` : '';
+  return bar + [...gs].map(([k, rows]) => spGrpBlock(k, rows)).join('') + (skip.length && typeof fvSkipTail === 'function' ? fvSkipTail(skip, 'space', spRow) : '');
 }
 function spDraw(full) {
   const h = spS.host; if (!h || !h.isConnected) return;
@@ -226,6 +241,10 @@ function spBind(root) {
     const t = ev.target;
     const sg = t.closest('[data-sp-nara], [data-sp-lst]');
     if (sg) { const k = 'spNara' in sg.dataset ? 'nara' : 'lst'; spS[k] = sg.dataset[k === 'nara' ? 'spNara' : 'spLst']; root.querySelectorAll(`[data-sp-${k}]`).forEach((b) => { b.classList.toggle('on', b === sg); b.setAttribute('aria-pressed', b === sg); }); spDraw(); return; }
+    const gh = t.closest('[data-sp-grp]');
+    if (gh) { const k = gh.dataset.spGrp; if (spS.close.has(k)) spS.close.delete(k); else spS.close.add(k); spDraw(); return; }
+    const ga = t.closest('[data-sp-gall]');
+    if (ga) { if (ga.dataset.spGall === 'open') spS.close.clear(); else spS.gkeys.forEach((k) => spS.close.add(k)); spDraw(); return; }
     if (t.closest('#sp-ref')) { spLoad(true).then(() => spDraw(true)).catch((e) => toast(e.message)); return; }
     if (t.closest('a, input, select, button:not(.ipo-ttl), .ipo-detail')) return;
     const row = t.closest('.ipo-row[data-id]'), x = row && spS.data?.items.find((y) => y.id === row.dataset.id);
@@ -241,7 +260,7 @@ window.addEventListener('fv-change', () => { if (spS.host?.isConnected && spS.da
 // 다른 화면(파이프라인·팩트시트)에서 ref 'space:<이름>'으로 한 회사를 펼쳐 보여 줄 때: 필터를 풀고 펼친 뒤 그 자리로
 function spaceFocus(ref) {
   Object.assign(spS, { q: '', br: '', nara: '', lst: '', rev: '', op: '', nn: '', focus: String(ref) });
-  spS.open.add(String(ref)); spSave();
+  spS.open.add(String(ref)); spS.close.clear(); spSave();
   return '#deals/space';
 }
 

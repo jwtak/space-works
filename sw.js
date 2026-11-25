@@ -1,8 +1,8 @@
 /* SPACE WORKS 서비스워커: 앱 화면 파일만 캐시(오프라인에서도 열리게). 메일·일정·파일 같은 데이터는 캐시하지 않는다. */
-const VERSION = 'works-1795605700';
+const VERSION = 'works-1001795605700';
 const SHELL = ['./', 'index.html', 'style.css', 'mail.css', 'graph.js', 'app.js', 'mail.js', 'push.js', 'events.js', 'events.css', 'ipo.js', 'ipo.css', 'radar.js', 'radar.css', 'fsq.js', 'pipeline.js', 'pipeline.css', 'facts.js', 'facts.css', 'delist.js', 'delist.css', 'pe.js', 'pe.css', 'kmx.js', 'kmx.css', 'sector.js', 'sector.css', 'tgt.js', 'tgt.css', 'files.js', 'files.css', 'prep.js', 'prep.css', 'news.js', 'news.css', 'market.js', 'market.css', 'ma.js', 'ma.css', 'vc.js', 'vc.css', 'valuation.js', 'valuation.css', 'valuation_fin.js', 'valuation_fin.css', 'valuation_dcf.js', 'valuation_dcf.css', 'valuation_v3_engine.js', 'valuation_v3.js', 'valuation_v3.css', 'feedback.js', 'feedback.css', 'guide.js', 'guide.css', 'mobile.css', 'round.js', 'round.css', 'si.js', 'si.css', 'fav.js', 'fav.css', 'filt.js', 'filt.css', 'space.js', 'space.css', 'fund.js', 'fund.css', 'cash.js', 'cash.css', 'heal.js', 'vendor/msal-browser.min.js', 'manifest.webmanifest', 'icons/icon-192.png'];
 
-// index.html은 css·js를 '?v=<VERSION>'으로 부른다(배포 때 sw.js·index.html의 works-숫자를 같이 바꾼다). 캐시 열쇠도 같은 주소로
+// index.html은 css·js를 '?v=<VERSION>'으로 부른다(배포 때 sw.js·index.html의 works-100숫자를 같이 바꾼다). 캐시 열쇠도 같은 주소로
 const vUrl = (u) => (/\.(css|js)$/.test(u) ? `${u}?v=${VERSION}` : u);
 // 설치 때 이 버전 화면 파일을 서버에서 새로 받아 둔다(cache:'reload' — 브라우저 캐시를 건너뜀).
 // 배포 직후 GitHub Pages가 아직 옛 파일을 섞어 주면 설치를 멈추고 다음 방문 때 다시 받는다:
@@ -24,7 +24,7 @@ self.addEventListener('install', (e) => {
   })().catch(async (err) => { await caches.delete(VERSION).catch(() => {}); throw err; }));
 });
 self.addEventListener('activate', (e) => {
-  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== 'works-data').map((k) => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== VERSION && k !== 'works-100data').map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 /* 홈페이지 미리보기: ./hp/… 요청은 팀 파일함 '_홈페이지 미리보기' 폴더의 빌드 결과를 Graph로 읽어 돌려준다.
    공개 주소 없이, 웍스에 로그인한 사람(팀 구성원)만 볼 수 있다. 빌드 주소의 '/__hp__/'는 여기서 실제 경로로 바꾼다. */
@@ -79,7 +79,7 @@ async function hpServe(req) {
   return new Response(r.body, { status: r.status === 206 ? 206 : 200, headers });
 }
 
-/* 폰 푸시(push.js·works-api): 본문 {t, title=보낸 사람, body=메일 제목, preview=본문 미리보기, id=메일 id}. 본문은 이 기기 키로만 풀린다
+/* 폰 푸시(push.js·works-100api): 본문 {t, title=보낸 사람, body=메일 제목, preview=본문 미리보기, id=메일 id}. 본문은 이 기기 키로만 풀린다
    Outlook 앱 알림처럼 제목 줄은 보낸 사람, 본문은 '메일 제목 • 미리보기' */
 self.addEventListener('push', (e) => {
   let d = {};

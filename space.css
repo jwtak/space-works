@@ -1,4 +1,4 @@
-/* 우주·방산 테마 표시와 딜소싱 › 타깃 › 우주·방산 후보(space.js). 목록·펼친 행은 ipo.css, 묶음 제목·필터 줄은 radar.css·filt.css.
+/* 우주·방산 테마 표시와 딜소싱 › 타깃 › 우주·방산 후보(space.js). 목록·펼친 행은 ipo.css, 필터 줄은 radar.css·filt.css.
    표는 왼쪽 정렬, 머리글과 값 시작선 일치. 간격 4·8·12·16. */
 
 /* 행 표시: 우주·방산(기본 파랑 rd-fs-tag), 이해상충 확인(호박색) */
@@ -10,11 +10,28 @@
 /* 회사 | 주력 제품 | 최근 매출 | 영업이익 | 나라스페이스 | 펼침 */
 .sp-page .ipo-cols { grid-template-columns: repeat(5, minmax(0, 1fr)) 16px; }
 .sp-page .rd-pair { display: none; }
+/* 갈래 묶음: 출자사업 › 선정 이력 회차 묶음(fund.css fc-hb)과 같은 모양. 머리줄 = 갈래 이름(--fs-xl) + 회사 수, 비상장, 이해상충 대상 겹침·보완. 누르면 접고 펼침(11/25 사용자) */
+.sp-hbar { display: flex; align-items: center; gap: 12px; padding: 12px 24px; font-size: var(--fs-md); color: var(--text3); }
+.sp-hbar b { color: var(--ink); font-weight: 600; }
+.sp-hbar .btn { margin-left: auto; }
+.sp-hb { border-top: 1px solid var(--line); }
+.sp-hgrp { display: flex; align-items: flex-start; gap: 8px; width: 100%; padding: 16px 24px; border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+.sp-hgrp:hover { background: var(--hover); }
+.sp-hgrp:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.sp-hgrp > .ipo-chev { margin-top: 4px; }
+.sp-hgrp[aria-expanded="true"] > .ipo-chev { transform: rotate(90deg); color: var(--primary); }
+.sp-hgt { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.sp-hgt > b { font-size: var(--fs-xl); line-height: 24px; font-weight: 700; }
+.sp-hgm { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: var(--fs-md); line-height: 20px; color: var(--text2); font-variant-numeric: tabular-nums; }
+.sp-hb.open > .sp-hgrp { background: var(--primary-soft); }
+.sp-hb.open > .sp-hgrp > .sp-hgt > b { color: var(--primary); }
+.sp-hbody { padding-bottom: 8px; }
 
 @container (max-width: 760px) {
   .sp-page .ipo-top { flex-wrap: wrap; row-gap: 4px; }
   .sp-page .ipo-sumrow { flex: 1 1 100%; }
   .sp-page .ipo-head { display: none; }
+  .sp-hbar, .sp-hgrp { padding-left: 16px; padding-right: 16px; }
   .sp-page .ipo-cols { grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; }
   .sp-page .ipo-line > .ipo-c-name { grid-column: 1; display: block; font-size: inherit; color: inherit; }
   .sp-page .ipo-line > .rd-mh { display: none; }
