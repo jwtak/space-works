@@ -30,6 +30,7 @@ const CFG = {
       'data/valuation.json': '012DPUXZTZUD3SWKGSUZG3GPIDXX2CH6JA', 'data/valuation_market.json': '012DPUXZVY6OSBOPWUEFDYQOCQWAEYZM6Y',
       'data/valuation_per_hist.json': '012DPUXZX74MCL552JGJH2TFDBTY25OOAZ', 'data/valuation_dcf.json': '012DPUXZTPVPA2IAKCA5FLG7EAHMSZUXBD',
       'data/valuation_v3.json': '012DPUXZRW4QPHTTTK4JFYSMZPAVU5SQRC', 'data/valuation_fin.json': '012DPUXZTLSKH76PO5MNDLLJBNZ5P6OKBK', 'data/valuation_ind_hist.json': '012DPUXZTSD3M67ZOBWBE3VQEVUEEE6WCG',
+      'data/valuation_sector_fin.json': '012DPUXZTOO5MQ7XRKHVBLEFVFRH2X752I', // 가치평가 › 업종 실적(2026-11-26)
       'data/consumer.json': '012DPUXZTOA7RBJFZL35FII6EUQITISIKX', // 딜소싱 › 타깃 › 소비재(2026-11-16)
       'data/deeptech.json': '012DPUXZWNZKHMU42RDNC2CULHR547V3PI', // 딜소싱 › 타깃 › 딥테크(2026-11-16)
       'data/vc_trend.json': '012DPUXZVERNQZAJLLA5G3RWOAT7QVAI3O', // 시장동향 › 벤처투자(DIVA, 2026-11-17)
