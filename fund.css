@@ -23,3 +23,25 @@
   .fc-page .fc-org { display: block; margin-top: 2px; }
   .fc-page .rd-pair { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 4px; font-size: var(--fs-md); line-height: 20px; color: var(--text2); }
 }
+
+/* 선정 이력: 선정 GP | Co-GP | 분야·리그 | 경로 | 출자 약정 | 결성 목표 | 운용사 유형 | 발표일. 한 회차 = 묶음 제목(fc-hgrp), 모펀드 경유는 상위 운용기관 줄(fc-par) 아래 들여쓴 자펀드 GP(fc-sub) */
+.fc-page .ipo-cols.fc-hist { grid-template-columns: repeat(8, minmax(0, 1fr)); }
+.fc-page .fc-sub .ipo-line > .ipo-c-name { position: relative; padding-left: 24px; }
+.fc-page .fc-sub .ipo-line > .ipo-c-name::before { content: '└'; position: absolute; top: 0; left: 4px; color: var(--text3); }
+.fc-par { display: flex; align-items: baseline; gap: 8px; padding: 12px 24px 4px; font-size: var(--fs-base); }
+.fc-par > span { font-size: var(--fs-md); color: var(--text3); }
+.fc-org-h { padding: 20px 24px 4px; font-size: var(--fs-lg); font-weight: 700; color: var(--ink); }
+.fc-hl { display: inline-flex; align-items: center; height: 20px; margin-left: 8px; padding: 0 8px; border: 1px solid var(--line2); border-radius: var(--r-full); background: var(--card); color: var(--primary); font-size: var(--fs-sm); font-weight: 500; cursor: pointer; vertical-align: 1px; }
+.fc-sel { margin: 16px 24px; font-size: var(--fs-md); }
+.fc-sel > summary { cursor: pointer; color: var(--text2); font-weight: 500; }
+.fc-selr { display: grid; grid-template-columns: 72px minmax(0, 1fr) 200px; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+@container (max-width: 760px) {
+  .fc-page .ipo-cols.fc-hist { grid-template-columns: minmax(0, 1fr); }
+  .fc-par { padding: 12px 16px 4px; flex-wrap: wrap; }
+  .fc-org-h { padding: 20px 16px 4px; }
+  .fc-sel { margin: 16px; }
+  .fc-page #fc-view .pe-gn { display: none; } /* 보기 넷이 한 줄에 들어가게 폰에서는 수를 뺌 */
+  .fc-page #fc-view button { white-space: nowrap; }
+  .fc-selr { grid-template-columns: 72px minmax(0, 1fr); }
+  .fc-selr > .muted { grid-column: 2; }
+}

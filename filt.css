@@ -5,9 +5,13 @@
 .ipo-filter.ff > .rd-fing[hidden] { display: none; }
 @media (min-width: 761px) {
   /* 한 줄에 한 묶음: 왼쪽 묶음 이름 고정 폭(가장 긴 '영업이익률'·'매출 성장'이 들어가는 80), 오른쪽 칩 */
-  #page .ipo-filter.ff { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 8px; padding-top: 12px; padding-bottom: 12px; }
+  #page .ipo-filter.ff { flex-direction: column; flex-wrap: nowrap; align-items: stretch; gap: 12px; padding-top: 16px; padding-bottom: 16px; }
   #page .ipo-filter.ff > .rd-fing { display: grid; grid-template-columns: 80px minmax(0, 1fr); align-items: center; gap: 16px; }
   #page .ipo-filter.ff > .rd-fing > .seg { justify-self: start; flex-wrap: wrap; max-width: 100%; }
+  /* 묶음 안 단추는 붙은 세그먼트 대신 떨어진 칩(11/25 사용자 "필터들이 너무 다닥다닥"), 폰 시트(mobile.css)와 같은 모양 */
+  #page .ipo-filter.ff > .rd-fing > .seg { gap: 8px; border: 0; border-radius: 0; background: none; overflow: visible; }
+  #page .ipo-filter.ff > .rd-fing > .seg > button { height: 32px; padding: 0 12px; border: 1px solid var(--line2); border-radius: var(--r-full); background: var(--card); color: var(--text2); font-size: var(--fs-md); white-space: nowrap; }
+  #page .ipo-filter.ff > .rd-fing > .seg > button.on { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
   #page .ipo-filter.ff > .rd-fing[hidden] { display: none; }
 }
 
