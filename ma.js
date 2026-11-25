@@ -1,4 +1,4 @@
-/* UNIVERSE WORKS — 시장동향 › M&A 거래 (#market/ma): 국내 경영권 M&A 거래사례(최근 5년, PE·SI 인수)와 업종별 멀티플 중앙값
+/* UNIVERSE WORKS — 시장동향 › M&A 거래 (#market/ma): 국내 경영권 M&A 거래사례(최근 7년 보관, 기본 보기와 중앙값은 최근 5년, PE·SI 인수)와 업종별 멀티플 중앙값
    딜레이더 ma_deals.py가 주 1회 회사 OneDrive SPACE WORKS/data/ma.json·ma.xlsx 를 올린다(이 화면은 읽기만, 형식은 딜레이더\CONTRACT_ma.md).
    진입: renderMa(host) — market.js 탭 줄 아래 #mk-host 안에만 그린다.
    app.js 전역($, esc, yymd, ico, toast, pad, viewGet, viewSet, TAB_INFO, infoBtn), graph.js STORE·G, sector.js SEC_NAMES(업종 이름),
@@ -11,6 +11,8 @@ const MA_PAGE = 100; // 처음엔 100건만 그리고 나머지는 '나머지 n�
 const MA_KINDS = ['PE', 'SI', 'PE+SI'];
 const MA_DONE = ['계약', '완료'];
 const MA_STAGE_OPTS = [['done', '체결'], ['all', '전체']];
+// 기간: '5y' 최근 5년(기본, 파일 medians_range 시작일부터), 'all' 보관한 전체(7년), 'YYYY' 그해
+const MA_PERIODS = ['5y', 'all'];
 const maSecName = (id) => (typeof SEC_NAMES === 'object' && SEC_NAMES[id]) || id;
 
 // 새로 고친 뒤에도 보던 필터·검색어·펼친 행을 이어 보게 창마다 기억한다(app.js viewGet·viewSet, 키 ma)
@@ -19,7 +21,7 @@ const maS = (() => {
   const s = (k) => (typeof v[k] === 'string' ? v[k] : '');
   return {
     data: null, err: '', at: 0, loading: null, host: null, more: false,
-    f: { sector: s('sector'), kind: MA_KINDS.includes(v.kind) ? v.kind : '', stage: v.stage === 'all' ? 'all' : 'done', year: /^\d{4}$/.test(v.year) ? v.year : '', q: s('q') },
+    f: { sector: s('sector'), kind: MA_KINDS.includes(v.kind) ? v.kind : '', stage: v.stage === 'all' ? 'all' : 'done', year: MA_PERIODS.includes(v.year) || /^\d{4}$/.test(v.year) ? v.year : '5y', q: s('q') },
     open: new Set(Array.isArray(v.open) ? v.open : []),
   };
 })();
@@ -59,7 +61,13 @@ function maNorm(raw) {
   let years = (Array.isArray(raw.years) ? raw.years : []).map(maStr).filter((y) => /^\d{4}$/.test(y));
   if (!years.length) years = [...new Set(deals.flatMap((d) => [...Object.keys(d.rev), ...Object.keys(d.opi)]).filter((y) => /^\d{4}$/.test(y)))].sort();
   const medians = Object.fromEntries(Object.entries(maObj(raw.medians)).map(([k, m]) => [k, { n: maNum(maObj(m).n), evEbitda: maNum(maObj(m).ev_ebitda), evOp: maNum(maObj(m).ev_op) }]));
-  return { generated: maStr(raw.generated), checked: maDay(raw.checked) || maDay(raw.generated), sources: maObj(raw.sources), years: years.slice(-5), deals, medians };
+  // 최근 5년 시작일: 파일 medians_range[0], 없으면(옛 파일) 기준일에서 5년 전 같은 날
+  const checked = maDay(raw.checked) || maDay(raw.generated);
+  const mr = Array.isArray(raw.medians_range) ? maDay(raw.medians_range[0]) : '';
+  const since5 = mr || (checked ? `${+checked.slice(0, 4) - 5}${checked.slice(4)}` : '');
+  const rg = Array.isArray(raw.range) ? maDay(raw.range[0]) : '';
+  const spanY = rg && checked ? Math.round((new Date(checked) - new Date(rg)) / 31557600000) : 0;
+  return { generated: maStr(raw.generated), checked, sources: maObj(raw.sources), years: years.slice(-5), deals, medians, since5, medFile: !!mr, spanY };
 }
 
 // 파일이 아직 없으면(첫 실행 전) 오류가 아니라 '자료 없음'
@@ -84,9 +92,10 @@ function maLoad(force) {
 
 /* ---------- 거르기·중앙값 ---------- */
 // 단계 말고 나머지 조건(업종·매수자·기간·검색어)
+const maInYear = (x, y) => (y === 'all' ? true : y === '5y' ? !maS.data?.since5 || x.date >= maS.data.since5 : x.date.startsWith(y));
 function maPass(x, f) {
   const q = f.q.trim().toLowerCase();
-  return (!f.sector || x.sector === f.sector) && (!f.kind || x.kind === f.kind) && (!f.year || x.date.startsWith(f.year)) && (!q || x.q.includes(q));
+  return (!f.sector || x.sector === f.sector) && (!f.kind || x.kind === f.kind) && maInYear(x, f.year) && (!q || x.q.includes(q));
 }
 const maList = () => (maS.data ? maS.data.deals.filter((x) => (maS.f.stage === 'all' || MA_DONE.includes(x.stage)) && maPass(x, maS.f)) : []);
 
@@ -94,10 +103,10 @@ const maMedian = (a) => {
   const v = a.filter((n) => n != null).sort((x, y) => x - y), m = v.length >> 1;
   return v.length ? (v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2) : null;
 };
-// 업종만 고르면 파일의 medians, 매수자·기간·검색어까지 걸면 같은 기준(계약·완료이고 멀티플 있는 딜)으로 여기서 다시 계산
+// 최근 5년에 업종만 고르면 파일의 medians(최근 5년 딜), 그 밖에는 같은 기준(고른 기간 안의 계약·완료이고 멀티플 있는 딜)으로 여기서 다시 계산
 function maMed() {
   const d = maS.data, f = maS.f; if (!d) return null;
-  if (!f.kind && !f.year && !f.q.trim()) { const m = d.medians[f.sector || 'all']; if (m) return m; }
+  if (f.year === '5y' && d.medFile && !f.kind && !f.q.trim()) { const m = d.medians[f.sector || 'all']; if (m) return m; }
   const ds = d.deals.filter((x) => MA_DONE.includes(x.stage) && maPass(x, f) && (x.evEbitda != null || x.evOp != null));
   return { n: ds.length, evEbitda: maMedian(ds.map((x) => x.evEbitda)), evOp: maMedian(ds.map((x) => x.evOp)) };
 }
@@ -216,12 +225,12 @@ function maFilterHtml() {
   secs.sort((a, b) => ((order.indexOf(a) + 1 || 99) - (order.indexOf(b) + 1 || 99)) || a.localeCompare(b));
   if (f.sector && !secs.includes(f.sector)) secs.unshift(f.sector);
   const years = d ? [...new Set(d.deals.map((x) => x.date.slice(0, 4)).filter(Boolean))].sort().reverse() : [];
-  if (f.year && !years.includes(f.year)) years.unshift(f.year);
+  if (/^\d{4}$/.test(f.year) && !years.includes(f.year)) years.unshift(f.year);
   const opt = (v, l, cur) => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(l)}</option>`;
   return `<div class="ipo-filter">
       <div class="ipo-search"><span class="ipo-sic">${ico('search', 'sm')}</span><input class="input" id="ma-q" type="search" placeholder="회사·매수자 검색" value="${esc(f.q)}" autocomplete="off" aria-label="검색"></div>
       <select class="select ma-sel" id="ma-sector" aria-label="업종">${opt('', '전체 업종', f.sector)}${secs.map((k) => opt(k, maSecName(k), f.sector)).join('')}</select>
-      <select class="select ma-sel" id="ma-year" aria-label="기간">${opt('', '전체 기간', f.year)}${years.map((y) => opt(y, `${y}년`, f.year)).join('')}</select>
+      <select class="select ma-sel" id="ma-year" aria-label="기간">${opt('5y', '최근 5년', f.year)}${opt('all', d?.spanY ? `전체 ${d.spanY}년` : '전체 기간', f.year)}${years.map((y) => opt(y, `${y}년`, f.year)).join('')}</select>
     </div>
     <div class="ipo-filter ma-finf"><div class="rd-fing"><span class="rd-finl">매수자</span>${maSeg('ma-kind', [['', '전체'], ...MA_KINDS.map((k) => [k, k])], f.kind)}</div>
       <div class="rd-fing"><span class="rd-finl">단계</span>${maSeg('ma-stage', MA_STAGE_OPTS, f.stage)}</div></div>`;
@@ -315,15 +324,15 @@ function maInfo() {
     asof: `${d?.checked ? `기준일 ${d.checked}` : '기준일 –'}, 출처 딜 기사, DART 공시, 감사보고서`,
     rows: [
       ['무엇인가', [
-        '최근 5년 동안 국내 회사의 경영권이 바뀐 거래입니다. PE와 일반 기업(SI)의 인수, 볼트온, 사업양수, 회생 M&A, PE 회수 매각을 모았습니다.',
+        `최근 ${d?.spanY || 7}년 동안 국내 회사의 경영권이 바뀐 거래를 모았고, 중앙값은 최근 5년 거래 기준입니다. PE와 일반 기업(SI)의 인수, 볼트온, 사업양수, 회생 M&A, PE 회수 매각이 들어 있습니다.`,
         '소수지분 투자, VC 투자, 같은 그룹 안의 지분 이동, 해외 회사만 사고판 거래는 넣지 않았습니다.',
       ]],
       ['어떻게 보나', [
-        '기본은 계약이나 완료까지 간 거래만 보이고, 단계에서 전체를 고르면 추진, 우선협상, 무산 거래도 나옵니다.',
+        '기본은 최근 5년 동안 계약이나 완료까지 간 거래만 보입니다. 기간에서 전체나 연도를 고르면 그 기간 거래가, 단계에서 전체를 고르면 추진, 우선협상, 무산 거래도 나옵니다.',
         '추정 EV는 100% 지분가치에 순차입금을 더한 값입니다. 지분 일부만 산 거래는 거래금액을 지분율로 나눠 100% 가치로 바꿉니다.',
         '멀티플의 EBITDA와 영업이익은 거래일이 10~12월이면 그해, 1~9월이면 전년 실적을 씁니다. EBITDA가 0 이하이거나 EV를 모르면 N/M입니다.',
         '감사보고서가 없는 회사는 기사 본문에 나온 매출, 영업이익, EBITDA를 씁니다. 이런 값과 보도 숫자를 역산한 값은 회색 기울임 글씨로 표시합니다.',
-        '위 중앙값은 계약, 완료 거래 가운데 멀티플이 있는 것만 셉니다. 매수자, 기간, 검색어를 걸면 그 조건으로 다시 계산합니다.',
+        '위 중앙값은 고른 기간의 계약, 완료 거래 가운데 멀티플이 있는 것만 셉니다. 매수자, 기간, 검색어를 바꾸면 그 조건으로 다시 계산합니다.',
         '행을 누르면 5개 연도 매출과 영업이익, 매도자, 인수 지분, 멀티플, EV 산식, 메모, 출처 기사와 공시가 나옵니다. 화면이 좁을 때 목록에서 빠지는 칸도 여기 있습니다.',
         '자료는 일주일에 한 번 새로 만듭니다. 기준일이 8일 넘게 지나면 빨간 글씨로 표시합니다.',
       ]],
