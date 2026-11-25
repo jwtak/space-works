@@ -117,9 +117,18 @@ function fsAll() {
     return { ...base, key: q.key, kbKey: k?.key || '', name: q.name, kind: 'req', st: q.st, src: q.src, theme: String(r?.theme || fs?.theme || (k ? FS_KB_THEME : '')),
       by: r?.by || (fs ? '자동 작성' : ''), at: String(r?.at || fs?.madeAt || ''), _q: `${base._q || ''} ${q.name} ${q.src} ${r?.by || ''}`.toLowerCase() };
   });
-  return [...rq, ...kb.filter((x) => !used.has(x.key))];
+  // 같은 회사를 여러 화면에서 요청했으면(예 투자 라운드와 딥테크) 한 줄로: 가장 최근 요청 줄에 팩트시트가 있는 쪽 내용, 나머지 키는 alias(관심 표시·찾기에 같이 씀, 2026-11-25)
+  const one = new Map();
+  rq.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0)).forEach((x) => {
+    const n = fsNm(x.name), p = one.get(n);
+    if (!p) { one.set(n, { ...x, alias: [] }); return; }
+    p.alias.push(x.key);
+    if (p.r25 == null && !p.stage && x.st?.fs && !p.st?.fs) one.set(n, { ...x, key: p.key, by: p.by, at: p.at, st: p.st, src: p.src, theme: p.theme || x.theme, alias: [...p.alias, ...(x.alias || [])] });
+    if (!p.kbKey && x.kbKey) p.kbKey = x.kbKey;
+  });
+  return [...one.values(), ...kb.filter((x) => !used.has(x.key))];
 }
-const fsFind = (k) => { const s = String(k); return fsAll().find((x) => x.key === s || x.kbKey === s); };
+const fsFind = (k) => { const s = String(k); return fsAll().find((x) => x.key === s || x.kbKey === s || x.alias?.includes(s)); };
 // 요청자 칩: 사람(많이 요청한 순), 자동 요청, 엑스포 목록 순
 const fsWhoRank = (w) => (w === FS_EXPO ? 2 : /자동/.test(w) ? 1 : 0);
 const fsWhoList = (a) => { const m = new Map(); a.forEach((x) => { if (x.by) m.set(x.by, (m.get(x.by) || 0) + 1); }); return [...m].sort((p, q) => fsWhoRank(p[0]) - fsWhoRank(q[0]) || q[1] - p[1]); };
@@ -165,7 +174,7 @@ function fsRow(x, i) {
 // 관심 없음 표시(동그라미에 사선). 켜지면 진하게
 const FS_SKIP_ICO = '<svg class="i sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><path d="M6.5 17.5l11-11"/></svg>';
 const fsRef = (x) => (x.kind === 'req' ? x.key : `facts:${x.key}`);
-const fsRefs = (x) => [fsRef(x), ...(x.kbKey ? [`facts:${x.kbKey}`] : [])];
+const fsRefs = (x) => [fsRef(x), ...(x.alias || []), ...(x.kbKey ? [`facts:${x.kbKey}`] : [])];
 const fsFvOk = () => typeof fvS === 'object' && fvS.at && !fvS.err;
 const fsIsSkip = (x) => fsFvOk() && fsRefs(x).some(fvSkip);
 function fsStar(x) {
