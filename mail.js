@@ -17,6 +17,17 @@ const MAIL_SHARED_FOLDERS = [
   { id: 'contact:junkemail', name: '스팸메일함', icon: 'alert' },
 ];
 const MAIL_LIST_SEL = 'id,subject,from,toRecipients,receivedDateTime,sentDateTime,lastModifiedDateTime,bodyPreview,isRead,hasAttachments,isDraft,flag,parentFolderId';
+/* 예약 메일(2026-11-25 사용자 "임시보관함 말고 보낸편지함에 예약 표시, 취소는 맨 오른쪽"). /send 한 예약 메일은 예약 시각까지 임시보관함에
+   isDraft 그대로 남고 제출 잠금(PR_SUBMIT_FLAGS 0x0E14 = 1)과 예약 시각(0x3FEF)을 단다. 잠긴 동안 이동·속성 변경은 막히고(500, 403) 삭제만 된다.
+   그래서 취소는 복사(잠금 없는 보통 초안)를 임시보관함에 만들고 원본을 지운다. 자세한 시험 결과는 웍스 기능 점검 노트 「예약 발송」 */
+const MAIL_SCHED_EXP = "singleValueExtendedProperties($filter=id eq 'Integer 0x0E14' or id eq 'SystemTime 0x3FEF')";
+const MAIL_SCHED_FLT = "singleValueExtendedProperties/any(ep: ep/id eq 'Integer 0x0E14' and cast(ep/value, Edm.Int32) eq 1)";
+function mailSchedAt(x) { // 예약 메일이면 예약 시각(ms), 아니면 0
+  if (!x?.isDraft) return 0;
+  const ps = x.singleValueExtendedProperties || [], v = (tag) => ps.find((p) => parseInt(String(p.id).split(' ').pop(), 16) === tag)?.value; // Graph는 id를 'Integer 0xe14'처럼 줄여 돌려준다
+  const at = Date.parse(v(0x3FEF) || '');
+  return Number(v(0x0E14)) === 1 && Number.isFinite(at) ? at : 0;
+}
 const MAIL_MAX_ATTACH = 3 * 1024 * 1024; // 이 크기까지는 한 번에 올리고, 넘으면 업로드 세션으로 조각내 올린다
 const MAIL_MAX_BIG = 150 * 1024 * 1024; // 업로드 세션 한도
 const MAIL_CHUNK = 10 * 320 * 1024; // 업로드 세션 조각은 320KiB 배수
@@ -386,14 +397,14 @@ function mailFitQuote(fr) {
   new ResizeObserver(fit).observe(d.documentElement);
 }
 
-function mailConfirm({ title, rows, ok }) {
+function mailConfirm({ title, rows, ok, no = '취소' }) {
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
     wrap.className = 'mail-modal';
     wrap.innerHTML = `<div class="mail-dialog" role="dialog" aria-modal="true" aria-labelledby="mail-dlg-t">
       <h3 id="mail-dlg-t">${esc(title)}</h3>
       <dl>${rows.filter((r) => r[1]).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
-      <div class="mail-dialog-actions"><button class="btn" type="button" data-r="0">취소</button><button class="btn primary" type="button" data-r="1">${esc(ok)}</button></div></div>`;
+      <div class="mail-dialog-actions"><button class="btn" type="button" data-r="0">${esc(no)}</button><button class="btn primary" type="button" data-r="1">${esc(ok)}</button></div></div>`;
     const done = (v, viaBack) => { if (!wrap.isConnected) return; wrap.remove(); document.removeEventListener('keydown', onKey); if (viaBack !== true) off(); resolve(v); };
     const onKey = (e) => { if (e.key === 'Escape') done(false); };
     const off = pushLayer(() => done(false, true), () => done(false, true)); // 뒤로 가기 = 취소
@@ -495,7 +506,7 @@ async function renderMail() {
     m.qAll = all; m.sel = null; m.msg = null; mailViewSave(); mailLoadList();
   }));
   $('#mail-ckall').addEventListener('change', (e) => {
-    m.checked = new Set(e.target.checked ? m.list.map((x) => x.id) : []);
+    m.checked = new Set(e.target.checked ? m.list.filter((x) => !x._sched).map((x) => x.id) : []);
     mailDrawList();
   });
   PAGE.querySelectorAll('[data-bulk]').forEach((b) => b.addEventListener('click', () => mailBulk(b.dataset.bulk)));
@@ -689,6 +700,20 @@ async function mailOutCheck() {
   }));
 }
 
+/* 예약 메일 목록(사서함별). 임시보관함에서 제출 잠금이 걸린 것만 받는다 */
+async function mailSchedLoad(boxes) {
+  const m = ui.mail; m.sched = m.sched || {};
+  await Promise.all(boxes.map(async (b) => {
+    const q = new URLSearchParams({ $top: '50', $select: MAIL_LIST_SEL, $filter: MAIL_SCHED_FLT, $expand: MAIL_SCHED_EXP });
+    try {
+      const j = await G.get(`${mailRoot(b)}/mailFolders/drafts/messages?${q}`);
+      m.sched[b] = j.value.map((x) => ({ ...x, _box: b, _sched: mailSchedAt(x) })).filter((x) => x._sched).sort((a, z) => z._sched - a._sched);
+    } catch { /* 못 받으면 지난 목록 그대로 */ }
+  }));
+}
+const mailSchedList = (box) => ui.mail.sched?.[box] || [];
+const mailSchedFind = (x) => (x?.isDraft ? mailSchedList(x._box || 'me').find((s) => s.id === x.id)?._sched || 0 : 0);
+
 async function mailLoadCounts() {
   const m = ui.mail;
   try {
@@ -698,6 +723,8 @@ async function mailLoadCounts() {
     keys.forEach((k, i) => { const r = res[i]; if (r && !r.err) { m.counts[k] = { unread: r.unreadItemCount, total: r.totalItemCount }; m.fids[k] = r.id; } });
     await mailOutCheck();
     for (const k of ['drafts', 'contact:drafts']) { const c = m.counts[k], n = mailOutN(k); if (c && n) c.total = Math.max(0, c.total - n); }
+    await mailSchedLoad(shared.length ? ['me', 'contact'] : ['me']);
+    for (const k of ['drafts', 'contact:drafts']) { const c = m.counts[k], n = mailSchedList(mailBoxOf(k)).length; if (c && n) c.total = Math.max(0, c.total - n); }
     const sr = res.slice(MAIL_FOLDERS.length);
     if (sr.some((r) => !r.err)) m.sharedOk = true;
     else if (sr.length && sr.every((r) => [400, 401, 403, 404].includes(r.err.status))) m.sharedOk = false; // 네트워크 오류면 다음에 다시
@@ -780,10 +807,12 @@ async function mailLoadList(page) {
         if (extra) q.set('$filter', `${dateKey} ge 1900-01-01T00:00:00Z and ${extra}`);
         q.set('$count', 'true');
         if (pg > 1) q.set('$skip', String((pg - 1) * MAIL_PAGE));
+        if (mailFid(m.folder) === 'drafts') q.set('$expand', MAIL_SCHED_EXP); // 예약 메일은 임시보관함에서 빼고 보낸편지함 위에
       }
       // 전체 메일함 검색은 폴더와 무관하게 그 사서함 전체(/messages)에서 찾는다
       url = m.q && m.qAll ? `${mailRoot(mb)}/messages?${q}` : `${mailRoot(mb)}/mailFolders/${encodeURIComponent(mailFid(m.folder))}/messages?${q}`;
     }
+    const schedP = mailFid(m.folder) === 'sentitems' && !m.q && pg === 1 ? mailSchedLoad([mb]) : null; // 보낸편지함 맨 위 예약 메일, 목록과 같이 받는다
     let j;
     try { j = await G.get(url); } catch (e) { // 전체 수($count)를 못 받는 경우에도 목록은 보이게
       if (e.status !== 400 || !url.includes('%24count=true')) throw e;
@@ -793,14 +822,24 @@ async function mailLoadList(page) {
     // 지운 뒤 마지막 페이지가 비었으면 앞 페이지로
     if (!j.value.length && pg > 1 && !m.q) { m.loading = false; mailLoadList(pg - 1); return; }
     j.value.forEach((x) => { x._box = mb; });
-    if (mailFid(m.folder) === 'drafts' && !m.q) { const out = mailOutIds(m.folder); if (out.size) j.value = j.value.filter((x) => !out.has(x.id)); }
-    m.list = j.value;
+    const fid = mailFid(m.folder);
+    if (fid === 'drafts' && !m.q) { const out = mailOutIds(m.folder); if (out.size) j.value = j.value.filter((x) => !out.has(x.id)); }
+    let nSched = 0;
+    if (fid === 'drafts' && !m.q) { const n0 = j.value.length; j.value = j.value.filter((x) => !mailSchedAt(x)); nSched = n0 - j.value.length; }
+    if (m.q) j.value.forEach((x) => { x._sched = mailSchedFind(x); }); // 검색 결과의 예약 메일도 읽기 전용으로 연다
+    let top = [];
+    if (schedP) {
+      await schedP;
+      if (my !== m.listSeq || m.listKey !== key || route() !== 'mail') return;
+      top = mailSchedList(mb).filter((x) => (m.filter === 'unread' ? false : m.filter === 'att' ? x.hasAttachments : true));
+    }
+    m.list = [...top, ...j.value];
     m.next = j['@odata.nextLink'] || null;
     if (m.q) { m.qPages[pg] = m.next; m.total = null; }
     else {
       const c = m.counts[m.folder];
       m.total = Number.isFinite(j['@odata.count']) ? j['@odata.count'] : m.filter === 'all' && c ? c.total : m.filter === 'unread' && c ? c.unread : null;
-      if (Number.isFinite(j['@odata.count']) && mailFid(m.folder) === 'drafts') m.total = Math.max(0, m.total - mailOutN(m.folder));
+      if (Number.isFinite(j['@odata.count']) && fid === 'drafts') m.total = Math.max(0, m.total - mailOutN(m.folder) - Math.max(nSched, mailSchedList(mb).length));
     }
     mailDrawList();
     if (pg === 1 && !m.q && m.filter === 'all') mailCacheSave(m.folder, j.value);
@@ -835,8 +874,10 @@ function mailDrawList() {
   box.classList.toggle('off', !!m.offline); // 저장해 둔 목록: 체크·별 표시 없이 읽기만
   const ckAll = $('#mail-ckall'); if (ckAll) ckAll.disabled = !!m.offline;
   if (!m.list.length) { box.innerHTML = `<li class="empty">${m.q ? '검색 결과 없음' : '메일 없음'}</li>`; return; }
+  box.classList.toggle('has-sched', m.list.some((x) => x._sched));
   box.innerHTML = m.list.map((x) => {
     const wk = mailWkOf(x), toSide = wk === 'sentitems' || wk === 'drafts';
+    if (x._sched) return mailSchedRow(x, allQ ? mailFolderName(mailBoxX(x) === 'contact' ? 'contact:sentitems' : 'sentitems') : ''); // 검색에서도 보낸편지함 메일로
     const fl = allQ ? mailFolderName(mailKeyOf(x)) : ''; // 전체 메일함 검색: 어느 폴더 메일인지
     const who = toSide ? (x.toRecipients || []).map(mailWho).join(', ') || '(받는 사람 없음)' : mailWho(x.from) || '(보낸 사람 없음)';
     const unread = !x.isRead && !toSide, flagged = x.flag?.flagStatus === 'flagged';
@@ -851,14 +892,17 @@ function mailDrawList() {
       <div class="mail-pv">${esc((x.bodyPreview || '').replace(/\s+/g, ' ').slice(0, 120))}</div></li>`;
   }).join('') + mailPager();
   box.querySelectorAll('[data-id]').forEach((li) => li.addEventListener('click', (e) => {
-    if (e.target.closest('.mail-ck, .mail-lstar')) return;
+    if (e.target.closest('.mail-ck, .mail-lstar, .mail-unsched')) return;
     mailOpen(li.dataset.id);
+  }));
+  box.querySelectorAll('[data-unsched]').forEach((b) => b.addEventListener('click', () => {
+    const x = m.list.find((i) => i.id === b.dataset.unsched); if (x) mailUnsched(x);
   }));
   // Shift를 누른 채 체크하면 마지막으로 누른 메일부터 여기까지 같은 상태로(Gmail·Outlook처럼, 2026-11-10 사용자)
   box.querySelectorAll('[data-ck]').forEach((ck) => {
     ck.addEventListener('mousedown', (e) => { if (e.shiftKey) e.preventDefault(); }); // Shift 클릭에 글자 선택이 같이 잡히지 않게
     ck.addEventListener('click', (e) => {
-      const ids = m.list.map((x) => x.id), to = ids.indexOf(ck.dataset.ck), from = e.shiftKey ? ids.indexOf(m.ckAnchor) : -1;
+      const ids = m.list.filter((x) => !x._sched).map((x) => x.id), to = ids.indexOf(ck.dataset.ck), from = e.shiftKey ? ids.indexOf(m.ckAnchor) : -1;
       const range = from < 0 ? [ck.dataset.ck] : ids.slice(Math.min(from, to), Math.max(from, to) + 1);
       range.forEach((id) => {
         if (ck.checked) m.checked.add(id); else m.checked.delete(id);
@@ -879,12 +923,49 @@ function mailDrawList() {
   box.querySelectorAll('[data-pg]').forEach((b) => b.addEventListener('click', () => { if (!m.loading) mailLoadList(Number(b.dataset.pg)); }));
 }
 
+/* 예약 메일 한 줄: 체크·별 없이 '예약' 표시, 시각 칸은 예약 시각, 맨 오른쪽 '취소' */
+function mailSchedRow(x, fl) {
+  const m = ui.mail, who = (x.toRecipients || []).map(mailWho).join(', ') || '(받는 사람 없음)', d = new Date(x._sched), iso = d.toISOString();
+  const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`, mt = d.toDateString() === new Date().toDateString() ? hm : `${d.getMonth() + 1}/${d.getDate()} ${hm}`; // 폰도 예약 시각까지
+  return `<li class="mail-item sched ${m.sel === x.id ? 'on' : ''}" data-id="${esc(x.id)}">
+      <span class="mail-ck"></span><span class="mail-lstar"></span>
+      <span class="mail-st" title="예약">${ico('clock', 'sm')}</span>
+      <div class="mail-r1"><span class="mail-who"><span class="mail-draft sched">예약</span>${esc(who)}</span><span class="mail-tm"><span class="m">${mt}</span><span class="d">${mailTimeD(iso)}</span></span></div>
+      <span class="mail-lclip">${x.hasAttachments ? `<span title="첨부">${ico('clip', 'sm')}</span>` : ''}</span>
+      <div class="mail-subj">${x.hasAttachments ? `<span class="mail-clip" title="첨부">${ico('clip', 'sm')}</span>` : ''}${fl ? `<span class="mail-fl">${esc(fl)}</span>` : ''}<span class="mail-subj-t">${esc(x.subject || '(제목 없음)')}</span></div>
+      <div class="mail-pv">${esc((x.bodyPreview || '').replace(/\s+/g, ' ').slice(0, 120))}</div>
+      ${x._sched > Date.now() ? `<button type="button" class="mail-unsched" data-unsched="${esc(x.id)}">취소</button>` : '<span class="mail-unsched"></span>'}</li>`;
+}
+
+/* 예약 취소: 잠긴 원본은 고칠 수 없어 임시보관함에 복사(보통 초안)하고 예약 시각을 지난 시각으로 덮은 뒤 원본을 지운다 */
+async function mailUnsched(x) {
+  const m = ui.mail, box = mailBoxX(x);
+  if (!x._sched || x._sched <= Date.now()) return toast('이미 보내는 중입니다');
+  const ok = await mailConfirm({ title: '예약을 취소할까요?', rows: [['받는 사람', mailAddrList(x.toRecipients)], ['제목', x.subject || '(제목 없음)'], ['예약', mailFullTime(new Date(x._sched).toISOString())]], ok: '예약 취소', no: '닫기' });
+  if (!ok) return;
+  let cp = null;
+  try {
+    cp = await G.post(`${mailMsgP(x.id, box)}/copy`, { destinationId: 'drafts' });
+    await G.patch(mailMsgP(cp.id, box), { singleValueExtendedProperties: [{ id: 'SystemTime 0x3FEF', value: new Date(Date.now() - 60e3).toISOString() }] });
+    await G.post(`${mailMsgP(x.id, box)}/permanentDelete`, {}, { type: 'none' });
+  } catch (e) {
+    if (cp) G.del(mailMsgP(cp.id, box)).catch(() => {}); // 원본이 그대로면 복사본은 남기지 않는다
+    return toast(e.status === 404 ? '이미 보냈거나 취소된 메일입니다' : e.message);
+  }
+  if (m.sched?.[box]) m.sched[box] = m.sched[box].filter((s) => s.id !== x.id);
+  m.list = m.list.filter((i) => i.id !== x.id);
+  if (m.sel === x.id) { m.sel = null; m.msg = null; m.view = 'list'; mailDrawShell(); mailDrawPane(); }
+  mailDrawList(); mailLoadCounts();
+  toast('예약을 취소했습니다. 임시보관함에서 고쳐 보낼 수 있습니다');
+}
+
 /* 도구 줄: 체크한 게 있으면 일괄 작업 버튼을 보인다 */
 function mailDrawBulk() {
   const m = ui.mail, n = m.checked.size;
   const bulk = $('#mail-bulk'), all = $('#mail-ckall');
   if (bulk) { bulk.hidden = !n; $('#mail-bulk-n').textContent = `${n}개 선택`; }
-  if (all) { all.checked = !!n && n === m.list.length; all.indeterminate = !!n && n < m.list.length; }
+  const tot = m.list.filter((x) => !x._sched).length;
+  if (all) { all.checked = !!n && n === tot; all.indeterminate = !!n && n < tot; }
 }
 
 async function mailOpen(id) {
@@ -893,7 +974,7 @@ async function mailOpen(id) {
   const item = m.list.find((x) => x.id === id), mb = mailBoxX(item), p = mailMsgP(id, mb);
   const box = $('#mail-items'); if (box && m.view !== 'read') m.scroll = box.scrollTop; // ← 목록으로 돌아올 때 같은 위치
   if (item?._off) { m.sel = id; m.msg = null; m.atts = []; m.view = 'read'; mailDrawShell(); mailDrawList(); mailDrawPane(); return; } // 저장해 둔 목록: 본문 없음
-  if (mailWkOf(item) === 'drafts' && item?.isDraft) return mailOpenCompose({ mode: 'draft', id, box: mb });
+  if (mailWkOf(item) === 'drafts' && item?.isDraft && !item._sched) return mailOpenCompose({ mode: 'draft', id, box: mb });
   m.sel = id; m.msg = null; m.atts = []; m.view = 'read';
   m.remote = mailWkOf(item) !== 'junkemail'; // 외부 이미지는 기본으로 보여 주고(사용자 11/9), 스팸 메일함만 막아 둔다(추적 이미지)
   const folder = mailKeyOf(item); // 안 읽음 개수는 연 폴더 기준 (읽음 처리 응답 전에 폴더를 옮겨도)
@@ -904,7 +985,7 @@ async function mailOpen(id) {
       G.get(`${p}/attachments?$select=id,name,size,contentType,isInline`).then((r) => r.value).catch(() => []),
     ]);
     if (m.sel !== id) return;
-    msg._box = mb;
+    msg._box = mb; msg._sched = item?._sched || 0; // 예약 메일은 읽기 전용(열어 저장하면 예약이 풀리는지 알 수 없어 고치기 막음)
     // 본문 속 cid: 이미지(서명 로고 등)는 첨부에서 꺼내 data: 주소로 바꾼다. 본문에 실제로 쓰인 것만 첨부 목록에서 숨긴다
     const used = new Set();
     if (msg.body?.contentType === 'html' && /cid:/i.test(msg.body.content)) {
@@ -1015,6 +1096,7 @@ function mailDrawPane() {
   const x = m.msg, html = x.body?.contentType === 'html' ? mailPixelStrip(x.body.content, true) : `<pre>${esc(x.body?.content || '')}</pre>`;
   const hasRemote = /<img[^>]+src\s*=\s*["']?\s*https?:|url\(\s*["']?\s*https?:/i.test(html);
   const inTrash = mailWkOf(x) === 'deleteditems';
+  const sched = x._sched || 0, schedIso = sched ? new Date(sched).toISOString() : ''; // 예약 메일: 읽기만, 도구는 목록·예약 취소·인쇄
   const flagged = x.flag?.flagStatus === 'flagged';
   const fromName = x.from?.emailAddress?.name || x.from?.emailAddress?.address || '(보낸 사람 없음)';
   const big = mailBigFiles(html), attN = m.atts.length + big.length;
@@ -1025,22 +1107,24 @@ function mailDrawPane() {
   pane.innerHTML = `
     <div class="mail-mhead">
       <button class="iconbtn" type="button" id="mail-mback" aria-label="목록">${ico('left')}</button>
-      <span class="mail-mhead-r">
+      <span class="mail-mhead-r">${sched ? `${sched > Date.now() ? '<button class="btn sm" type="button" data-act="unsched">예약 취소</button>' : ''}` : `
         <button class="iconbtn" type="button" data-act="reply" aria-label="답장">${ico('reply')}</button>
         <button class="iconbtn" type="button" data-act="${inTrash ? 'purge' : 'delete'}" aria-label="${inTrash ? '영구 삭제' : '삭제'}">${ico('trash')}</button>
-        <button class="iconbtn" type="button" id="mail-rmore" aria-label="더보기">${mi('more')}</button>
+        <button class="iconbtn" type="button" id="mail-rmore" aria-label="더보기">${mi('more')}</button>`}
       </span>
     </div>
     <div class="mail-rhead" id="mail-rhead">
       <div class="mail-tools">
-        <button class="mail-tbtn mail-tlist" type="button" id="mail-back">${mi('list')}목록</button>
+        <button class="mail-tbtn mail-tlist" type="button" id="mail-back">${mi('list')}목록</button>${sched ? `
+        ${sched > Date.now() ? '<button class="mail-tbtn" type="button" data-act="unsched">예약 취소</button>' : ''}
+        <button class="mail-tbtn" type="button" id="mail-print">인쇄</button>` : `
         <button class="mail-tbtn" type="button" data-act="reply">답장</button>
         <button class="mail-tbtn" type="button" data-act="replyAll">전체답장</button>
         <button class="mail-tbtn" type="button" data-act="forward">전달</button>
         <button class="mail-tbtn" type="button" data-act="${inTrash ? 'purge' : 'delete'}">${inTrash ? '영구 삭제' : '삭제'}</button>
         <button class="mail-tbtn" type="button" id="mail-move" aria-haspopup="menu" aria-expanded="false">이동${mi('caret', 'caret')}</button>
         <button class="mail-tbtn" type="button" id="mail-print">인쇄</button>
-        <button class="mail-tbtn" type="button" id="mail-other" aria-haspopup="menu" aria-expanded="false">다른 작업${mi('caret', 'caret')}</button>
+        <button class="mail-tbtn" type="button" id="mail-other" aria-haspopup="menu" aria-expanded="false">다른 작업${mi('caret', 'caret')}</button>`}
         <span class="mail-tools-r">
           <button class="iconbtn mail-sq" type="button" id="mail-prev" title="이전 메일" aria-label="이전 메일" ${prevId ? '' : 'disabled'}>${mi('up')}</button>
           <button class="iconbtn mail-sq" type="button" id="mail-next" title="다음 메일" aria-label="다음 메일" ${nextId ? '' : 'disabled'}>${mi('down')}</button>
@@ -1048,9 +1132,9 @@ function mailDrawPane() {
       </div>
       <div class="mail-rsubj-row">
         <h2 class="mail-rsubj">${esc(x.subject || '(제목 없음)')}</h2>
-        <button class="iconbtn mail-flag ${flagged ? 'on' : ''}" type="button" id="mail-flag" aria-pressed="${flagged}" aria-label="중요 표시">${mi('star')}</button>
+        ${sched ? '' : `<button class="iconbtn mail-flag ${flagged ? 'on' : ''}" type="button" id="mail-flag" aria-pressed="${flagged}" aria-label="중요 표시">${mi('star')}</button>`}
       </div>
-      <div class="mail-mdate">${mailDateLine(x.receivedDateTime || x.sentDateTime)}</div>
+      <div class="mail-mdate">${sched ? `<b class="mail-draft sched">예약</b>${mailDateLine(schedIso)}` : mailDateLine(x.receivedDateTime || x.sentDateTime)}</div>
       <div class="mail-mfrom">
         <span class="mail-mlbl">보낸 사람</span>
         <span class="mail-chip">${esc(fromName)}</span>
@@ -1061,7 +1145,7 @@ function mailDrawPane() {
         <dt>받는 사람</dt><dd>${esc(mailAddrList(x.toRecipients))}</dd>
         ${x.ccRecipients?.length ? `<dt>참조</dt><dd>${esc(mailAddrList(x.ccRecipients))}</dd>` : ''}
         ${x.bccRecipients?.length ? `<dt>숨은참조</dt><dd>${esc(mailAddrList(x.bccRecipients))}</dd>` : ''}
-        <dt class="mail-meta-d">날짜</dt><dd class="mail-meta-d">${mailFullTime(x.receivedDateTime || x.sentDateTime)}</dd>
+        <dt class="mail-meta-d">${sched ? '예약' : '날짜'}</dt><dd class="mail-meta-d">${mailFullTime(sched ? schedIso : x.receivedDateTime || x.sentDateTime)}</dd>
       </dl>
       ${attN ? `<div class="mail-abox ${m.attFold ? '' : 'open'}" id="mail-abox">
         <div class="mail-abox-h"><button type="button" class="mail-abox-tg" id="mail-abox-tg" aria-expanded="${!m.attFold}">${mi('caret', 'caret')}<b>첨부 ${attN}개</b><span class="muted">(${mailSize(attTotal)})</span></button><button type="button" class="mail-tbtn" data-saveall>모두 저장</button></div>
@@ -1083,12 +1167,12 @@ function mailDrawPane() {
   $('#mail-prev').addEventListener('click', () => prevId && mailOpen(prevId));
   $('#mail-next').addEventListener('click', () => nextId && mailOpen(nextId));
   $('#mail-print').addEventListener('click', () => mailPrint(x, html));
-  $('#mail-move').addEventListener('click', async (e) => {
+  if (!sched) $('#mail-move').addEventListener('click', async (e) => {
     const b = e.currentTarget, folders = await mailMoveTargets(x);
     const k = await mailMenu(b, folders.map((f) => ({ k: f.id, label: f.name })));
     if (k) mailAction('move', x, folders.find((f) => f.id === k));
   });
-  $('#mail-other').addEventListener('click', async (e) => {
+  if (!sched) $('#mail-other').addEventListener('click', async (e) => {
     const k = await mailMenu(e.currentTarget, [
       { k: 'read', label: '읽음으로 표시', icon: 'envo' }, { k: 'unread', label: '안 읽음으로 표시', icon: 'env' },
       { k: 'star', label: '별 표시', icon: 'star' }, { k: 'unstar', label: '별 제거', icon: 'starx' },
@@ -1102,13 +1186,13 @@ function mailDrawPane() {
     const open = $('#mail-rhead').classList.toggle('open');
     e.currentTarget.setAttribute('aria-expanded', String(open));
   });
-  $('#mail-flag').addEventListener('click', async (e) => {
+  if (!sched) $('#mail-flag').addEventListener('click', async (e) => {
     const b = e.currentTarget, on = !b.classList.contains('on');
     b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on));
     try { await G.patch(mailMsgP(x.id, mailBoxX(x)), { flag: { flagStatus: on ? 'flagged' : 'notFlagged' } }); x.flag = { flagStatus: on ? 'flagged' : 'notFlagged' }; }
     catch (err) { b.classList.toggle('on', !on); b.setAttribute('aria-pressed', String(!on)); toast(err.message); }
   });
-  $('#mail-rmore').addEventListener('click', async () => {
+  if (!sched) $('#mail-rmore').addEventListener('click', async () => {
     const k = await mailSheet([
       { k: 'replyAll', label: '전체 답장' }, { k: 'forward', label: '전달' }, { k: 'unread', label: '안 읽음으로 표시' },
       ...(x.webLink ? [{ k: 'outlook', label: 'Outlook에서 열기' }] : []),
@@ -1297,6 +1381,7 @@ async function mailAction(act, x, arg) {
   const p = mailMsgP(x.id, mailBoxX(x)), ck = mailKeyOf(x); // 그 메일의 사서함 경로, 개수를 고칠 폴더
   try {
     if (act === 'reply' || act === 'replyAll' || act === 'forward') return mailOpenCompose({ mode: act, id: x.id, box: mailBoxX(x) });
+    if (act === 'unsched') return mailUnsched(x);
     if (act === 'read') {
       const it = m.list.find((i) => i.id === x.id), was = it ? it.isRead : x.isRead;
       await G.patch(p, { isRead: true });
