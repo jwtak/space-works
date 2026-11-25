@@ -1,0 +1,40 @@
+/* 가치평가 › 업종 실적(valuation_sf.js). 표는 market.css .mk-tbl(균등 폭, 전부 왼쪽 정렬, 머리글 띠 없음) 위에 이름 칸 폭과 펼침만 더함.
+   이름 칸 글자 시작선: 머리글 '업종', 업종 이름(펼침 화살표 16 + 간격 4 뒤), 회사 이름, 작은 글씨 모두 칸 왼쪽에서 20px */
+.sf-tbl { min-width: 968px; }
+.sf-tbl .st { width: 200px; }
+.sf-tbl th { padding-top: 4px; padding-bottom: 4px; vertical-align: bottom; }
+.sf-h0 { display: inline-flex; align-items: center; height: 36px; padding-left: 20px; }
+.sf-sort { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; height: 36px; padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--text2); cursor: pointer; white-space: nowrap; }
+.sf-sort.on, .sf-sort:hover { color: var(--ink); }
+.sf-dir { display: inline-block; width: 12px; color: var(--primary); }
+.sf-tbl td small, .sf-tbl td.st small { font-size: var(--fs-sm); }
+.sf-tbl td.st small { padding-left: 20px; overflow: hidden; text-overflow: ellipsis; }
+.sf-tbl td.sf-na { color: var(--text4); }
+
+.sf-tbl tr.sf-g { cursor: pointer; }
+.sf-tbl tr.sf-g:hover td { background: var(--hover); }
+.sf-tbl tr.sf-g.open td { background: var(--primary-soft); }
+.sf-open { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.sf-open b { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.sf-chev { display: flex; flex: none; color: var(--text3); transition: transform .15s ease; }
+.sf-g.open .sf-chev { transform: rotate(90deg); color: var(--primary); }
+.sf-tbl tr.sf-g:hover td.st b, .sf-tbl tr.sf-g.open td.st b, .sf-tbl tr.me td.st b { color: var(--primary); }
+.sf-tbl tr.sf-all td { border-bottom: 1px solid var(--line2); }
+.sf-tbl tr.sf-all td.st b { font-weight: 700; }
+
+/* 펼친 업종의 회사 줄 */
+.sf-tbl tr.sf-c td { background: var(--hover); }
+.sf-tbl tr.sf-c.me td { background: var(--primary-soft); }
+.sf-co { display: block; max-width: 100%; padding: 0 0 0 20px; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sf-tbl td.st .sf-co b { font-weight: 500; color: var(--ink); }
+.sf-co:hover b { color: var(--primary); text-decoration: underline; }
+.sf-tbl tr.sf-more td { padding-top: 0; padding-bottom: 0; }
+.sf-tbl .sf-more .va-more { margin: 0; padding-left: 20px; }
+
+@media (max-width: 760px) {
+  .sf-tbl { min-width: 824px; }
+  .sf-tbl .st { width: 128px; }
+  .sf-sort, .sf-h0 { height: 44px; }
+  .sf-sort { white-space: normal; text-align: left; }
+  .sf-tbl .sf-more .va-more { height: 44px; }
+}

@@ -19,7 +19,7 @@ const VA_MET = { ni: '순이익', equity: '자본', revenue: '매출', ebitda: '
 const vaS = { data: null, at: 0, loading: null, err: '', vt: 'mkt', code: null, cid: null, sel: {}, tblPer: null, showEx: false, open: {}, qp: {}, fold: {}, gsel: null };
 Object.assign(vaS, viewGet('va', {}));
 vaS.code = null; vaS.gsel = null;
-const vaSave = () => viewSet('va', { cid: vaS.cid, sel: vaS.sel, tblPer: vaS.tblPer, qp: vaS.qp, tab: vaS.tab, trd: vaS.trd, lv: vaS.lv, thm: vaS.thm, mkMarket: vaS.mkMarket, mkKind: vaS.mkKind, fold: vaS.fold, gord: vaS.gord, vsub: vaS.vsub });
+const vaSave = () => viewSet('va', { cid: vaS.cid, sel: vaS.sel, tblPer: vaS.tblPer, qp: vaS.qp, tab: vaS.tab, trd: vaS.trd, lv: vaS.lv, thm: vaS.thm, mkMarket: vaS.mkMarket, mkKind: vaS.mkKind, fold: vaS.fold, gord: vaS.gord, vsub: vaS.vsub, sf: vaS.sf });
 const vaTabs = (key, opts, cur) => `<div class="va-tabs">${vaSeg(key, opts, cur)}</div>`;
 
 function vaLoad(force) {
@@ -444,7 +444,7 @@ function vaCoBar() {
   const cls = x ? [x.sector, x.industryGroup, x.industry].filter((v, i, a) => v && v !== a[i - 1]) : [];
   const sub = u ? vaUnlTh(u) || u.wics || '' : x ? [x.market, cls.join(' › ')].filter(Boolean).join(', ') : '';
   const srch = `<div class="va-srch va-srch-l"><input type="search" data-va-q value="${esc(vaS.q || '')}" placeholder="회사 이름이나 종목코드로 찾기" aria-label="회사 검색" autocomplete="off"><div class="va-sug" id="va-sug">${vaS.q ? vaSug(vaS.q) : ''}</div></div>`;
-  const info = vaS.vt === 'mkt' || vaS.vt === 'rel' || vaS.vt === 'sum' ? infoBtn('valuation') : ''; // 화면 설명은 PC에서는 제목 줄, 폰에서는 이 줄(valuation.css)
+  const info = ['mkt', 'sf', 'rel', 'sum'].includes(vaS.vt) ? infoBtn('valuation') : ''; // 화면 설명은 PC에서는 제목 줄, 폰에서는 이 줄(valuation.css)
   if (!x) {
     const done = vaDone();
     return `<div class="va-co none">${srch}${done.length ? `<div class="va-co-done"><span>평가한 회사</span>${done.map((o) => `<button type="button" class="va-chip" data-va-pick="${esc(o.code)}">${esc(o.name)}</button>`).join('')}</div>` : ''}${info}</div>`;
@@ -889,9 +889,10 @@ function vaUnlRel({ vc, o }) { // 상대가치평가 탭(비상장): 결과, 가
 
 // ---------- 그리기 ----------
 function vaDraw() { // 시장동향, 요약, 상대가치평가 탭 본문
-  const host = $('#va-host'); if (!host || !['mkt', 'sum', 'rel'].includes(vaS.vt)) return;
+  const host = $('#va-host'); if (!host || !['mkt', 'sf', 'sum', 'rel'].includes(vaS.vt)) return;
   vaS.cw = host.clientWidth;
   if (vaS.vt === 'mkt') { host.innerHTML = vaMktTab(); vaSave(); return; }
+  if (vaS.vt === 'sf') { host.innerHTML = typeof sfTab === 'function' ? sfTab() : ''; vaSave(); return; } // 업종 실적(valuation_sf.js)
   if (vaS.vt === 'sum') { host.innerHTML = vaBrief(); vaSave(); return; }
   if (vaS.err) { host.innerHTML = `<div class="card"><div class="empty">${esc(vaS.err)}</div></div>`; return; }
   const c = vaCase(), code = vaCode(), ru = !c && vaUnlRelOf(code);
@@ -1028,15 +1029,15 @@ async function vaDownload(btn, c) {
   finally { btn.disabled = false; }
 }
 
-const VA_VT = [['mkt', 'PER 시장', 'globe'], ['fin', '재무분석', 'file'], ['val', '평가 결과', 'calc']]; // 11/18 이름 통일: 시장동향 → PER 시장, 가치평가 → 평가 결과
+const VA_VT = [['mkt', 'PER 시장', 'globe'], ['sf', '업종 실적', 'chart'], ['fin', '재무분석', 'file'], ['val', '평가 결과', 'calc']]; // 11/18 이름 통일: 시장동향 → PER 시장, 가치평가 → 평가 결과. 11/26 업종 실적(valuation_sf.js)
 const VA_SUB = [['sum', '요약'], ['rel', '상대가치평가'], ['dcf', '절대가치평가']]; // 가치평가 아래 하위 탭(2026-11-17 사용자 「시장동향, 재무분석, 가치평가로 하고 가치평가에서 하위 3개로」)
 let vaRO = null; // 시장동향, 요약 탭 폭이 바뀌면(창 크기, 요청사항 칸) 차트를 그 폭으로 다시 그림
 async function renderValuation() {
-  const vt = (location.hash.match(/^#valuation\/(fin|sum|rel|dcf)\b/) || [])[1] || 'mkt';
+  const vt = (location.hash.match(/^#valuation\/(sf|fin|sum|rel|dcf)\b/) || [])[1] || 'mkt';
   vaS.vt = vt;
   const top = ['sum', 'rel', 'dcf'].includes(vt) ? 'val' : vt;
   if (top === 'val') vaS.vsub = vt;
-  PAGE.innerHTML = `<div class="page-head"><h1>가치평가</h1><span class="mk-upd" id="va-upd"></span>${['mkt', 'sum', 'rel'].includes(vt) ? `<div class="tools va-pc">${infoBtn('valuation')}</div>` : ''}</div>
+  PAGE.innerHTML = `<div class="page-head"><h1>가치평가</h1><span class="mk-upd" id="va-upd"></span>${['mkt', 'sf', 'sum', 'rel'].includes(vt) ? `<div class="tools va-pc">${infoBtn('valuation')}</div>` : ''}</div>
     <div id="va-co" class="va"></div>
     <div class="deal-seg va-vt" role="tablist">${VA_VT.map(([k, t, i]) => `<button type="button" role="tab" aria-selected="${k === top}" class="${k === top ? 'on' : ''}" data-vt="${k}">${ico(i)}${t}</button>`).join('')}</div>
     ${top === 'val' ? `<div class="va-sub" role="tablist">${VA_SUB.map(([k, t]) => `<button type="button" role="tab" aria-selected="${k === vt}" class="${k === vt ? 'on' : ''}" data-vt="${k}">${t}</button>`).join('')}</div>` : ''}
@@ -1045,24 +1046,26 @@ async function renderValuation() {
   const host = $('#va-host');
   vaBindCo($('#va-co'));
   vaRO?.disconnect();
-  if (['mkt', 'sum', 'rel'].includes(vt)) vaBind(host);
+  if (['mkt', 'sf', 'sum', 'rel'].includes(vt)) vaBind(host);
+  if (vt === 'sf' && typeof sfBind === 'function') sfBind(host);
   if ((vt === 'mkt' || vt === 'sum') && typeof ResizeObserver === 'function') {
     let t = 0;
     vaRO = new ResizeObserver(() => { clearTimeout(t); t = setTimeout(() => { if (host.isConnected && vaS.vt === vt && vaS.cw && Math.abs(host.clientWidth - vaS.cw) > 4) vaDraw(); }, 150); });
     vaRO.observe(host);
   }
-  await Promise.all([vaLoad(), vaLoadMkt(), typeof v3Load === 'function' ? v3Load().catch(() => {}) : null]);
+  await Promise.all([vaLoad(), vaLoadMkt(), typeof v3Load === 'function' ? v3Load().catch(() => {}) : null, vt === 'sf' && typeof sfLoad === 'function' ? sfLoad() : null]);
   if (!$('#va-co')?.isConnected) return; // 불러오는 사이 다른 화면으로 감
-  const u = new Date((vt === 'mkt' ? vaS.mk?.generated_at : vt === 'rel' ? (vaUnlRelOf(vaCode()) ? v3S?.data?.updated_at : vaS.data?.updated_at) : vt === 'sum' ? v3S?.data?.updated_at || vaS.data?.updated_at : null) || NaN);
+  const u = new Date((vt === 'mkt' ? vaS.mk?.generated_at : vt === 'sf' ? vaS.sfd?.generated_at : vt === 'rel' ? (vaUnlRelOf(vaCode()) ? v3S?.data?.updated_at : vaS.data?.updated_at) : vt === 'sum' ? v3S?.data?.updated_at || vaS.data?.updated_at : null) || NaN);
   if (!isNaN(u)) $('#va-upd').textContent = `${u.getMonth() + 1}/${u.getDate()} ${pad(u.getHours())}:${pad(u.getMinutes())} 업데이트`;
   vaShow();
 }
 
 TAB_INFO.valuation = { title: '가치평가', rows: [
-  ['이 화면', 'PER 시장, 재무분석, 평가 결과 세 탭이고, 평가 결과 안에 요약, 상대가치평가, 절대가치평가가 있습니다. 회사는 탭 위 줄에서 한 번 고르면 모든 탭이 그 회사를 봅니다. 처음에는 고른 회사가 없고, 이름 옆 ×로 선택을 풉니다.'],
+  ['이 화면', 'PER 시장, 업종 실적, 재무분석, 평가 결과 네 탭이고, 평가 결과 안에 요약, 상대가치평가, 절대가치평가가 있습니다. 회사는 탭 위 줄에서 한 번 고르면 모든 탭이 그 회사를 봅니다. 처음에는 고른 회사가 없고, 이름 옆 ×로 선택을 풉니다.'],
   ['평가 요청', '아직 평가하지 않은 회사를 고르면 PER 시장과 재무분석에서는 회사 이름 옆에, 평가 결과 탭에서는 본문에 「평가 요청」 단추가 나옵니다. 누르면 오른쪽 요청사항에 「[평가 요청] 회사 이름(종목코드)」 글이 남고, 반영 완료 전까지 「평가 요청함」으로 보입니다.'],
-  ['탭', ['PER 시장: 회사를 고르지 않으면 시장과 업종끼리 PER 비교(전 상장사 분포, 코스피와 코스닥 중앙값 추이, 업종별 비교, 업종 안 분포). 고르면 그 회사가 어디쯤인지와 접힌 구역 둘(비교기업 위치 표, PER 회귀)', '재무분석: 고른 회사의 재무제표 분석', '평가 결과 › 요약: 결합 목표주가, 풋볼필드, 상대가치평가와 절대가치평가 핵심 값. 「자세히」로 각 탭에 감', '평가 결과 › 상대가치평가: 리서치한 평가가 있으면 결과, 배수 상세, 검증, 선정 근거. 없으면 Peer 비교', '평가 결과 › 절대가치평가: 고른 회사의 DCF 모델', '회사를 고르지 않은 재무분석과 평가 결과는 평가한 회사 목록. 줄을 누르면 그 회사로 감']],
+  ['탭', ['PER 시장: 회사를 고르지 않으면 시장과 업종끼리 PER 비교(전 상장사 분포, 코스피와 코스닥 중앙값 추이, 업종별 비교, 업종 안 분포). 고르면 그 회사가 어디쯤인지와 접힌 구역 둘(비교기업 위치 표, PER 회귀)', '업종 실적: 업종마다 매출, 영업이익, EBITDA, 순이익과 이익률. 고른 회사의 업종은 이름이 파랑', '재무분석: 고른 회사의 재무제표 분석', '평가 결과 › 요약: 결합 목표주가, 풋볼필드, 상대가치평가와 절대가치평가 핵심 값. 「자세히」로 각 탭에 감', '평가 결과 › 상대가치평가: 리서치한 평가가 있으면 결과, 배수 상세, 검증, 선정 근거. 없으면 Peer 비교', '평가 결과 › 절대가치평가: 고른 회사의 DCF 모델', '회사를 고르지 않은 재무분석과 평가 결과는 평가한 회사 목록. 줄을 누르면 그 회사로 감']],
   ['PER 시장 읽는 법', ['비상장 회사(이름 옆 「비상장」): 시장 데이터에 없어 회사 위치 없이 시장과 업종만 봄. 업종 안 분포는 그 회사 세부 업종. 요약과 절대가치평가의 현재가 자리는 최근 투자 라운드 주당 가격(예: 시리즈 C), 상승여력은 그 가격 대비. 재무분석 없음', '업종별 PER 비교의 줄을 누르면 업종 안 PER 분포가 그 업종으로 바뀜. 고른 줄은 파란 바탕, 고른 회사의 업종은 이름 옆 파란 점', '회사를 고르지 않았을 때 위 숫자: 시장 중앙값, 평균, 25～75%, 코스피와 코스닥 중앙값, PER 있는 종목 수', '고른 회사가 있을 때 위 숫자: 최근 4분기 PER, 추정 PER, 시장 안에서 PER이 낮은 쪽부터 몇 %에 있는지, 시장 중앙값, 업종별 비교에서 고른 분류의 중앙값, 시가총액. 추정 이익이 적자면 「적자」', '전체, 코스피, 코스닥과 최근 4분기 PER, 추정 PER 선택은 분포 두 칸, 업종별 비교, 위 숫자에 같이 적용. PER 추이는 늘 최근 4분기 PER', 'PER 분포: 코스피, 코스닥 전 종목(우선주, 스팩 제외) 가운데 PER 0～200배 종목을 구간별로 센 막대. 구간은 0, 3, 5, 8, 10, 13, 15, 20, 25, 30, 40, 50, 75, 200배에서 끊음. 실선은 중앙값, 점선은 평균, 파란 점선은 고른 회사이고 선마다 위에 이름표. PER이 없거나 200배 이상이면 선 없이 그림 아래에 적음', '업종별 PER 비교: 분류 단계(세부 업종과 FnGuide 소분류, 중분류, 대분류. 처음엔 세부 업종)와 순서를 고름. 한 줄에 업종, PER 25～75% 구간 막대(세로선은 중앙값), 1개월 상승률, PER 중앙값, 종목 수.', '순서: 기본 순서는 늘 같은 자리(세부 업종은 IT, 2차전지와 자동차, 콘텐츠, 산업재, 에너지와 소재, 헬스케어, 소비재, 금융 머리 아래, FnGuide는 대분류 순서 안에서 종목 수 순)이고 전부 보임. 1개월 상승률은 묶음 안 종목의 21거래일 상승률 중앙값이 높은 순, 거래대금은 최근 20거래일 거래대금 합이 큰 순(셋째 칸은 전체 거래대금 가운데 비중)이고 위 10개, 나머지는 펼쳐 봄. 보고 있는 업종이 10위 밖이면 맨 아래에 붙음', '파란 바탕 줄은 업종 안 분포로 보는 업종, 파란 점은 고른 회사 PER, 고른 회사의 업종은 이름 옆 파란 점', 'FnGuide 분류는 PER 있는 종목이 5곳 이상인 업종만(고른 회사와 누른 업종은 1곳이어도)', '세부 업종: 2차전지, 반도체, 화장품처럼 FnGuide 소분류와 다르게 나눈 50여 개 묶음. 네이버 테마를 묶어 만듦(2차전지는 소재, 장비, 전고체 등을 합침). 행사, 정책, 계절, 특정 회사, 지수 테마는 뺌. 한 종목이 여러 묶음에 듦. 회사를 고르지 않으면 전체, 고르면 그 회사가 든 묶음만', '업종 안 PER 분포: 업종별 비교에서 누른 업종의 종목만 모은 분포. 누르지 않았으면 고른 회사의 업종, 회사도 없으면 종목이 가장 많은 업종. 10곳 미만이면 회사별 PER 막대, 세로선은 중앙값', '업종 PER 추이: 업종 안 분포와 같은 업종의 최근 4분기 PER 중앙값(PER 0～200배, 그날 5곳 이상)과 코스피, 코스닥 중앙값(위 PER 추이와 같은 값, PER 2～500배, 금융 제외). 업종 구성은 지금 기준을 과거에도 그대로 씀(그 사이 상장, 업종 변경은 반영 안 됨). 과거는 손PB가 2016-05부터 모은 같은 네이버 PER(2025년까지 주 1회), 이동평균은 PER 추이와 같음', 'PER 추이: 고른 회사의 최근 4분기 PER과 그 회사 시장(코스피, 코스닥) 중앙값. 회사를 고르지 않으면 코스피와 코스닥 중앙값. 선 끝에 이름과 이동평균 마지막 값(좁은 화면은 값만 적고 위에 범례). 손PB와 같이 점이 200개 넘으면 10개, 아니면 4개씩 이동평균. 시장 중앙값은 PER 2～500배, 금융 업종 제외. 평일 16:30에 쌓고, 그 전 기록은 손PB가 2016-05부터 모은 같은 네이버 PER(시장 중앙값과 리서치 사례 회사만, 2025년까지는 주 1회)', '추이 위 숫자: 고른 회사가 있으면 지금, 기간 중 PER 중앙값(이동평균 전 값), 시장 중앙값. 없으면 코스피와 코스닥 지금 중앙값', '위치 표: 리서치한 평가가 있으면 대상과 국내 비교기업, 없으면 고른 회사와 상대가치평가 탭에서 넣은 Peer. 이익 성장률은 최근 4분기 PER ÷ 추정 PER − 1, 괴리는 회귀 적정 PER ÷ 지금 PER − 1', 'PER 회귀: 이익 성장률이 같을 때 시장이 주는 PER을 보는 보조 지표. 손PB 상대가치 화면과 같은 식. log(PER) = 상수 + 성장률 계수 × 이익 성장률 + 베타 계수 × 베타 + 업종 더미. 표본은 최근 4분기 PER 2～500배, 추정 PER 0～200배, 성장률 0～500%, 베타 −1～4인 회사, 업종 5곳 미만은 기준 업종. 가로축은 200%에서 자름. 성장률이 0 이하인 회사는 직접 넣으면 단순 회귀 곡선으로 계산']],
+  ['업종 실적 읽는 법', ['분류 단계: FnGuide 대분류, 중분류, 소분류(PER 시장 업종별 비교와 같은 분류). 중분류와 소분류는 이름 아래 작은 글씨가 상위 업종', '맨 위 전체 상장사 줄은 정렬과 상관없이 늘 맨 위', '회사 수 아래 작은 글씨는 영업이익이 0보다 작은 회사 수', '금액: 업종 안 회사 값의 평균 또는 중앙값, 단위 억원. 기간은 제목 옆 기준(예: TTM 2026-3Q는 2026년 3분기까지 최근 4분기 합)', 'EBITDA: 영업이익 + 감가상각비', '마진: 합계 기준은 업종 전체 이익 합 ÷ 매출 합, 평균과 중앙값은 회사별 이익률(매출 0 이하 회사 제외)의 평균과 중앙값. 큰 회사 비중이 크면 합계 기준이 평균과 크게 다름', '금융(은행, 증권, 보험, 창투사 등)은 매출과 영업이익 구조가 달라 EBITDA와 이익률을 「해당 없음」으로 둠', '머리글을 누르면 내림차순, 한 번 더 누르면 오름차순, 세 번째는 기본 순서(PER 시장과 같은 대분류 순서 안에서 회사 수 순). 값이 없는 줄은 맨 아래', '업종 줄을 누르면 그 업종 회사가 매출 큰 순(정렬을 골랐으면 그 열 순)으로 20곳 펼쳐지고, 「나머지 n곳」으로 전부 봄. 회사 줄의 회사 수 칸은 시장과 연결, 별도 구분이고 기준 기간이 다르면 그 기간도 적음. 회사 이름을 누르면 그 회사를 고름', '자료: 가치평가 폴더에서 만든 valuation_sector_fin.json']],
   ['상대가치평가', '비슷한 상장사들의 배수(PER, EV/EBITDA 등) 중앙값을 대상 회사 이익에 곱해 적정 주가를 봅니다. 비교기업 선정과 해외 배수, 시나리오 근거는 리서치로 채우고, 계산은 이 화면과 엑셀이 같은 식으로 합니다.'],
   ['바꿔 볼 수 있는 것', ['배수 표의 체크를 풀거나 켜면 그 회사를 빼거나 넣고 다시 계산', '비교기업 범위: 국내만, 해외만, 국내와 해외. 「국내와 해외 따로」 표는 범위와 상관없이 셋 다 보여 줌', '기준 기간: 최근 4분기, 올해 추정, 내년 추정', 'PER 10～50배만: 증권신고서 관행대로 PER이 10배 미만이거나 50배 초과인 비교기업을 PER 통계에서 뺌', '적용 결과 표의 조정(%): 할증은 +, 할인은 −', '처음 구성으로: 리서치에서 정한 구성으로 되돌림']],
   ['배수 정의', { table: [['배수', '분자', '분모'], ['PER', '시가총액', '지배주주 순이익'], ['PBR', '시가총액', '지배주주 자본'], ['EV/EBITDA', 'EV', 'EBITDA'], ['EV/EBIT', 'EV', '영업이익'], ['EV/Sales', 'EV', '매출']] }],
