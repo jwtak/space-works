@@ -668,6 +668,27 @@ async function mailBulk(act) {
 }
 
 /* 폴더별 개수와 실제 id. contact@는 열어 보고 권한이 없으면(403 등) 묶음을 숨긴 채 다시 묻지 않는다. 내가 만든 폴더 목록도 같이 새로 받는다 */
+/* 보내는 중이거나 막 보낸 초안(2026-11-25 사용자 "보낼 때마다 임시보관함에 1 뜨는 것 없애줘").
+   보내기는 초안을 만든 뒤 /send 하는데(답장·전달 초안, 큰 첨부 업로드 세션, 예약, contact@ 때문), Outlook이 보낸편지함으로 옮기기 전
+   몇 초 동안 임시보관함에 남아 숫자와 목록에 잡혔다. 옮겨지면 id가 바뀌어 404가 되므로 그때 뺀다. 3분 넘게 남으면 진짜 초안으로 다시 센다 */
+const MAIL_OUT = new Map(); // 초안 id → { key: 'drafts' | 'contact:drafts', box, at }
+const mailOutAdd = (id, box) => { if (id) MAIL_OUT.set(id, { key: box === 'contact' ? 'contact:drafts' : 'drafts', box, at: Date.now() }); };
+const mailOutIds = (key) => { // 그 임시보관함에서 뺄 초안 id: 막 보낸 것 + 지금 보내는 중인 쓰기 창 초안(첨부 올리는 동안 포함)
+  const ids = new Set([...MAIL_OUT].filter(([, o]) => o.key === key).map(([id]) => id));
+  const c = ui.mail?.compose;
+  if (c?.sending && c.draftId && (c.box === 'contact' ? 'contact:drafts' : 'drafts') === key) ids.add(c.draftId);
+  return ids;
+};
+const mailOutN = (key) => mailOutIds(key).size;
+async function mailOutCheck() {
+  await Promise.all([...MAIL_OUT].map(async ([id, o]) => {
+    if (Date.now() - o.at > 180000) { MAIL_OUT.delete(id); return; }
+    if (ui.mail.compose?.sending && ui.mail.compose.draftId === id) return; // 아직 보내는 중
+    try { const x = await G.get(`${mailMsgP(id, o.box)}?$select=isDraft`); if (x && x.isDraft === false) MAIL_OUT.delete(id); }
+    catch (e) { if (e.status === 404) MAIL_OUT.delete(id); }
+  }));
+}
+
 async function mailLoadCounts() {
   const m = ui.mail;
   try {
@@ -675,6 +696,8 @@ async function mailLoadCounts() {
     const keys = [...MAIL_FOLDERS, ...shared].map((f) => f.id);
     const res = await Promise.all(keys.map((k) => G.get(`${mailRoot(mailBoxOf(k))}/mailFolders/${encodeURIComponent(mailFid(k))}?$select=id,unreadItemCount,totalItemCount`).catch((e) => ({ err: e }))));
     keys.forEach((k, i) => { const r = res[i]; if (r && !r.err) { m.counts[k] = { unread: r.unreadItemCount, total: r.totalItemCount }; m.fids[k] = r.id; } });
+    await mailOutCheck();
+    for (const k of ['drafts', 'contact:drafts']) { const c = m.counts[k], n = mailOutN(k); if (c && n) c.total = Math.max(0, c.total - n); }
     const sr = res.slice(MAIL_FOLDERS.length);
     if (sr.some((r) => !r.err)) m.sharedOk = true;
     else if (sr.length && sr.every((r) => [400, 401, 403, 404].includes(r.err.status))) m.sharedOk = false; // 네트워크 오류면 다음에 다시
@@ -770,12 +793,14 @@ async function mailLoadList(page) {
     // 지운 뒤 마지막 페이지가 비었으면 앞 페이지로
     if (!j.value.length && pg > 1 && !m.q) { m.loading = false; mailLoadList(pg - 1); return; }
     j.value.forEach((x) => { x._box = mb; });
+    if (mailFid(m.folder) === 'drafts' && !m.q) { const out = mailOutIds(m.folder); if (out.size) j.value = j.value.filter((x) => !out.has(x.id)); }
     m.list = j.value;
     m.next = j['@odata.nextLink'] || null;
     if (m.q) { m.qPages[pg] = m.next; m.total = null; }
     else {
       const c = m.counts[m.folder];
       m.total = Number.isFinite(j['@odata.count']) ? j['@odata.count'] : m.filter === 'all' && c ? c.total : m.filter === 'unread' && c ? c.unread : null;
+      if (Number.isFinite(j['@odata.count']) && mailFid(m.folder) === 'drafts') m.total = Math.max(0, m.total - mailOutN(m.folder));
     }
     mailDrawList();
     if (pg === 1 && !m.q && m.filter === 'all') mailCacheSave(m.folder, j.value);
@@ -2351,6 +2376,7 @@ async function mailSend(c) {
       if (each) {
         for (const r of to.slice(1)) {
           const cp = await G.post(`${mp(id)}/copy`, { destinationId: 'drafts' });
+          mailOutAdd(cp.id, c.box);
           try {
             await G.patch(mp(cp.id), { toRecipients: [r], ccRecipients: [], bccRecipients: [] });
             await G.post(`${mp(cp.id)}/send`, {}, { type: 'none' });
@@ -2360,6 +2386,7 @@ async function mailSend(c) {
         await G.patch(mp(id), { toRecipients: [to[0]] });
       }
       await G.post(`${mp(id)}/send`, {}, { type: 'none' });
+      if (!c.sched) mailOutAdd(id, c.box); // 예약 메일은 보낼 때까지 남는 게 맞다
       toast(c.sched ? `${mailSchedLabel(c.sched)}에 보냅니다` : each ? `${to.length}명에게 보냈습니다` : '보냈습니다');
       c.sending = false;
       if (ui.mail.compose === c) { ui.mail.compose = null; mailAfterCompose(true); }
