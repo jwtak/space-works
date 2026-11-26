@@ -117,3 +117,16 @@
 }
 /* 완료 숨기기 켠 상태 */
 .pr-hide[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
+/* 하위 서류(항목을 누르면 펼치는 네모 체크 목록) */
+.pr-co li.pr-has { cursor: pointer; }
+.pr-sopen { display: inline-flex; align-items: center; gap: 2px; height: 24px; padding: 0 4px 0 8px; border: 1px solid var(--line2); border-radius: var(--r-full); background: var(--card); color: var(--text2); font-size: var(--fs-sm); font-weight: 500; font-variant-numeric: tabular-nums; cursor: pointer; }
+.pr-sopen:hover { border-color: var(--primary); color: var(--primary); }
+.pr-sopen.all { border-color: var(--primary); color: var(--primary); }
+.pr-sopen svg.i { transition: transform .15s; }
+.pr-sopen[aria-expanded="true"] svg.i { transform: rotate(90deg); }
+.pr-subs { margin-top: 8px; border-top: 1px solid var(--line); cursor: default; }
+.pr-sub { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--row); }
+.pr-sub:last-child { border-bottom: 0; padding-bottom: 0; }
+.pr-sub .pr-t { font-weight: 400; }
+.pr-sub.done .pr-t { color: var(--text3); }
+.pr-snone { color: var(--text3); font-size: var(--fs-sm); }

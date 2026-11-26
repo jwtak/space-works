@@ -4,6 +4,9 @@
        sections[{ title, kind: 'people'|'company', note, items[{ id, title, detail, due, na?[사람], owner? }] }] } },
      state: { <항목 id>: 사람 서류면 { <사람>: { s: 'todo'|'done'|'na', by, at } }, 회사 서류면 { owner, s, by, at } },
      memos: { <항목 id>: { t, by, at } } }  — 서류 줄마다 메모 하나(누구나 쓰고 고친다, 비우면 지움). 섹션의 folderLabel은 폴더 단추 글자(없으면 '회사 서류 폴더')
+   하위 서류(2026-11-26 사용자 「각 항목 누르면 어떤 서류 준비해야 되는지 네모 체크」): 회사 일 항목에 subs[{ id, title, detail }]를 두면
+     제목 옆 '서류 n/m' 단추와 줄 클릭으로 펼친다(펼침은 viewGet prep.subopen). 하위 체크는 state[<하위 id>] = { s, by, at } 자기 줄만,
+     다 체크돼도 상위 항목은 자동으로 체크하지 않는다. 담당과 마감은 상위 것을 따른다. 완료 숨기기를 켜면 체크된 하위 줄도 숨긴다
    날짜별 보기(2026-11-23, 법인 설립): L.byDate가 true면 '날짜별'과 '서류별'을 오간다(마지막 보기는 기기별 localStorage, 처음은 날짜별).
      자료는 그대로 섹션 하나이고, 날짜별은 항목의 due와 when('오전', '10시', '이후' 같은 때 표시)으로 묶어 그린다. due가 없으면 맨 끝 묶음.
      사람 서류 섹션 항목은 날짜 묶음 안에서도 사람마다 칸. 다 끝난 지난 날짜는 '지난 일정'으로 접고(펼침은 viewGet), 오늘 묶음은 파란 테두리, 오늘 뒤 첫 날짜는 '다음'.
@@ -110,12 +113,27 @@ function prPCell(it, p) {
     title="${esc(`${p}: ${PR_LABEL[c.s]}${c.by ? ` (${personName(c.by)} ${prWhen(c.at)})` : ''} · 누르면 ${PR_LABEL[PR_NEXT[c.s]]}`)}">${c.s === 'done' ? ico('done', 'sm') : c.s === 'na' ? '–' : ''}</button>`;
 }
 // 회사 일 한 줄: 체크, 내용, 담당
+const prSubOpen = () => new Set(viewGet('prep.subopen', []));
+const prSubDone = (sb) => PR.d.state[sb.id]?.s === 'done';
+// 하위 서류: 제목 옆 '서류 n/m' 단추(펼치기)와 펼친 목록
+function prSubs(it) {
+  const subs = it.subs || []; if (!subs.length) return { btn: '', list: '', open: false };
+  const open = prSubOpen().has(it.id), n = subs.filter(prSubDone).length, show = PR.hideNow ? subs.filter((sb) => !prSubDone(sb)) : subs;
+  const btn = `<button type="button" class="pr-sopen ${n === subs.length ? 'all' : ''}" data-subopen="${esc(it.id)}" aria-expanded="${open}" aria-label="${esc(`${it.title} 서류 ${n}/${subs.length}`)}">서류 ${n}/${subs.length}${ico('right', 'sm')}</button>`;
+  const list = !open ? '' : `<div class="pr-subs" role="list">${show.map((sb) => {
+    const d = prSubDone(sb), st = PR.d.state[sb.id];
+    return `<div class="pr-sub ${d ? 'done' : ''}" role="listitem"><button type="button" class="pr-cell s-${d ? 'done' : 'todo'}" data-sub="${esc(sb.id)}" aria-label="${esc(`${sb.title}: ${d ? '준비됨' : '미준비'}`)}"
+      title="${esc(d && st?.by ? `준비됨 (${personName(st.by)} ${prWhen(st.at)})` : '누르면 준비됨')}">${d ? ico('done', 'sm') : ''}</button>
+      <div class="pr-doc"><div class="pr-t">${esc(sb.title)}</div>${sb.detail ? `<div class="pr-det">${esc(sb.detail)}</div>` : ''}</div></div>`;
+  }).join('') || '<div class="pr-sub pr-snone">남은 서류 없음</div>'}</div>`;
+  return { btn, list, open };
+}
 function prCoLi(L, it, me, noDue) {
-  const c = prCo(it), opts = [...new Set([...(L.owners || []), ...(c.owner ? [c.owner] : [])])];
-  return `<li class="${c.s === 'done' ? 'done' : ''}">
+  const c = prCo(it), opts = [...new Set([...(L.owners || []), ...(c.owner ? [c.owner] : [])])], sb = prSubs(it);
+  return `<li class="${c.s === 'done' ? 'done' : ''}${sb.btn ? ' pr-has' : ''}${sb.open ? ' open' : ''}" data-pr-item="${esc(it.id)}">
     <button type="button" class="pr-cell s-${c.s === 'done' ? 'done' : 'todo'}" data-co="${esc(it.id)}" aria-label="${esc(`${it.title}: ${c.s === 'done' ? '준비됨' : '미준비'}`)}"
       title="${esc(c.s === 'done' && c.by ? `준비됨 (${personName(c.by)} ${prWhen(c.at)})` : '누르면 준비됨')}">${c.s === 'done' ? ico('done', 'sm') : ''}</button>
-    <div class="pr-doc"><div class="pr-t">${esc(it.title)}${prDue(it, c.s === 'done', noDue)}${prMemoBtn(it)}</div>${it.detail ? `<div class="pr-det">${esc(it.detail)}</div>` : ''}${prDueEdit(it)}${prMemo(it)}</div>
+    <div class="pr-doc"><div class="pr-t">${esc(it.title)}${sb.btn}${prDue(it, c.s === 'done', noDue)}${prMemoBtn(it)}</div>${it.detail ? `<div class="pr-det">${esc(it.detail)}</div>` : ''}${prDueEdit(it)}${prMemo(it)}${sb.list}</div>
     <select class="select pr-own ${c.owner ? '' : 'none'} ${c.owner && c.owner === me ? 'me' : ''}" data-own="${esc(it.id)}" aria-label="담당">
       <option value="">담당 미정</option>${opts.map((o) => `<option ${o === c.owner ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
   </li>`;
@@ -187,7 +205,7 @@ function prDraw() {
     <div class="pr-who co"><div class="pr-who-h"><b>회사 서류</b>${co.mine ? `<span>내 담당 ${co.mine}건 남음</span>` : ''}</div>
       <div class="pr-who-n"><b>${co.done}</b> / ${co.n}</div>${prBar(co.done, co.n)}</div>
   </section>`;
-  const hide = prHideOn(key);
+  const hide = prHideOn(key); PR.hideNow = hide;
   let secs = byDay ? prDays(L, me, hide) : L.sections.map((sec, si) => {
     const items = hide ? sec.items.filter((it) => !prItemDone(L, sec, it)) : sec.items;
     if (hide && !items.length) return '';
@@ -219,6 +237,18 @@ function prDraw() {
 
   root.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => { prViewSet(key, b.dataset.view); prDraw(); }));
   $('[data-hide]', root)?.addEventListener('click', () => { viewSet(`prep.hide.${key}`, !hide); prDraw(); $('[data-hide]', root)?.focus({ preventScroll: true }); });
+  const subToggle = (id) => { const o = prSubOpen(); if (o.has(id)) o.delete(id); else o.add(id); viewSet('prep.subopen', [...o]); prDraw(); root.querySelector(`[data-subopen="${CSS.escape(id)}"]`)?.focus({ preventScroll: true }); };
+  root.querySelectorAll('[data-subopen]').forEach((b) => b.addEventListener('click', () => subToggle(b.dataset.subopen)));
+  root.querySelectorAll('.pr-co li.pr-has').forEach((li) => li.addEventListener('click', (e) => { // 줄의 빈 곳을 눌러도 펼치고 접기(체크, 담당, 날짜, 메모, 하위 목록은 빼고)
+    if (e.target.closest('button, a, select, input, textarea, .pr-subs, .pr-medit, .pr-dedit, .pr-memo')) return;
+    subToggle(li.dataset.prItem);
+  }));
+  root.querySelectorAll('[data-sub]').forEach((b) => b.addEventListener('click', () => {
+    const id = b.dataset.sub, it = CSS.escape(b.closest('li')?.dataset.prItem || ''), to = PR.d.state[id]?.s === 'done' ? 'todo' : 'done', st = { s: to, ...prStamp() };
+    prAct((d) => { d.state[id] = st; });
+    // 다시 그린 뒤 같은 칸으로(완료 숨기기로 사라졌으면 같은 항목의 다음 칸, 없으면 '서류 n/m' 단추)
+    (root.querySelector(`[data-sub="${CSS.escape(id)}"]`) || root.querySelector(`li[data-pr-item="${it}"] [data-sub]`) || root.querySelector(`[data-subopen="${it}"]`))?.focus({ preventScroll: true });
+  }));
   $('[data-fold]', root)?.addEventListener('click', () => { viewSet('prep.past', !viewGet('prep.past', false)); prDraw(); });
   root.querySelectorAll('[data-p]').forEach((b) => b.addEventListener('click', () => {
     const id = b.dataset.id, p = b.dataset.p, it = L.sections.flatMap((s) => s.items).find((x) => x.id === id); if (!it) return;
