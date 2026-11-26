@@ -30,9 +30,64 @@
 .sf-co:hover b { color: var(--primary); text-decoration: underline; }
 .sf-tbl tr.sf-more td { padding-top: 0; padding-bottom: 0; }
 
+/* 적자 제외 */
+.sf-xl { display: inline-flex; align-items: center; gap: 8px; height: 34px; font-size: var(--fs-md); font-weight: 600; color: var(--text2); cursor: pointer; }
+.sf-xl input { width: 16px; height: 16px; margin: 0; accent-color: var(--primary); cursor: pointer; }
+
+/* 차트: 업종별 막대(왼쪽)와 고른 업종의 점 분포(오른쪽). 좁으면 점 분포가 위 */
+.sf-ch { display: flex; flex-direction: column; gap: 24px; }
+.sf-ch:not(.two) .sf-scbox { order: -1; }
+.sf-ch.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 32px; align-items: start; }
+.sf-ch.two .sf-scbox { position: sticky; top: 16px; }
+.sf-bars { display: flex; flex-direction: column; gap: 0; margin: 0 -8px; }
+.sf-br { display: grid; grid-template-columns: minmax(80px, 32%) minmax(0, 1fr) 56px 48px; align-items: center; gap: 12px; width: 100%; min-height: 32px; padding: 4px 8px; border: 0; border-radius: var(--r); background: none; font: inherit; text-align: left; cursor: pointer; }
+.sf-br:hover { background: var(--hover); }
+.sf-br.on { background: var(--primary-soft); }
+.sf-br .nm { overflow: hidden; font-size: var(--fs-md); color: var(--text2); white-space: nowrap; text-overflow: ellipsis; }
+.sf-br.all { margin-bottom: 4px; border-bottom-left-radius: 0; border-bottom-right-radius: 0; box-shadow: 0 1px 0 var(--line); }
+.sf-br.all .nm { font-weight: 700; color: var(--ink); }
+.sf-br.on .nm, .sf-br.me .nm { font-weight: 600; color: var(--primary); }
+.sf-br .bar { position: relative; height: 12px; }
+.sf-br .bar b { position: absolute; top: -4px; bottom: -4px; width: 1px; background: var(--line2); }
+.sf-br .bar i { position: absolute; top: 0; bottom: 0; min-width: 2px; border-radius: 0 var(--r-xs) var(--r-xs) 0; background: var(--primary); opacity: .55; }
+.sf-br .bar i.neg { border-radius: var(--r-xs) 0 0 var(--r-xs); }
+.sf-br.on .bar i { opacity: 1; }
+.sf-br.all .bar i { background: var(--text3); opacity: .8; }
+.sf-br.few .bar i { opacity: .2; }
+.sf-br.few .nm, .sf-br.few em { color: var(--text4); }
+.sf-br em { font-size: var(--fs-md); font-style: normal; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sf-br small { font-size: var(--fs-sm); color: var(--text3); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sf-bars .more-wrap { padding: 8px 8px 0; }
+
+.sf-sch { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; font-size: var(--fs-base); }
+.sf-sch b { font-weight: 700; color: var(--ink); }
+.sf-sch .meta { font-size: var(--fs-sm); color: var(--text3); }
+.sf-scw { position: relative; width: 100%; }
+.sf-sc { display: block; width: 100%; height: auto; touch-action: pan-y; }
+.sf-sc .gl { stroke: var(--row); stroke-width: 1; }
+.sf-sc .z { stroke: var(--line2); stroke-width: 1; }
+.sf-sc .yl { font-size: var(--fs-xs); fill: var(--text3); text-anchor: end; }
+.sf-sc .xl { font-size: var(--fs-xs); fill: var(--text3); text-anchor: middle; }
+.sf-sc .at { font-size: var(--fs-xs); fill: var(--text3); }
+.sf-sc .at.mid { text-anchor: middle; }
+.sf-sc circle.p { fill: var(--primary); fill-opacity: .35; }
+.sf-sc circle.p.big { fill-opacity: .6; }
+.sf-sc circle.p.out { fill: none; stroke: var(--primary); stroke-opacity: .5; stroke-width: 1; }
+.sf-sc circle.me { fill: var(--primary); stroke: var(--card); stroke-width: 2; }
+.sf-sc circle.hl { fill: none; stroke: var(--ink); stroke-width: 2; pointer-events: none; }
+.sf-sc .md { stroke: var(--text2); stroke-width: 2; stroke-dasharray: 4 4; }
+.sf-sc .ml { font-size: var(--fs-sm); font-weight: 600; fill: var(--text2); text-anchor: end; paint-order: stroke; stroke: var(--card); stroke-width: 3px; }
+.sf-sc .dl { font-size: var(--fs-sm); font-weight: 600; fill: var(--ink); paint-order: stroke; stroke: var(--card); stroke-width: 3px; }
+.sf-sc .dl.end { text-anchor: end; }
+.sf-tip { position: absolute; z-index: 2; display: flex; flex-direction: column; gap: 0; min-width: 120px; padding: 8px 12px; border-radius: var(--r); background: var(--ink); color: var(--card); font-size: var(--fs-sm); line-height: 20px; white-space: nowrap; pointer-events: none; transform: translate(12px, -50%); }
+.sf-tip[hidden] { display: none; }
+.sf-tip.l { transform: translate(calc(-100% - 12px), -50%); }
+.sf-tip b { font-weight: 600; }
+
 @media (max-width: 760px) {
   .sf-tbl { min-width: 824px; }
   .sf-tbl .st { width: 128px; }
   .sf-sort, .sf-h0 { height: 44px; }
   .sf-sort { white-space: normal; text-align: left; }
+  .sf-br { grid-template-columns: minmax(72px, 30%) minmax(0, 1fr) 52px 40px; gap: 8px; min-height: 40px; }
 }
