@@ -322,7 +322,7 @@ function flCopyLink(it) {
 
 /* ---------- 이름 바꾸기·새 폴더·삭제 ---------- */
 function flNameSheet(title, value, okLabel, onOk) {
-  openSheet(`<h3>${title}</h3><form class="fl-form"><input class="input" name="n" value="${esc(value)}" autocomplete="off" required maxlength="200">
+  openSheet(`<h3>${title}</h3><form class="fl-form"><input class="input" name="n" value="${esc(value)}" autocomplete="off" required maxlength="200" aria-label="이름">
     <div class="fl-form-act"><button type="button" class="btn grey" data-cancel>취소</button><button class="btn primary">${okLabel}</button></div></form>`, (el, close) => {
     const f = el.querySelector('form'), inp = f.n;
     el.querySelector('[data-cancel]').onclick = close;

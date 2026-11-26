@@ -29,7 +29,7 @@ const rqMine = (email) => {
   return !!a && a === b && (da === db || (RQ_DOMS.includes(da) && RQ_DOMS.includes(db)));
 };
 // 고치는 중인 글: rqS.edit = '요청id|의견id'(요청 본문은 의견id 없이 '요청id|')
-const rqEditForm = (id, rid) => `<form class="rq-ef" data-ef="${esc(id)}" data-er="${esc(rid)}"><textarea class="area" name="t" rows="3" required>${esc(rqS.editDraft)}</textarea>
+const rqEditForm = (id, rid) => `<form class="rq-ef" data-ef="${esc(id)}" data-er="${esc(rid)}"><textarea class="area" name="t" rows="3" required aria-label="내용">${esc(rqS.editDraft)}</textarea>
       <div class="rq-act"><button type="button" class="btn sm grey" data-ecancel>취소</button><button class="btn sm primary" ${rqS.busy ? 'disabled' : ''}>저장</button></div></form>`;
 const rqDrafting = () => [...document.querySelectorAll('#req textarea')].some((t) => t.value.trim());
 // 쓰던 의견, 고치던 글(원래 글과 다를 때)
@@ -99,7 +99,7 @@ function rqItemHTML(x) {
       <span class="chip ${done ? 'green' : 'blue'} rq-st">${done ? '반영 완료' : '요청'}</span></div>
     ${ed('') ? rqEditForm(x.id, '') : `<p class="rq-txt">${esc(x.text)}</p>`}
     ${(Array.isArray(x.replies) ? x.replies : []).filter(Boolean).map((r) => `<div class="rq-re"><div class="rq-meta"><b>${esc(r.by)}</b><span>${rqWhen(r.at)}</span>${r.edited ? '<span>수정됨</span>' : ''}${r.id && rqMine(r.email) && !ed(r.id) ? `<button type="button" class="rq-redit" data-edit="${esc(x.id)}" data-rid="${esc(r.id)}">수정</button>` : ''}</div>${ed(r.id) ? rqEditForm(x.id, r.id) : `<p class="rq-txt">${esc(r.text)}</p>`}</div>`).join('')}
-    ${rqS.reply === x.id ? `<form class="rq-rf" data-rf="${esc(x.id)}"><textarea class="area" name="t" rows="2" placeholder="의견을 입력하세요" required>${esc(rqS.replyDraft)}</textarea>
+    ${rqS.reply === x.id ? `<form class="rq-rf" data-rf="${esc(x.id)}"><textarea class="area" name="t" rows="2" placeholder="의견을 입력하세요" required aria-label="의견">${esc(rqS.replyDraft)}</textarea>
       <div class="rq-act"><button type="button" class="btn sm grey" data-rcancel>취소</button><button class="btn sm primary" ${rqS.busy ? 'disabled' : ''}>등록</button></div></form>` : ''}
     <div class="rq-tools">
       <button type="button" data-reply="${esc(x.id)}">의견 달기</button>
@@ -118,7 +118,7 @@ function rqDraw() {
   box.innerHTML = `<div class="rq-hd"><h2>요청사항</h2>
       <div class="rq-seg">${[['page', CRUMB[page] || '이 화면'], ['all', '전체']].map(([k, t]) => `<button type="button" data-scope="${k}" class="${rqS.scope === k ? 'on' : ''}">${esc(t)}</button>`).join('')}</div>
       <button type="button" class="iconbtn rq-x" data-rqx aria-label="닫기"><svg class="i" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></svg></button></div>
-    <form class="rq-new" id="rq-new"><textarea class="area" id="rq-t" rows="3" placeholder="${esc(RQ_HINT[page] || '예: 이런 기능이 있으면 좋겠습니다')}" required>${esc(draft)}</textarea>
+    <form class="rq-new" id="rq-new"><textarea class="area" id="rq-t" rows="3" aria-label="요청사항" placeholder="${esc(RQ_HINT[page] || '예: 이런 기능이 있으면 좋겠습니다')}" required>${esc(draft)}</textarea>
       <div class="rq-act"><button class="btn sm primary" ${rqS.busy ? 'disabled' : ''}>등록</button></div></form>
     <ul class="rq-list">${list.length ? list.map(rqItemHTML).join('') : '<li class="rq-none">아직 요청이 없습니다</li>'}</ul>`;
 }

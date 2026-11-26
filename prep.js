@@ -68,7 +68,7 @@ const prFolder = (p) => `#files/${p.split('/').map(encodeURIComponent).join('/')
 const prCell = (it, p) => PR.d.state[it.id]?.[p] || { s: (it.na || []).includes(p) ? 'na' : 'todo' };
 const prCo = (it) => ({ owner: it.owner || '', s: 'todo', ...(PR.d.state[it.id] || {}) });
 function prMemo(it) {
-  if (PR.edit === it.id) return `<div class="pr-medit"><textarea class="area" data-mtext rows="2" maxlength="500" placeholder="예: 11/12 하임에 원본 요청함, 다음 주 수령">${esc(PR.draft)}</textarea>
+  if (PR.edit === it.id) return `<div class="pr-medit"><textarea class="area" data-mtext rows="2" maxlength="500" aria-label="메모" placeholder="예: 11/12 하임에 원본 요청함, 다음 주 수령">${esc(PR.draft)}</textarea>
     <div class="pr-mbtns"><span>Ctrl+Enter 저장, 비우고 저장하면 지움</span><button type="button" class="btn sm ghost" data-mcancel>취소</button><button type="button" class="btn sm primary" data-msave="${esc(it.id)}">저장</button></div></div>`;
   const m = PR.d.memos[it.id];
   return m?.t ? `<button type="button" class="pr-memo" data-medit="${esc(it.id)}" title="눌러서 고치기"><span class="pr-mt">${esc(m.t)}</span><span class="pr-mw">${esc(personName(m.by))} ${prWhen(m.at)}</span></button>` : '';

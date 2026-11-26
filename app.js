@@ -877,9 +877,13 @@ function mfApply() {
 /* 키보드·화면낭독기 공통 처리(2026-11-26 규격 점검 4절). 화면마다 고치지 않고 그린 뒤 한 번에 붙인다.
    - 클릭으로만 열리던 줄(li.click, 표 tr.row, 기록 목록, 달력 일정)에 tabindex와 Enter·Space(data-kb 표시한 것만, 원래 키 처리가 있는 줄은 건드리지 않음)
    - 글자 없이 title만 있는 아이콘 단추·링크에 같은 이름의 aria-label
-   - .tabs·.seg 묶음의 고르는 단추(role=tab 아닌 것)에 aria-pressed(.on 과 같이 바뀜) */
+   - .seg 묶음의 고르는 단추(role=tab 아닌 것)에 aria-pressed(.on 과 같이 바뀜)
+   - 탭 줄(role=tablist, .tabs)과 하나만 고르는 .seg 묶음: 고른 단추만 Tab으로 들어가고 ←→ Home End로 옮기며 바로 고름(kbTabs)
+   - 이름 없는 입력 칸에 aria-label(바로 앞 for 없는 label 글자, 없으면 placeholder. kbName) */
 const KB_CLICK = 'li.click, tr.row, li[data-n], .it[data-item], .it2[data-item], .it[data-evid], .lnk, [data-v3-more], [data-edit]';
-const KB_TGL = ':is(.tabs, .seg, .mk-seg, .rq-seg) > button:not([role])';
+const KB_TGL = ':is(.seg, .mk-seg, .rq-seg) > button:not([role])';
+const KB_TABS = '[role=tablist], .tabs, .seg, .mk-seg, .rq-seg';
+const KB_IN = 'input:not([type=hidden]):not([type=file]), select, textarea';
 function kbFix(root) {
   root.querySelectorAll(KB_CLICK).forEach((el) => {
     if (el.hasAttribute('tabindex') || el.closest('a, button')) return;
@@ -887,8 +891,67 @@ function kbFix(root) {
     if (/^(SPAN|DIV|P)$/.test(el.tagName) && !el.hasAttribute('role')) el.setAttribute('role', 'button');
   });
   root.querySelectorAll('button[title]:not([aria-label]), a[title]:not([aria-label])').forEach((el) => { if (!el.textContent.trim()) el.setAttribute('aria-label', el.title); });
+  root.querySelectorAll(KB_TABS).forEach(kbTabs);
   root.querySelectorAll(KB_TGL).forEach(kbPress);
+  root.querySelectorAll(KB_IN).forEach(kbName);
 }
+function kbName(el) {
+  if (el.labels?.length || el.hasAttribute('aria-label') || el.hasAttribute('aria-labelledby')) return;
+  let t = '';
+  for (let n = el, d = 0; n && d < 3 && !t; n = n.parentElement, d++) { // .field 뼈대처럼 label 이 형제로만 붙은 칸
+    for (let s = n.previousElementSibling; s; s = s.previousElementSibling) if (s.tagName === 'LABEL' && !s.htmlFor && !s.querySelector(KB_IN)) { t = s.textContent.trim(); break; }
+    if (n.parentElement?.matches('form, .sheet, #page')) break;
+  }
+  t ||= el.placeholder || el.title || '';
+  if (t) el.setAttribute('aria-label', t);
+}
+const kbOn = (b) => (b.parentElement?.querySelector(':scope > button.on') ? b.classList.contains('on') : b.getAttribute('aria-selected') === 'true'); // .on 이 있으면 .on 이 기준(class 만 바꾸는 곳)
+const kbBtns = (g) => [...g.children].filter((c) => c.tagName === 'BUTTON');
+function kbTabs(g) { // 탭은 role=tab·aria-selected, .seg 는 aria-pressed 그대로. 고른 것이 하나일 때만(여럿 고르는 묶음은 그대로)
+  const bs = kbBtns(g); if (bs.length < 2) return;
+  const on = bs.filter(kbOn), tab = g.matches('[role=tablist], .tabs');
+  if (on.length > 1 || (!tab && !on.length)) { if (g.hasAttribute('data-kb-tabs')) { delete g.dataset.kbTabs; bs.forEach((b) => b.removeAttribute('tabindex')); } return; }
+  if (tab && g.getAttribute('role') !== 'tablist') g.setAttribute('role', 'tablist');
+  const cur = on[0] || bs.find((b) => !b.disabled) || bs[0];
+  g.dataset.kbTabs = '';
+  bs.forEach((b) => {
+    if (tab) {
+      if (b.getAttribute('role') !== 'tab') { b.setAttribute('role', 'tab'); b.removeAttribute('aria-pressed'); }
+      const v = String(kbOn(b) && b === cur); if (b.getAttribute('aria-selected') !== v) b.setAttribute('aria-selected', v);
+    }
+    const ti = b === cur ? 0 : -1; if (b.tabIndex !== ti) b.tabIndex = ti;
+  });
+}
+// 탭을 고르면 화면을 통째로 다시 그리는 곳이 많아 포커스가 body 로 빠짐 → 다시 그린 뒤 같은 단추를 찾아 포커스(3초 안)
+function kbWant(b) {
+  const g = b.parentElement, gi = [...document.querySelectorAll('[data-kb-tabs]')].indexOf(g), bi = kbBtns(g).indexOf(b);
+  const sel = [...b.attributes].filter((a) => a.name.startsWith('data-') && a.name !== 'data-kb').map((a) => `[${a.name}="${CSS.escape(a.value)}"]`).join('');
+  const t0 = performance.now();
+  const step = () => {
+    const a = document.activeElement;
+    if (!b.isConnected && (!a || a === document.body)) {
+      const gs = [...document.querySelectorAll('[data-kb-tabs]')];
+      let n = sel ? [...document.querySelectorAll(`button${sel}`)].find((x) => x.parentElement?.matches(KB_TABS)) : null;
+      if (!n && gs[gi]) n = kbBtns(gs[gi])[bi];
+      if (n) { kbTabs(n.parentElement); n.focus(); return; }
+    } else if (b.isConnected && a !== b) return; // 다시 그리지 않았고 포커스를 다른 데로 옮김
+    if (performance.now() - t0 < 3000) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+document.addEventListener('keydown', (e) => {
+  const b = e.target; if (b?.tagName !== 'BUTTON' || e.altKey || e.ctrlKey || e.metaKey || e.isComposing) return;
+  const g = b.parentElement; if (!g?.matches(KB_TABS)) return;
+  if (!g.hasAttribute('data-kb-tabs')) kbTabs(g);
+  if (!g.hasAttribute('data-kb-tabs')) return;
+  if (e.key === 'Enter' || e.key === ' ') { if (!kbOn(b)) kbWant(b); return; }
+  if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(e.key) || e.shiftKey) return;
+  const bs = kbBtns(g).filter((x) => !x.disabled && x.getClientRects().length), i = bs.indexOf(b); if (i < 0) return;
+  const n = bs[e.key === 'Home' ? 0 : e.key === 'End' ? bs.length - 1 : (i + (e.key === 'ArrowRight' ? 1 : -1) + bs.length) % bs.length];
+  e.preventDefault(); if (n === b) return;
+  n.focus();
+  if (!kbOn(n)) { kbWant(n); n.click(); }
+});
 function kbPress(b) { // 묶음 안에 고른 단추(.on)가 있을 때만 고르는 단추로 본다
   if (!b.parentElement?.querySelector(':scope > .on') && !b.hasAttribute('aria-pressed')) return;
   const v = String(b.classList.contains('on')); if (b.getAttribute('aria-pressed') !== v) b.setAttribute('aria-pressed', v);
@@ -898,8 +961,14 @@ document.addEventListener('keydown', (e) => {
   const el = e.target; if (!el?.matches?.('[data-kb]')) return;
   e.preventDefault(); el.click();
 });
-new MutationObserver((recs) => { // 고르는 단추의 .on 이 다시 그리지 않고 바뀌어도 aria-pressed 를 따라 바꿈
-  for (const r of recs) if (r.target.matches?.(KB_TGL)) kbPress(r.target);
+new MutationObserver((recs) => { // 고르는 단추의 .on 이 다시 그리지 않고 바뀌어도 aria-pressed·aria-selected·tabindex 를 따라 바꿈
+  const gs = new Set();
+  for (const r of recs) {
+    const t = r.target; if (t.tagName !== 'BUTTON') continue;
+    if (t.matches(KB_TGL)) kbPress(t);
+    if (t.parentElement?.matches(KB_TABS)) gs.add(t.parentElement);
+  }
+  gs.forEach(kbTabs);
 }).observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true });
 let mfQ = 0;
 new MutationObserver(() => { if (!mfQ) mfQ = requestAnimationFrame(() => { mfQ = 0; mfApply(); kbFix(PAGE); }); }).observe(PAGE, { childList: true, subtree: true });
@@ -1836,7 +1905,7 @@ async function openNote(name) {
       cur = { name, version: n.version, text: keep ? draft : n.text, dirty: keep, gen: 0, saving: null, conflict: keep, lf: !!n.lf };
     }
     if (!ed.isConnected) return;
-    ed.innerHTML = `<div class="bar"><button class="iconbtn m-only" type="button" id="note-back" aria-label="목록" style="width:44px;height:44px">${ico('left')}</button>${noteTag(cur.name)}<button class="nm nm-btn" type="button" id="note-nm" title="제목 고치기">${esc(noteTitle(cur.name))}</button>${(() => { const d = noteDealOf(cur.name); return d ? `<a class="note-deal" href="#deals/pipeline" data-pp-dn="${esc(d.id)}">${esc(d.name)}</a>` : ''; })()}<span class="st" id="nst">${cur.conflict ? NOTE_CONFLICT : cur.dirty ? '입력 중…' : '저장됨'}</span><button class="btn sm primary" type="button" id="note-save">저장</button></div><textarea id="nta" spellcheck="false"></textarea>`;
+    ed.innerHTML = `<div class="bar"><button class="iconbtn m-only" type="button" id="note-back" aria-label="목록" style="width:44px;height:44px">${ico('left')}</button>${noteTag(cur.name)}<button class="nm nm-btn" type="button" id="note-nm" title="제목 고치기">${esc(noteTitle(cur.name))}</button>${(() => { const d = noteDealOf(cur.name); return d ? `<a class="note-deal" href="#deals/pipeline" data-pp-dn="${esc(d.id)}">${esc(d.name)}</a>` : ''; })()}<span class="st" id="nst">${cur.conflict ? NOTE_CONFLICT : cur.dirty ? '입력 중…' : '저장됨'}</span><button class="btn sm primary" type="button" id="note-save">저장</button></div><textarea id="nta" spellcheck="false" aria-label="본문"></textarea>`;
     ed.querySelector('#note-nm').onclick = () => noteRenameStart(cur);
     ed.querySelector('#note-back').onclick = async () => { ui.noteOff?.(); ui.noteOff = null; await flushNote(); ui.noteOpen = false; renderNotes(); };
     const ta = ed.querySelector('#nta'), c = cur; ta.value = c.text;

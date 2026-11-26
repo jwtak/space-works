@@ -2106,7 +2106,7 @@ function mailOptions(btn) {
         <select class="select" id="op-m" aria-label="분">${Array.from({ length: 12 }, (_, i) => pad(i * 5)).map((v) => `<option value="${v}" ${v === s.m ? 'selected' : ''}>${v}분</option>`).join('')}</select></div>
       <div class="mail-opt-tz">GMT+09:00</div></div>
     <div class="mail-opt-g"><div class="mail-opt-t">서명</div>
-      <select class="select" id="op-sig" ${sig ? '' : 'disabled'}>${sig ? `<option value="1" ${c.sigOn ? 'selected' : ''}>메일 명함</option><option value="0" ${c.sigOn ? '' : 'selected'}>사용 안 함</option>` : '<option value="0">등록된 서명 없음</option>'}</select></div>
+      <select class="select" id="op-sig" aria-label="서명" ${sig ? '' : 'disabled'}>${sig ? `<option value="1" ${c.sigOn ? 'selected' : ''}>메일 명함</option><option value="0" ${c.sigOn ? '' : 'selected'}>사용 안 함</option>` : '<option value="0">등록된 서명 없음</option>'}</select></div>
     <div class="mail-opt-g"><div class="mail-opt-t">쓰기 옵션</div><label class="mail-opt-ck"><input type="checkbox" class="check" id="op-plain" ${c.plain ? 'checked' : ''}>일반 텍스트 모드</label></div>
     <div class="mail-opt-g"><div class="mail-opt-t">보내기 옵션</div><label class="mail-opt-ck"><input type="checkbox" class="check" id="op-imp" ${c.important ? 'checked' : ''}>중요!</label><label class="mail-opt-ck"><input type="checkbox" class="check" id="op-rcpt" ${c.receipt ? 'checked' : ''}>수신 확인 요청</label></div>
     <button type="button" class="btn primary sm mail-opt-ok" id="op-ok">확인</button>`;
