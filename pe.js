@@ -494,22 +494,29 @@ function peFilterHtml() {
 }
 
 /* ---------- 그리기 ---------- */
-function peBody() {
-  if (!peS.data) return '<div class="empty">아직 수집된 PE 앵글 자료가 없습니다.</div>';
+function peLists() {
   const heir = peS.grp === 'heir', row = (x) => (heir ? peHeirRow(x) : peDupRow(x));
   const [keep, skip] = peFv(heir ? peHeirList() : peDupList()), list = peSink(keep);
-  if (!list.length && !skip.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
-  // 처음엔 위 목록 100건만 그리고 '나머지 n건 보기'(ma.js와 같다). 컨택한 곳·관심 없음 묶음은 그대로 아래에. 보기 링크로 온 회사가 뒤쪽이면 전부
   const li = list.findIndex((x) => x.low), main = li < 0 ? list : list.slice(0, li), low = li < 0 ? [] : list.slice(li);
-  const all = peS.all === peSig() || (peS.focus != null && main.findIndex((x) => x.id === peS.focus) >= PE_PAGE);
-  if (all) peS.all = peSig();
-  const shown = all ? main : main.slice(0, PE_PAGE), rest = main.length - shown.length;
+  return { heir, row, list, main, low, skip };
+}
+function peBody() {
+  if (!peS.data) return '<div class="empty">아직 수집된 PE 앵글 자료가 없습니다.</div>';
+  const { heir, row, list, main, low, skip } = peLists();
+  if (!list.length && !skip.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
+  // 위 목록은 100건씩(더 보기 누를 때마다 100건을 아래에 붙임, 다시 그리지 않음). 컨택한 곳·관심 없음 묶음은 그대로 아래에. 보기 링크로 온 회사가 뒤쪽이면 그 회사까지
+  const sig = peSig(); let n = peS.lim?.sig === sig ? peS.lim.n : PE_PAGE;
+  const fi = peS.focus != null ? main.findIndex((x) => x.id === peS.focus) : -1;
+  if (fi >= n) n = Math.ceil((fi + 1) / PE_PAGE) * PE_PAGE;
+  peS.lim = { sig, n };
+  const shown = main.slice(0, n), rest = main.length - shown.length;
   return (heir ? PE_HEIR_HEAD : PE_DUP_HEAD) + shown.map(row).join('')
-    + (rest > 0 ? `<div class="pe-pagewrap"><button type="button" class="btn sm" data-pe-page>나머지 ${rest.toLocaleString('ko-KR')}건 보기</button></div>` : '')
+    + (rest > 0 ? `<div class="pe-pagewrap">${pePageBtn(rest)}</div>` : '')
     + low.map((x) => (x.low ? peLowRow(x) : row(x))).join('') + (skip.length ? fvSkipTail(skip, `pe-${peS.grp}`, row) : '');
 }
 const PE_PAGE = 100;
-// '나머지 보기'를 누른 조건(그룹·검색어·필터·정렬). 조건이 바뀌면 다시 100건부터
+const pePageBtn = (rest) => `<button type="button" class="btn sm" data-pe-page>${rest > PE_PAGE ? `${PE_PAGE}건 더 보기` : `나머지 ${rest}건 보기`}</button>${rest > PE_PAGE ? `<span class="pe-rest">남은 ${rest.toLocaleString('ko-KR')}건</span>` : ''}`;
+// 더 보기로 펼친 수와 그때 조건(그룹·검색어·필터·정렬). 조건이 바뀌면 다시 100건부터
 const peSig = () => { const s = peS[peS.grp]; return JSON.stringify([peS.grp, ...PE_VIEW[peS.grp].map((k) => s[k]), !!s.old, !!s.team, !!s.big]); };
 const peRowEl = (root, id) => [...root.querySelectorAll('.ipo-row[data-id]')].find((r) => r.dataset.id === id);
 const peRowHtml = (x) => (x.id.startsWith('heir:') ? peHeirRow(x) : peDupRow(x));
@@ -689,9 +696,14 @@ function peBind(root) {
     const pb = t.closest('[data-pe-pipe]'); if (pb) { pePipeAdd(pb); return; }
     // 이동은 링크(#deals/delist)가 한다. 그 전에 상폐 위험·CB 탭이 필터를 풀고 그 회사를 펼쳐 두게
     const mb = t.closest('[data-pe-more]'); if (mb) { mb.closest('.pe-sigbox')?.classList.add('pe-all'); mb.remove(); return; }
-    if (t.closest('[data-pe-page]')) { // 나머지 보기: 101번째 회사 이름으로 포커스를 옮긴다(단추는 사라짐)
-      peS.all = peSig(); peDraw();
-      peS.host?.querySelectorAll('#pe-body > .ipo-row[data-id]')[PE_PAGE]?.querySelector('.ipo-ttl')?.focus({ preventScroll: true });
+    if (t.closest('[data-pe-page]')) { // 더 보기: 다음 100건만 단추 앞에 붙이고 그 첫 회사 이름으로 포커스
+      const wrap = t.closest('.pe-pagewrap'), b = wrap?.parentElement; if (!b) return;
+      const { main, row } = peLists(), n0 = peS.lim?.n || PE_PAGE, add = main.slice(n0, n0 + PE_PAGE);
+      peS.lim = { sig: peSig(), n: n0 + add.length };
+      wrap.insertAdjacentHTML('beforebegin', add.map(row).join(''));
+      const rest = main.length - peS.lim.n;
+      if (rest > 0) wrap.innerHTML = pePageBtn(rest); else wrap.remove();
+      b.querySelectorAll(':scope > .ipo-row[data-id]')[n0]?.querySelector('.ipo-ttl')?.focus({ preventScroll: true });
       return;
     }
     const dl = t.closest('[data-pe-dl]'); if (dl) { if (typeof delistFocus === 'function') delistFocus(`delist:${dl.dataset.peDl}`); return; }

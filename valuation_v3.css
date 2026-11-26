@@ -99,7 +99,7 @@
 .v3-iw em { position: absolute; right: 12px; font-size: var(--fs-md); font-style: normal; color: var(--text3); pointer-events: none; }
 .v3-ci { display: block; min-width: 64px; }
 .v3-ci input { width: 100%; min-width: 0; height: 32px; padding: 0 8px; border: 1px solid var(--line); border-radius: var(--r-sm); background: var(--v3-edit); font: inherit; font-size: var(--fs-md); color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
-.v3-iw input:focus, .v3-ci input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); background: var(--card); }
+.v3-iw input:focus, .v3-ci input:focus { outline: none; border-color: var(--primary); box-shadow: var(--focus-ring); background: var(--card); }
 .v3-iw input.chg, .v3-ci input.chg { border-color: var(--primary); background: var(--primary-soft); }
 .v3-iw input:disabled, .v3-ci input:disabled { background: var(--hover); color: var(--text2); }
 .v3-iw input::placeholder, .v3-ci input::placeholder { color: var(--text3); }
@@ -884,7 +884,7 @@
 .v3p-mix > .mk-scroll { flex: 1 1 0; min-width: 0; }
 .v3p-mix .v3c-leg { display: inline-flex; margin: 0; font-size: inherit; color: inherit; }
 .v3p-memo { display: block; width: 100%; min-height: 120px; padding: 12px; border: 1px solid var(--line2); border-radius: var(--r); background: var(--card); font: inherit; font-size: var(--fs-base); line-height: 24px; color: var(--ink); resize: vertical; }
-.v3p-memo:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.v3p-memo:focus { outline: none; border-color: var(--primary); box-shadow: var(--focus-ring); }
 .v3p-memo::placeholder { color: var(--text3); }
 
 /* 상세: 단계별 근거. 긴 글은 한 줄 70자 안팎에서 끊음 */

@@ -76,7 +76,7 @@
 .mail-file .muted { font-size: var(--fs-sm); }
 .mail-file .iconbtn { width: 28px; height: 28px; }
 .mail-body { flex: 1; min-height: 280px; margin-top: 10px; padding: 14px 16px; border: 1px solid var(--line2); border-radius: var(--r); resize: vertical; outline: none; font-size: var(--fs-base); line-height: 22px; }
-.mail-body:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+.mail-body:focus { border-color: var(--primary); box-shadow: var(--focus-ring); }
 .mail-quote { margin-top: 12px; }
 .mail-quote .mail-frame { display: block; width: 100%; height: 160px; border: 0; } /* 높이는 mailFitQuote가 내용만큼 */
 /* 답장·전달: 입력 칸·서명·원문을 편집기 테두리 하나 안에(하이웍스처럼). 원문이 있으면 입력 칸 최소 높이는 빼서 서명 바로 아래 원문이 오게 */
@@ -114,7 +114,7 @@
 .mail-dhead h2, .mail-cnt, .mail-bar, .mail-ck, .mail-lstar, .mail-st, .mail-lclip, .mail-tm .d { display: none; }
 /* 주소 칸(칩 입력) — 데스크톱은 입력칸 모양 그대로 */
 .mail-tok { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 36px; padding: 3px 8px; border: 1px solid var(--line2); border-radius: var(--r); background: var(--card); cursor: text; }
-.mail-tok:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
+.mail-tok:focus-within { border-color: var(--primary); box-shadow: var(--focus-ring); }
 .mail-chips { display: contents; }
 .mail-tok-in { flex: 1; min-width: 120px; height: 28px; padding: 0 4px; border: 0; outline: none; background: transparent; }
 .mail-chip { display: inline-flex; align-items: center; gap: 2px; max-width: 100%; height: 26px; padding: 0 4px 0 10px; border-radius: var(--r-full); background: var(--fill); color: var(--ink); font-size: var(--fs-md); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

@@ -46,7 +46,7 @@
 .dcf-iw { position: relative; display: flex; align-items: center; min-width: 0; }
 .dcf-iw input { width: 100%; min-width: 0; height: 44px; padding: 0 40px 0 12px; border: 1px solid var(--line2); border-radius: var(--r); background: var(--card); font: inherit; font-size: var(--fs-lg); color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
 .dcf-iw.nu input { padding-right: 12px; }
-.dcf-iw input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-soft); }
+.dcf-iw input:focus { outline: none; border-color: var(--primary); box-shadow: var(--focus-ring); }
 .dcf-iw input.chg { border-color: var(--primary); background: var(--primary-soft); }
 .dcf-iw input:disabled { background: var(--hover); color: var(--text2); }
 .dcf-iw input::placeholder { color: var(--text3); }

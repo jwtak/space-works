@@ -522,6 +522,7 @@ function dcfBody(c, x) {
   return tabs + body;
 }
 function dcfDraw() {
+  if (dcfS.drawT) { clearTimeout(dcfS.drawT); dcfS.drawT = 0; }
   const host = $('#va-host'); if (!host || !host.hasAttribute('data-dcf')) return;
   if (dcfS.err) { host.innerHTML = `<div class="card"><div class="empty">${esc(dcfS.err)}</div></div>`; return; }
   const c = dcfCase();
@@ -530,9 +531,10 @@ function dcfDraw() {
   dcfS.cid = c.id;
   TAB_INFO.valuation_dcf = dcfInfo(c);
   const x = dcfModel(c);
-  const a = document.activeElement, fk = host.contains(a) ? a.dataset?.k : null, s0 = a?.selectionStart, s1 = a?.selectionEnd;
+  const a = document.activeElement, d = host.contains(a) ? a.dataset || {} : null, s0 = a?.selectionStart, s1 = a?.selectionEnd, q = CSS.escape;
+  const fk = !d ? null : d.k != null ? `[data-k="${q(d.k)}"]` : d.dcfSeg ? `[data-dcf-seg="${q(d.dcfSeg)}"][data-v="${q(d.v || '')}"]` : d.dcfSc ? `[data-dcf-sc="${q(d.dcfSc)}"]` : d.dcfGo ? `[data-dcf-go="${q(d.dcfGo)}"]` : a.id ? `#${q(a.id)}` : null; // 다시 그린 뒤 같은 칸, 단추에 초점
   host.innerHTML = dcfHead(c, x) + dcfMap(c, x) + dcfBody(c, x);
-  if (fk) { const el = host.querySelector(`[data-k="${CSS.escape(fk)}"]`); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(s0, s1); } catch { /* */ } } }
+  if (fk) { const el = host.querySelector(fk); if (el) { el.focus({ preventScroll: true }); if (d.k != null) try { el.setSelectionRange(s0, s1); } catch { /* */ } } }
   dcfSave();
 }
 
@@ -570,7 +572,8 @@ function dcfBind(host) {
     if (!el.matches('[data-k]')) return;
     const [o, k] = dcfPath(dcfSt(c), el.dataset.k);
     if (el.value === el.dataset.b) delete o[k]; else o[k] = el.value;
-    dcfS.typing = el.dataset.k; dcfDraw();
+    dcfS.typing = el.dataset.k;
+    clearTimeout(dcfS.drawT); dcfS.drawT = setTimeout(dcfDraw, 200); // 치는 동안은 모았다가 한 번 계산, 그림
   });
   host.addEventListener('focusout', (e) => { // 비운 칸은 나갈 때 처음 값으로, 못 읽는 칸은 「숫자 확인」. 다시 그리지 않아 바로 누른 단추가 안 사라짐
     const el = e.target; if (!el.matches?.('[data-k]')) return;

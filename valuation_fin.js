@@ -348,18 +348,24 @@ function finBind(root, code) {
     }
   });
   root.addEventListener('toggle', (e) => { const d = e.target; if (d.matches?.('[data-fin-grp]')) { finS.shut[d.dataset.finGrp] = !d.open; finSave(); } }, true);
-  const tipAt = (e) => { // 그림 위 값 풍선
-    const tip = finTip(), t = e.target.closest?.('[data-tip]');
+  let tipEv = null, tipRaf = 0;
+  const tipDo = () => { // 그림 위 값 풍선. 한 화면에 한 번만, 같은 칸이면 글과 크기를 다시 안 잼
+    tipRaf = 0;
+    const e = tipEv, tip = finTip(), t = e.target.closest?.('[data-tip]');
     if (!t) { tip.hidden = true; return; }
-    if (tip._for !== t) { tip.innerHTML = t.dataset.tip.split('|').map((s, i) => (i ? `<span>${esc(s)}</span>` : `<b>${esc(s)}</b>`)).join(''); tip._for = t; }
-    tip.hidden = false;
-    const w = tip.offsetWidth, h = tip.offsetHeight;
+    if (tip._for !== t || tip.hidden) {
+      if (tip._for !== t) { tip.innerHTML = t.dataset.tip.split('|').map((s, i) => (i ? `<span>${esc(s)}</span>` : `<b>${esc(s)}</b>`)).join(''); tip._for = t; }
+      tip.hidden = false;
+      tip._w = tip.offsetWidth; tip._h = tip.offsetHeight;
+    }
+    const w = tip._w, h = tip._h;
     tip.style.left = `${Math.max(8, Math.min(e.clientX + 12, innerWidth - w - 8))}px`;
     tip.style.top = `${e.clientY + 16 + h > innerHeight ? e.clientY - h - 12 : e.clientY + 16}px`;
   };
+  const tipAt = (e) => { tipEv = e; if (!tipRaf) tipRaf = requestAnimationFrame(tipDo); };
   root.addEventListener('pointermove', tipAt);
   root.addEventListener('pointerdown', tipAt);
-  root.addEventListener('pointerleave', () => { finTip().hidden = true; });
+  root.addEventListener('pointerleave', () => { if (tipRaf) { cancelAnimationFrame(tipRaf); tipRaf = 0; } finTip().hidden = true; });
 }
 
 // 가치평가 화면의 재무분석 탭이 부름: renderFin($('#va-host'), 종목코드). 코드를 안 주면 가장 최근 사례

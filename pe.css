@@ -112,5 +112,6 @@
 }
 
 /* 오너기업·중복상장 목록 '나머지 n건 보기'(ma.css .ma-morewrap과 같다) */
-.pe-pagewrap { padding: 16px 24px; border-top: 1px solid var(--row); }
+.pe-pagewrap { display: flex; align-items: center; gap: 12px; padding: 16px 24px; border-top: 1px solid var(--row); }
+.pe-rest { color: var(--text3); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
 @media (max-width: 760px) { .pe-pagewrap { padding: 16px; } }

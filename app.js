@@ -95,6 +95,7 @@ function openSheet(html, mount, cls = '') { // 아래에서 올라오는 패널(
   const sheet = wrap.querySelector('.sheet'), untrap = dlgTrap(sheet);
   const off = pushLayer(() => close(true), () => close(true));
   if (mount) mount(sheet, close);
+  kbFix(sheet);
   return close;
 }
 const ico = (n, cls = '') => `<svg class="i ${cls}" aria-hidden="true" focusable="false"><use href="#i-${n}"/></svg>`;
@@ -539,6 +540,7 @@ const CRUMB = { home: '대시보드', todos: '할 일', calendar: '일정', mail
 function render() {
   if (!S) return; // 로그인·데이터 읽기 전 hashchange
   let r = route();
+  if (r === 'news' || r === 'pipeline') { r = `deals/${r}`; history.replaceState(null, '', `#${r}`); } // 주소에 #pipeline, #news만 쳐도 그 화면으로(전엔 고른 탭이 없어 멈춤)
   if (r === 'deals' || r.startsWith('deals/')) { ui.dealTab = dealSub(r.slice(6)); r = DEAL_PAGE[ui.dealTab] || 'deals'; } // #deals/ipo → 딜소싱 > 상장 > 신규상장, #deals/news → 뉴스
   if (r.startsWith('valuation/')) r = 'valuation'; // 가치평가 > 상대가치평가(뒤에 DCF)
   if (r.startsWith('market/')) r = 'market'; // 시장동향 > 공모주 통계·PE 동향
@@ -826,7 +828,7 @@ function dealPe(g) {
   return (host) => { if (peS.grp !== g) { peS.grp = g; viewSet('pe.grp', g); } return renderPe(host); };
 }
 function renderDeals() {
-  const k = ui.dealTab, page = DEAL_PAGE[k] || 'deals', grp = DEAL_GROUPS.find((g) => g[3].includes(k));
+  const k = DEAL_SCREENS[ui.dealTab] ? ui.dealTab : (ui.dealTab = dealSub('')), page = DEAL_PAGE[k] || 'deals', grp = DEAL_GROUPS.find((g) => g[3].includes(k));
   const btn = (href, [t, i], on) => `<button type="button" role="tab" data-dt="${href}" aria-selected="${on}" class="${on ? 'on' : ''}">${i ? ico(i) : ''}${t}</button>`;
   let segs = '';
   if (grp) {
@@ -872,16 +874,45 @@ function mfApply() {
     pri.classList.toggle('mf-closed', !open); secs.forEach((x) => x.classList.toggle('mf-closed', !open));
   });
 }
+/* 키보드·화면낭독기 공통 처리(2026-11-26 규격 점검 4절). 화면마다 고치지 않고 그린 뒤 한 번에 붙인다.
+   - 클릭으로만 열리던 줄(li.click, 표 tr.row, 기록 목록, 달력 일정)에 tabindex와 Enter·Space(data-kb 표시한 것만, 원래 키 처리가 있는 줄은 건드리지 않음)
+   - 글자 없이 title만 있는 아이콘 단추·링크에 같은 이름의 aria-label
+   - .tabs·.seg 묶음의 고르는 단추(role=tab 아닌 것)에 aria-pressed(.on 과 같이 바뀜) */
+const KB_CLICK = 'li.click, tr.row, li[data-n], .it[data-item], .it2[data-item], .it[data-evid], .lnk, [data-v3-more], [data-edit]';
+const KB_TGL = ':is(.tabs, .seg, .mk-seg, .rq-seg) > button:not([role])';
+function kbFix(root) {
+  root.querySelectorAll(KB_CLICK).forEach((el) => {
+    if (el.hasAttribute('tabindex') || el.closest('a, button')) return;
+    el.tabIndex = 0; el.dataset.kb = '';
+    if (/^(SPAN|DIV|P)$/.test(el.tagName) && !el.hasAttribute('role')) el.setAttribute('role', 'button');
+  });
+  root.querySelectorAll('button[title]:not([aria-label]), a[title]:not([aria-label])').forEach((el) => { if (!el.textContent.trim()) el.setAttribute('aria-label', el.title); });
+  root.querySelectorAll(KB_TGL).forEach(kbPress);
+}
+function kbPress(b) { // 묶음 안에 고른 단추(.on)가 있을 때만 고르는 단추로 본다
+  if (!b.parentElement?.querySelector(':scope > .on') && !b.hasAttribute('aria-pressed')) return;
+  const v = String(b.classList.contains('on')); if (b.getAttribute('aria-pressed') !== v) b.setAttribute('aria-pressed', v);
+}
+document.addEventListener('keydown', (e) => {
+  if ((e.key !== 'Enter' && e.key !== ' ') || e.isComposing || e.repeat) return;
+  const el = e.target; if (!el?.matches?.('[data-kb]')) return;
+  e.preventDefault(); el.click();
+});
+new MutationObserver((recs) => { // 고르는 단추의 .on 이 다시 그리지 않고 바뀌어도 aria-pressed 를 따라 바꿈
+  for (const r of recs) if (r.target.matches?.(KB_TGL)) kbPress(r.target);
+}).observe(document.body, { attributes: true, attributeFilter: ['class'], subtree: true });
 let mfQ = 0;
-new MutationObserver(() => { if (!mfQ) mfQ = requestAnimationFrame(() => { mfQ = 0; mfApply(); }); }).observe(PAGE, { childList: true, subtree: true });
+new MutationObserver(() => { if (!mfQ) mfQ = requestAnimationFrame(() => { mfQ = 0; mfApply(); kbFix(PAGE); }); }).observe(PAGE, { childList: true, subtree: true });
 PAGE.addEventListener('change', () => requestAnimationFrame(mfApply));
 
 function segFit(seg) {
   const on = seg?.querySelector('.on'); if (!on) return;
   const fit = () => { seg.classList.toggle('ovf', seg.scrollWidth > seg.clientWidth + 1); if (seg.scrollWidth > seg.clientWidth) seg.scrollLeft += on.getBoundingClientRect().left - seg.getBoundingClientRect().left - (seg.clientWidth - on.offsetWidth) / 2; };
   fit();
-  let w = seg.clientWidth; // 자료가 늦게 들어와 본문 세로 스크롤바가 생기면 탭 줄 폭이 줄어 끝 탭이 잘리므로 다시 맞춘다
-  if (window.ResizeObserver) new ResizeObserver(() => { if (seg.clientWidth !== w) { w = seg.clientWidth; fit(); } }).observe(seg);
+  seg._w = seg.clientWidth; seg._fit = fit; // 자료가 늦게 들어와 본문 세로 스크롤바가 생기면 탭 줄 폭이 줄어 끝 탭이 잘리므로 다시 맞춘다
+  // fit 이 .ovf 로 안쪽 여백을 바꾸면 같은 화면 안에서 크기 알림이 또 생겨 'ResizeObserver loop' 경고가 나므로, 바깥 폭(border-box)만 보고 다음 화면에서 맞춘다
+  if (window.ResizeObserver && !seg._ro) { let q = 0; seg._ro = new ResizeObserver(() => { if (!q) q = requestAnimationFrame(() => { q = 0; if (seg.isConnected && seg.clientWidth !== seg._w) { seg._w = seg.clientWidth; seg._fit(); } }); }); seg._ro.observe(seg, { box: 'border-box' }); }
+  if (seg._wh) return; seg._wh = 1; // 같은 탭 줄을 다시 맞출 때 바퀴 처리가 겹치지 않게
   seg.addEventListener('wheel', (e) => {
     const max = seg.scrollWidth - seg.clientWidth, d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
     if (max <= 0 || !d || Math.abs(e.deltaX) > Math.abs(e.deltaY) || (d < 0 && seg.scrollLeft <= 0) || (d > 0 && seg.scrollLeft >= max - 1)) return;
