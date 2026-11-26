@@ -2,6 +2,19 @@
    회사(spaceinve.com) 계정이면 누구나 로그인하고, 할 일·기록·메일·일정은 각자 계정 안의 것만 본다.
    단, 팀 회의록·팀 할 일(맡기기)은 팀 파일함, 팀 캘린더는 owner 보조 캘린더에 세 사람이 같이 쓴다(2026-11-12).
    딜소싱 수집 자료(events.json·ipo.json)만 만든 사람(owner) OneDrive에서 읽기 전용 공유로 읽는다. 서버는 거치지 않는다. */
+
+/* 숫자 글자 만들기 빠르게(2026-11-26 렉 점검): n.toLocaleString('ko-KR', {…})은 부를 때마다 Intl 형식기를 새로 만들어 한 번에 13µs쯤 든다.
+   표 하나에 수천 번 불러 화면을 열 때마다 40ms 넘게 걸렸으므로, 같은 옵션의 형식기를 한 번만 만들어 다시 씀(결과 글자는 같음) */
+(() => {
+  const orig = Number.prototype.toLocaleString, cache = new Map();
+  Number.prototype.toLocaleString = function (loc, opt) {
+    if (loc !== 'ko-KR' || (opt != null && typeof opt !== 'object')) return orig.call(this, loc, opt);
+    const k = opt ? JSON.stringify(opt) : '';
+    let f = cache.get(k);
+    if (!f) { try { f = new Intl.NumberFormat('ko-KR', opt || undefined); } catch { return orig.call(this, loc, opt); } cache.set(k, f); }
+    return f.format(this);
+  };
+})();
 const CFG = {
   clientId: '2c67e04d-64be-427a-a651-4fbc5f7bdb22',
   authority: 'https://login.microsoftonline.com/7ab0e21f-beca-4d6d-8954-f7decc63ceb3',

@@ -1401,7 +1401,30 @@ function rdBody(tab) {
   if (!list.length && !tail) return `<div class="empty">조건에 맞는 ${tab === 'yesim' || pe || co ? '회사가' : tab === 'sell' ? '신호가' : '딜이'} 없습니다.</div>`;
   // 예심청구 전체는 주관사 선정(선정일)과 예심(청구일)이 섞이므로 첫 칸 머리를 '날짜'로
   const head = pe ? RD_PE_HEAD : co ? RD_CO_HEAD : tab !== 'yesim' ? RD_HEAD[tab] : s.f === 'mandate' ? RD_MN_HEAD : s.f === 'all' ? RD_YS_HEAD.replace('청구일', '날짜') : RD_HEAD[tab];
-  return head + list.map((x) => (x.grp === '__low' ? rdLowRow(x) : RD_ROW[tab](x))).join('') + tail;
+  // 위 목록은 100건씩(펀드 만기 VC 앵글이 1,400곳 넘어 한 번에 그리면 화면을 열 때마다 0.2초 넘게 멈춤). 더 보기는 다시 그리지 않고 아래에 붙임. 보기 링크로 온 회사가 뒤쪽이면 그 회사까지
+  const { main, low } = rdCut(list), sig = rdSig(tab);
+  let n = s.lim?.sig === sig ? s.lim.n : RD_PAGE;
+  const fi = s.focus != null ? main.findIndex((x) => x.grp == null && String(x.id) === String(s.focus)) : -1;
+  if (fi >= n) n = Math.ceil((fi + 1) / RD_PAGE) * RD_PAGE;
+  s.lim = { sig, n };
+  const rest = main.slice(n).filter((x) => x.grp == null).length, row = rdRowFn(tab);
+  return head + main.slice(0, n).map(row).join('') + (rest > 0 ? `<div class="rd-pagewrap">${rdPageBtn(rest)}</div>` : '') + low.map(row).join('') + tail;
+}
+const RD_PAGE = 100;
+const rdSig = (tab) => JSON.stringify([tab, ...RD_VIEW[tab].map((k) => rdS[tab][k])]);
+const rdRowFn = (tab) => (x) => (x.grp === '__low' ? rdLowRow(x) : RD_ROW[tab](x));
+const rdCut = (list) => { const li = list.findIndex((x) => x.grp === '__low'); return { main: li < 0 ? list : list.slice(0, li), low: li < 0 ? [] : list.slice(li) }; };
+const rdPageBtn = (rest) => `<button type="button" class="btn sm" data-rd-page>${rest > RD_PAGE ? `${RD_PAGE}건 더 보기` : `나머지 ${rest}건 보기`}</button>${rest > RD_PAGE ? `<span class="rd-rest">남은 ${rest.toLocaleString('ko-KR')}건</span>` : ''}`;
+function rdPageMore(btn) { // 더 보기: 다음 100건을 단추 앞에 붙이고 그 첫 회사 이름으로 포커스
+  const tab = rdS.tab, s = rdS[tab], wrap = btn.closest('.rd-pagewrap'); if (!wrap || !s?.data) return;
+  const [raw] = rdSplitSkip(tab, RD_LIST[tab]());
+  const { main } = rdCut(rdSink(tab, tab === 'bids' ? rdBidsGroups(raw) : raw)), n0 = s.lim?.n || RD_PAGE, add = main.slice(n0, n0 + RD_PAGE);
+  s.lim = { sig: rdSig(tab), n: n0 + add.length };
+  wrap.insertAdjacentHTML('beforebegin', add.map(rdRowFn(tab)).join(''));
+  const rest = main.slice(s.lim.n).filter((x) => x.grp == null).length;
+  if (rest > 0) wrap.innerHTML = rdPageBtn(rest); else wrap.remove();
+  const first = add.find((x) => x.grp == null);
+  if (first) rdRowEl(rdS.host, String(first.id))?.querySelector('.ipo-ttl')?.focus({ preventScroll: true });
 }
 
 /* 다시 그릴 때(다른 분 저장 합치기·저장 실패 되돌리기 등) 쓰고 있던 메모 칸을 지킨다 — ipo.js ipoDraw와 같은 방식.
@@ -1559,6 +1582,7 @@ function rdBind(root, tab) {
   const segOn = (sel, on) => root.querySelectorAll(sel).forEach((b) => { b.classList.toggle('on', b === on); b.setAttribute('aria-pressed', b === on); });
   root.addEventListener('click', (ev) => {
     const t = ev.target;
+    const pg = t.closest('[data-rd-page]'); if (pg) { rdPageMore(pg); return; }
     const fb = t.closest('[data-rd-f]');
     if (fb) { s.f = fb.dataset.rdF; segOn('[data-rd-f]', fb); rdDraw(); return; }
     const ab = t.closest('[data-rd-ang]');

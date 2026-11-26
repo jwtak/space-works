@@ -300,3 +300,7 @@
 #rd-root .ipo-row:not(.open) { content-visibility: auto; contain-intrinsic-size: auto 66px; }
 @media (min-width: 761px) { #rd-root.rd-sell .ipo-row:not(.open) { contain-intrinsic-size: auto 84px; } }
 @media (max-width: 760px) { #rd-root .ipo-row:not(.open) { contain-intrinsic-size: auto 78px; } }
+/* 목록 100건씩 더 보기(pe.css .pe-pagewrap과 같다) */
+.rd-pagewrap { display: flex; align-items: center; gap: 12px; padding: 16px 24px; border-top: 1px solid var(--row); }
+.rd-rest { color: var(--text3); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+@media (max-width: 760px) { .rd-pagewrap { padding: 16px; } }
