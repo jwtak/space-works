@@ -54,7 +54,7 @@
 .pr-madd:hover { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
 /* PC: 행마다 붙는 '메모' 버튼은 그 행에 마우스를 올리거나 포커스했을 때만 */
 @media (hover: hover) and (min-width: 761px) {
-  .pr-tbl tr:not(:hover):not(:focus-within) .pr-madd, .pr-co li:not(:hover):not(:focus-within) .pr-madd { visibility: hidden; }
+  .pr-tbl tr:not(:hover):not(:focus-within) .pr-madd, .pr-co li:not(:hover):not(:focus-within) .pr-madd { opacity: 0; } /* 숨겨도 Tab으로 닿고, 날짜 고치기 취소 뒤 포커스가 돌아오게 visibility 대신 opacity */
 }
 .pr-memo { display: block; width: 100%; text-align: left; margin-top: 6px; padding: 6px 10px; border: 0; border-radius: var(--r); background: #FFF8EC; cursor: pointer; font-size: var(--fs-md); line-height: 19px; }
 .pr-memo:hover { background: #FCEFD6; }
