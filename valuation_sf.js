@@ -1,6 +1,6 @@
 /* 투자업무 › 가치평가 › 업종 실적(#valuation/sf, 2026-11-26 사용자 「기업들 매출, 영업이익, 에비따, 당기순이익, 마진율까지 해서 각 업종의 평균」).
-   FnGuide 분류(대분류 sector, 중분류 industryGroup, 소분류 industry, PER 시장 탭과 같은 단계)마다 회사 수, 영업적자 수, 매출, 영업이익, EBITDA, 순이익(평균 또는 중앙값),
-   영업이익률, EBITDA 마진, 순이익률(합계 기준, 평균, 중앙값). 맨 위는 전체 상장사. 머리글을 누르면 정렬(내림 → 오름 → 기본 순서), 업종 줄을 누르면 그 업종 회사 목록.
+   FnGuide 분류(대분류 sector, 중분류 industryGroup, 소분류 industry, PER 시장 탭과 같은 단계)마다 회사 수, 영업적자 수, 매출, 영업이익, EBITDA, 순이익(중앙값, 평균, 합계. 처음엔 중앙값),
+   영업이익률, EBITDA 마진, 순이익률(합계 기준, 평균, 중앙값). 맨 위는 전체 상장사, 맨 아래는 업종 미지정(FnGuide 업종 없는 '미분류', 11/26 사용자 「추천대로」). 머리글을 누르면 정렬(내림 → 오름 → 기본 순서), 업종 줄을 누르면 그 업종 회사 목록.
    금융(financial: true)은 EBITDA와 마진 칸 '해당 없음'. 데이터는 data/valuation_sector_fin.json(가치평가 폴더, 형식은 작업 지시의 계약: groups, all, cols, rows).
    valuation.js 전역(vaS, vaSave, vaSeg, vaNum, vaSec, vaCode, vaRow, VA_SEC_ORD)과 market.css .mk-tbl 을 쓴다. */
 const SF_FILE = 'data/valuation_sector_fin.json';
@@ -13,7 +13,9 @@ const SF_MG = { opm: 'op', ebitdam: 'ebitda', npm: 'ni' }; // 회사 줄 마진 
 const SF_ROWS = 20; // 펼친 업종에 처음 보이는 회사 수
 const SF_FS = { CFS: '연결', OFS: '별도' };
 const sfBasis = (b) => String(b).replace(/^TTM (\d{4})-(\d{2})$/, (m, y, mm) => `TTM ${y}-${Math.ceil(+mm / 3)}Q`); // 회사 줄 'TTM 2026-09'를 머리 'TTM 2026-3Q' 꼴로
-vaS.sf = { lv: 'sector', amt: 'mean', mg: 'median', k: null, dir: -1, open: {}, more: {}, ...(vaS.sf || {}) };
+vaS.sf = { lv: 'sector', amt: 'median', mg: 'median', k: null, dir: -1, open: {}, more: {}, ...(vaS.sf || {}) };
+if (vaS.sf.v !== 2) Object.assign(vaS.sf, { amt: 'median', v: 2 }); // 11/26 오후 금액 기본을 중앙값으로. 오전에 저장된 '평균'을 한 번 덮음
+const SF_NONE = '미분류', sfName = (n) => (n === SF_NONE ? '업종 미지정' : n), sfLvOf = (y, lv) => y[lv] || SF_NONE; // 업종 없는 회사(데이터 이름 '미분류')
 
 function sfLoad() {
   if (vaS.sfAt && Date.now() - vaS.sfAt < VA_TTL) return Promise.resolve();
@@ -71,7 +73,8 @@ function sfTab() {
   const si = (sec) => { const k = VA_SEC_ORD.indexOf(sec); return k < 0 ? 99 : k; };
   const secOf = (g) => (lv === 'sector' ? g.name : lv === 'industryGroup' ? g.parent : d.list.find((y) => y.industry === g.name)?.sector);
   const base = (a, b) => si(secOf(a)) - si(secOf(b)) || b.n - a.n; // 기본 순서: PER 시장과 같은 대분류 순서 안에서 회사 수 순
-  const gs = sfSort((d.groups || []).filter((g) => g.level === lv), sfGv, base);
+  const lg = (d.groups || []).filter((g) => g.level === lv);
+  const gs = [...sfSort(lg.filter((g) => g.name !== SF_NONE), sfGv, base), ...lg.filter((g) => g.name === SF_NONE)]; // 업종 미지정은 정렬과 상관없이 맨 아래
   const th = (k, label, tip, cls = '') => {
     const on = s.k === k;
     return `<th class="${cls}" aria-sort="${on ? (s.dir > 0 ? 'ascending' : 'descending') : 'none'}"${tip ? ` title="${esc(tip)}"` : ''}><button type="button" class="sf-sort${on ? ' on' : ''}" data-sf-sort="${k}">${label}<span class="sf-dir" aria-hidden="true">${on ? (s.dir > 0 ? '▴' : '▾') : ''}</span></button></th>`;
@@ -79,16 +82,16 @@ function sfTab() {
   const head = `<thead><tr><th class="st"><span class="sf-h0">업종</span></th>${th('n', '회사 수', '아래 작은 글씨는 영업적자 회사 수')}${SF_COLS.map(([k, l, , , t]) => th(k, l, k === 'ebitda' && d.rule?.ebitda ? d.rule.ebitda : t)).join('')}</tr></thead>`;
   const gid = (g) => `${g.level}|${g.name}`;
   const grow = (g, all) => {
-    const id = gid(g), open = !!s.open[id], mine = !!me && (all || me[lv] === g.name);
+    const id = gid(g), open = !!s.open[id], mine = !!me && (all || sfLvOf(me, lv) === g.name);
     const sub = all ? '' : lv !== 'sector' && g.parent && g.parent !== g.name ? `<small>${esc(g.parent)}</small>` : '';
-    let h = `<tr class="sf-g${open ? ' open' : ''}${all ? ' sf-all' : ''}${mine && !all ? ' me' : ''}" data-sf-open="${esc(id)}"><td class="st"><button type="button" class="sf-open" aria-expanded="${open}" title="${esc(g.name)} 회사 목록 ${open ? '접기' : '펼치기'}"><span class="sf-chev" aria-hidden="true">${ico('right', 'sm')}</span><b>${esc(g.name)}</b></button>${sub}</td>`
+    let h = `<tr class="sf-g${open ? ' open' : ''}${all ? ' sf-all' : ''}${mine && !all ? ' me' : ''}" data-sf-open="${esc(id)}"><td class="st"><button type="button" class="sf-open" aria-expanded="${open}" title="${esc(sfName(g.name))} 회사 목록 ${open ? '접기' : '펼치기'}"><span class="sf-chev" aria-hidden="true">${ico('right', 'sm')}</span><b>${esc(sfName(g.name))}</b></button>${sub}</td>`
       + `<td${g.n_all > g.n ? ` title="실적 있는 회사 ${vaNum(g.n)}곳, 전체 ${vaNum(g.n_all)}곳"` : ''}>${vaNum(g.n)}<small>적자 ${vaNum(g.n_loss || 0)}</small></td>${SF_COLS.map((c) => sfCell(g.financial, c, sfGv(g, c[0]), g)).join('')}</tr>`;
     if (open) h += sfCos(g, all, lv, me);
     return h;
   };
   const allRow = d.all ? grow({ ...d.all, level: 'all', name: '전체 상장사' }, true) : '';
   const body = `<div class="mk-scroll"><table class="mk-tbl sf-tbl">${head}<tbody>${allRow}${gs.map((g) => grow(g, false)).join('')}</tbody></table></div>`;
-  const ctl = `<div class="va-mctl"><div><span class="va-lab">금액</span>${sfSeg('amt', [['mean', '평균'], ['median', '중앙값']], s.amt)}</div><div><span class="va-lab">마진</span>${sfSeg('mg', [['median', '중앙값'], ['mean', '평균'], ['agg', '합계 기준']], s.mg)}</div></div>`;
+  const ctl = `<div class="va-mctl"><div><span class="va-lab">금액</span>${sfSeg('amt', [['median', '중앙값'], ['mean', '평균'], ['sum', '합계']], s.amt)}</div><div><span class="va-lab">마진</span>${sfSeg('mg', [['median', '중앙값'], ['mean', '평균'], ['agg', '합계 기준']], s.mg)}</div></div>`;
   const meta = [d.basis ? `${esc(d.basis)} 기준` : '', `단위 ${esc(d.unit || '억원')}`].filter(Boolean).join(', ');
   return vaSec(`업종 실적 <span class="meta">${vaNum(gs.length)}개 업종, ${meta}</span>`, sfSeg('lv', SF_LV, lv), `${ctl}${body}`, 'sf');
 }
@@ -96,7 +99,7 @@ const sfSeg = (key, opts, cur) => `<div class="mk-seg">${opts.map(([v, l]) => `<
 
 function sfCos(g, all, lv, me) { // 펼친 업종의 회사 줄. 회사 수 칸은 시장, 기준이 다른 회사는 그 기준을 작게
   const d = vaS.sfd, s = vaS.sf, id = `${g.level}|${g.name}`;
-  const ys = sfSort(d.list.filter((y) => all || y[lv] === g.name), sfYv, (a, b) => (b.rev ?? -Infinity) - (a.rev ?? -Infinity));
+  const ys = sfSort(d.list.filter((y) => all || sfLvOf(y, lv) === g.name), sfYv, (a, b) => (b.rev ?? -Infinity) - (a.rev ?? -Infinity));
   const shown = s.more[id] ? ys : ys.slice(0, SF_ROWS), rest = ys.length - shown.length;
   const ML = { KOSPI: '코스피', KOSDAQ: '코스닥' };
   const row = (y) => {
