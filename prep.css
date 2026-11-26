@@ -130,3 +130,5 @@
 .pr-sub .pr-t { font-weight: 400; }
 .pr-sub.done .pr-t { color: var(--text3); }
 .pr-snone { color: var(--text3); font-size: var(--fs-sm); }
+.pr-co li.open { align-items: flex-start; } /* 펼치면 체크와 담당이 항목 첫 줄에 붙어 있게 */
+.pr-co li.open > .pr-cell { margin-top: -2px; }
