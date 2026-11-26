@@ -1225,24 +1225,38 @@ function rdCoDetail(x) {
 function rdFunds() {
   const s = rdS.sell, d = s.data;
   if (!d || !d.funds.length || !['all', '만기'].includes(s.f)) return '';
-  const q = s.q.trim().toLowerCase(), list = d.funds.filter((x) => !q || x.q.includes(q));
-  const row = (x) => {
-    // 출처는 '·'로 이어 온 원문(DIVA 조합현황 · 모태 출자 · …) 중 첫 출처만 칸에, 전체는 마우스를 올리면. 단계(stage)는 보유 회사가 없을 때만 보조 줄에
-    const src = x.src || (x.url ? rdHost(x.url) : ''), src1 = src.split(/\s+·\s+/)[0];
-    const sub = x.companies.length ? `보유 ${x.companies.join(', ')}` : x.stage;
-    const subH = x.companies.length ? `보유 ${x.companies.map(rdNm).join(', ')}` : esc(x.stage); // 보이는 글(이름 칸 <wbr>)
-    const tip = [x.stage, sub].filter((t, i, a) => t && a.indexOf(t) === i).join('\n');
-    return `<div class="ipo-row rd-static"><div class="ipo-line ipo-cols rd-g6">
-      <div>${rdMd(x.expiry) || esc(x.expiry) || RD_NA}<div class="ipo-sub">${rdExp(x.expiry)}</div></div>
-      <div class="ipo-c-name"><span class="rd-strong">${rdNm(x.name)}</span>${rdPair([[rdExp(x.expiry) || esc(rdMd(x.expiry)), 'rd-w3'], [esc(x.size), 'rd-w4'], [rdNm(x.gp)]])}${sub ? `<div class="ipo-sub" title="${esc(tip)}">${subH}</div>` : ''}</div>
-      <div class="rd-mh">${rdNm(x.gp) || RD_NA}</div>
-      <div class="rd-mh rd-c2">${esc(rdMd(x.formed) || x.formed) || RD_NA}</div>
-      <div class="rd-mh">${esc(x.size) || RD_NA}${x.formed ? `<div class="ipo-sub rd-alt">결성 ${esc(rdMd(x.formed) || x.formed)}</div>` : ''}</div>
-      <div class="rd-mh rd-c2">${!src ? RD_NA : x.url ? `<a class="rd-link rd-clamp" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" title="${esc(src)}">${esc(src1)}</a>` : `<div class="rd-clamp" title="${esc(src)}">${esc(src1)}</div>`}</div>
-    </div></div>`;
-  };
+  const list = rdFundList(), row = rdFundRow;
+  // 조합도 100건씩(1,400개 넘게 한 번에 그리면 화면을 열 때마다 멈춤). 검색어가 바뀌면 다시 100건부터
+  const n = s.fundLim?.q === s.q ? s.fundLim.n : RD_PAGE; s.fundLim = { q: s.q, n };
+  const rest = list.length - Math.min(n, list.length);
   return `<section class="card ipo-card rd-card2"><div class="card-head"><h2>만기 임박 조합 <span class="n">${list.length}</span></h2></div>
-    ${list.length ? `<div class="ipo-head ipo-cols rd-g6"><div>만기일</div><div>조합</div><div>운용사</div><div class="rd-c2">결성일</div><div>결성액</div><div class="rd-c2">출처</div></div>${list.map(row).join('')}` : '<div class="empty">조건에 맞는 조합이 없습니다.</div>'}</section>`;
+    ${list.length ? `<div class="ipo-head ipo-cols rd-g6"><div>만기일</div><div>조합</div><div>운용사</div><div class="rd-c2">결성일</div><div>결성액</div><div class="rd-c2">출처</div></div>${list.slice(0, n).map(row).join('')}${rest > 0 ? `<div class="rd-pagewrap">${rdPageBtn(rest).replace('data-rd-page', 'data-rd-fpage')}</div>` : ''}` : '<div class="empty">조건에 맞는 조합이 없습니다.</div>'}</section>`;
+}
+const rdFundList = () => { const s = rdS.sell, q = s.q.trim().toLowerCase(); return s.data.funds.filter((x) => !q || x.q.includes(q)); };
+function rdFundMore(btn) {
+  const s = rdS.sell, wrap = btn.closest('.rd-pagewrap'); if (!wrap || !s.data) return;
+  const list = rdFundList(), n0 = s.fundLim?.n || RD_PAGE, add = list.slice(n0, n0 + RD_PAGE);
+  s.fundLim = { q: s.q, n: n0 + add.length };
+  wrap.insertAdjacentHTML('beforebegin', add.map(rdFundRow).join(''));
+  const rest = list.length - s.fundLim.n;
+  if (rest > 0) wrap.innerHTML = rdPageBtn(rest).replace('data-rd-page', 'data-rd-fpage'); else wrap.remove();
+  const r = wrap.parentElement?.querySelectorAll(':scope > .ipo-row')[n0]; // 붙인 첫 조합으로 포커스(단추는 사라질 수 있음)
+  if (r) { r.tabIndex = -1; r.focus({ preventScroll: true }); }
+}
+function rdFundRow(x) {
+  // 출처는 '·'로 이어 온 원문(DIVA 조합현황 · 모태 출자 · …) 중 첫 출처만 칸에, 전체는 마우스를 올리면. 단계(stage)는 보유 회사가 없을 때만 보조 줄에
+  const src = x.src || (x.url ? rdHost(x.url) : ''), src1 = src.split(/\s+·\s+/)[0];
+  const sub = x.companies.length ? `보유 ${x.companies.join(', ')}` : x.stage;
+  const subH = x.companies.length ? `보유 ${x.companies.map(rdNm).join(', ')}` : esc(x.stage); // 보이는 글(이름 칸 <wbr>)
+  const tip = [x.stage, sub].filter((t, i, a) => t && a.indexOf(t) === i).join('\n');
+  return `<div class="ipo-row rd-static"><div class="ipo-line ipo-cols rd-g6">
+    <div>${rdMd(x.expiry) || esc(x.expiry) || RD_NA}<div class="ipo-sub">${rdExp(x.expiry)}</div></div>
+    <div class="ipo-c-name"><span class="rd-strong">${rdNm(x.name)}</span>${rdPair([[rdExp(x.expiry) || esc(rdMd(x.expiry)), 'rd-w3'], [esc(x.size), 'rd-w4'], [rdNm(x.gp)]])}${sub ? `<div class="ipo-sub" title="${esc(tip)}">${subH}</div>` : ''}</div>
+    <div class="rd-mh">${rdNm(x.gp) || RD_NA}</div>
+    <div class="rd-mh rd-c2">${esc(rdMd(x.formed) || x.formed) || RD_NA}</div>
+    <div class="rd-mh">${esc(x.size) || RD_NA}${x.formed ? `<div class="ipo-sub rd-alt">결성 ${esc(rdMd(x.formed) || x.formed)}</div>` : ''}</div>
+    <div class="rd-mh rd-c2">${!src ? RD_NA : x.url ? `<a class="rd-link rd-clamp" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer" title="${esc(src)}">${esc(src1)}</a>` : `<div class="rd-clamp" title="${esc(src)}">${esc(src1)}</div>`}</div>
+  </div></div>`;
 }
 
 /* ---------- 입찰딜 ---------- */
@@ -1583,6 +1597,7 @@ function rdBind(root, tab) {
   root.addEventListener('click', (ev) => {
     const t = ev.target;
     const pg = t.closest('[data-rd-page]'); if (pg) { rdPageMore(pg); return; }
+    const fp = t.closest('[data-rd-fpage]'); if (fp) { rdFundMore(fp); return; }
     const fb = t.closest('[data-rd-f]');
     if (fb) { s.f = fb.dataset.rdF; segOn('[data-rd-f]', fb); rdDraw(); return; }
     const ab = t.closest('[data-rd-ang]');
