@@ -313,6 +313,19 @@ function mkRefTbl(rows) {
     return `<tr><td class="st"><b>${esc(r[0])}</b></td><td class="mk-dim${split ? ' dup' : ''}">${per}</td><td class="strong">${val}</td><td class="mk-dim"${note ? ` title="${esc(note)}"` : ''}>${r[3] ? `<a href="${esc(r[3])}" target="_blank" rel="noopener noreferrer">${esc(src)}</a>` : esc(src)}</td></tr>`;
   }).join('')}</tbody></table></div>`;
 }
+// 종목별 목록: 검색 칸은 그대로 두고 이 부분만 다시 그린다(mkListRedraw)
+function mkIpoList() {
+  const d = mkS.ipo;
+  const q = mkS.ipoQ.trim().toLowerCase();
+  const items = (d.items || []).filter((x) => !x.spac && !x.reit && !x.excluded && (mkS.ipoMk === 'ALL' || x.market === mkS.ipoMk) && (!q || `${x.name} ${x.code}`.toLowerCase().includes(q)))
+    .sort((a, b) => String(b.listed).localeCompare(String(a.listed)));
+  const shown = mkS.ipoAll || q ? items : items.slice(0, 20);
+  return `<div class="mk-scroll"><table class="mk-tbl"><thead><tr><th class="st">회사</th><th>상장일</th><th>공모가</th><th>시초가</th><th>첫날 종가</th><th>1개월</th><th>3개월</th><th>6개월</th><th>1년</th><th>현재</th><th>확약</th><th>경쟁률</th></tr></thead><tbody>${shown.map((x) => `<tr>
+    <td class="st" title="${x.market === 'KOSPI' ? '코스피' : '코스닥'}"><b>${esc(x.name)}</b>${x.track === '기술특례' ? '<small>기술특례</small>' : ''}</td><td class="mk-dim">${esc(String(x.listed || '').slice(2).replace(/-/g, '.'))}</td><td>${mkNum(x.offer, 0)}</td>
+    <td>${mkPct(x.r_open)}</td><td>${mkPct(x.r_close1)}</td><td>${mkPct(x.r_1m)}</td><td>${mkPct(x.r_3m)}</td><td>${mkPct(x.r_6m)}</td><td>${mkPct(x.r_1y)}</td><td>${mkPct(x.r_now)}</td>
+    <td class="mk-dim">${x.demand?.lockup == null ? '-' : `${mkNum(x.demand.lockup, 1)}%`}</td><td class="mk-dim">${x.demand?.comp == null ? '-' : `${mkNum(x.demand.comp, 0)}:1`}</td></tr>`).join('')}</tbody></table></div>
+    ${!q && items.length > 20 ? `<button type="button" class="btn mk-more in" data-mk-ipoall>${mkS.ipoAll ? '최근 20건만' : `전체 ${items.length}건 보기`}</button>` : ''}`;
+}
 function mkIpoHTML() {
   const d = mkS.ipo;
   if (!d) return '<div class="card"><div class="empty">아직 집계 전입니다.</div></div>';
@@ -328,22 +341,13 @@ function mkIpoHTML() {
     y1 ? mkTile(`${y1.year}년 상장 1년 보유`, mkSigned(y1.y1_mean, 1).replace('%', ''), '%', mkKv([['중앙값', mkSigned(y1.y1_median, 1)], below(y1.y1_below)])) : '',
   ].join('') : '';
   const table = rows.length ? `<div class="mk-scroll"><table class="mk-tbl"><thead><tr><th class="st">연도</th>${MK_IPO_COLS.map(([, l]) => `<th>${l}</th>`).join('')}</tr></thead><tbody>${rows.map((r) => `<tr><td class="st"><b>${r.year}</b></td>${MK_IPO_COLS.map(([k, , f]) => { const nk = { m1_mean: 'n_m1', m3_mean: 'n_m3', m6_mean: 'n_m6', m6_below: 'n_m6', y1_mean: 'n_y1', y1_below: 'n_y1' }[k], nn = nk ? r[nk] : null; return `<td>${nn != null && nn < r.n && r[k] != null ? mkPart(f(r[k]), nn, r.n) : f(r[k])}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>` : '<div class="empty">데이터가 없습니다.</div>';
-  const q = mkS.ipoQ.trim().toLowerCase();
-  const items = (d.items || []).filter((x) => !x.spac && !x.reit && !x.excluded && (mkS.ipoMk === 'ALL' || x.market === mkS.ipoMk) && (!q || `${x.name} ${x.code}`.toLowerCase().includes(q)))
-    .sort((a, b) => String(b.listed).localeCompare(String(a.listed)));
-  const shown = mkS.ipoAll || q ? items : items.slice(0, 20);
-  const list = `<div class="mk-scroll"><table class="mk-tbl"><thead><tr><th class="st">회사</th><th>상장일</th><th>공모가</th><th>시초가</th><th>첫날 종가</th><th>1개월</th><th>3개월</th><th>6개월</th><th>1년</th><th>현재</th><th>확약</th><th>경쟁률</th></tr></thead><tbody>${shown.map((x) => `<tr>
-    <td class="st" title="${x.market === 'KOSPI' ? '코스피' : '코스닥'}"><b>${esc(x.name)}</b>${x.track === '기술특례' ? '<small>기술특례</small>' : ''}</td><td class="mk-dim">${esc(String(x.listed || '').slice(2).replace(/-/g, '.'))}</td><td>${mkNum(x.offer, 0)}</td>
-    <td>${mkPct(x.r_open)}</td><td>${mkPct(x.r_close1)}</td><td>${mkPct(x.r_1m)}</td><td>${mkPct(x.r_3m)}</td><td>${mkPct(x.r_6m)}</td><td>${mkPct(x.r_1y)}</td><td>${mkPct(x.r_now)}</td>
-    <td class="mk-dim">${x.demand?.lockup == null ? '-' : `${mkNum(x.demand.lockup, 1)}%`}</td><td class="mk-dim">${x.demand?.comp == null ? '-' : `${mkNum(x.demand.comp, 0)}:1`}</td></tr>`).join('')}</tbody></table></div>
-    ${!q && items.length > 20 ? `<button type="button" class="btn mk-more in" data-mk-ipoall>${mkS.ipoAll ? '최근 20건만' : `전체 ${items.length}건 보기`}</button>` : ''}`;
   const gen = new Date(d.generated);
   return `<div class="mk-ipo-bar">${mkSeg('ipoMk', [['ALL', '전체'], ['KOSPI', '코스피'], ['KOSDAQ', '코스닥']], mkS.ipoMk)}${isNaN(gen) ? '' : `<span class="mk-dim">${gen.getMonth() + 1}/${gen.getDate()} 집계</span>`}</div>
     ${tiles ? `<div class="mk-tiles mk-tiles4">${tiles}</div>` : ''}
     ${mkSec('연도별 공모가 대비 수익률', '', table)}
     ${mkBucket('의무보유확약 비율별', d.summary?.by_lockup)}${mkBucket('수요예측 경쟁률별', d.summary?.by_comp)}
     ${mkLockupHTML()}${mkBandHTML()}${mkValHTML()}
-    ${mkSec('종목별', `<div class="nw-search mk-q"><span class="nw-sic">${ico('search', 'sm')}</span><input class="input" id="mk-q" type="search" placeholder="회사 검색" value="${esc(mkS.ipoQ)}"></div>`, list)}
+    ${mkSec('종목별', `<div class="nw-search mk-q"><span class="nw-sic">${ico('search', 'sm')}</span><input class="input" id="mk-q" type="search" placeholder="회사 검색" value="${esc(mkS.ipoQ)}"></div>`, `<div id="mk-ipo-list">${mkIpoList()}</div>`)}
     ${typeof MK_REF !== 'undefined' && MK_REF.length ? mkSec('참고 통계', '', mkRefTbl(MK_REF)) : ''}`;
 }
 
@@ -449,6 +453,29 @@ function vlMetric(m) {
   return `${esc([y, k].filter(Boolean).join(' ') || '-')}${m.pv_rate != null ? `<small>현가 ${mkNum(m.pv_rate, 0)}%</small>` : ''}`;
 }
 
+function mkValList() {
+  const mk = mkS.ipoMk || 'ALL';
+  const all = (mkS.ipoVal?.items || []).filter((x) => mk === 'ALL' || x.market === mk);
+  const q = String(mkS.valQ || '').trim().toLowerCase();
+  const rows = all.filter((x) => !q || `${x.name} ${x.code} ${(x.peers || []).join(' ')} ${x.method || ''} ${x.sector || ''}`.toLowerCase().includes(q))
+    .sort((a, b) => String(b.listed).localeCompare(String(a.listed)));
+  const shown = mkS.valAll || q ? rows : rows.slice(0, 20);
+  return !shown.length ? '<div class="empty">검색 결과가 없습니다.</div>' : vlTbl(['회사', '방법', '비교기업', '멀티플', '적용 이익', '할인율', '밴드', '공모가', '시초가'], shown.map((x) => {
+    const peers = (x.peers || []).join(', ');
+    const sub = String(x.listed || '').slice(2).replace(/-/g, '.'), tip = [x.market === 'KOSPI' ? '코스피' : '코스닥', x.track === '기술특례' ? '기술특례' : ''].filter(Boolean).join(', ');
+    const band = x.band_lo ? `${mkNum(x.band_lo, 0)}~${mkNum(x.band_hi, 0)}` : '-';
+    return `<tr>
+      <td class="st" title="${esc(tip)}"><a class="vl-co" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><b>${esc(x.name)}</b></a><small>${esc(sub)}</small></td>
+      <td>${esc(x.method || '-')}</td>
+      <td class="vl-peers" title="${esc(peers)}">${esc(peers || '-')}</td>
+      <td class="${vlOk(x) ? '' : 'vl-flag'}"${x.flag ? ` title="${esc(x.flag)}"` : ''}>${vlX(x.peer_mult, 2)}</td>
+      <td>${vlMetric(x.applied_metric)}</td>
+      <td>${x.disc_lo == null ? '-' : `${mkNum(x.disc_lo, 1)}~${mkNum(x.disc_hi, 1)}%`}</td>
+      <td>${band}</td>
+      <td>${mkNum(x.offer, 0)}${x.offer_pos ? `<small>${esc(x.offer_pos)}</small>` : ''}</td>
+      <td>${mkPct(x.r_open)}</td></tr>`;
+  })) + (!q && rows.length > 20 ? `<button type="button" class="btn mk-more in" data-mk-valall>${mkS.valAll ? '최근 20건만' : `전체 ${rows.length}건 보기`}</button>` : '');
+}
 function mkValHTML() {
   const d = mkS.ipoVal;
   if (!d?.items?.length) return '';
@@ -487,34 +514,13 @@ function mkValHTML() {
   const bySector = vlTbl(['업종', '건수', 'PER 건수', 'PER', '멀티플', '최소 할인율', '최대 할인율', '확정가 PER', '시초가'],
     secs.map(([s, g]) => { const st = vlStat(g); return vlRow(s, st, [C.n, (z) => z.perN, C.per, C.mult, C.dlo, C.dhi, C.omult, C.open]); }));
 
-  // 종목별
-  const q = String(mkS.valQ || '').trim().toLowerCase();
-  const rows = all.filter((x) => !q || `${x.name} ${x.code} ${(x.peers || []).join(' ')} ${x.method || ''} ${x.sector || ''}`.toLowerCase().includes(q))
-    .sort((a, b) => String(b.listed).localeCompare(String(a.listed)));
-  const shown = mkS.valAll || q ? rows : rows.slice(0, 20);
-  const list = !shown.length ? '<div class="empty">검색 결과가 없습니다.</div>' : vlTbl(['회사', '방법', '비교기업', '멀티플', '적용 이익', '할인율', '밴드', '공모가', '시초가'], shown.map((x) => {
-    const peers = (x.peers || []).join(', ');
-    const sub = String(x.listed || '').slice(2).replace(/-/g, '.'), tip = [x.market === 'KOSPI' ? '코스피' : '코스닥', x.track === '기술특례' ? '기술특례' : ''].filter(Boolean).join(', ');
-    const band = x.band_lo ? `${mkNum(x.band_lo, 0)}~${mkNum(x.band_hi, 0)}` : '-';
-    return `<tr>
-      <td class="st" title="${esc(tip)}"><a class="vl-co" href="${esc(x.url)}" target="_blank" rel="noopener noreferrer"><b>${esc(x.name)}</b></a><small>${esc(sub)}</small></td>
-      <td>${esc(x.method || '-')}</td>
-      <td class="vl-peers" title="${esc(peers)}">${esc(peers || '-')}</td>
-      <td class="${vlOk(x) ? '' : 'vl-flag'}"${x.flag ? ` title="${esc(x.flag)}"` : ''}>${vlX(x.peer_mult, 2)}</td>
-      <td>${vlMetric(x.applied_metric)}</td>
-      <td>${x.disc_lo == null ? '-' : `${mkNum(x.disc_lo, 1)}~${mkNum(x.disc_hi, 1)}%`}</td>
-      <td>${band}</td>
-      <td>${mkNum(x.offer, 0)}${x.offer_pos ? `<small>${esc(x.offer_pos)}</small>` : ''}</td>
-      <td>${mkPct(x.r_open)}</td></tr>`;
-  })) + (!q && rows.length > 20 ? `<button type="button" class="btn mk-more in" data-mk-valall>${mkS.valAll ? '최근 20건만' : `전체 ${rows.length}건 보기`}</button>` : '');
-
   const search = `<div class="nw-search mk-q"><span class="nw-sic">${ico('search', 'sm')}</span><input class="input" id="mk-valq" type="search" placeholder="회사·비교기업 검색" value="${esc(mkS.valQ || '')}"></div>`;
   return `${mkSec('공모가 산정 멀티플', '', `<div class="mk-tiles mk-tiles4">${tiles}</div>${dist}
       <div class="mk-sub">연도별</div>${byYear}
       <div class="mk-sub">평가 방법별</div>${byMethod}
       <div class="mk-sub">상장 방식별</div>${byTrack}
       <div class="mk-sub">업종별</div>${bySector}`)}
-    ${mkSec('종목별 공모가 산정', search, list)}`;
+    ${mkSec('종목별 공모가 산정', search, `<div id="mk-val-list">${mkValList()}</div>`)}`;
 }
 
 // ---------- PE 동향 ----------
@@ -699,10 +705,20 @@ function mkDraw() {
   viewSet('mk', Object.fromEntries(MK_VIEW.map((k) => [k, mkS[k]])));
   TAB_INFO['market/pe'] = mkPeInfo();
   host.innerHTML = mkS.tab === 'ipo' ? mkIpoHTML() : mkS.tab === 'pe' ? mkPeHTML() : mkMarketHTML();
-  const mob = isMobile(); // 폰: 첫 열 104 + 나머지 92(market.css 폰 블록과 짝), 참고 통계 표는 세로로 쌓으니 폭 지정 없음
-  host.querySelectorAll('.mk-tbl').forEach((t) => { const n = t.tHead.rows[0].cells.length - 1; t.style.minWidth = t.classList.contains('mz-mkt') ? '' : mob ? (t.classList.contains('mk-ref') ? '' : `${104 + n * 92}px`) : `${150 + n * 104}px`; }); // 첫 열 150px + 나머지 같은 폭, 좁으면 카드 안에서 가로 스크롤
+  mkTblW(host);
   mkChartHover(host);
-  [['#mk-q', 'ipoQ'], ['#mk-valq', 'valQ']].forEach(([sel, k]) => { const q = $(sel, host); if (q) q.addEventListener('input', (e) => { mkS[k] = e.target.value; const pos = e.target.selectionStart; mkDraw(); const n = $(sel); n.focus(); n.setSelectionRange(pos, pos); }); });
+  [['#mk-q', 'ipoQ', '#mk-ipo-list', mkIpoList], ['#mk-valq', 'valQ', '#mk-val-list', mkValList]].forEach(([sel, k, box, fn]) => {
+    const q = $(sel, host); if (!q) return;
+    let tm = 0;
+    const go = () => { clearTimeout(tm); tm = setTimeout(() => { viewSet('mk', Object.fromEntries(MK_VIEW.map((x) => [x, mkS[x]]))); const b = $(box, host); if (b) { b.innerHTML = fn(); mkTblW(b); } }, 150); };
+    q.addEventListener('input', (e) => { mkS[k] = q.value; if (!e.isComposing) go(); }); // 한글 조합 중엔 미루고 compositionend에서 한 번
+    q.addEventListener('compositionend', go);
+  });
+}
+// 표 최소 폭: 첫 열 150px + 나머지 같은 폭, 좁으면 카드 안에서 가로 스크롤
+function mkTblW(root) {
+  const mob = isMobile(); // 폰: 첫 열 104 + 나머지 92(market.css 폰 블록과 짝), 참고 통계 표는 세로로 쌓으니 폭 지정 없음
+  root.querySelectorAll('.mk-tbl').forEach((t) => { const n = t.tHead.rows[0].cells.length - 1; t.style.minWidth = t.classList.contains('mz-mkt') ? '' : mob ? (t.classList.contains('mk-ref') ? '' : `${104 + n * 92}px`) : `${150 + n * 104}px`; }); // 첫 열 150px + 나머지 같은 폭, 좁으면 카드 안에서 가로 스크롤
 }
 async function renderMarket() {
   const r = route(); mkS.tab = r === 'market/ipo' ? 'ipo' : r === 'market/pe' ? 'pe' : r === 'market/ma' && typeof renderMa === 'function' ? 'ma' : r === 'market/vc' && typeof renderVc === 'function' ? 'vc' : 'market';

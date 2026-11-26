@@ -157,7 +157,7 @@ function kmxBind(root) {
     const row = t.closest('.ipo-row[data-id]'), x = row && kmxS.byId.get(row.dataset.id);
     if (!x) return;
     if (kmxS.open.has(x.id)) kmxS.open.delete(x.id); else kmxS.open.add(x.id);
-    row.outerHTML = kmxRow(x);
+    (typeof swapKeepFocus === 'function' ? swapKeepFocus(row, kmxRow(x)) : (row.outerHTML = kmxRow(x)));
   });
   root.addEventListener('input', (ev) => { if (ev.target.id === 'kmx-q') { kmxS.q = ev.target.value; viewSet('kmx.q', kmxS.q); kmxDraw(); } });
 }

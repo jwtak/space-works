@@ -41,26 +41,63 @@ const isMobile = () => matchMedia('(max-width: 760px)').matches;
    값은 JSON. Set은 배열로 넣고 꺼낼 때 new Set(...)으로. 저장 못 하는 환경이면 기본값. */
 function viewGet(key, def) { try { const v = sessionStorage.getItem('v:' + key); return v == null ? def : JSON.parse(v); } catch { return def; } }
 function viewSet(key, val) { try { sessionStorage.setItem('v:' + key, JSON.stringify(val instanceof Set ? [...val] : val)); } catch { /* 기억 못 해도 된다 */ } }
+/* 겹 창 포커스(2026-11-26 규격 점검): 열면 안으로, Tab은 창 안에서만 돌고, 닫으면 연 버튼으로. 창이 겹치면 맨 위 창만 가둔다.
+   dlgTrap(창 요소) → 닫을 때 부르는 함수. 제목(h2·h3)이 있으면 aria-labelledby로 잇는다. 폰은 자판이 갑자기 뜨지 않게 입력칸 대신 창에 포커스 */
+const DLG_STACK = [];
+const DLG_FOCUS = 'a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), iframe, [contenteditable="true"], [tabindex]:not([tabindex="-1"])';
+const dlgFocusables = (box) => [...box.querySelectorAll(DLG_FOCUS)].filter((x) => x.getClientRects().length && getComputedStyle(x).visibility !== 'hidden');
+function dlgLabel(box) {
+  const h = box.querySelector('h2, h3'); if (!h) return;
+  if (!h.id) h.id = `dlg-${uid()}`;
+  box.setAttribute('aria-labelledby', h.id);
+}
+function dlgTrap(box, { focus = true } = {}) {
+  const opener = document.activeElement && document.activeElement !== document.body ? document.activeElement : null;
+  if (!box.hasAttribute('tabindex')) box.tabIndex = -1;
+  dlgLabel(box);
+  const ent = { box, opener };
+  DLG_STACK.push(ent);
+  if (focus) {
+    const first = !isMobile() && box.querySelector('input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([disabled]), textarea:not([disabled]), select:not([disabled])');
+    (first && first.getClientRects().length ? first : box).focus({ preventScroll: true });
+  }
+  return () => {
+    const i = DLG_STACK.indexOf(ent); if (i < 0) return;
+    DLG_STACK.splice(i, 1);
+    if (i === DLG_STACK.length && opener?.isConnected && (!document.activeElement || document.activeElement === document.body || !document.activeElement.isConnected || box.contains(document.activeElement))) opener.focus({ preventScroll: true });
+  };
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab' || !DLG_STACK.length) return;
+  const { box } = DLG_STACK[DLG_STACK.length - 1]; if (!box.isConnected) return;
+  const list = dlgFocusables(box);
+  if (!list.length) { e.preventDefault(); box.focus(); return; }
+  const a = document.activeElement, first = list[0], last = list[list.length - 1];
+  if (!box.contains(a) || a === box) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+  else if (e.shiftKey && a === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && a === last) { e.preventDefault(); first.focus(); }
+});
 function openSheet(html, mount, cls = '') { // 아래에서 올라오는 패널(데스크톱은 가운데 창)
   const wrap = document.createElement('div');
   wrap.className = 'sheet-wrap';
   wrap.innerHTML = `<div class="sheet ${cls}" role="dialog" aria-modal="true"><div class="handle"></div>${html}</div>`;
   const close = (viaBack) => { // viaBack === true: 뒤로 가기·메뉴 이동으로 닫힘
     if (!wrap.isConnected) return;
-    wrap.remove(); document.removeEventListener('keydown', onKey);
+    wrap.remove(); document.removeEventListener('keydown', onKey); untrap();
     if (viaBack !== true) off();
   };
-  const onKey = (e) => { if (e.key === 'Escape') close(); };
+  const onKey = (e) => { if (e.key === 'Escape' && DLG_STACK[DLG_STACK.length - 1]?.box === sheet) close(); };
   let downOut = false; const openedAt = Date.now();
   wrap.addEventListener('mousedown', (e) => { downOut = e.target === wrap; });
   wrap.addEventListener('click', (e) => { if (e.target === wrap && downOut && Date.now() - openedAt > 300) close(); });
   document.addEventListener('keydown', onKey);
   document.body.appendChild(wrap);
+  const sheet = wrap.querySelector('.sheet'), untrap = dlgTrap(sheet);
   const off = pushLayer(() => close(true), () => close(true));
-  if (mount) mount(wrap.querySelector('.sheet'), close);
+  if (mount) mount(sheet, close);
   return close;
 }
-const ico = (n, cls = '') => `<svg class="i ${cls}"><use href="#i-${n}"/></svg>`;
+const ico = (n, cls = '') => `<svg class="i ${cls}" aria-hidden="true" focusable="false"><use href="#i-${n}"/></svg>`;
 
 function workDay(dateStr) { // DAY1부터 평일 기준 N일째
   let n = 0, d = parse(DAY1); const end = parse(dateStr);
@@ -69,10 +106,45 @@ function workDay(dateStr) { // DAY1부터 평일 기준 N일째
   return n;
 }
 
-function toast(msg) {
-  const t = document.createElement('div'); t.className = 'toast'; t.textContent = errShow(msg);
-  document.body.appendChild(t); setTimeout(() => t.remove(), 2600);
+/* 알림(2026-11-26 규격 점검): 화면 아래 고정 칸 하나(role=status)에 글자만 바꿔 겹치지 않게. 오류 문구는 7초와 닫기 버튼.
+   toast(msg) 그대로 쓰고, 되돌리기는 toast(msg, { action: '되돌리기', onAction }). error: true로 오류 표시를 강제 */
+const TOAST_ERR = /못했|못 했|실패|오류|권한이 없|확인하세요|입력하세요|찾을 수 없|지났습니다/;
+const TOAST = { el: null, timer: 0, left: 0, until: 0, onAction: null };
+function toastEl() {
+  if (TOAST.el?.isConnected) return TOAST.el;
+  const el = TOAST.el = document.createElement('div');
+  el.className = 'toast'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite');
+  el.innerHTML = '<span class="toast-t"></span><button type="button" class="toast-a" hidden></button><button type="button" class="toast-x" aria-label="닫기" hidden><svg class="i sm" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6 6 18"/></svg></button>';
+  el.querySelector('.toast-x').onclick = () => toastHide();
+  el.querySelector('.toast-a').onclick = () => { const f = TOAST.onAction; toastHide(); f?.(); };
+  // 마우스를 올리거나 버튼에 포커스가 있는 동안은 사라지지 않는다
+  const hold = () => { if (!TOAST.timer) return; clearTimeout(TOAST.timer); TOAST.timer = 0; TOAST.left = Math.max(1500, TOAST.until - Date.now()); };
+  const go = () => { if (TOAST.timer || !el.classList.contains('on') || el.matches(':hover') || el.contains(document.activeElement)) return; toastArm(TOAST.left); };
+  el.addEventListener('pointerenter', hold); el.addEventListener('focusin', hold);
+  el.addEventListener('pointerleave', go); el.addEventListener('focusout', () => setTimeout(go));
+  document.body.appendChild(el);
+  return el;
 }
+function toastArm(ms) { clearTimeout(TOAST.timer); TOAST.until = Date.now() + ms; TOAST.timer = setTimeout(toastHide, ms); }
+function toastHide() {
+  clearTimeout(TOAST.timer); TOAST.timer = 0; TOAST.onAction = null;
+  const el = TOAST.el; if (!el) return;
+  const back = el.contains(document.activeElement);
+  el.classList.remove('on', 'err', 'act'); el.querySelector('.toast-t').textContent = '';
+  el.querySelector('.toast-a').hidden = el.querySelector('.toast-x').hidden = true;
+  if (back) document.activeElement.blur();
+}
+function toast(msg, o = {}) {
+  const raw = String(msg ?? ''), text = errShow(msg), el = toastEl();
+  const err = o.error ?? (TOAST_ERR.test(raw) || text !== raw);
+  const a = el.querySelector('.toast-a'), x = el.querySelector('.toast-x');
+  el.querySelector('.toast-t').textContent = text;
+  a.hidden = !o.action; a.textContent = o.action || ''; TOAST.onAction = o.action ? o.onAction : null;
+  x.hidden = !err && !o.action;
+  el.classList.toggle('err', err); el.classList.toggle('act', !!o.action); el.classList.add('on');
+  toastArm(o.ms || (o.action ? 8000 : err ? 7000 : 2600));
+}
+if (document.body) toastEl(); else document.addEventListener('DOMContentLoaded', toastEl); // 읽기 칸이 처음부터 있어야 첫 알림도 읽힌다
 // 오류 문구: Graph 오류면 그 요청을 오류 기록에 남기고, 영어 원문이면 한국어로 바꾼다(graph.js ERRLOG)
 function errShow(msg) {
   if (typeof ERRLOG !== 'object') return msg;
@@ -896,10 +968,10 @@ function renderTodos() {
     <div class="page-head"><h1>할 일</h1></div>
     <section class="card">
     <form class="addbar" id="addf">
-      <input class="input grow" id="add-title" placeholder="할 일을 입력하고 Enter" autocomplete="off">
+      <input class="input grow" id="add-title" placeholder="할 일을 입력하고 Enter" autocomplete="off" aria-label="할 일">
       <select class="select" id="add-who" aria-label="담당" title="담당"><option value="">나</option>${whoOpts().map(([n, m]) => `<option value="${m}">${n}</option>`).join('')}</select>
-      <select class="select" id="add-cat">${CATS.map((c) => `<option ${c === (ui.lastCat || '사무실 세팅') ? 'selected' : ''}>${c}</option>`).join('')}</select>
-      <input class="input" type="date" id="add-due" style="width:150px">
+      <select class="select" id="add-cat" aria-label="분류">${CATS.map((c) => `<option ${c === (ui.lastCat || '사무실 세팅') ? 'selected' : ''}>${c}</option>`).join('')}</select>
+      <input class="input" type="date" id="add-due" style="width:150px" aria-label="마감일">
       <button class="btn primary" type="submit">${ico('plus', 'sm')}추가</button>
     </form>
     <div class="todo-bar"><div class="tabs">${Object.entries(tabs).map(([k, [lbl, arr]]) => `<button data-tab="${k}" class="${ui.todoTab === k ? 'on' : ''}">${lbl}<span class="n">${k === 'given' ? arr.filter((t) => !t.done).length || '' : arr.length}</span></button>`).join('')}</div>
@@ -952,9 +1024,9 @@ function todoRow(t) {
   if (ui.todoEdit === t.id) {
     return `<form class="todo" id="todo-edit" style="grid-template-columns:24px minmax(0,1fr) 140px 150px auto;background:var(--hover)">
       <span></span>
-      <div style="display:flex;flex-direction:column;gap:6px;padding:4px 0"><input class="edit-input" id="te-title" value="${esc(t.title)}"><input class="edit-input" id="te-note" style="border-color:var(--line2)" value="${esc(tMemo(t))}" placeholder="메모 (선택)"></div>
-      <select class="select" id="te-cat">${CATS.map((c) => `<option ${c === t.cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
-      <input class="input" type="date" id="te-due" value="${t.due || ''}">
+      <div style="display:flex;flex-direction:column;gap:6px;padding:4px 0"><input class="edit-input" id="te-title" value="${esc(t.title)}" aria-label="할 일"><input class="edit-input" id="te-note" style="border-color:var(--line2)" value="${esc(tMemo(t))}" placeholder="메모 (선택)" aria-label="메모"></div>
+      <select class="select" id="te-cat" aria-label="분류">${CATS.map((c) => `<option ${c === t.cat ? 'selected' : ''}>${c}</option>`).join('')}</select>
+      <input class="input" type="date" id="te-due" value="${t.due || ''}" aria-label="마감일">
       <div style="display:flex;gap:6px"><button class="btn primary" type="submit">저장</button><button class="btn" type="button" id="te-cancel">취소</button><button class="btn ghost" type="button" data-del="${esc(t.id)}">삭제</button></div>
     </form>`;
   }
@@ -972,10 +1044,10 @@ function todoRow(t) {
 function addTodoSheet(due) {
   openSheet(`<h3>할 일 추가</h3>
     <form id="sheet-todo">
-      <div class="field"><input class="input full" name="title" placeholder="할 일" autocomplete="off" required></div>
-      <div class="field"><div class="chips">${CATS.map((c) => `<label><input type="radio" name="cat" value="${c}" ${c === (ui.lastCat || '사무실 세팅') ? 'checked' : ''}>${c}</label>`).join('')}</div></div>
-      <div class="field"><label style="display:block;font-size:var(--fs-md);color:var(--text2);margin-bottom:6px">담당</label><div class="chips">${[['나', ''], ...whoOpts()].map(([n, m]) => `<label><input type="radio" name="who" value="${m}" ${m ? '' : 'checked'}>${n}</label>`).join('')}</div></div>
-      <div class="field"><label style="display:block;font-size:var(--fs-md);color:var(--text2);margin-bottom:6px">마감일</label><input class="input full" type="date" name="due" value="${due || ''}"></div>
+      <div class="field"><input class="input full" name="title" placeholder="할 일" autocomplete="off" required aria-label="할 일"></div>
+      <div class="field"><div class="chips" role="radiogroup" aria-label="분류">${CATS.map((c) => `<label><input type="radio" name="cat" value="${c}" ${c === (ui.lastCat || '사무실 세팅') ? 'checked' : ''}>${c}</label>`).join('')}</div></div>
+      <div class="field"><label id="st-who-l" style="display:block;font-size:var(--fs-md);color:var(--text2);margin-bottom:6px">담당</label><div class="chips" role="radiogroup" aria-labelledby="st-who-l">${[['나', ''], ...whoOpts()].map(([n, m]) => `<label><input type="radio" name="who" value="${m}" ${m ? '' : 'checked'}>${n}</label>`).join('')}</div></div>
+      <div class="field"><label for="st-due" style="display:block;font-size:var(--fs-md);color:var(--text2);margin-bottom:6px">마감일</label><input class="input full" type="date" id="st-due" name="due" value="${due || ''}"></div>
       <button class="btn primary full" type="submit">추가</button>
     </form>`, (el, close) => {
     const f = el.querySelector('#sheet-todo');
@@ -1041,7 +1113,12 @@ function sameTitle(a, b) { // 기호·공백을 빼고 앞 네 글자가 같으�
 const hhmm = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 
 function calForm(kind, id, events) {
-  const f = (label, inner, cls = '') => `<div class="field ${cls}"><label>${label}</label>${inner}</div>`;
+  // 칸 이름과 입력 잇기: 고르는 묶음(라디오)은 묶음 이름으로, 나머지는 첫 입력칸에 for/id
+  const f = (label, inner, cls = '') => {
+    const id = `cf-${uid()}`;
+    if (/type="radio"/.test(inner)) return `<div class="field ${cls}" role="radiogroup" aria-labelledby="${id}"><label id="${id}">${label}</label>${inner}</div>`;
+    return `<div class="field ${cls}"><label for="${id}">${label}</label>${inner.replace(/<(input|select|textarea)\b/, `<$1 id="${id}"`)}</div>`;
+  };
   const del = id ? '<button class="btn ghost" type="button" data-cf="del" style="margin-left:auto">삭제</button>' : '';
   const actions = `<div class="actions"><button class="btn primary" type="submit">저장</button><button class="btn" type="button" data-cf="cancel">취소</button>${del}</div>`;
   if (kind === 'ev') {
@@ -1053,8 +1130,8 @@ function calForm(kind, id, events) {
     const st = e ? e.start.slice(11, 16) : hhmm(now), et = e ? e.end.slice(11, 16) : hhmm(new Date(now.getTime() + 3600000));
     return `<form class="cal-form" id="cf" data-kind="ev">
       ${f('제목', `<input class="input" name="subject" value="${esc(e?.subject || '')}" required>`, 'wide')}
-      ${f('시작', `<div class="pair"><input class="input" type="date" name="startDate" value="${sd}" required><input class="input t" type="time" step="600" name="startTime" value="${st}"></div>`, 'half')}
-      ${f('종료', `<div class="pair"><input class="input" type="date" name="endDate" value="${ed}" required><input class="input t" type="time" step="600" name="endTime" value="${et}"></div>`, 'half')}
+      ${f('시작', `<div class="pair"><input class="input" type="date" name="startDate" value="${sd}" required><input class="input t" type="time" step="600" name="startTime" value="${st}" aria-label="시작 시각"></div>`, 'half')}
+      ${f('종료', `<div class="pair"><input class="input" type="date" name="endDate" value="${ed}" required><input class="input t" type="time" step="600" name="endTime" value="${et}" aria-label="종료 시각"></div>`, 'half')}
       ${f('장소', `<input class="input" name="location" value="${esc(e?.location || '')}">`, 'half')}
       ${e ? '' : f('캘린더', `<div class="cal-pick">${CALS.slice(0, 2).filter((c) => c.key !== 'team' || OUTLOOK.teamWritable).map((c, i) => `<label class="c-${c.key}"><input type="radio" name="calendar" value="${c.key}" ${i === 0 ? 'checked' : ''}><i class="cdot"></i>${c.name}<span class="muted">${c.sub}</span></label>`).join('')}</div>`, 'wide')}
       <label class="allday"><input type="checkbox" class="check" name="allDay" ${e?.allDay ? 'checked' : ''}>종일</label>
@@ -1134,18 +1211,18 @@ async function openEventModalInner(id, events, onDone, date, pre) {
   const calNow = e ? e.cal : OUTLOOK.teamWritable ? 'team' : 'me';
   openSheet(`<h3>${e ? '일정 수정' : '일정 추가'}</h3>
     <form class="ev-form" id="evf" autocomplete="off">
-      <div class="r"><label>캘린더</label><div>${!canMove
+      <div class="r" role="group" aria-labelledby="ev-cal-l"><label id="ev-cal-l">캘린더</label><div>${!canMove
         ? `<span class="cal-tag c-${e.cal}"><i class="cdot"></i>${e.cal === 'team' ? '유니버스인베스트먼트' : '내 일정'}</span>`
         : `<div class="cal-pick">${CALS.slice(0, 2).filter((c) => c.key !== 'team' || OUTLOOK.teamWritable).map((c) => `<label class="c-${c.key}"><input type="radio" name="calendar" value="${c.key}" ${c.key === calNow ? 'checked' : ''}><i class="cdot"></i>${c.name}<span class="muted">${c.sub}</span></label>`).join('')}</div>`}</div></div>
-      <div class="r"><label>담당자</label><div class="cal-pick owner-pick">${PEOPLE.map((p) => `<label><input type="checkbox" name="owner" value="${p}" ${(e ? evOwners(e) : PEOPLE.filter((x) => myName().includes(x))).includes(p) ? 'checked' : ''}>${p}</label>`).join('')}</div></div>
+      <div class="r" role="group" aria-labelledby="ev-own-l"><label id="ev-own-l">담당자</label><div class="cal-pick owner-pick">${PEOPLE.map((p) => `<label><input type="checkbox" name="owner" value="${p}" ${(e ? evOwners(e) : PEOPLE.filter((x) => myName().includes(x))).includes(p) ? 'checked' : ''}>${p}</label>`).join('')}</div></div>
       <div class="r"><label for="ev-subj">제목</label><div class="line"><input class="input grow" id="ev-subj" name="subject" value="${esc(e?.subject || p.subject || '')}" placeholder="제목을 입력하세요."><label class="ck"><input type="checkbox" class="check" name="important" ${det.importance === 'high' ? 'checked' : ''}>중요</label></div></div>
-      <div class="r"><label>일시</label><div>
-        <div class="line wrap"><span class="dt"><input class="input" type="date" name="startDate" value="${sd}"><input class="input t" type="time" step="600" name="startTime" value="${st}"></span><span class="tilde">~</span><span class="dt"><input class="input" type="date" name="endDate" value="${ed}"><input class="input t" type="time" step="600" name="endTime" value="${et}"></span><label class="ck"><input type="checkbox" class="check" name="allDay" ${e?.allDay || p.allDay ? 'checked' : ''}>종일</label></div>
-        <select class="select rep" name="repeat" ${series ? 'disabled' : ''}>${series ? '<option>반복 일정 — 이 일정만 수정</option>' : opts(REP_OPTS, repNow)}</select>
+      <div class="r"><label for="ev-sd">일시</label><div>
+        <div class="line wrap"><span class="dt"><input class="input" type="date" id="ev-sd" name="startDate" value="${sd}" aria-label="시작일"><input class="input t" type="time" step="600" name="startTime" value="${st}" aria-label="시작 시각"></span><span class="tilde">~</span><span class="dt"><input class="input" type="date" name="endDate" value="${ed}" aria-label="종료일"><input class="input t" type="time" step="600" name="endTime" value="${et}" aria-label="종료 시각"></span><label class="ck"><input type="checkbox" class="check" name="allDay" ${e?.allDay || p.allDay ? 'checked' : ''}>종일</label></div>
+        <select class="select rep" name="repeat" aria-label="반복" ${series ? 'disabled' : ''}>${series ? '<option>반복 일정 — 이 일정만 수정</option>' : opts(REP_OPTS, repNow)}</select>
       </div></div>
-      <div class="r"><label>내용</label><textarea class="area" name="note" placeholder="내용을 입력하세요.">${esc(noteNow || p.note || '')}</textarea></div>
-      <div class="r"><label>장소</label><input class="input" name="location" value="${esc(e?.location || p.location || '')}" placeholder="장소를 입력하세요."></div>
-      <div class="r"><label>알림</label><select class="select narrow" name="reminder">${opts(REM_OPTS, remNow)}</select></div>
+      <div class="r"><label for="ev-note">내용</label><textarea class="area" id="ev-note" name="note" placeholder="내용을 입력하세요.">${esc(noteNow || p.note || '')}</textarea></div>
+      <div class="r"><label for="ev-loc">장소</label><input class="input" id="ev-loc" name="location" value="${esc(e?.location || p.location || '')}" placeholder="장소를 입력하세요."></div>
+      <div class="r"><label for="ev-rem">알림</label><select class="select narrow" id="ev-rem" name="reminder">${opts(REM_OPTS, remNow)}</select></div>
       <div class="ev-actions">${e ? '<button type="button" class="btn ghost danger" data-del>삭제</button>' : ''}<span class="sp"></span><button type="button" class="btn grey" data-cancel>취소</button><button type="submit" class="btn primary" data-save>저장</button></div>
     </form>`, (el, close) => {
     const f = el.querySelector('#evf'), save = f.querySelector('[data-save]'), allDay = f.allDay;
@@ -1615,9 +1692,16 @@ function renderHomepage() {
 }
 
 // ---------- 기록 ----------
-function renderNotes() {
+// 기록 목록(검색 결과): 검색칸은 두고 목록만 다시 그린다(한 글자마다 화면 전체를 다시 그리면 편집기까지 다시 열렸다)
+const noteListHtml = () => {
   const q = ui.noteQ.trim().toLowerCase();
   const list = S.notes.filter((n) => !q || n.name.toLowerCase().includes(q) || n.preview.toLowerCase().includes(q));
+  return list.map((n) => `<li data-n="${esc(n.name)}" class="${n.name === ui.note ? 'on' : ''}"><div class="nm">${noteTag(n.name)}${esc(noteTitle(n.name))}</div><span class="tm">${relTime(n.mtime)}</span></li>`).join('') || '<div class="empty">기록이 없습니다.</div>';
+};
+function noteListBind(ul) {
+  ul.querySelectorAll('[data-n]').forEach((li) => li.addEventListener('click', async () => { await flushNote(); ui.note = li.dataset.n; ui.noteOpen = true; renderNotes(); }));
+}
+function renderNotes() {
   // 다른 곳에서 이름을 바꿨거나 지운 기록은 열지 않는다(옛 이름으로 새 파일이 생기지 않게)
   if (ui.note && !S.notes.some((n) => n.name === ui.note) && !(cur && cur.name === ui.note && (cur.dirty || cur.saving))) ui.note = null;
   if (!ui.note && S.notes.length && !isMobile()) ui.note = S.notes[0].name;
@@ -1634,14 +1718,17 @@ function renderNotes() {
         <div class="top">
           <div class="row"><button class="btn" data-new="daily">${ico('plus', 'sm')}업무일지</button><button class="btn" data-new="meeting">${ico('plus', 'sm')}회의록</button><button class="btn" data-new="memo">${ico('plus', 'sm')}메모</button><button class="btn${ui.dealPick ? ' on' : ''}" data-new="deal" aria-expanded="${!!ui.dealPick}">${ico('plus', 'sm')}딜 노트</button></div>
           ${ui.dealPick ? `<select class="select" id="ndeal" aria-label="딜 선택"><option value="">딜 선택</option>${deals.map((x) => `<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select>` : ''}
-          <input class="input" id="nq" placeholder="제목·내용 검색" value="${esc(ui.noteQ)}">
+          <input class="input" id="nq" placeholder="제목·내용 검색" value="${esc(ui.noteQ)}" aria-label="기록 검색" autocomplete="off">
         </div>
-        <ul>${list.map((n) => `<li data-n="${esc(n.name)}" class="${n.name === ui.note ? 'on' : ''}"><div class="nm">${noteTag(n.name)}${esc(noteTitle(n.name))}</div><span class="tm">${relTime(n.mtime)}</span></li>`).join('') || '<div class="empty">기록이 없습니다.</div>'}</ul>
+        <ul id="note-ul">${noteListHtml()}</ul>
       </div>
       <div class="editor" id="editor"><div class="empty" style="margin:auto">왼쪽에서 기록을 고르거나 새로 만드세요.</div></div>
     </div>`;
-  $('#nq').addEventListener('input', (e) => { ui.noteQ = e.target.value; const pos = e.target.selectionStart; renderNotes(); const n = $('#nq'); n.focus(); n.setSelectionRange(pos, pos); });
-  PAGE.querySelectorAll('[data-n]').forEach((li) => li.addEventListener('click', async () => { await flushNote(); ui.note = li.dataset.n; ui.noteOpen = true; renderNotes(); }));
+  const nq = $('#nq'), ul = $('#note-ul');
+  const search = () => { ui.noteQ = nq.value; viewSet('noteQ', ui.noteQ); ul.innerHTML = noteListHtml(); noteListBind(ul); };
+  nq.addEventListener('input', (e) => { if (!e.isComposing) search(); }); // 한글 조합 중에는 미루고 조합이 끝나면 한 번
+  nq.addEventListener('compositionend', search);
+  noteListBind(ul);
   PAGE.querySelectorAll('[data-new]').forEach((b) => b.addEventListener('click', () => {
     if (b.dataset.new !== 'deal') { ui.dealPick = false; newNote(b.dataset.new); return; }
     if (!ui.dealPick && !(typeof ppS !== 'undefined' && ppS.items.some((x) => ppOk(x) && ppStage(x) !== '드롭'))) { toast('파이프라인에 딜이 없습니다'); return; }

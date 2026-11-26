@@ -10,7 +10,7 @@
    서류 목록은 공개 저장소에 두지 않으려고 코드에 없다 — 목록을 바꿀 땐 그 파일을 고친다.
    저장은 할 일 맡기기(app.js ttSave)처럼 eTag로 충돌을 막고, 겹치면 다시 읽어 다시 적용한다 */
 const PR_PATH = '_웍스/준비서류.json';
-const PR = { d: null, etag: null, loaded: false, at: 0, gen: 0, busy: 0, q: Promise.resolve(), err: '', edit: null, draft: '' }; // edit: 메모를 쓰고 있는 항목 id
+const PR = { d: null, etag: null, loaded: false, at: 0, gen: 0, busy: 0, q: Promise.resolve(), err: '', edit: null, draft: '', dedit: null, ddue: '', dwhen: '' }; // edit: 메모를 쓰고 있는 항목 id, dedit: 날짜를 고치고 있는 항목 id(ddue·dwhen은 고치기 전 값)
 const prUrl = () => `/drives/${CFG.teamDrive}/root:/${PR_PATH.split('/').map(encodeURIComponent).join('/')}:`;
 const prOn = () => ['corp', 'fss'].includes(route());
 
@@ -55,7 +55,7 @@ function prAct(fn) {
   });
 }
 
-const prTyping = () => !!PR.edit || !!document.activeElement?.matches('select');
+const prTyping = () => !!PR.edit || !!PR.dedit || !!document.activeElement?.matches('select');
 const prMe = () => personName(G.account?.username);
 const prStamp = () => ({ by: (G.account?.username || '').toLowerCase(), at: new Date().toISOString() });
 const prMD = (s) => { const d = parse(s); return `${d.getMonth() + 1}/${d.getDate()}(${WD[d.getDay()]})`; };
@@ -86,10 +86,21 @@ function prCount(L) {
   return { per, co };
 }
 const prBar = (done, n) => `<span class="pr-bar"><i style="width:${n ? Math.round((done / n) * 100) : 0}%"></i></span>`;
-function prDue(due, done, when) {
-  if (!due) return '';
+// 항목 날짜: 누르면 고치는 버튼. 날짜가 없거나 날짜별 보기(grp, 날짜는 묶음 제목에 있음)면 '날짜' 버튼(PC는 행에 올렸을 때만)
+function prDue(it, done, grp) {
+  if (PR.dedit === it.id) return '';
+  const due = it.due, when = it.when;
+  if (!due || grp) return `<button type="button" class="pr-madd pr-dadd ${grp ? 'grp' : ''}" data-dedit="${esc(it.id)}" aria-label="${esc(`${it.title} 날짜`)}">${ico('cal', 'sm')}날짜</button>`;
   const d = diffDays(due, today()), cls = done ? '' : d < 0 ? 'red' : d <= 3 ? 'amber' : '', md = `${prMD(due)}${when ? ` ${when}` : ''}`;
-  return `<span class="pr-due ${cls}" title="${esc(md)}">${!done && d < 0 ? `${-d}일 지남` : esc(md)}</span>`;
+  return `<button type="button" class="pr-due ${cls}" data-dedit="${esc(it.id)}" title="${esc(md)}" aria-label="${esc(`${it.title} 날짜 ${md}`)}">${!done && d < 0 ? `${-d}일 지남` : esc(md)}</button>`;
+}
+const PR_WHENS = ['오전', '9시', '10시', '11시', '12시', '13시', '14시', '15시', '16시', '17시', '18시', '오후', '이후'];
+function prDueEdit(it) {
+  if (PR.dedit !== it.id) return '';
+  const ws = [...new Set([...PR_WHENS, ...(it.when ? [it.when] : [])])];
+  return `<div class="pr-dedit"><input class="input" type="date" data-ddate value="${esc(it.due || '')}" aria-label="날짜">
+    <select class="select" data-dwhen aria-label="때"><option value="">때 없음</option>${ws.map((w) => `<option ${w === (it.when || '') ? 'selected' : ''}>${esc(w)}</option>`).join('')}</select>
+    <button type="button" class="btn sm ghost" data-dcancel>취소</button><button type="button" class="btn sm primary" data-dsave="${esc(it.id)}">저장</button></div>`;
 }
 
 // 사람 서류 칸 하나(표와 날짜 묶음이 같이 쓴다)
@@ -104,7 +115,7 @@ function prCoLi(L, it, me, noDue) {
   return `<li class="${c.s === 'done' ? 'done' : ''}">
     <button type="button" class="pr-cell s-${c.s === 'done' ? 'done' : 'todo'}" data-co="${esc(it.id)}" aria-label="${esc(`${it.title}: ${c.s === 'done' ? '준비됨' : '미준비'}`)}"
       title="${esc(c.s === 'done' && c.by ? `준비됨 (${personName(c.by)} ${prWhen(c.at)})` : '누르면 준비됨')}">${c.s === 'done' ? ico('done', 'sm') : ''}</button>
-    <div class="pr-doc"><div class="pr-t">${esc(it.title)}${noDue ? '' : prDue(it.due, c.s === 'done', it.when)}${prMemoBtn(it)}</div>${it.detail ? `<div class="pr-det">${esc(it.detail)}</div>` : ''}${prMemo(it)}</div>
+    <div class="pr-doc"><div class="pr-t">${esc(it.title)}${prDue(it, c.s === 'done', noDue)}${prMemoBtn(it)}</div>${it.detail ? `<div class="pr-det">${esc(it.detail)}</div>` : ''}${prDueEdit(it)}${prMemo(it)}</div>
     <select class="select pr-own ${c.owner ? '' : 'none'} ${c.owner && c.owner === me ? 'me' : ''}" data-own="${esc(it.id)}" aria-label="담당">
       <option value="">담당 미정</option>${opts.map((o) => `<option ${o === c.owner ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>
   </li>`;
@@ -114,7 +125,7 @@ function prPpLi(L, it, me) {
   const done = L.people.every((p) => prCell(it, p).s !== 'todo');
   return `<li class="pr-pp ${done ? 'done' : ''}">
     <span class="pr-pi" title="사람별 체크">${ico('user', 'sm')}</span>
-    <div class="pr-doc"><div class="pr-t">${esc(it.title)}${prMemoBtn(it)}</div>${it.detail ? `<div class="pr-det">${esc(it.detail)}</div>` : ''}${prMemo(it)}</div>
+    <div class="pr-doc"><div class="pr-t">${esc(it.title)}${prDue(it, done, true)}${prMemoBtn(it)}</div>${it.detail ? `<div class="pr-det">${esc(it.detail)}</div>` : ''}${prDueEdit(it)}${prMemo(it)}</div>
     <div class="pr-ppl">${L.people.map((p) => `<span class="pr-pw ${p === me ? 'me' : ''}"><small>${esc(p)}</small>${prPCell(it, p)}</span>`).join('')}</div>
   </li>`;
 }
@@ -181,7 +192,7 @@ function prDraw() {
         <div class="pr-scroll"><table class="pr-tbl">
           <thead><tr><th class="pr-doc">서류</th>${L.people.map((p) => `<th class="${p === me ? 'me' : ''}">${esc(p)}</th>`).join('')}</tr></thead>
           <tbody>${sec.items.map((it) => `<tr>
-            <td class="pr-doc"><div class="pr-t">${esc(it.title)}${prDue(it.due, L.people.every((p) => prCell(it, p).s !== 'todo'), it.when)}${prMemoBtn(it)}</div>${it.detail ? `<div class="pr-det">${esc(it.detail)}</div>` : ''}${prMemo(it)}</td>
+            <td class="pr-doc"><div class="pr-t">${esc(it.title)}${prDue(it, L.people.every((p) => prCell(it, p).s !== 'todo'))}${prMemoBtn(it)}</div>${it.detail ? `<div class="pr-det">${esc(it.detail)}</div>` : ''}${prDueEdit(it)}${prMemo(it)}</td>
             ${L.people.map((p) => `<td class="${p === me ? 'me' : ''}">${prPCell(it, p)}</td>`).join('')}
           </tr>`).join('')}</tbody>
         </table></div>
@@ -226,10 +237,37 @@ function prDraw() {
     ta.addEventListener('input', () => { PR.draft = ta.value; });
     ta.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && !e.isComposing) { e.preventDefault(); $('[data-msave]', root)?.click(); }
-      if (e.key === 'Escape') { e.preventDefault(); $('[data-mcancel]', root)?.click(); }
+      if (e.key === 'Escape') { e.preventDefault(); if (prDirty() && !confirm('쓰던 메모를 버릴까요?')) return; $('[data-mcancel]', root)?.click(); }
     });
   }
   $('[data-mcancel]', root)?.addEventListener('click', () => { PR.edit = null; PR.draft = ''; prDraw(); });
+  // 항목 날짜 고치기: 목록 자료(lists)의 due·when을 바꾼다. 날짜를 비우면 날짜별 보기에서 맨 끝 묶음
+  root.querySelectorAll('[data-dedit]').forEach((b) => b.addEventListener('click', () => {
+    const it = L.sections.flatMap((s) => s.items).find((x) => x.id === b.dataset.dedit); if (!it) return;
+    if (PR.dedit && PR.dedit !== it.id && prDDirty() && !confirm('고치던 날짜를 버리고 다른 항목을 열까요?')) return;
+    PR.dedit = it.id; PR.ddue = it.due || ''; PR.dwhen = it.when || ''; prDraw();
+    $('[data-ddate]', root)?.focus();
+  }));
+  const de = $('.pr-dedit', root);
+  if (de) {
+    de.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.isComposing && e.target.matches('input')) { e.preventDefault(); $('[data-dsave]', de)?.click(); }
+      if (e.key === 'Escape') { e.preventDefault(); if (prDDirty() && !confirm('고치던 날짜를 버릴까요?')) return; $('[data-dcancel]', de)?.click(); }
+    });
+    $('[data-dcancel]', de).addEventListener('click', () => { const id = PR.dedit; PR.dedit = null; prDraw(); root.querySelector(`[data-dedit="${CSS.escape(id)}"]`)?.focus(); });
+    $('[data-dsave]', de).addEventListener('click', (e) => {
+      const id = e.currentTarget.dataset.dsave, due = $('[data-ddate]', de).value, when = $('[data-dwhen]', de).value;
+      if (due && !/^\d{4}-\d{2}-\d{2}$/.test(due)) { toast('날짜를 확인하세요'); return; }
+      PR.dedit = null;
+      if (due === PR.ddue && when === PR.dwhen) { prDraw(); return; }
+      prAct((d) => {
+        const it = (d.lists?.[key]?.sections || []).flatMap((s) => s.items || []).find((x) => x.id === id); if (!it) return;
+        if (due) it.due = due; else delete it.due;
+        if (when) it.when = when; else delete it.when;
+      });
+      root.querySelector(`[data-dedit="${CSS.escape(id)}"]`)?.focus();
+    });
+  }
   $('[data-msave]', root)?.addEventListener('click', (e) => {
     const id = e.currentTarget.dataset.msave, t = PR.draft.trim(), m = t ? { t, ...prStamp() } : null;
     PR.edit = null; PR.draft = '';
@@ -237,6 +275,16 @@ function prDraw() {
     prAct((d) => { if (m) d.memos[id] = m; else delete d.memos[id]; });
   });
 }
+// 쓰던 메모(저장된 글과 다를 때)나 아직 저장 중인 변경이 있으면 새로 고침, 탭 닫기, 메뉴 이동 전에 묻는다
+const prDDirty = () => { const de = document.querySelector('#pr-root .pr-dedit'); return !!PR.dedit && !!de && (de.querySelector('[data-ddate]').value !== PR.ddue || de.querySelector('[data-dwhen]').value !== PR.dwhen); };
+const prDirty = () => (!!PR.edit && PR.draft.trim() !== (PR.d?.memos?.[PR.edit]?.t || '')) || prDDirty();
+window.addEventListener('beforeunload', (e) => { if (prDirty() || PR.busy) { e.preventDefault(); e.returnValue = ''; } });
+document.addEventListener('click', (e) => {
+  const a = e.target.closest?.('a[href^="#"], [data-dt]'); if (!a || !prOn() || !prDirty()) return;
+  const to = a.getAttribute('href') || a.dataset.dt; if (!to || to === location.hash) return;
+  if (confirm('쓰던 내용이 저장되지 않습니다. 이동할까요?')) { PR.edit = null; PR.draft = ''; PR.dedit = null; return; }
+  e.preventDefault(); e.stopImmediatePropagation();
+}, true);
 // 다른 창에서 돌아오면 다른 분이 바꾼 체크를 다시 읽는다
 window.addEventListener('focus', () => {
   if (!prOn() || PR.busy || Date.now() - PR.at < 5000 || prTyping()) return;

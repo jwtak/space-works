@@ -103,6 +103,8 @@
 .v3-iw input.chg, .v3-ci input.chg { border-color: var(--primary); background: var(--primary-soft); }
 .v3-iw input:disabled, .v3-ci input:disabled { background: var(--hover); color: var(--text2); }
 .v3-iw input::placeholder, .v3-ci input::placeholder { color: var(--text3); }
+.v3-iw input[aria-invalid="true"], .v3-ci input[aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+.v3-inv { display: block; margin-top: 4px; font-size: var(--fs-sm); color: var(--danger); text-align: left; }
 .v3-ck { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; font-size: var(--fs-md); color: var(--ink); cursor: pointer; }
 .v3-ck input { width: 18px; height: 18px; margin: 0; accent-color: var(--primary); cursor: pointer; }
 .v3-opt { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; }

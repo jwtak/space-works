@@ -1,5 +1,5 @@
 /* 요청사항: 넓은 화면은 본문 오른쪽 박스(첫 카드와 같은 높이에서 시작, 스크롤해도 따라옴), 좁으면 오른쪽 가장자리 탭 → 덮는 패널 */
-.req { display: flex; flex-direction: column; background: var(--card); min-width: 0; overflow-y: auto; scrollbar-width: thin; }
+.req { display: flex; flex-direction: column; background: var(--card); min-width: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
 .req[hidden] { display: none; }
 @media (min-width: 761px) {
   body.req-on .scroll { display: flex; align-items: flex-start; }

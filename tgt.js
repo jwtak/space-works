@@ -147,7 +147,16 @@ function tgLoad(k, force) {
    dirty = 아직 저장 안 된 변경 {key → {patch, seq, base(되돌릴 원본, 없으면 null), name, tab, at, by}} */
 const TG_MARKS_BAD = '컨택 상태 자료 형식이 올바르지 않습니다';
 const tgFind = (id) => { const k = String(id || '').split(':')[0]; return TG_CFG[k] ? tgS[k].data?.byId.get(id) || null : null; };
-const tgMark = (key) => tgS.marks.items.find((m) => m && m.key === key);
+// 표시 찾기는 key → 항목 Map으로(radar.js rdMark와 같다). 새 배열·길이 변화(round.js·si.js가 넣는 것 포함)면 다시 만들고, 제자리 되돌리기(tgRollback)는 직접 비운다
+let tgMarkIx = { src: null, len: -1, map: null };
+const tgMark = (key) => {
+  const a = tgS.marks.items;
+  if (tgMarkIx.src !== a || tgMarkIx.len !== a.length) {
+    const map = new Map(); a.forEach((m) => { if (m && m.key != null && !map.has(m.key)) map.set(m.key, m); });
+    tgMarkIx = { src: a, len: a.length, map };
+  }
+  return tgMarkIx.map.get(key);
+};
 const tgSt = (key) => { const s = tgMark(key)?.status; return TG_STATUS.includes(s) ? s : '미접촉'; };
 const tgNow = () => { const d = new Date(); return `${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 let tgSeq = 0;
@@ -174,6 +183,7 @@ function tgRollback(msg) {
     const items = tgS.marks.items, k = items.findIndex((x) => x && x.key === key);
     if (e.base) { if (k >= 0) items[k] = e.base; else items.push(e.base); } else if (k >= 0) items.splice(k, 1);
   });
+  tgMarkIx.src = null;
   tgS.dirty.clear();
   toast(msg);
   tgDraw();
@@ -225,12 +235,14 @@ function tgTouch(id, patch) {
 }
 
 // 상태를 바꾼 행은 펼친 채 그 자리에 두고(메모를 이어 쓸 수 있게), 접을 때 연락함·미팅·보류면 목록 아래 '컨택한 곳'으로 내린다.
-// 검토 완료를 한 번 더 누르면 미접촉으로 되돌린다(다른 상태는 그대로)
+// 검토 완료를 한 번 더 누르면 미접촉으로 되돌리고 토스트로 알린다(다른 상태는 그대로)
 function tgSetStatus(id, status) {
   const x = tgFind(id);
   if (!x || !TG_STATUS.includes(status)) return;
-  if (tgSt(x.id) === status) { if (status !== TG_DONE) return; status = TG_STATUS[0]; }
+  let undo = false;
+  if (tgSt(x.id) === status) { if (status !== TG_DONE) return; status = TG_STATUS[0]; undo = true; }
   if (!tgTouch(id, { status })) return;
+  if (undo) toast('검토 완료를 해제했습니다');
   tgRefreshRow(id);
   tgSumDraw();
   tgSaveMarks();
@@ -524,9 +536,14 @@ function tgKeepBack(keep) {
 function tgReveal(r) {
   const sc = r.closest('.scroll');
   if (!sc) { r.scrollIntoView({ block: r.offsetHeight <= innerHeight ? 'center' : 'start' }); return; }
-  const tb = document.querySelector('.tabbar'), vis = sc.clientHeight - (tb ? tb.offsetHeight : 0), h = r.offsetHeight;
-  const top = r.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
-  sc.scrollTop = h <= vis ? top - (vis - h) / 2 : top - 8;
+  const go = () => {
+    const tb = document.querySelector('.tabbar'), vis = sc.clientHeight - (tb ? tb.offsetHeight : 0), h = r.offsetHeight;
+    const top = r.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
+    sc.scrollTop = h <= vis ? top - (vis - h) / 2 : top - 8;
+  };
+  go();
+  // 접힌 행은 화면 근처에 와야 그려진다(tgt.css content-visibility). 옮긴 뒤 위쪽 행이 제 높이로 그려지면 한 번 더 맞춘다
+  requestAnimationFrame(() => requestAnimationFrame(() => { if (r.isConnected) go(); }));
 }
 
 // 행을 갈아 끼울 때 보던 자리를 지킨다 — pe.js peHold와 같다
@@ -570,10 +587,26 @@ function tgRefreshRow(id) {
   const x = tgFind(id), b = tgS.host?.querySelector('#tg-body'), r = b && tgRowEl(b, id);
   if (!x || !r) return;
   if (tgImeWait(r, `row:${id}`, () => tgRefreshRow(id))) return;
-  const keep = tgKeepNote(r);
+  const keep = tgKeepNote(r), fk = keep ? null : tgFocusKey(r);
   tgDrawing = true;
   try { tgHold(b, id, () => { r.outerHTML = tgRowHtml(x); }); } finally { tgDrawing = false; }
   tgKeepBack(keep);
+  tgFocusBack(tgRowEl(b, id), fk);
+}
+
+/* 행을 갈아 끼우기 전 포커스 자리(태그와 data-* 이름, 없으면 class, 같은 것 중 몇 번째)를 적어 두고 새 행에서 같은 자리로 되돌린다(radar.js rdFocusKey와 같다) */
+const TG_FK_STATE = new Set(['on', 'open', 'sel']);
+function tgFocusKey(box) {
+  const a = document.activeElement; if (!a || !box || !box.contains(a)) return null;
+  if (a === box) return { self: true };
+  const d = [...a.attributes].filter((t) => t.name.startsWith('data-')).map((t) => `[${t.name}]`).join('');
+  const sel = a.tagName.toLowerCase() + (d || [...a.classList].filter((c) => !TG_FK_STATE.has(c)).map((c) => `.${CSS.escape(c)}`).join(''));
+  return { sel, n: [...box.querySelectorAll(sel)].indexOf(a) };
+}
+function tgFocusBack(box, k) {
+  if (!k || !box || !box.isConnected) return;
+  const all = k.self ? [box] : box.querySelectorAll(k.sel), el = all[k.self ? 0 : k.n] || all[0];
+  if (el && document.activeElement !== el) el.focus({ preventScroll: true });
 }
 
 // 접은 행이 상태 때문에 다른 묶음(컨택한 곳 ↔ 위 목록)으로 가야 하면 목록을 다시 그리고, 그 행 바로 다음 행이 그 자리에 오게 한다
@@ -584,10 +617,11 @@ function tgFold(r, x) {
   if (tgLowSt(tgSt(x.id)) === inLow) { tgRefreshRow(x.id); return; }
   const sc = r.closest('.scroll');
   let nx = r.nextElementSibling; while (nx && !nx.matches('.ipo-row[data-id]')) nx = nx.nextElementSibling;
-  const y0 = r.getBoundingClientRect().top - (parseFloat(getComputedStyle(r).marginTop) || 0), nid = nx?.dataset.id;
+  const y0 = r.getBoundingClientRect().top - (parseFloat(getComputedStyle(r).marginTop) || 0), nid = nx?.dataset.id, fk = tgFocusKey(r);
   tgDraw();
   const n = nid != null && tgRowEl(b, nid);
   if (sc && n) { const dy = n.getBoundingClientRect().top - y0; if (Math.abs(dy) >= 0.5) sc.scrollTop += dy; }
+  tgFocusBack(tgRowEl(b, x.id), fk);
 }
 
 // 펼친 행의 파이프라인 버튼만 다시 그린다(행을 통째로 다시 그리면 그사이 치던 메모가 사라진다). id가 없으면 펼친 행 전부
@@ -637,7 +671,11 @@ function tgBind(root) {
       if (was && x) tgFold(row, x); else tgRefreshRow(id);
     }
   });
-  root.addEventListener('input', (ev) => { if (ev.target.id === 'tg-q') { tgS[tgS.k].v.q = ev.target.value; tgDraw(); } });
+  // 검색: 150ms 모아서 한 번 그린다. 한글 조합 중에는 미루고 조합이 끝나면 그린다
+  let qT = 0;
+  const qSoon = (el) => { clearTimeout(qT); qT = setTimeout(() => { if (!el.isConnected) return; tgS[tgS.k].v.q = el.value; tgDraw(); }, 150); };
+  root.addEventListener('input', (ev) => { if (ev.target.id === 'tg-q' && !ev.isComposing) qSoon(ev.target); });
+  root.addEventListener('compositionend', (ev) => { if (ev.target.id === 'tg-q') qSoon(ev.target); });
   root.addEventListener('change', (ev) => {
     const t = ev.target;
     if (t.id === 'tg-sort') { tgS[tgS.k].v.sort = t.value; tgDraw(); }

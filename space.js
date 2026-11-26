@@ -250,9 +250,13 @@ function spBind(root) {
     const row = t.closest('.ipo-row[data-id]'), x = row && spS.data?.items.find((y) => y.id === row.dataset.id);
     if (!x) return;
     if (spS.open.has(x.id)) spS.open.delete(x.id); else spS.open.add(x.id);
+    const kb = row.contains(document.activeElement) && document.activeElement.matches('.ipo-ttl'); // 줄을 갈아 끼운 뒤 펼치기 단추로 포커스 되돌리기
     row.outerHTML = spRow(x);
+    if (kb) [...root.querySelectorAll('.ipo-row[data-id]')].find((r) => r.dataset.id === x.id)?.querySelector('.ipo-ttl')?.focus({ preventScroll: true });
   });
-  root.addEventListener('input', (ev) => { if (ev.target.id === 'sp-q') { spS.q = ev.target.value; spDraw(); } });
+  let qt = 0; const qGo = () => { clearTimeout(qt); qt = setTimeout(() => spDraw(), 150); }; // 검색: 150ms 모아서, 한글 조합 중엔 compositionend 때
+  root.addEventListener('input', (ev) => { if (ev.target.id === 'sp-q') { spS.q = ev.target.value; if (!ev.isComposing) qGo(); } });
+  root.addEventListener('compositionend', (ev) => { if (ev.target.id === 'sp-q') qGo(); });
   root.addEventListener('change', (ev) => { if (ev.target.id === 'sp-br') { spS.br = ev.target.value; spDraw(); } });
 }
 window.addEventListener('fv-change', () => { if (spS.host?.isConnected && spS.data) spDraw(); });

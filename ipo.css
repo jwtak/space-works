@@ -34,7 +34,7 @@
 .ipo-chev { display: flex; color: var(--text3); transition: transform .15s ease; }
 .ipo-row.open .ipo-chev { transform: rotate(90deg); color: var(--primary); }
 .ipo-sub { margin-top: 2px; font-size: var(--fs-sm); line-height: 18px; color: var(--text3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.ipo-ttl { padding: 0; border: 0; background: none; cursor: pointer; font-weight: 600; text-align: left; }
+.ipo-ttl { padding: 0; border: 0; background: none; cursor: pointer; font-weight: 600; text-align: left; overflow-wrap: anywhere; }
 .ipo-line:hover .ipo-ttl, .ipo-row.open .ipo-ttl { color: var(--primary); }
 .ipo-chg { margin-left: 4px; font-size: var(--fs-sm); font-weight: 500; }
 .ipo-chg.up { color: var(--danger); }

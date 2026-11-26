@@ -29,7 +29,8 @@
 .pr-tbl td.pr-doc { text-align: left; padding-left: 24px; }
 .pr-t { font-weight: 500; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
 .pr-det { font-size: var(--fs-sm); line-height: 18px; color: var(--text3); margin-top: 2px; }
-.pr-due { font-size: var(--fs-sm); font-weight: 500; color: var(--text3); }
+.pr-due { font-size: var(--fs-sm); font-weight: 500; color: var(--text3); padding: 0; border: 0; background: none; font-family: inherit; line-height: inherit; cursor: pointer; }
+.pr-due:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 3px; }
 .pr-due.amber { color: var(--t-amber-c); }
 .pr-due.red { color: var(--danger); }
 
@@ -63,6 +64,9 @@
 .pr-medit textarea { width: 100%; min-height: 56px; resize: vertical; padding: 8px 10px; border: 1px solid var(--primary); border-radius: var(--r); font-size: var(--fs-md); line-height: 19px; outline: none; box-shadow: 0 0 0 3px rgba(37, 99, 235, .12); }
 .pr-mbtns { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
 .pr-mbtns span { margin-right: auto; font-size: var(--fs-sm); color: var(--text3); }
+.pr-dedit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.pr-dedit .input { width: 160px; height: 32px; font-size: var(--fs-md); }
+.pr-dedit .select { width: 112px; height: 32px; font-size: var(--fs-md); padding: 0 8px; }
 .pr-src { font-size: var(--fs-sm); color: var(--text3); margin: 4px 2px 0; }
 
 /* 날짜별 할 일(법인 설립): 날짜 묶음 카드, 오늘은 파란 테두리, 지난 날짜는 흐리게, 다 끝난 지난 날짜는 접음 */
@@ -98,6 +102,10 @@
   /* 폰 터치 영역: 체크 칸 32, 메모 버튼 32, 담당 선택 40, 사람 카드 폴더 아이콘 32 */
   .pr-cell { width: 32px; height: 32px; }
   .pr-madd { height: 32px; padding: 0 12px 0 8px; border-radius: var(--r-full); font-size: var(--fs-md); }
+  .pr-dadd.grp { display: none; } /* 폰 날짜별 보기는 서류별 보기에서 날짜를 고친다(버튼이 행마다 늘지 않게) */
+  .pr-due { min-height: 32px; }
+  .pr-dedit .input, .pr-dedit .select { height: 40px; font-size: var(--fs-base); }
+  .pr-dedit .input { flex: 1 1 160px; }
   .pr-own { height: 40px; width: 140px; font-size: var(--fs-base); }
   .pr-who .pr-fd { padding: 8px; margin: -8px -8px -8px auto; }
   .pr-det { font-size: var(--fs-md); line-height: 20px; }

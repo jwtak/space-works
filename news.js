@@ -165,7 +165,9 @@ async function renderNews(host) {
       </div>
       <div class="nw-body" id="nw-body"><div class="empty">불러오는 중…</div></div></section>`;
   host.querySelectorAll('[data-nw-cat]').forEach((b) => b.addEventListener('click', () => { nwS.cat = b.dataset.nwCat; nwSave(); nwDraw(); }));
-  $('#nw-q').addEventListener('input', (e) => { nwS.q = e.target.value; viewSet('nwQ', nwS.q); nwDraw(); });
+  let qt = 0; const qGo = () => { clearTimeout(qt); qt = setTimeout(nwDraw, 150); }; // 검색: 150ms 모아서, 한글 조합 중엔 compositionend 때
+  $('#nw-q').addEventListener('input', (e) => { nwS.q = e.target.value; viewSet('nwQ', nwS.q); if (!e.isComposing) qGo(); });
+  $('#nw-q').addEventListener('compositionend', qGo);
   $('#nw-period').addEventListener('change', (e) => { nwS.period = e.target.value; nwSave(); nwDraw(); });
   $('#nw-ref').addEventListener('click', async () => { $('#nw-body').innerHTML = '<div class="empty">불러오는 중…</div>'; try { await nwLoad(true); } catch (e) { toast(e.message); } nwDraw(); });
   $('#nw-body').addEventListener('click', (e) => { const b = e.target.closest('[data-nw-star]'); if (b) nwToggleMark(b.dataset.nwStar); });

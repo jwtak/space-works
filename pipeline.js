@@ -323,7 +323,7 @@ function ppLine(x, open) {
   if (nx) { const [rel, c] = ppRel(nx); cls = c ? ` ${c}` : ''; next = `<span class="pp-d">${ppMd(nx)}</span><div class="ipo-sub">${rel}</div>`; }
   return `<div class="pp-line pp-cols">
     <div class="pp-c-next${cls}">${next}</div>
-    <div class="pp-c-name"><button type="button" class="ipo-ttl" aria-expanded="${!!open}">${esc(x.name)}</button>${x.type ? `<div class="ipo-sub">${esc(x.type)}</div>` : ''}</div>
+    <div class="pp-c-name"><button type="button" class="ipo-ttl" aria-expanded="${!!open}" title="${esc(x.name)}">${esc(x.name)}</button>${x.type ? `<div class="ipo-sub">${esc(x.type)}</div>` : ''}</div>
     <div class="pp-c-st">${ppStSel(x)}</div>
     <div class="pp-c-src">${x.src ? esc(x.src) : ppDash}${x.introducer ? `<div class="ipo-sub">${esc(x.introducer)}</div>` : ''}</div>
     <div class="pp-c-own">${x.owner ? esc(x.owner) : ppDash}</div>
@@ -510,7 +510,7 @@ function ppFilesInner(x) {
   if (!f || (f.loading && !f.items && !f.err)) return `${head}<div class="empty">불러오는 중…</div>`;
   if (f.err) return `${head}<div class="pp-dempty"><p>${esc(f.err)}</p></div>`;
   if (!f.items.length) return `${head}<div class="pp-dempty"><p>아직 올린 자료가 없습니다.</p></div>`;
-  return `${head}<ul class="pp-files">${f.items.map((it, i) => `<li><button type="button" class="pp-file" data-pp-file="${i}">${flIcon(it)}<span class="nm">${esc(it.name)}</span>
+  return `${head}<ul class="pp-files">${f.items.map((it, i) => `<li><button type="button" class="pp-file" data-pp-file="${i}">${flIcon(it)}<span class="nm" title="${esc(it.name)}">${esc(it.name)}</span>
     <span class="sz">${it.folder ? '' : flSize(it)}</span><span class="dt">${flDate(it.lastModifiedDateTime)}</span></button></li>`).join('')}</ul>`;
 }
 function ppFileOpen(id, i) {
@@ -745,13 +745,29 @@ function ppCpCompany(x, c) {
     ${detail}</div>`;
 }
 
+/* 줄·칸을 outerHTML·innerHTML로 갈아 끼우면 그 안에 있던 포커스가 body로 빠진다. 갈아 끼우기 전에 포커스 자리(태그와 data-* 이름, 없으면 class, 같은 것 중 몇 번째)를 적어 두고
+   새 요소에서 같은 자리로 되돌린다(vc.js 펼침 단추와 같은 방식). 키보드로 쓰던 분이 처음부터 Tab을 다시 누르지 않게 */
+const PP_FK_STATE = new Set(['on', 'open', 'sel', 'pp-cl0', 'pp-done', 'pp-drop', 's-1']);
+function ppFocusKey(box) {
+  const a = document.activeElement; if (!a || !box || !box.contains(a)) return null;
+  if (a === box) return { self: true };
+  const d = [...a.attributes].filter((t) => t.name.startsWith('data-')).map((t) => `[${t.name}]`).join('');
+  const sel = a.tagName.toLowerCase() + (d || [...a.classList].filter((c) => !PP_FK_STATE.has(c)).map((c) => `.${CSS.escape(c)}`).join(''));
+  return { sel, n: [...box.querySelectorAll(sel)].indexOf(a) };
+}
+function ppFocusBack(box, k) {
+  if (!k || !box || !box.isConnected) return;
+  const all = k.self ? [box] : box.querySelectorAll(k.sel), el = all[k.self ? 0 : k.n] || all[0];
+  if (el && document.activeElement !== el) el.focus({ preventScroll: true });
+}
+
 // 화면에 있는 컨택 플랜 칸(id가 있으면 그것만)과 전화할 곳 목록을 다시 그린다
 function ppCpPaint(id) {
   const h = ppS.host; if (!h || !h.isConnected) return;
   if (ppS.view === 'call') { ppDraw(); return; }
-  h.querySelectorAll('.pp-cp[data-cp]').forEach((s) => { if (id && s.dataset.cp !== id) return; const x = ppFind(s.dataset.cp); if (x) s.innerHTML = ppCpInner(x); });
+  h.querySelectorAll('.pp-cp[data-cp]').forEach((s) => { if (id && s.dataset.cp !== id) return; const x = ppFind(s.dataset.cp); if (!x) return; const fk = ppFocusKey(s); s.innerHTML = ppCpInner(x); ppFocusBack(s, fk); });
   // 목록 '컨택' 칩도: 플랜을 불러오기 전에 그린 줄은 회사가 여럿인 딜도 회사별로 안 나뉘어 있다
-  h.querySelectorAll('.pp-row[data-id] > .pp-line > .pp-c-cl').forEach((c) => { const rid = c.closest('.pp-row').dataset.id; if (id && rid !== id) return; const x = ppFind(rid); if (x) c.outerHTML = ppClCell(x); });
+  h.querySelectorAll('.pp-row[data-id] > .pp-line > .pp-c-cl').forEach((c) => { const rid = c.closest('.pp-row').dataset.id; if (id && rid !== id) return; const x = ppFind(rid); if (!x) return; const fk = ppFocusKey(c), ln = c.parentElement; c.outerHTML = ppClCell(x); ppFocusBack(ln?.querySelector(':scope > .pp-c-cl'), fk); });
   ppCallN();
 }
 
@@ -795,6 +811,18 @@ function ppCpUnlog(id, n) {
   const cl = ppCl(x); if (!cl[n]) return;
   ppSet(id, { cl: cl.filter((_, k) => k !== n) });
   ppCpPaint(id);
+}
+// 컨택 기록 휴지통: 공유 기록이라 지우기 전에 묻는다(딜 삭제 ppAskDelete와 같은 창)
+function ppAskUnlog(id, n) {
+  const x = ppFind(id), l = x && ppCl(x)[n]; if (!l) return;
+  const what = [/^\d{4}-\d{2}-\d{2}$/.test(l.d || '') ? mdw(l.d) : '', PP_CL[l.k] || l.k || '', l.co && l.co !== x.name ? l.co : ''].filter(Boolean).join(' ');
+  const was = JSON.stringify(l), go = () => { const now = ppFind(id); if (now && JSON.stringify(ppCl(now)[n]) === was) ppCpUnlog(id, n); }; // 그사이 다른 분 저장으로 순서가 바뀌었으면 지우지 않음
+  if (typeof openSheet !== 'function') { if (confirm(`${what} 기록을 지울까요?`)) go(); return; }
+  openSheet(`<h3>이 기록을 지울까요?</h3><p class="pp-cf-name">${esc(x.name)}<br><span class="muted">${esc(what)}</span></p>
+    <div class="pp-cf-act"><button type="button" class="btn grey" data-cancel>취소</button><button type="button" class="btn pp-danger" data-ok>삭제</button></div>`, (el, close) => {
+    el.querySelector('[data-cancel]').onclick = close;
+    el.querySelector('[data-ok]').onclick = () => { close(); go(); };
+  }, 'pp-sheet');
 }
 // 기록 버튼이 바꾼 다음 연락일·할 일을 펼친 칸 입력에도(쓰고 있는 칸은 그대로)
 function ppFormSync(id, p) {
@@ -941,7 +969,7 @@ let ppDrawing = false;
 function ppKeep(root, fn) {
   const a = document.activeElement;
   const st = a && root.contains(a) && a.matches('[data-pp-f]') ? {
-    id: a.closest('.pp-row')?.dataset.id, f: a.dataset.ppF, v: a.value, typed: a.tagName !== 'SELECT' && a.value !== a.defaultValue,
+    id: a.closest('.pp-row')?.dataset.id, f: a.dataset.ppF, v: a.value, typed: a.tagName !== 'SELECT' ? a.value !== a.defaultValue : !!a.dataset.pend, // 선택 상자는 키보드로 바꾸고 아직 반영 안 한 값(ppSelKey)
     s: ppSel(a, 'selectionStart'), e: ppSel(a, 'selectionEnd'),
   } : null;
   const hs = [...root.querySelectorAll('textarea[data-pp-f]')].filter((t) => t.style.height).map((t) => [t.closest('.pp-row')?.dataset.id, t.style.height]);
@@ -951,7 +979,7 @@ function ppKeep(root, fn) {
   if (!st?.id) return;
   const el = root.querySelector(`.pp-row[data-id="${CSS.escape(st.id)}"] [data-pp-f="${st.f}"]`);
   if (!el) { if (st.typed) ppCommit(a); return; } // 지워진 칸(a)에 쓰던 값이 남아 있다. 지운 딜이면 ppCommit이 건너뛴다
-  if (st.typed) el.value = st.v;
+  if (st.typed) { el.value = st.v; if (el.tagName === 'SELECT') { el.dataset.pend = '1'; el.dataset.kb = '1'; } }
   el.focus({ preventScroll: true });
   if (st.s != null) { try { el.setSelectionRange(st.s, st.e); } catch { /* 날짜 칸 */ } }
 }
@@ -1024,7 +1052,9 @@ function ppPaint(id) {
     const ln = row.querySelector('.pp-line');
     if (ln) {
       sc = ln.closest('.scroll'); above = !!sc && ln.getBoundingClientRect().top < sc.getBoundingClientRect().top; b0 = ln.getBoundingClientRect().bottom;
+      const fk = ppFocusKey(ln);
       ln.outerHTML = ppLine(x, row.classList.contains('open'));
+      ppFocusBack(row.querySelector(':scope > .pp-line'), fk);
     }
     const by = row.querySelector('.pp-by'); if (by) by.innerHTML = ppBy(x);
   }
@@ -1040,7 +1070,10 @@ function ppToggle(id) {
   ppHold(ppS.host && ppS.host.querySelector('#pp-body'), id, () => [prev, ppS.open].forEach((k) => {
     if (!k || !ppS.host) return;
     const row = ppS.host.querySelector(`.pp-row[data-id="${CSS.escape(k)}"]`), x = ppFind(k);
-    if (row && x) row.outerHTML = ppRow(x);
+    if (!row || !x) return;
+    const fk = ppFocusKey(row);
+    row.outerHTML = ppRow(x);
+    ppFocusBack(ppS.host.querySelector(`.pp-row[data-id="${CSS.escape(k)}"]`), fk);
   }));
 }
 
@@ -1145,7 +1178,7 @@ function ppAskDelete(id) {
   };
   if (typeof openSheet !== 'function') { if (confirm(`"${x.name}" 딜을 삭제할까요?`)) go(); return; }
   openSheet(`<h3>이 딜을 삭제할까요?</h3><p class="pp-cf-name">${esc(x.name)}</p>
-    <div class="pp-cf-act"><button type="button" class="btn grey" data-cancel>취소</button><button type="button" class="btn primary" data-ok>삭제</button></div>`, (el, close) => {
+    <div class="pp-cf-act"><button type="button" class="btn grey" data-cancel>취소</button><button type="button" class="btn pp-danger" data-ok>삭제</button></div>`, (el, close) => {
     el.querySelector('[data-cancel]').onclick = close;
     el.querySelector('[data-ok]').onclick = () => { close(); go(); };
   }, 'pp-sheet');
@@ -1178,6 +1211,32 @@ async function ppRefresh(btn) {
   try { await Promise.all([pipeLoad(true), ppCpLoad(true), typeof fqLoad === 'function' ? fqLoad(true) : null]); ppDraw(); } catch (e) { toast(e.message); } finally { btn.disabled = false; }
 }
 
+/* 목록 단계·컨택 칩과 펼친 칸의 선택 상자(출처·유형·담당 등 data-pp-f): Windows 크롬·엣지는 닫힌 칸에서 화살표·글자 키마다 change를 낸다.
+   키보드로 바꾼 값은 Enter나 칸을 벗어날 때 한 번만 반영하고(Esc는 되돌림), 마우스로 고른 것과 목록을 열고(Space·F4·Alt+화살표) 고른 것은 바로 */
+const PP_SEL = '[data-pp-stsel], [data-pp-clsel], select[data-pp-f]';
+const PP_SEL_NAV = /^(Arrow(Up|Down|Left|Right)|Home|End|PageUp|PageDown)$/;
+function ppSelApply(el) {
+  if (el.matches('[data-pp-f]')) { if (ppDrawing) return; delete el.dataset.pend; delete el.dataset.kb; ppCommit(el); return; } // 다시 그리는 중이면 ppKeep이 새 칸에 넘긴다
+  delete el.dataset.pend; delete el.dataset.kb;
+  const id = el.closest('.pp-row')?.dataset.id; if (!id) return;
+  if (el.matches('[data-pp-clsel]')) { const [k, ...co] = el.value.split('|'); el.value = ''; if (PP_CL[k]) ppClQuick(id, co.join('|'), k); return; }
+  if (PP_STAGES.includes(el.value)) ppSet(id, { stage: el.value });
+}
+function ppSelKey(ev) {
+  const el = ev.target; if (!el.matches?.(PP_SEL)) return;
+  if (ev.key === 'Enter') { delete el.dataset.kb; if (el.dataset.pend) { ev.preventDefault(); ppSelApply(el); } return; }
+  if (ev.key === 'Escape') {
+    if (!el.dataset.pend) return;
+    delete el.dataset.pend; delete el.dataset.kb;
+    const x = ppFind(el.closest('.pp-row')?.dataset.id);
+    if (el.matches('[data-pp-f]')) { el.value = x ? String(x[el.dataset.ppF] ?? '') : el.value; return; }
+    el.value = el.matches('[data-pp-clsel]') || !x ? '' : ppStage(x);
+    return;
+  }
+  if (ev.altKey || ev.key === ' ' || ev.key === 'F4') { delete el.dataset.kb; return; }
+  if (PP_SEL_NAV.test(ev.key) || (ev.key.length === 1 && !ev.ctrlKey && !ev.metaKey)) el.dataset.kb = '1';
+}
+
 function ppBind(root) {
   root.addEventListener('click', (ev) => {
     const t = ev.target;
@@ -1194,7 +1253,7 @@ function ppBind(root) {
     const lg = t.closest('[data-cp-log]');
     if (lg && cw) { ppCpLog(cw.dataset.cpId, cw.dataset.cpC, lg.dataset.cpLog); return; }
     const ul = t.closest('[data-cp-unlog]');
-    if (ul && cw) { ppCpUnlog(cw.dataset.cpId, Number(ul.dataset.cpUnlog)); return; }
+    if (ul && cw) { ppAskUnlog(cw.dataset.cpId, Number(ul.dataset.cpUnlog)); return; }
     if (t.closest('[data-cp-draft]') && cw) { ppCpDraft(cw.dataset.cpId, cw.dataset.cpC); return; }
     if (t.closest('[data-cp-copy]') && cw) { ppCpCopy(cw.dataset.cpId, cw.dataset.cpC); return; }
     if (t.closest('[data-cp-req]') && cpId) { ppCpReq(cpId); return; }
@@ -1230,12 +1289,14 @@ function ppBind(root) {
     if (!ev.target.matches?.('[data-pp-note]') || !(ev.ctrlKey || ev.metaKey) || ev.key.toLowerCase() !== 's') return;
     ev.preventDefault(); const id = ev.target.closest('.pp-row')?.dataset.id; if (id) ppNoteSave(id);
   });
+  root.addEventListener('keydown', ppSelKey);
+  root.addEventListener('pointerdown', (ev) => { const el = ev.target.closest?.(PP_SEL); if (el) delete el.dataset.kb; });
+  root.addEventListener('focusout', (ev) => { const el = ev.target; if (el.matches?.(PP_SEL) && el.dataset.pend) ppSelApply(el); });
   root.addEventListener('change', (ev) => {
     const el = ev.target;
     if (el.id === 'pp-sort') { ppS.sort = el.value; ppDraw(); return; }
     if (el.matches('[data-cp-memo]')) { const w = el.closest('[data-cp-c]'); if (w) ppCpMemo(w.dataset.cpId, Number(el.dataset.cpMemo), el.value.trim()); return; }
-    if (el.matches('[data-pp-clsel]')) { const id = el.closest('.pp-row')?.dataset.id, [k, ...co] = el.value.split('|'); el.value = ''; if (id && PP_CL[k]) ppClQuick(id, co.join('|'), k); return; }
-    if (el.matches('[data-pp-stsel]')) { const id = el.closest('.pp-row')?.dataset.id; if (id && PP_STAGES.includes(el.value)) ppSet(id, { stage: el.value }); return; }
+    if (el.matches(PP_SEL)) { if (el.dataset.kb) el.dataset.pend = '1'; else ppSelApply(el); return; }
     if (!el.matches('[data-pp-f]') || ppDrawing) return;
     if (el.type === 'date') ppDateLater(el); else ppCommit(el);
   });

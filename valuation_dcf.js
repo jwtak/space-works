@@ -32,7 +32,14 @@ const dcfUp = (u, d = 1) => (u == null ? '' : `<span class="${u > 0 ? 'up' : u <
 const dcfEok = (v) => (v == null ? '-' : `${dcfNum(v)}억`);
 const dcfSgn = (v) => (v == null ? '-' : `${v < 0 ? '−' : '+'}${dcfNum(Math.abs(v))}억`);
 const dcfFi = (x, sc = 100, d = 2) => (x == null || !Number.isFinite(x) ? '' : String(+(x * sc).toFixed(d))); // 입력 칸에 넣을 처음 값
-const dcfNumOf = (s) => { if (s == null) return null; const t = String(s).replace(/,/g, '').trim(); return t === '' || !Number.isFinite(+t) ? null : +t; };
+const dcfNumOf = (s) => vaNumIn(s, '*'); // valuation.js. 쉼표와 12%, 3배 같은 단위 꼬리는 읽고 못 읽으면 null
+/* 못 읽는 값 표시: 칸에 aria-invalid와 칸 아래 「숫자 확인」. 계산은 처음 값. 치는 동안(dcfS.typing)은 표시하지 않고 칸을 나갈 때 붙임 */
+const dcfEId = (k) => `dcfe-${String(k).replace(/[^A-Za-z0-9_-]/g, '_')}`;
+function dcfBadMark(el) {
+  const box = el.closest('.dcf-iw') || el; if (box.nextElementSibling?.classList.contains('dcf-inv')) return;
+  const t = document.createElement('span'); t.className = 'dcf-inv'; t.id = dcfEId(el.dataset.k); t.textContent = '숫자 확인'; box.after(t);
+  el.setAttribute('aria-invalid', 'true'); el.setAttribute('aria-describedby', t.id);
+}
 const dcfSec = (title, right, body, cls = '', id = '') => `<section class="card mk-sec ${cls}"${id ? ` id="${id}"` : ''}><div class="card-head"><h2>${title}</h2>${right || ''}</div><div class="mk-body">${body}</div></section>`;
 const dcfSeg = (key, opts, cur) => `<div class="mk-seg">${opts.map(([v, l]) => `<button type="button" data-dcf-seg="${key}" data-v="${esc(v)}" class="${String(cur) === String(v) ? 'on' : ''}" aria-pressed="${String(cur) === String(v)}">${esc(l)}</button>`).join('')}</div>`;
 
@@ -242,7 +249,8 @@ function dcfModel(c) {
 // 입력 칸. 바꾼 칸은 파란 바탕. base는 처음 값(화면 단위 문자열)
 function dcfIn(st, k, base, { u = '', ph = '', lab = '', dis = false } = {}) {
   const [o, kk] = dcfPath(st, k), has = o[kk] != null, v = has ? o[kk] : base;
-  return `<span class="dcf-iw ${u ? '' : 'nu'}"><input type="text" inputmode="decimal" autocomplete="off" data-k="${esc(k)}" data-b="${esc(base ?? '')}" value="${esc(v ?? '')}"${ph ? ` placeholder="${esc(ph)}"` : ''}${dis ? ' disabled' : ''} class="${has ? 'chg' : ''}" aria-label="${esc(lab)}">${u ? `<em>${u}</em>` : ''}</span>`;
+  const bad = has && dcfS.typing !== k && String(o[kk]).trim() !== '' && dcfNumOf(o[kk]) == null, eid = bad ? dcfEId(k) : '';
+  return `<span class="dcf-iw ${u ? '' : 'nu'}"><input type="text" autocomplete="off" data-k="${esc(k)}" data-b="${esc(base ?? '')}" value="${esc(v ?? '')}"${ph ? ` placeholder="${esc(ph)}"` : ''}${dis ? ' disabled' : ''} class="${has ? 'chg' : ''}" aria-label="${esc(lab)}"${bad ? ` aria-invalid="true" aria-describedby="${eid}"` : ''}>${u ? `<em>${u}</em>` : ''}</span>${bad ? `<span class="dcf-inv" id="${eid}">숫자 확인</span>` : ''}`;
 }
 const dcfF = (lab, html) => `<label class="dcf-f"><span>${lab}</span>${html}</label>`;
 
@@ -528,6 +536,7 @@ function dcfDraw() {
   dcfSave();
 }
 
+const dcfMo = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth');
 function dcfBind(host) {
   host.addEventListener('click', (e) => {
     const c = dcfCase(); if (!c) return;
@@ -539,15 +548,19 @@ function dcfBind(host) {
     const go = e.target.closest('[data-dcf-go]');
     if (go) {
       const k = go.dataset.dcfGo;
-      if (k.startsWith('#')) { st.tab = 'sum'; dcfDraw(); $(k)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      if (k.startsWith('#')) { st.tab = 'sum'; dcfDraw(); $(k)?.scrollIntoView({ behavior: dcfMo(), block: 'start' }); return; }
       st.tab = 'det'; dcfDraw();
       const s = DCF_SCEN.includes(st.sc) ? st.sc : 'Base';
       const key = { 'sv.g0': `sv.${s}.growth.0`, 'sv.c0': `sv.${s}.cogs.0`, 'sv.o0': `sv.${s}.opex.0`, 'sv.r0': `sv.${s}.rr.0`, 'sv.t0': `sv.${s}.turn0` }[k] || k;
       const el = host.querySelector(`[data-k="${CSS.escape(key)}"]`);
-      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.focus({ preventScroll: true }); }
+      if (el) { el.scrollIntoView({ behavior: dcfMo(), block: 'center' }); el.focus({ preventScroll: true }); }
       return;
     }
-    if (e.target.closest('[data-dcf-reset]')) { dcfS.st[c.id] = { tab: st.tab }; dcfDraw(); return; }
+    if (e.target.closest('[data-dcf-reset]')) {
+      const has = (v) => v != null && v !== '' && (typeof v !== 'object' || Object.values(v).some(has)), chg = Object.entries(st).some(([k, v]) => k !== 'tab' && k !== 'sc' && has(v)); // 탭, 시나리오 선택만 바뀌었으면 묻지 않음
+      if (chg && !confirm('바꾼 입력을 모두 처음 값으로 되돌릴까요?')) return;
+      dcfS.st[c.id] = { tab: st.tab }; dcfDraw(); return;
+    }
     if (e.target.closest('#dcf-xlsx')) dcfDownload(e.target.closest('#dcf-xlsx'), c);
   });
   host.addEventListener('input', (e) => {
@@ -557,10 +570,12 @@ function dcfBind(host) {
     if (!el.matches('[data-k]')) return;
     const [o, k] = dcfPath(dcfSt(c), el.dataset.k);
     if (el.value === el.dataset.b) delete o[k]; else o[k] = el.value;
-    dcfDraw();
+    dcfS.typing = el.dataset.k; dcfDraw();
   });
-  host.addEventListener('focusout', (e) => { // 비운 칸은 나갈 때 처음 값으로. 다시 그리지 않아 바로 누른 단추가 안 사라짐
-    const el = e.target; if (!el.matches?.('[data-k]') || el.value.trim() !== '') return;
+  host.addEventListener('focusout', (e) => { // 비운 칸은 나갈 때 처음 값으로, 못 읽는 칸은 「숫자 확인」. 다시 그리지 않아 바로 누른 단추가 안 사라짐
+    const el = e.target; if (!el.matches?.('[data-k]')) return;
+    if (dcfS.typing === el.dataset.k) dcfS.typing = null;
+    if (el.value.trim() !== '') { if (dcfNumOf(el.value) == null) dcfBadMark(el); return; }
     const c = dcfCase(); if (!c) return;
     const [o, k] = dcfPath(dcfSt(c), el.dataset.k);
     delete o[k]; el.value = el.dataset.b; el.classList.remove('chg'); dcfSave();
@@ -574,6 +589,7 @@ async function dcfDownload(btn, c) {
   if (btn.disabled) return;
   btn.disabled = true;
   const rel = c.xlsx || `data/valuation/${c.id}_DCF.xlsx`;
+  vaBusy(btn, true);
   try {
     const meta = await STORE.meta(rel);
     if (!meta) { toast('아직 올라간 엑셀이 없습니다.'); return; }
@@ -585,7 +601,7 @@ async function dcfDownload(btn, c) {
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 30000);
   } catch (e) { toast(e.message); }
-  finally { btn.disabled = false; }
+  finally { btn.disabled = false; vaBusy(btn, false); }
 }
 
 async function renderDcf(host) {

@@ -352,9 +352,11 @@ function siRedrawRow(id) {
   const r = siRowEl(id), e = siFind(id), si = siCur();
   if (!r || !e || !si) return;
   const keep = siNoteOn() && r.contains(document.activeElement) ? document.activeElement.value : null;
+  const fk = typeof focKeep === 'function' ? focKeep(r) : null;
   const t = document.createElement('template'); t.innerHTML = siRow(e, si.fy).trim();
   r.replaceWith(t.content.firstElementChild);
   if (keep != null) { const i = siRowEl(id)?.querySelector('[data-si-note]'); if (i) { i.value = keep; i.focus({ preventScroll: true }); } }
+  else if (fk) focBack(siRowEl(id), fk);
 }
 // 접을 때 상태 때문에 묶음(컨택한 곳 ↔ 위 목록)이 바뀌면 목록을 다시 그리고, 그 행 바로 다음 행이 그 자리에 오게 한다(tgt.js tgFold와 같다)
 function siToggle(row) {
@@ -451,6 +453,7 @@ window.addEventListener('fv-change', () => {
   if (sc) sc.scrollTop = top;
 });
 document.addEventListener('visibilitychange', () => { if (document.hidden) siFlush(); });
+window.addEventListener('beforeunload', (e) => { siFlush(); if (tgS.dirty.size) { e.preventDefault(); e.returnValue = ''; } });
 
 async function renderSi(host) {
   siS.host = host; siS.err = '';

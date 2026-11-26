@@ -11,6 +11,7 @@ const SF_COLS = [ // [키, 머리글, 종류(amt 금액 | mg 마진), 금융이�
 ];
 const SF_MG = { opm: 'op', ebitdam: 'ebitda', npm: 'ni' }; // 회사 줄 마진 = 분자 ÷ 매출
 const SF_ROWS = 20; // 펼친 업종에 처음 보이는 회사 수
+const SF_STEP = 200; // 「더 보기」 한 번에 더 그리는 회사 수(전체 상장사 2천여 곳을 한 번에 그리면 정렬마다 0.5초 넘게 걸려서, 11/26 점검)
 const SF_FS = { CFS: '연결', OFS: '별도' };
 const sfBasis = (b) => String(b).replace(/^TTM (\d{4})-(\d{2})$/, (m, y, mm) => `TTM ${y}-${Math.ceil(+mm / 3)}Q`); // 회사 줄 'TTM 2026-09'를 머리 'TTM 2026-3Q' 꼴로
 vaS.sf = { lv: 'sector', amt: 'median', mg: 'median', k: null, dir: -1, open: {}, more: {}, ...(vaS.sf || {}) };
@@ -65,7 +66,7 @@ function sfCell(fin, c, v, g) { // g: 업종 줄이면 계산에 들어간 회�
   return `<td${tip && v != null ? ` title="${tip}"` : ''}>${c[2] === 'amt' ? sfAmt(v) : sfPct(v)}</td>`;
 }
 
-function sfTab() {
+function sfTab(only) { // only: 표 안(머리와 본문)만 돌려줌. 정렬, 펼치기, 더 보기는 표만 갈아 끼움(sfRedraw)
   const d = vaS.sfd, s = vaS.sf;
   if (!d) return `<div class="card"><div class="empty">${esc(vaS.sfErr || '업종 실적 자료가 아직 없습니다.')}</div></div>`;
   const lv = SF_LV.some(([k]) => k === s.lv) ? s.lv : 'sector';
@@ -90,7 +91,9 @@ function sfTab() {
     return h;
   };
   const allRow = d.all ? grow({ ...d.all, level: 'all', name: '전체 상장사' }, true) : '';
-  const body = `<div class="mk-scroll"><table class="mk-tbl sf-tbl">${head}<tbody>${allRow}${gs.map((g) => grow(g, false)).join('')}</tbody></table></div>`;
+  const inner = `${head}<tbody>${allRow}${gs.map((g) => grow(g, false)).join('')}</tbody>`;
+  if (only) return inner;
+  const body = `<div class="mk-scroll"><table class="mk-tbl sf-tbl">${inner}</table></div>`;
   const ctl = `<div class="va-mctl"><div><span class="va-lab">금액</span>${sfSeg('amt', [['median', '중앙값'], ['mean', '평균'], ['sum', '합계']], s.amt)}</div><div><span class="va-lab">마진</span>${sfSeg('mg', [['median', '중앙값'], ['mean', '평균'], ['agg', '합계 기준']], s.mg)}</div></div>`;
   const meta = [d.basis ? `${esc(d.basis)} 기준` : '', `단위 ${esc(d.unit || '억원')}`].filter(Boolean).join(', ');
   return vaSec(`업종 실적 <span class="meta">${vaNum(gs.length)}개 업종, ${meta}</span>`, sfSeg('lv', SF_LV, lv), `${ctl}${body}`, 'sf');
@@ -100,29 +103,41 @@ const sfSeg = (key, opts, cur) => `<div class="mk-seg">${opts.map(([v, l]) => `<
 function sfCos(g, all, lv, me) { // 펼친 업종의 회사 줄. 회사 수 칸은 시장, 기준이 다른 회사는 그 기준을 작게
   const d = vaS.sfd, s = vaS.sf, id = `${g.level}|${g.name}`;
   const ys = sfSort(d.list.filter((y) => all || sfLvOf(y, lv) === g.name), sfYv, (a, b) => (b.rev ?? -Infinity) - (a.rev ?? -Infinity));
-  const shown = s.more[id] ? ys : ys.slice(0, SF_ROWS), rest = ys.length - shown.length;
+  const lim = s.more[id] === true ? SF_ROWS + SF_STEP : +s.more[id] || SF_ROWS; // 11/26 전엔 true(전부)로 저장됨
+  const shown = ys.slice(0, lim), rest = ys.length - shown.length;
   const ML = { KOSPI: '코스피', KOSDAQ: '코스닥' };
   const row = (y) => {
     const fin = sfFinRow(y), note = [SF_FS[y.fs] || y.fs, y.basis && sfBasis(y.basis) !== d.basis ? sfBasis(y.basis) : ''].filter(Boolean).join(', ');
-    return `<tr class="sf-c${me?.code === y.code ? ' me' : ''}"><td class="st"><button type="button" class="sf-co" data-va-pick="${esc(y.code)}" title="${esc(`${y.name} 보기`)}"><b>${esc(y.name)}</b></button>${all || lv !== 'industry' ? `<small>${esc(y.industry || '')}</small>` : ''}</td>`
+    return `<tr class="sf-c${me?.code === y.code ? ' me' : ''}" data-sf-in="${esc(id)}"><td class="st"><button type="button" class="sf-co" data-va-pick="${esc(y.code)}" title="${esc(`${y.name} 보기`)}"><b>${esc(y.name)}</b></button>${all || lv !== 'industry' ? `<small>${esc(y.industry || '')}</small>` : ''}</td>`
       + `<td>${esc(ML[y.market] || y.market || '')}${note ? `<small>${esc(note)}</small>` : ''}</td>${SF_COLS.map((c) => sfCell(fin, c, sfYv(y, c[0]))).join('')}</tr>`;
   };
-  const more = rest > 0 ? `<tr class="sf-c sf-more"><td class="st"><button type="button" class="va-more" data-sf-more="${esc(id)}">나머지 ${vaNum(rest)}곳</button></td><td colspan="${SF_COLS.length + 1}"></td></tr>` : '';
+  const more = rest > 0 ? `<tr class="sf-c sf-more"><td class="st"><button type="button" class="va-more" data-sf-more="${esc(id)}" data-n="${shown.length}">${rest > SF_STEP ? `${vaNum(SF_STEP)}곳 더` : `나머지 ${vaNum(rest)}곳`}</button></td><td colspan="${SF_COLS.length + 1}">${rest > SF_STEP ? `<span class="meta">나머지 ${vaNum(rest)}곳</span>` : ''}</td></tr>` : '';
   return shown.map(row).join('') + more;
 }
 
+/* 표만 다시 그림(머리 단추, 회사 줄은 그대로). 표가 없으면 전체. 그린 뒤 pick(host)이 돌려준 요소에 초점(누른 단추가 새로 그려져 초점이 사라지지 않게) */
+function sfRedraw(host, pick) {
+  const t = host.querySelector('.sf-tbl');
+  if (t) { t.innerHTML = sfTab(true); vaSave(); } else vaDraw();
+  pick?.(host)?.focus({ preventScroll: true });
+}
+const sfQ = (host, attr, v) => [...host.querySelectorAll(`[${attr}]`)].find((el) => el.getAttribute(attr) === v) || null;
 function sfBind(host) {
   host.addEventListener('click', (e) => {
     if (vaS.vt !== 'sf') return;
     const s = vaS.sf;
     const sg = e.target.closest('[data-sf-seg]');
-    if (sg) { s[sg.dataset.sfSeg] = sg.dataset.v; vaDraw(); return; }
+    if (sg) { const k = sg.dataset.sfSeg, v = sg.dataset.v; s[k] = v; vaDraw(); host.querySelector(`[data-sf-seg="${k}"][data-v="${CSS.escape(v)}"]`)?.focus({ preventScroll: true }); return; }
     const so = e.target.closest('[data-sf-sort]');
-    if (so) { const k = so.dataset.sfSort; if (s.k !== k) { s.k = k; s.dir = -1; } else if (s.dir < 0) s.dir = 1; else s.k = null; vaDraw(); return; } // 내림 → 오름 → 기본 순서
+    if (so) { const k = so.dataset.sfSort; if (s.k !== k) { s.k = k; s.dir = -1; } else if (s.dir < 0) s.dir = 1; else s.k = null; sfRedraw(host, (h) => sfQ(h, 'data-sf-sort', k)); return; } // 내림 → 오름 → 기본 순서
     const mo = e.target.closest('[data-sf-more]');
-    if (mo) { s.more[mo.dataset.sfMore] = true; vaDraw(); return; }
+    if (mo) { // 다음 SF_STEP곳. 초점은 남은 「더」 단추, 다 펼쳤으면 새로 보인 첫 회사
+      const id = mo.dataset.sfMore, n0 = +mo.dataset.n || SF_ROWS; s.more[id] = n0 + SF_STEP;
+      sfRedraw(host, (h) => sfQ(h, 'data-sf-more', id) || [...h.querySelectorAll('tr[data-sf-in]')].filter((r) => r.dataset.sfIn === id)[n0]?.querySelector('.sf-co'));
+      return;
+    }
     if (e.target.closest('[data-va-pick]')) return; // 회사 이름은 valuation.js vaBind 가 그 회사로 바꿈
     const op = e.target.closest('[data-sf-open]');
-    if (op) { const k = op.dataset.sfOpen; if (s.open[k]) delete s.open[k]; else s.open[k] = true; vaDraw(); }
+    if (op) { const k = op.dataset.sfOpen; if (s.open[k]) delete s.open[k]; else s.open[k] = true; sfRedraw(host, (h) => sfQ(h, 'data-sf-open', k)?.querySelector('.sf-open')); }
   });
 }

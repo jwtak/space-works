@@ -16,6 +16,11 @@
 .cs-tbl .cs-cat.sug { color: var(--text3); border-style: dashed; }
 .cs-head { flex-wrap: wrap; row-gap: 8px; padding-top: 8px; padding-bottom: 8px; }
 .cs-acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.cs-sugb { display: contents; }
+/* 파일을 끄는 동안 놓을 자리(거래 카드) 표시 */
+#cs-drop { position: relative; }
+#cs-drop.drop::after { content: '엑셀 올리기'; position: absolute; inset: 0; z-index: 2; display: flex; align-items: flex-start; justify-content: center; padding-top: 120px; border: 2px dashed var(--line2); border-radius: var(--r-lg); background: rgba(244, 246, 249, .88); color: var(--text2); font-size: var(--fs-xl); font-weight: 700; pointer-events: none; }
+#cs-drop.drop-in::after { border-color: var(--primary); background: rgba(238, 244, 255, .92); color: var(--primary); }
 .cs-filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 24px 16px; }
 .cs-filters .input { width: 240px; }
 .cs-seg button { height: 32px; font-size: var(--fs-md); }

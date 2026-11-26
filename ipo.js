@@ -164,6 +164,7 @@ function ipoFlush() {
 }
 window.addEventListener('hashchange', ipoFlush);
 document.addEventListener('visibilitychange', () => { if (document.hidden) ipoFlush(); });
+window.addEventListener('beforeunload', (e) => { ipoFlush(); if (ipoState.dirty.size) { e.preventDefault(); e.returnValue = ''; } });
 
 /* 엑셀 다운로드: 매일 PC 작업이 만든 통합 엑셀(신규상장 목록 + 예심청구·매각희망·입찰딜·파이프라인 + 회사별 Fact Sheet)을
    OneDrive data/ipo_contact.xlsx 에서 받는다. 딜소싱 다른 탭(radar.js)도 이 함수를 쓴다. */
@@ -287,13 +288,39 @@ async function ipoPipeAdd(btn) {
 // 다시 그린 조각이 지금과 같으면 그대로 둔다 — WebKit은 화면 위쪽 밖에서 같은 것으로 갈아 끼워도 스크롤 자리를 밀어, 보기 링크로 맞춘 자리가 어긋난다(radar.js rdSwap과 같음).
 // 다르면 바꾸되, 조각이 화면 위 가장자리보다 위에서 시작하면 그 행 아래 끝이 움직인 만큼 .scroll을 되돌려 보던 줄을 그대로 둔다('올리기' 버튼과 '있음' 링크는 높이가 다르다.
 // 높이 차가 아니라 아래 끝 위치를 재므로, 스크롤 맨 아래에서 브라우저가 이미 당긴 만큼은 다시 빼지 않는다)
+/* 요소를 갈아 끼울 때 그 안에 있던 포커스를 새 요소의 같은 단추·칸으로 되돌린다(vc.js 행 펼치기와 같은 뜻).
+   같은 태그와 data-*·aria-label·id·name을 가진 것 중 같은 순서, 없으면 전체에서 같은 순서. 딜소싱 다른 탭(events·ma·kmx·sector·si)도 쓴다 */
+const FOC_SEL = 'a[href], button, input, select, textarea, [tabindex]';
+const focSig = (el) => el.tagName + [...el.attributes].filter((x) => /^(data-|aria-label$|id$|name$)/.test(x.name)).map((x) => `${x.name}=${x.value}`).join('|');
+function focKeep(box) {
+  const a = document.activeElement; if (!a || !box || !box.contains(a)) return null;
+  if (a === box) return { self: true };
+  const all = [...box.querySelectorAll(FOC_SEL)], s = focSig(a);
+  return { s, n: all.filter((e) => focSig(e) === s).indexOf(a), i: all.indexOf(a) };
+}
+function focBack(box, k) {
+  if (!k || !box || !box.isConnected) return;
+  if (k.self) { box.focus({ preventScroll: true }); return; }
+  const all = [...box.querySelectorAll(FOC_SEL)], same = all.filter((e) => focSig(e) === k.s);
+  (same[k.n] || same[0] || all[k.i])?.focus({ preventScroll: true });
+}
+function swapKeepFocus(old, html) {
+  const k = focKeep(old), t = document.createElement('template'); t.innerHTML = html.trim();
+  const n = t.content.firstElementChild;
+  old.replaceWith(t.content);
+  focBack(n, k);
+  return n;
+}
+
 function ipoSwap(el, html) {
   const t = document.createElement('template'); t.innerHTML = html.trim();
   const n = t.content.firstElementChild;
   if (n && n.isEqualNode(el)) return;
+  const fk = focKeep(el);
   const sc = el.closest('.scroll'), row = el.closest('.ipo-row');
   const above = sc && row && el.getBoundingClientRect().top < sc.getBoundingClientRect().top, b0 = above ? row.getBoundingClientRect().bottom : 0;
   if (n) el.replaceWith(n); else el.remove();
+  focBack(n, fk);
   const dy = above ? row.getBoundingClientRect().bottom - b0 : 0;
   if (Math.abs(dy) >= 0.5) sc.scrollTop += dy;
 }
@@ -532,7 +559,7 @@ function ipoRefreshRow(code) {
   if ([...ipoState.host.querySelectorAll('.ipo-row')].some((r) => r.dataset.code === code && ipoImeWait(r, `row:${code}`, () => ipoRefreshRow(code)))) return;
   const keep = ipoKeepNote(ipoState.host);
   ipoDrawing = true;
-  try { ipoHold(ipoState.host.querySelector('#ipo-body'), code, () => ipoState.host.querySelectorAll('.ipo-row').forEach((r) => { if (r.dataset.code === code) r.outerHTML = ipoRow(x); })); } finally { ipoDrawing = false; }
+  try { ipoHold(ipoState.host.querySelector('#ipo-body'), code, () => ipoState.host.querySelectorAll('.ipo-row').forEach((r) => { if (r.dataset.code === code) swapKeepFocus(r, ipoRow(x)); })); } finally { ipoDrawing = false; }
   if (keep?.code === code) ipoKeepBack(keep);
 }
 

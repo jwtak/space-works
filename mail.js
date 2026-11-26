@@ -404,16 +404,17 @@ function mailConfirm({ title, rows, ok, no = '취소' }) {
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
     wrap.className = 'mail-modal';
-    wrap.innerHTML = `<div class="mail-dialog" role="dialog" aria-modal="true" aria-labelledby="mail-dlg-t">
+    wrap.innerHTML = `<div class="mail-dialog mail-cfm" role="dialog" aria-modal="true" aria-labelledby="mail-dlg-t">
       <h3 id="mail-dlg-t">${esc(title)}</h3>
       <dl>${rows.filter((r) => r[1]).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
       <div class="mail-dialog-actions"><button class="btn" type="button" data-r="0">${esc(no)}</button><button class="btn primary" type="button" data-r="1">${esc(ok)}</button></div></div>`;
-    const done = (v, viaBack) => { if (!wrap.isConnected) return; wrap.remove(); document.removeEventListener('keydown', onKey); if (viaBack !== true) off(); resolve(v); };
-    const onKey = (e) => { if (e.key === 'Escape') done(false); };
+    const done = (v, viaBack) => { if (!wrap.isConnected) return; wrap.remove(); document.removeEventListener('keydown', onKey); untrap(); if (viaBack !== true) off(); resolve(v); };
+    const onKey = (e) => { if (e.key === 'Escape' && DLG_STACK[DLG_STACK.length - 1]?.box === dlg) done(false); };
     const off = pushLayer(() => done(false, true), () => done(false, true)); // 뒤로 가기 = 취소
     wrap.addEventListener('click', (e) => { if (e.target === wrap) done(false); const b = e.target.closest('[data-r]'); if (b) done(b.dataset.r === '1'); });
     document.addEventListener('keydown', onKey);
     document.body.appendChild(wrap);
+    const dlg = wrap.querySelector('.mail-dialog'), untrap = dlgTrap(dlg, { focus: false });
     wrap.querySelector('[data-r="1"]').focus();
   });
 }
@@ -423,12 +424,13 @@ function mailModal(html, cls = '') {
   const wrap = document.createElement('div');
   wrap.className = 'mail-modal';
   wrap.innerHTML = `<div class="mail-dialog ${cls}" role="dialog" aria-modal="true">${html}</div>`;
-  const onKey = (e) => { if (e.key === 'Escape') wrap.close(); };
-  wrap.close = (viaBack) => { if (!wrap.isConnected) return; wrap.remove(); document.removeEventListener('keydown', onKey); if (viaBack !== true) off(); };
+  const onKey = (e) => { if (e.key === 'Escape' && DLG_STACK[DLG_STACK.length - 1]?.box === dlg) wrap.close(); };
+  wrap.close = (viaBack) => { if (!wrap.isConnected) return; wrap.remove(); document.removeEventListener('keydown', onKey); untrap(); if (viaBack !== true) off(); };
   const off = pushLayer(() => wrap.close(true), () => wrap.close(true));
   wrap.addEventListener('click', (e) => { if (e.target === wrap || e.target.closest('[data-close]')) wrap.close(); });
   document.addEventListener('keydown', onKey);
   document.body.appendChild(wrap);
+  const dlg = wrap.querySelector('.mail-dialog'), untrap = dlgTrap(dlg);
   return wrap;
 }
 
@@ -672,9 +674,10 @@ async function mailBulk(act) {
       await Promise.all(items.map((x) => G.patch(p(x), { isRead: true })));
       items.forEach((x) => { x.isRead = true; });
     } else {
-      await Promise.all(items.map((x) => (purge ? G.del(p(x)) : G.post(`${p(x)}/move`, { destinationId: 'deleteditems' }))));
+      const res = await Promise.all(items.map((x) => (purge ? G.del(p(x)) : G.post(`${p(x)}/move`, { destinationId: 'deleteditems' }))));
       m.list = m.list.filter((x) => !m.checked.has(x.id));
-      toast(purge ? '삭제했습니다' : '지운편지함으로 옮겼습니다');
+      if (purge) toast('삭제했습니다');
+      else mailUndoToast(`${items.length > 1 ? `${items.length}개를 ` : ''}지운편지함으로 옮겼습니다`, items.map((x, i) => mailUndoItem(x, res[i])));
     }
     m.checked.clear();
     mailDrawList(); mailLoadCounts();
@@ -885,7 +888,7 @@ function mailDrawList() {
     const who = toSide ? (x.toRecipients || []).map(mailWho).join(', ') || '(받는 사람 없음)' : mailWho(x.from) || '(보낸 사람 없음)';
     const unread = !x.isRead && !toSide, flagged = x.flag?.flagStatus === 'flagged';
     const iso = toSide ? x.sentDateTime || x.lastModifiedDateTime || x.receivedDateTime : x.receivedDateTime;
-    return `<li class="mail-item ${unread ? 'unread' : ''} ${m.sel === x.id ? 'on' : ''} ${m.checked.has(x.id) ? 'ck' : ''}" data-id="${esc(x.id)}">
+    return `<li class="mail-item ${unread ? 'unread' : ''} ${m.sel === x.id ? 'on' : ''} ${m.checked.has(x.id) ? 'ck' : ''}" data-id="${esc(x.id)}" tabindex="0">
       <input type="checkbox" class="check mail-ck" data-ck="${esc(x.id)}" ${m.checked.has(x.id) ? 'checked' : ''} aria-label="선택">
       <button type="button" class="mail-lstar ${flagged ? 'on' : ''}" data-star="${esc(x.id)}" aria-pressed="${flagged}" aria-label="중요 표시">${mi('star')}</button>
       <span class="mail-st ${unread ? 'unread' : ''}" title="${unread ? '안 읽음' : '읽음'}">${mi(unread ? 'env' : 'envo')}</span>
@@ -894,10 +897,13 @@ function mailDrawList() {
       <div class="mail-subj">${x.hasAttachments ? `<span class="mail-clip" title="첨부">${ico('clip', 'sm')}</span>` : ''}${fl ? `<span class="mail-fl">${esc(fl)}</span>` : ''}<span class="mail-subj-t">${esc(x.subject || '(제목 없음)')}</span></div>
       <div class="mail-pv">${esc((x.bodyPreview || '').replace(/\s+/g, ' ').slice(0, 120))}</div></li>`;
   }).join('') + mailPager();
-  box.querySelectorAll('[data-id]').forEach((li) => li.addEventListener('click', (e) => {
-    if (e.target.closest('.mail-ck, .mail-lstar, .mail-sx')) return;
-    mailOpen(li.dataset.id);
-  }));
+  box.querySelectorAll('[data-id]').forEach((li) => {
+    li.addEventListener('click', (e) => {
+      if (e.target.closest('.mail-ck, .mail-lstar, .mail-sx')) return;
+      mailOpen(li.dataset.id);
+    });
+    li.addEventListener('keydown', (e) => { if ((e.key === 'Enter' || e.key === ' ') && e.target === li) { e.preventDefault(); mailOpen(li.dataset.id); } }); // 키보드로 열기
+  });
   box.querySelectorAll('[data-unsched]').forEach((b) => b.addEventListener('click', () => {
     const x = m.list.find((i) => i.id === b.dataset.unsched); if (x) mailUnsched(x);
   }));
@@ -933,7 +939,7 @@ function mailDrawList() {
 function mailSchedRow(x, fl) {
   const m = ui.mail, who = (x.toRecipients || []).map(mailWho).join(', ') || '(받는 사람 없음)', d = new Date(x._sched), iso = d.toISOString();
   const hm = `${pad(d.getHours())}:${pad(d.getMinutes())}`, mt = d.toDateString() === new Date().toDateString() ? hm : `${d.getMonth() + 1}/${d.getDate()} ${hm}`; // 폰도 예약 시각까지
-  return `<li class="mail-item sched ${m.sel === x.id ? 'on' : ''}" data-id="${esc(x.id)}">
+  return `<li class="mail-item sched ${m.sel === x.id ? 'on' : ''}" data-id="${esc(x.id)}" tabindex="0">
       <span class="mail-ck"></span><span class="mail-lstar"></span>
       <span class="mail-st" title="예약">${ico('clock', 'sm')}</span>
       <div class="mail-r1"><span class="mail-who"><span class="mail-draft sched">예약</span>${esc(who)}</span><span class="mail-tm"><span class="m">${mt}</span><span class="d">${mailTimeD(iso)}</span></span></div>
@@ -1414,6 +1420,20 @@ function mailPrint(x, html) {
   document.body.appendChild(fr);
 }
 
+/* 옮기기·지우기 되돌리기(2026-11-26 규격 점검): move 응답의 새 id로 원래 폴더에 다시 옮긴다. 새 id를 모르면 되돌리기 없이 알림만 */
+const mailUndoItem = (x, moved) => ({ id: moved?.id, box: mailBoxX(x), back: x.parentFolderId || mailFid(mailKeyOf(x)) });
+function mailUndoToast(msg, list) {
+  const ok = list.length && list.every((u) => u.id && u.back);
+  if (!ok) return toast(msg);
+  toast(msg, { action: '되돌리기', onAction: async () => {
+    try {
+      await Promise.all(list.map((u) => G.post(`${mailMsgP(u.id, u.box)}/move`, { destinationId: u.back })));
+      toast('되돌렸습니다');
+    } catch (e) { toast(e.message); }
+    if (route() === 'mail') { mailLoadList(); mailLoadCounts(); }
+  } });
+}
+
 async function mailAction(act, x, arg) {
   const m = ui.mail;
   const p = mailMsgP(x.id, mailBoxX(x)), ck = mailKeyOf(x); // 그 메일의 사서함 경로, 개수를 고칠 폴더
@@ -1451,11 +1471,11 @@ async function mailAction(act, x, arg) {
       return;
     }
     if (act === 'move') {
-      await G.post(`${p}/move`, { destinationId: arg.id });
+      const moved = await G.post(`${p}/move`, { destinationId: arg.id });
       // 삭제처럼 목록으로 (다음 메일을 저절로 열면 읽음 처리돼 버린다)
       m.list = m.list.filter((i) => i.id !== x.id); m.sel = null; m.msg = null; m.view = 'list';
       mailDrawShell(); mailDrawList(); mailDrawPane(); mailLoadCounts();
-      toast(`${arg.name}(으)로 옮겼습니다`);
+      mailUndoToast(`${arg.name}(으)로 옮겼습니다`, [mailUndoItem(x, moved)]);
       return;
     }
     if (act === 'unread') {
@@ -1469,11 +1489,11 @@ async function mailAction(act, x, arg) {
     }
     if (act === 'delete' || act === 'purge') {
       if (act === 'purge' && !(await mailConfirm({ title: '영구 삭제할까요?', rows: [['제목', x.subject || '(제목 없음)']], ok: '영구 삭제' }))) return;
-      if (act === 'delete') await G.post(`${p}/move`, { destinationId: 'deleteditems' });
-      else await G.del(p);
+      const moved = act === 'delete' ? await G.post(`${p}/move`, { destinationId: 'deleteditems' }) : await G.del(p);
       m.list = m.list.filter((i) => i.id !== x.id); m.sel = null; m.msg = null; m.view = 'list';
       mailDrawShell(); mailDrawList(); mailDrawPane(); mailLoadCounts();
-      toast(act === 'delete' ? '지운편지함으로 옮겼습니다' : '삭제했습니다');
+      if (act === 'delete') mailUndoToast('지운편지함으로 옮겼습니다', [mailUndoItem(x, moved)]);
+      else toast('삭제했습니다');
     }
   } catch (e) { toast(e.message); }
 }
@@ -1591,7 +1611,7 @@ function mailDrawCompose() {
   const title = { new: '메일 쓰기', reply: '답장', replyAll: '전체 답장', forward: '전달', draft: '임시 저장한 메일' }[c.mode];
   const book = (key) => `<button type="button" class="mail-book" data-book="${key}" aria-label="주소록">${mi('plusc', 'bk-m')}${ico('plus', 'bk-d')}</button>`;
   const tokField = (key, label, pre = '', cls = '') => `<div class="mail-field mail-addrf ${cls}"><span class="mail-flbl">${label}${pre}</span>
-    <div class="mail-ac mail-tok"><input type="hidden" name="${key}" value="${esc(c[key])}"><span class="mail-chips"></span><input class="mail-tok-in" autocomplete="off" aria-label="${label}" enterkeyhint="next"><ul class="mail-sug" hidden></ul></div>${book(key)}</div>`;
+    <div class="mail-ac mail-tok"><input type="hidden" name="${key}" value="${esc(c[key])}"><span class="mail-chips"></span><input class="mail-tok-in" type="text" inputmode="email" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="${label}" enterkeyhint="next"><ul class="mail-sug" hidden></ul></div>${book(key)}</div>`;
   const files = [...c.existing.map((a) => ({ att: a, name: a.name, size: a.size })), ...c.files.map((f) => ({ file: f, name: f.name, size: f.size }))];
   const ccOpen = c.ccOpen || !!(c.cc.trim() || c.bcc.trim());
   const bccOpen = c.bccOpen || !!c.bcc.trim();
@@ -2221,7 +2241,7 @@ function mailUpProg(c, file, pct) {
   c.pct = c.pct || new Map();
   if (pct == null) c.pct.delete(file); else c.pct.set(file, pct);
   const el = document.querySelector(`#mail-cf [data-fk="${mailFileKey(file)}"]`); if (el) el.textContent = pct == null ? '' : `${pct}%`;
-  if (c.sending) document.querySelectorAll('#mail-cf .mail-send').forEach((b) => { b.textContent = pct == null ? '보내기' : `올리는 중 ${pct}%`; });
+  if (c.sending) document.querySelectorAll('#mail-cf .mail-send').forEach((b) => { b.textContent = pct == null ? '보내는 중…' : `올리는 중 ${pct}%`; });
 }
 
 /* 3MB 넘는 첨부: 초안에 업로드 세션을 열고 조각을 차례로 PUT. uploadUrl에 인증이 들어 있어 Authorization 헤더는 붙이지 않는다 */
@@ -2473,10 +2493,13 @@ async function mailSaveDraft(c, notify) {
 async function mailSend(c) {
   if (c.sending) return;
   if (c.busy) return toast('저장 중입니다. 잠시 후 다시 눌러 주세요');
-  let to, cc, bcc;
-  try { to = mailParseAddrs(c.to, '받는 사람'); cc = c.each ? [] : mailParseAddrs(c.cc, '참조'); bcc = c.each ? [] : mailParseAddrs(c.bcc, '숨은참조'); }
-  catch (e) { return toast(e.message); }
-  if (!to.length) return toast('받는 사람을 입력하세요');
+  let to, cc, bcc, at = 'to';
+  // 주소가 틀리면 알림과 함께 그 칸으로
+  const fix = (msg) => { toast(msg, { error: true }); const inp = document.querySelector(`#mail-cf input[type=hidden][name="${at}"]`)?.closest('.mail-tok')?.querySelector('.mail-tok-in'); inp?.focus(); };
+  try { to = mailParseAddrs(c.to, '받는 사람'); at = 'cc'; cc = c.each ? [] : mailParseAddrs(c.cc, '참조'); at = 'bcc'; bcc = c.each ? [] : mailParseAddrs(c.bcc, '숨은참조'); }
+  catch (e) { return fix(e.message); }
+  at = 'to';
+  if (!to.length) return fix('받는 사람을 입력하세요');
   if (c.sched && !(mailSchedDate(c.sched) > Date.now() + 60e3)) return toast('예약 시간이 지났습니다. 옵션에서 다시 정하세요');
   const each = c.each && to.length > 1;
   const names = (arr) => arr.map((r) => r.emailAddress.name ? `${r.emailAddress.name} <${r.emailAddress.address}>` : r.emailAddress.address).join(', ');
@@ -2490,11 +2513,14 @@ async function mailSend(c) {
   });
   if (!ok || c.sending || ui.mail.compose !== c) return;
   c.sending = true; mailLockFiles(c); // 보내는 동안(첨부 올리기 포함) 닫기·첨부 빼기·저장을 막는다
-  const btns = document.querySelectorAll('#mail-cf [type=submit]'); btns.forEach((b) => { b.disabled = true; });
+  const btns = document.querySelectorAll('#mail-cf [type=submit]'); btns.forEach((b) => { b.disabled = true; b.setAttribute('aria-busy', 'true'); });
+  const label = (on) => document.querySelectorAll('#mail-cf .mail-send').forEach((b) => { b.textContent = on ? '보내는 중…' : '보내기'; });
+  const unlock = () => { btns.forEach((b) => { if (b.isConnected) { b.disabled = false; b.removeAttribute('aria-busy'); } }); label(false); };
+  label(true);
   const mp = (x) => mailMsgP(x, c.box), sent = [];
   try {
     const id = await mailSaveDraft(c, false); // 큰 첨부는 여기서 업로드 세션으로 올라간다(보내기 버튼에 %)
-    if (!id) { btns.forEach((b) => { if (b.isConnected) b.disabled = false; }); return; }
+    if (!id) { unlock(); return; }
     try {
       // 개인별 보내기: 첨부까지 올린 초안을 받는 사람 수만큼 복사해 한 명씩 보낸다
       if (each) {
@@ -2523,7 +2549,7 @@ async function mailSend(c) {
         if (ui.mail.compose === c) mailDrawCompose();
         toast(`${sent.length}명에게 보냈고 나머지는 실패했습니다: ${e.message}`);
       } else toast(e.message);
-      btns.forEach((b) => { if (b.isConnected) b.disabled = false; });
+      unlock();
     }
   } finally { c.sending = false; mailLockFiles(c); }
 }

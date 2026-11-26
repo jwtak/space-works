@@ -129,7 +129,16 @@ function v3Fi(v, fmt, d) { // 입력 칸에 넣을 값. 금액, 주식 수, 원�
   const n = +(v * (fmt === 'pct' ? 100 : 1)).toFixed(d ?? (fmt === 'pct' || fmt === 'x' || fmt === 'num' ? 2 : fmt === 'cnt' || fmt === 'won' ? 0 : 1));
   return fmt === 'amt' || fmt === 'cnt' || fmt === 'won' ? n.toLocaleString('ko-KR', { maximumFractionDigits: 6 }) : String(n);
 }
-const v3NumOf = (s) => { if (s == null) return null; const t = String(s).replace(/,/g, '').trim(); return t === '' || !Number.isFinite(+t) ? null : +t; };
+const v3NumOf = (s, u) => vaNumIn(s, u); // valuation.js. u는 칸 단위(data-u): 12%, 1.2억, 쉼표를 읽고 못 읽으면 null
+/* 못 읽는 값 표시: 칸에 aria-invalid와 바로 뒤 「숫자 확인」. 계산은 처음 값으로 하고 글자는 그대로 둠(x.st.bad) */
+const v3EId = (el) => `v3e-${String(el.dataset.k ?? `adj${el.dataset.n}`).replace(/[^A-Za-z0-9_-]/g, '_')}`;
+function v3BadMark(el, on) {
+  const box = el.closest('.v3-ci') ? el : el.closest('.v3-iw') || el, nx = box.nextElementSibling, m = nx?.classList.contains('v3-inv') ? nx : null;
+  if (!on) { el.removeAttribute('aria-invalid'); el.removeAttribute('aria-describedby'); m?.remove(); return; }
+  el.setAttribute('aria-invalid', 'true');
+  if (!m) { const t = document.createElement('span'); t.className = 'v3-inv'; t.id = v3EId(el); t.textContent = '숫자 확인'; box.after(t); }
+  el.setAttribute('aria-describedby', v3EId(el));
+}
 const v3Sec = (title, right, body, cls = '', id = '') => `<section class="card mk-sec ${cls}"${id ? ` id="${id}"` : ''}><div class="card-head"><h2>${title}</h2>${right || ''}</div><div class="mk-body">${body}</div></section>`;
 /* 화면 상태를 바꾸는 단추 묶음(탭, 시나리오 등). 계산 입력을 바꾸는 묶음은 v3Sw */
 const v3Seg = (key, opts, cur) => `<div class="mk-seg">${opts.map(([v, l]) => `<button type="button" data-v3-seg="${key}" data-v="${esc(v)}" class="${String(cur) === String(v) ? 'on' : ''}" aria-pressed="${String(cur) === String(v)}">${esc(l)}</button>`).join('')}</div>`;
@@ -177,9 +186,10 @@ const v3Ver = (c) => (c._ver ||= (typeof V3E !== 'undefined' && V3E.ready ? (() 
    c 사례, st 화면 상태, sc 고른 시나리오, res 결과(c.py와 같은 모양 + checks, map, ms), R 고른 시나리오의 행, rows0 연도별 칸 덮기 전 행,
    tl {hist, fc, fade, ty, H, N, M}, sw 지금 스위치, I 지금 input, t 대상 회사, ov 엔진 덮기, live 엔진으로 다시 계산했는지, err 계산 오류, w 본문 폭 */
 let v3Memo = null;
-function v3Model(c) {
-  const st = v3St(c), key = `${c.id}|${c.generated_at}|${JSON.stringify(st.ov)}`;
-  if (!v3Memo || v3Memo.key !== key) {
+/* stale: 입력 중 조각 이벤트(v3On input)는 같은 사례의 마지막 계산을 그대로 씀. 키마다 엔진을 돌리지 않고 다시 계산은 v3Later(150ms) 한 번 */
+function v3Model(c, stale) {
+  const st = v3St(c), id = `${c.id}|${c.generated_at}|`, key = id + JSON.stringify(st.ov);
+  if (!v3Memo || (v3Memo.key !== key && !(stale && v3Memo.key.startsWith(id)))) {
     const m = { key, res: null, rows0: null, ov: {}, eff: c, live: false, err: '' };
     if (typeof V3E !== 'undefined' && V3E.ready) {
       try {
@@ -220,9 +230,10 @@ const v3Chg = (x) => Object.keys(x.st.ov).length;
 /* v3In(x, 화면 키, 처음 값(모델 단위), {fmt, d, lab, ph, cell, dis, u})
    fmt 가 pct 면 화면에는 ×100 으로 보이고 저장은 소수. cell: 표 안 칸(단위 표시 없음) */
 function v3In(x, key, base, { fmt = 'num', d, lab = '', ph = '', cell = false, dis = false, u, cur } = {}) {
-  const e = cur !== undefined ? cur : x.st.ov[key], b = v3Fi(base, fmt, d), unit = u ?? V3_UNIT[fmt] ?? '';
-  const inp = `<input type="text" inputmode="decimal" autocomplete="off" data-k="${esc(key)}" data-b="${esc(b)}" data-sc="${fmt === 'pct' ? 100 : 1}" value="${esc(e ? e.t : b)}"${ph ? ` placeholder="${esc(ph)}"` : ''}${dis ? ' disabled' : ''} class="${e ? 'chg' : ''}" aria-label="${esc(lab)}">`;
-  return cell ? `<span class="v3-ci">${inp}</span>` : `<span class="v3-iw ${unit ? '' : 'nu'}">${inp}${unit ? `<em>${unit}</em>` : ''}</span>`;
+  const e = cur !== undefined ? cur : x.st.ov[key], b = v3Fi(base, fmt, d), unit = u ?? V3_UNIT[fmt] ?? '', bad = x.st.bad?.[key], eid = bad != null ? `v3e-${key.replace(/[^A-Za-z0-9_-]/g, '_')}` : '';
+  const inp = `<input type="text" autocomplete="off" data-k="${esc(key)}" data-b="${esc(b)}" data-sc="${fmt === 'pct' ? 100 : 1}" data-u="${esc(unit)}" value="${esc(bad != null ? bad : e ? e.t : b)}"${ph ? ` placeholder="${esc(ph)}"` : ''}${dis ? ' disabled' : ''} class="${e ? 'chg' : ''}" aria-label="${esc(lab)}"${eid ? ` aria-invalid="true" aria-describedby="${eid}"` : ''}>`;
+  const msg = eid ? `<span class="v3-inv" id="${eid}">숫자 확인</span>` : '';
+  return cell ? `<span class="v3-ci">${inp}${msg}</span>` : `<span class="v3-iw ${unit ? '' : 'nu'}">${inp}${unit ? `<em>${unit}</em>` : ''}</span>${msg}`;
 }
 const v3F = (lab, html, cls = '') => `<label class="v3-f ${cls}"><span>${lab}</span>${html}</label>`;
 /* 가정 한 칸: 가정 키 K의 i번째 추정 연도. 처음 값은 연도별 칸 덮기 전 계산값.
@@ -421,11 +432,11 @@ function v3Draw() {
   v3S.cid = c.id;
   if (typeof v3Info === 'function') TAB_INFO.valuation_v3 = v3Info(c);
   const x = v3Model(c);
-  const a = document.activeElement, fk = host.contains(a) ? a.dataset?.k : null, s0 = a?.selectionStart, s1 = a?.selectionEnd;
+  const fk = vaFocKey(host); // 칸, 단추, select, 체크 어느 것이든 다시 그린 뒤 그 자리로
   const keep = {}; host.querySelectorAll('[data-v3-keep]').forEach((el) => { keep[el.dataset.v3Keep] = [el.scrollLeft, el.scrollTop]; }); // 표 안 스크롤 자리
   host.innerHTML = v3Html(c, x);
   host.querySelectorAll('[data-v3-keep]').forEach((el) => { const k = keep[el.dataset.v3Keep]; if (k) { el.scrollLeft = k[0]; el.scrollTop = k[1]; } });
-  if (fk) { const el = host.querySelector(`[data-k="${CSS.escape(fk)}"]`); if (el) { el.focus({ preventScroll: true }); try { el.setSelectionRange(s0, s1); } catch { /* */ } } }
+  vaFocBack(host, fk);
   v3Save();
 }
 /* 입력 중 다시 계산: 화면을 통째로 다시 그리지 않고 data-o 구역만 바꿈. 손대지 않은 입력 칸의 처음 값도 새 계산값으로 맞춤 */
@@ -439,6 +450,7 @@ function v3Patch() {
   host.querySelectorAll('input[data-k]').forEach((el) => {
     const f = fi[el.dataset.k]; if (!f || el === act) return;
     el.dataset.b = f.dataset.b;
+    if (el.hasAttribute('aria-invalid')) return; // 못 읽는 값은 글자 그대로
     if (!el.classList.contains('chg') && el.value !== f.value) el.value = f.value;
   });
   const rb = host.querySelector('[data-v3-reset]'), fb = t.content.querySelector('[data-v3-reset]');
@@ -450,12 +462,14 @@ function v3Patch() {
 let v3Timer = 0;
 const v3Later = () => { clearTimeout(v3Timer); v3Timer = setTimeout(v3Patch, 150); };
 
-function v3Go(host, c, n) {
+function v3Go(host, c, n, from) {
+  const nav = from?.closest('.v3-nav') ? from.getAttribute('aria-label') : null; // 이전, 다음 단추면 새 화면의 같은 단추로 포커스
   const st = v3St(c); st.tab = 'in'; st.step = n; v3Draw();
-  const el = host.querySelector('#v3-tabs'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  if (nav) (host.querySelector(`.v3-nav [aria-label="${nav}"]:not(:disabled)`) || host.querySelector('.v3-nav button:not(:disabled)'))?.focus({ preventScroll: true });
+  const el = host.querySelector('#v3-tabs'); if (el) el.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
 }
 function v3Bind(host) {
-  const hook = (type, e) => { for (const h of V3_ON) { if (h.type !== type) continue; const el = e.target.closest?.(h.sel); if (el && host.contains(el)) { const c = v3Case(); if (c && h.fn(el, v3Model(c), e) === true) v3Draw(); return true; } } return false; };
+  const hook = (type, e) => { for (const h of V3_ON) { if (h.type !== type) continue; const el = e.target.closest?.(h.sel); if (el && host.contains(el)) { const c = v3Case(); if (c && h.fn(el, v3Model(c, type === 'input'), e) === true) v3Draw(); return true; } } return false; };
   host.addEventListener('click', (e) => {
     const c = v3Case(); if (!c) return;
     const st = v3St(c);
@@ -465,20 +479,25 @@ function v3Bind(host) {
     const sw = e.target.closest('[data-v3-ov]');
     if (sw) { v3SetOv(c, sw.dataset.v3Ov, JSON.parse(sw.dataset.v)); v3Draw(); return; }
     const go = e.target.closest('[data-v3-go]');
-    if (go) { v3Go(host, c, +go.dataset.v3Go); return; }
+    if (go) { v3Go(host, c, +go.dataset.v3Go, go); return; }
     const mt = e.target.closest('[data-v3-mapt]'); // 좁은 화면에서 접어 둔 DCF 맵
     if (mt) { st.map = !st.map; mt.parentElement.classList.toggle('open', st.map); mt.setAttribute('aria-expanded', st.map); v3Save(); return; }
     const mo = e.target.closest('[data-v3-more]');
     if (mo) { mo.classList.toggle('open'); return; }
-    if (e.target.closest('[data-v3-reset]')) { st.ov = {}; v3Draw(); return; } // 바꾼 입력만 지우고 화면 상태(탭, 편 묶음, 메모)는 둠
+    if (e.target.closest('[data-v3-reset]')) { // 바꾼 입력만 지우고 화면 상태(탭, 편 묶음, 메모)는 둠
+      const n = Object.keys(st.ov).length; if (n && !confirm(`바꾼 입력 ${n}개를 처음 값으로 되돌릴까요?`)) return;
+      st.ov = {}; delete st.bad; v3Draw(); return;
+    }
     if (e.target.closest('#v3-xlsx')) { v3Download(e.target.closest('#v3-xlsx'), c); return; }
     if (e.target.closest('#v3-json')) v3Export(c);
   });
   host.addEventListener('input', (e) => {
     const c = v3Case(); if (!c) return;
+    const t = e.target; // 못 읽는 값 표시는 읽히는 값이 되거나 비우면 바로 지움
+    if (t.matches?.('input[aria-invalid]') && (!t.value.trim() || v3NumOf(t.value, t.dataset.u) != null)) { v3BadMark(t, false); if (t.dataset.k) delete v3St(c).bad?.[t.dataset.k]; }
     if (hook('input', e)) return;
     const el = e.target; if (!el.matches('input[data-k]')) return;
-    const st = v3St(c), k = el.dataset.k, v = v3NumOf(el.value), am = /^a\.(.+)\.\*#(\d+)$/.exec(k);
+    const st = v3St(c), k = el.dataset.k, v = v3NumOf(el.value, el.dataset.u), am = /^a\.(.+)\.\*#(\d+)$/.exec(k);
     if (am) V3_SCEN.forEach((S) => { delete st.ov[`a.${am[1]}.${S}#${am[2]}`]; }); // 세 시나리오로 고치면 시나리오 하나로 고쳐 둔 같은 칸은 지움
     if (v == null || v === v3NumOf(el.dataset.b)) delete st.ov[k]; else st.ov[k] = { t: el.value, v: v / (+el.dataset.sc || 1) };
     el.classList.toggle('chg', !!st.ov[k]);
@@ -492,9 +511,12 @@ function v3Bind(host) {
     for (let i = 0; tr && i < 40 && !nx; i++, tr = tr.nextElementSibling) nx = tr.children[td.cellIndex]?.querySelector('input:not(:disabled)'); // 계산 줄은 건너뛰고 다음 입력 줄로
     e.preventDefault(); if (nx) { nx.focus(); nx.select(); } else e.target.blur();
   });
-  host.addEventListener('focusout', (e) => { // 비우거나 숫자가 아닌 칸은 나갈 때 처음 값으로
-    const el = e.target; if (!el.matches?.('input[data-k]') || v3NumOf(el.value) != null) return;
+  host.addEventListener('focusout', (e) => { // 비운 칸은 나갈 때 처음 값으로, 숫자로 못 읽는 칸은 글자를 두고 「숫자 확인」(계산은 처음 값)
+    const el = e.target;
+    if (el.matches?.('[data-v3y-adj="amount"]')) { if (el.value.trim() && v3NumOf(el.value, el.dataset.u) == null) v3BadMark(el, true); return; }
+    if (!el.matches?.('input[data-k]') || v3NumOf(el.value, el.dataset.u) != null) return;
     const c = v3Case(); if (!c) return;
+    if (el.value.trim()) { (v3St(c).bad ||= {})[el.dataset.k] = el.value; v3BadMark(el, true); v3Save(); return; }
     const st = v3St(c), am = /^a\.(.+)\.\*#(\d+)$/.exec(el.dataset.k);
     if (am) V3_SCEN.forEach((S) => { delete st.ov[`a.${am[1]}.${S}#${am[2]}`]; });
     delete st.ov[el.dataset.k]; el.value = el.dataset.b; el.classList.remove('chg'); v3Later();
@@ -520,6 +542,7 @@ async function v3Download(btn, c) {
   if (btn.disabled) return;
   btn.disabled = true;
   const rel = c.xlsx || `data/valuation/${c.id}_모델.xlsx`;
+  vaBusy(btn, true);
   try {
     const meta = await STORE.meta(rel);
     if (!meta) { toast('아직 올라간 엑셀이 없습니다.'); return; }
@@ -527,7 +550,7 @@ async function v3Download(btn, c) {
     const blob = await G.get(sh ? `${sh}/content` : `${STORE.path(rel)}:/content`, { type: 'blob' });
     v3SaveBlob(blob, `[유니버스인베스트먼트] ${c.target.name} 가치평가_${String(c.target.val_date || '').replace(/-/g, '').slice(2)}.xlsx`);
   } catch (e) { toast(e.message); }
-  finally { btn.disabled = false; }
+  finally { btn.disabled = false; vaBusy(btn, false); }
 }
 function v3SaveBlob(blob, name) {
   const a = document.createElement('a');
@@ -2527,7 +2550,7 @@ v3Step(14, (x, c) => {
 /* 가중치 칸: 화면 값의 합이 100%인데 소수 끝자리(33.3 × 3 등) 때문에 엔진의 합 검사(오차 1e-6)에 걸리지 않게, 합이 0.15%p 안이면 방금 고친 칸에서 남는 끝자리를 덜어 냄 */
 v3On('input', '.v3b-sct input[data-k]', (el, x) => {
   const ins = [...el.closest('table').querySelectorAll('input[data-k^="sw.weights#"]')], base = x.c.switches.weights || {}, ov = x.st.ov;
-  const rows = ins.map((i) => { const v = v3NumOf(i.value), S = i.dataset.k.split('#')[1], same = v == null || i.value === i.dataset.b; return { i, same, v: same ? +base[S] || 0 : v / 100 }; });
+  const rows = ins.map((i) => { const v = v3NumOf(i.value, i.dataset.u), S = i.dataset.k.split('#')[1], same = v == null || i.value === i.dataset.b; return { i, same, v: same ? +base[S] || 0 : v / 100 }; });
   const d = v3bSum(rows.map((r) => r.v)) - 1, fix = rows.find((r) => r.i === el && !r.same) || rows.find((r) => !r.same);
   if (fix && Math.abs(d) < 0.0015) fix.v -= d;
   rows.forEach((r) => { if (r.same) delete ov[r.i.dataset.k]; else ov[r.i.dataset.k] = { t: r.i.value, v: r.v }; r.i.classList.toggle('chg', !r.same); });
@@ -2621,7 +2644,7 @@ v3On('input', '[data-v3b-bw]', (el, x) => {
   v3Later();
 });
 v3On('input', '.v3b-bw input[data-k]', (el, x) => {
-  let v = v3NumOf(el.value);
+  let v = v3NumOf(el.value, el.dataset.u);
   if (v != null && (v < 0 || v > 100)) { v = Math.min(100, Math.max(0, v)); el.value = String(v); }
   if (v == null || el.value === el.dataset.b) delete x.st.ov[el.dataset.k]; else x.st.ov[el.dataset.k] = { t: el.value, v: v / 100 };
   el.classList.toggle('chg', !!x.st.ov[el.dataset.k]);
@@ -2630,7 +2653,7 @@ v3On('input', '.v3b-bw input[data-k]', (el, x) => {
   v3Later();
 });
 v3On('change', '.v3b-bw input[data-k]', (el) => {
-  const r = el.closest('.v3b-bw')?.querySelector('[data-v3b-bw]'), v = v3NumOf(el.value);
+  const r = el.closest('.v3b-bw')?.querySelector('[data-v3b-bw]'), v = v3NumOf(el.value, el.dataset.u);
   if (r) r.value = v ?? +el.dataset.b;
 });
 
@@ -3015,7 +3038,7 @@ function v3yAdj(x) {
   const c = x.c, adj = x.I.adj || [], b0 = c.input?.adj || [], hist = x.tl.hist, yrs = [...hist, ...x.tl.fc], sel = (n, f, opts, cur) => `<select class="select v3y-as${JSON.stringify(b0[n]?.[f]) === JSON.stringify(cur) ? '' : ' chg'}" data-v3y-adjs="${f}" data-n="${n}" aria-label="${f === 'year' ? '연도' : '계정'}">${opts.map(([v, l]) => `<option value="${esc(v)}"${String(v) === String(cur) ? ' selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
   const rows = adj.map((a, n) => {
     const yo = yrs.includes(a.year) ? yrs : [a.year, ...yrs], ao = V3Y_ADJ_ACC.includes(a.account) ? V3Y_ADJ_ACC : [a.account, ...V3Y_ADJ_ACC];
-    const amt = `<span class="v3-ci"><input type="text" inputmode="decimal" autocomplete="off" data-v3y-adj="amount" data-n="${n}" value="${esc(v3Ok(a.amount) ? String(a.amount) : '')}" class="${b0[n] && b0[n].amount === a.amount ? '' : 'chg'}" aria-label="금액"></span>`;
+    const amt = `<span class="v3-ci"><input type="text" autocomplete="off" data-v3y-adj="amount" data-n="${n}" data-u="억" value="${esc(v3Ok(a.amount) ? String(a.amount) : '')}" class="${b0[n] && b0[n].amount === a.amount ? '' : 'chg'}" aria-label="금액"></span>`;
     const why = `<input type="text" autocomplete="off" class="input v3y-aw${b0[n] && (b0[n].why || '') === (a.why || '') ? '' : ' chg'}" data-v3y-adj="why" data-n="${n}" value="${esc(a.why || '')}" placeholder="근거" aria-label="근거"${a.why || a.src ? ` title="${esc([a.why, Array.isArray(a.src) ? a.src.join(', ') : a.src].filter(Boolean).join('\n'))}"` : ''}>`;
     return `<tr><td class="st">${sel(n, 'year', yo.map((y) => [y, hist.includes(y) ? `${y}` : `${y}E`]), a.year)}</td><td class="tx">${sel(n, 'account', ao.map((k) => [k, V3Y_ACC[k] || k]), a.account)}</td><td class="in">${amt}</td><td class="tx why">${why}</td>
       <td class="v3y-ad"><button class="btn ghost sm" type="button" data-v3y-adjdel="${n}" aria-label="${n + 1}번째 보정 삭제">${ico('trash', 'sm')}</button></td></tr>`;
@@ -3032,7 +3055,7 @@ function v3yAdj(x) {
 v3On('input', '[data-v3y-adj]', (el, x) => {
   const c = x.c, n = +el.dataset.n, f = el.dataset.v3yAdj, arr = v3yAdjCur(c);
   if (!arr[n]) return false;
-  if (f === 'amount') { const v = v3NumOf(el.value); if (v == null) return false; arr[n].amount = v; } else arr[n].why = el.value;
+  if (f === 'amount') { const v = v3NumOf(el.value, el.dataset.u); if (v == null) return false; arr[n].amount = v; } else arr[n].why = el.value;
   v3SetOv(c, 'i.adj', arr);
   const b = c.input?.adj?.[n]; el.classList.toggle('chg', !b || (f === 'amount' ? b.amount !== arr[n].amount : (b.why || '') !== arr[n].why));
   v3Later();
@@ -3045,7 +3068,11 @@ v3On('change', '[data-v3y-adjs]', (el, x) => {
   v3SetOv(c, 'i.adj', arr);
   return true;
 });
-v3On('click', '[data-v3y-adjdel]', (el, x) => { const arr = v3yAdjCur(x.c); arr.splice(+el.dataset.v3yAdjdel, 1); v3SetOv(x.c, 'i.adj', arr); return true; });
+v3On('click', '[data-v3y-adjdel]', (el, x) => {
+  const arr = v3yAdjCur(x.c), n = +el.dataset.v3yAdjdel, a = arr[n]; if (!a) return false;
+  if (!confirm(`${a.year}년 ${V3Y_ACC[a.account] || a.account} 보정${v3Ok(a.amount) ? ` ${v3Num(a.amount)}억` : ''}을 삭제할까요?${a.why ? ' 근거 글도 함께 지워집니다.' : ''}`)) return false;
+  arr.splice(n, 1); v3SetOv(x.c, 'i.adj', arr); return true;
+});
 v3On('click', '[data-v3y-adjadd]', (el, x) => { const arr = v3yAdjCur(x.c); arr.push({ year: x.tl.hist[x.tl.H - 1], account: 'rev', amount: 0, why: '' }); v3SetOv(x.c, 'i.adj', arr); return true; });
 
 v3Tab('chk', (x, c) => {
@@ -4137,7 +4164,7 @@ function v3tMirror(x, kind, v) {
   return {};
 }
 v3On('input', 'input[data-v3t]', (el, x) => {
-  const c = x.c, st = v3St(c), k = el.dataset.k, kind = el.dataset.v3t, raw = v3NumOf(el.value), off = raw == null || raw === v3NumOf(el.dataset.b);
+  const c = x.c, st = v3St(c), k = el.dataset.k, kind = el.dataset.v3t, raw = v3NumOf(el.value, el.dataset.u), off = raw == null || raw === v3NumOf(el.dataset.b);
   const v = off ? null : raw / (+el.dataset.sc || 1), mir = v3tMirror(x, kind, v);
   for (const m of V3T_MIR[kind] || []) delete st.ov[m];
   if (off) delete st.ov[k]; else { st.ov[k] = { t: el.value, v }; for (const [m, mv] of Object.entries(mir)) v3SetOv(c, m, mv); }

@@ -50,6 +50,8 @@
 .dcf-iw input.chg { border-color: var(--primary); background: var(--primary-soft); }
 .dcf-iw input:disabled { background: var(--hover); color: var(--text2); }
 .dcf-iw input::placeholder { color: var(--text3); }
+.dcf-iw input[aria-invalid="true"] { border-color: var(--danger); box-shadow: 0 0 0 1px var(--danger); }
+.dcf-inv { display: block; margin-top: 4px; font-size: var(--fs-sm); color: var(--danger); text-align: left; }
 .dcf-iw em { position: absolute; right: 12px; font-size: var(--fs-md); font-style: normal; color: var(--text3); pointer-events: none; }
 .dcf-pt .dcf-iw { max-width: 160px; margin-left: auto; }
 .dcf-pt td { padding-top: 6px; padding-bottom: 6px; }

@@ -47,3 +47,8 @@
   .tgt-page .ipo-dhead > .rd-pipe { height: 44px; }
   .tgt-page .ipo-dhead > p:empty { display: none; }
 }
+
+/* 소비재·딥테크 목록(수백 행): 접힌 행은 화면 근처에 올 때만 그린다(radar.css #rd-root와 같다). 안 그린 행 자리 높이는 보통 행 높이 */
+#tg-root .ipo-row:not(.open) { content-visibility: auto; contain-intrinsic-size: auto 66px; }
+@media (min-width: 761px) { #tg-root.tgt-cons .ipo-row:not(.open) { contain-intrinsic-size: auto 86px; } }
+@media (max-width: 760px) { #tg-root.tgt-cons .ipo-row:not(.open) { contain-intrinsic-size: auto 218px; } #tg-root.tgt-deep .ipo-row:not(.open) { contain-intrinsic-size: auto 196px; } }

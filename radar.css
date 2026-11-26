@@ -281,8 +281,7 @@
 }
 /* 컨택한 곳(연락함·미팅·보류): 목록 맨 아래 묶음, 펼치지 않은 행은 흐리게(올리면 또렷하게) */
 .rd-low b { color: var(--text2); }
-.rd-low ~ .ipo-row:not(.open) > .ipo-line { opacity: .55; }
-.rd-low ~ .ipo-row:not(.open) > .ipo-line:hover { opacity: 1; }
+.rd-low ~ .ipo-row:not(.open) > .ipo-line:not(:hover) { color: var(--text2); }
 .ipo-st.s-4 { background: var(--fill); color: var(--text2); } /* 검토 완료 */
 /* 검토 완료 행(.ct-done): 자리는 그대로, 진한 회색 바탕으로 본 것 표시 — 상장 준비·입찰딜·매각희망·신규상장·PE 앵글·타깃 공용(2026-11-16) */
 .ipo-row.ct-done > .ipo-line { background: #E5E7EB; }
@@ -295,3 +294,9 @@
 /* 펀드 만기 › PE 앵글 회수 끝 행(.rd-pe-out): 자리는 맨 아래, 글자만 흐리게(2026-11-25) */
 .ipo-row.rd-pe-out > .ipo-line { color: var(--text3); }
 .ipo-row.rd-pe-out > .ipo-line .ipo-ttl { color: var(--text2); }
+
+/* 상장 준비·펀드 만기·입찰딜 목록(수백 행): 접힌 행은 화면 근처에 올 때만 그린다. 아직 안 그린 행 자리 높이는 탭별 보통 행 높이(테두리 1 빼고, 펀드 만기는 67·89 섞인 평균. 한 번 그린 행은 제 높이를 기억, auto)
+   행 위치를 재는 rdHold는 보이는 행 기준이라 그대로, 멀리 있는 행으로 옮기는 rdReveal은 그려진 뒤 한 번 더 맞춘다 */
+#rd-root .ipo-row:not(.open) { content-visibility: auto; contain-intrinsic-size: auto 66px; }
+@media (min-width: 761px) { #rd-root.rd-sell .ipo-row:not(.open) { contain-intrinsic-size: auto 84px; } }
+@media (max-width: 760px) { #rd-root .ipo-row:not(.open) { contain-intrinsic-size: auto 78px; } }

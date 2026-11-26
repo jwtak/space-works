@@ -13,7 +13,7 @@
 
 const FQ_TTL = 5 * 60000;
 const FQ_TRIES = 3; // fs_req.py TRIES와 같게: 이만큼 실패하면 다시 요청할 때까지 멈춘다
-const fqS = { req: [], ver: null, out: null, at: 0, loading: null, err: '', saving: Promise.resolve(), ctx: new Map(), head: new Set() };
+const fqS = { req: [], ver: null, out: null, at: 0, loading: null, err: '', saving: Promise.resolve(), ctx: new Map(), head: new Set(), busy: new Set() }; // busy: 저장 중인 요청 키(그동안 요청 단추를 막아 두 번 눌러 바로 취소되는 일을 막음)
 
 const fqNow = () => { const d = new Date(); return `${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 const fqWhen = (s) => (s ? `${md(s.slice(0, 10))} ${s.slice(11, 16)}`.trim() : '');
@@ -98,11 +98,12 @@ function fqHead(ref, x) {
 function fqSlotInner(ref, legacy = fqS.ctx.get(ref)?.legacy) {
   if (!fqS.at || fqS.err) return '';
   const { fs, wait, failed } = fqState(ref, legacy);
-  return wait && !failed ? fqBtn('팩트시트 요청', true) : fqBtn(fs || failed ? '팩트시트 다시 요청' : '팩트시트 요청');
+  return wait && !failed ? fqBtn('팩트시트 요청', true, ref) : fqBtn(fs || failed ? '팩트시트 다시 요청' : '팩트시트 요청', false, ref);
 }
 
-function fqBtn(label, on) {
-  return `<button type="button" class="btn sm rd-fs${on ? ' on' : ''}" data-fq-req aria-pressed="${!!on}">${on ? ico('done', 'sm') : ''}${label}</button>`;
+function fqBtn(label, on, ref) {
+  const busy = !!ref && fqS.busy.has(ref);
+  return `<button type="button" class="btn sm rd-fs${on ? ' on' : ''}" data-fq-req aria-pressed="${!!on}"${busy ? ' disabled aria-busy="true"' : ''}>${on ? ico('done', 'sm') : ''}${label}</button>`;
 }
 
 // head = 요청 버튼이 머리에 있다: 버튼을 빼고, 알릴 상태도 내용도 없으면 칸을 비운다(.fq-box:empty는 숨김)
@@ -114,10 +115,10 @@ function fqInner(ref, nameLink = '', head = false) {
   const who = r ? [r.by, fqWhen(r.at)].filter(Boolean).join(' ') : '';
   // 상태 글은 '·'로 잇지 않고 값마다 따로 띄운다(fq-bar 간격 12)
   let msg, btn;
-  if (failed) { msg = ['만들지 못했습니다', f.err && esc(String(f.err).slice(0, 60))]; btn = fqBtn('다시 요청'); }
-  else if (wait) { msg = [`${fs ? '다시 요청됨' : '요청됨'} ${esc(who)}`, `${fqNext()} 처리`]; btn = fqBtn('요청 취소', true); }
-  else if (fs) { msg = [`작성 ${esc(fs.made || '')}`, fs.src && nameLink && esc(fs.src)]; btn = fqBtn('다시 요청'); }
-  else { msg = []; btn = fqBtn('팩트시트 요청'); }
+  if (failed) { msg = ['만들지 못했습니다', f.err && esc(String(f.err).slice(0, 60))]; btn = fqBtn('다시 요청', false, ref); }
+  else if (wait) { msg = [`${fs ? '다시 요청됨' : '요청됨'} ${esc(who)}`, `${fqNext()} 처리`]; btn = fqBtn('요청 취소', true, ref); }
+  else if (fs) { msg = [`작성 ${esc(fs.made || '')}`, fs.src && nameLink && esc(fs.src)]; btn = fqBtn('다시 요청', false, ref); }
+  else { msg = []; btn = fqBtn('팩트시트 요청', false, ref); }
   msg = msg.filter(Boolean);
   if (head) { if (!msg.length && !fs) return ''; btn = ''; }
   const bar = `<div class="fq-bar"><span class="fq-t">팩트시트</span>${msg.map((m) => `<span class="muted">${m}</span>`).join('')}${nameLink}${btn}</div>`;
@@ -138,7 +139,7 @@ function fqPaint(ref) {
 /* ---------- 요청·취소 ---------- */
 function fqToggle(ref) {
   const c = fqS.ctx.get(ref);
-  if (!c || !fqS.at || fqS.err) return;
+  if (!c || !fqS.at || fqS.err || fqS.busy.has(ref)) return;
   const add = !fqState(ref, c.legacy).wait; // 요청 중이면 취소, 아니면 (다시) 요청
   const rec = add ? { key: ref, name: c.name, src: c.label, hint: c.hint(), at: fqNow(), by: G.account?.name || '', byEmail: fqMe().email } : null;
   // 요청을 지우면 '요청한 회사' 목록에서도 빠지므로, 만든 팩트시트가 있으면 취소는 예전 요청 시각으로 되돌린다
@@ -149,6 +150,9 @@ function fqToggle(ref) {
     return a;
   };
   fqS.req = apply(fqS.req);
+  const a = document.activeElement, fb = a?.matches?.('[data-fq-req]') ? a.closest('[data-fq]') : null, fcls = fb && (fb.classList.contains('fq-slot') ? '.fq-slot' : '.fq-box');
+  const refocus = () => { if (!fcls) return; const n = [...document.querySelectorAll(`${fcls}[data-fq]`)].find((y) => y.dataset.fq === ref)?.querySelector('[data-fq-req]'); if (n && !n.disabled) n.focus({ preventScroll: true }); }; // 다시 그린 단추에 초점
+  fqS.busy.add(ref);
   fqPaint(ref);
   fqS.saving = fqS.saving.catch(() => {}).then(async () => {
     for (let i = 0; i < 3; i++) {
@@ -158,8 +162,9 @@ function fqToggle(ref) {
       }
     }
     throw new Error('다른 분이 동시에 수정 중입니다. 잠시 후 다시 시도해 주세요.');
-  }).then(() => { if (rec) toast(`${fqNext()}에 팩트시트를 만듭니다`); })
-    .catch((e) => { toast(e.status === 403 ? '편집 권한이 없습니다.' : e.message || '저장하지 못했습니다.'); return fqLoad(true); });
+  }).then(() => { toast(rec ? `${fqNext()}에 팩트시트를 만듭니다` : '팩트시트 요청을 취소했습니다'); })
+    .catch((e) => { toast(e.status === 403 ? '편집 권한이 없습니다.' : e.message || '저장하지 못했습니다.'); return fqLoad(true); })
+    .finally(() => { fqS.busy.delete(ref); fqPaint(ref); refocus(); });
 }
 
 /* 여러 회사를 한 번에 요청(파이프라인 딜은 무조건 팩트시트, 2026-11-16 사용자). 팩트시트도 요청도 없는 것만 얹고, 다른 분 요청은 건드리지 않는다

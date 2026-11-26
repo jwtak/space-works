@@ -110,3 +110,7 @@
   .pe-page .rd-fs { height: 40px; padding: 0 16px; font-size: var(--fs-base); }
   .pe-page .ipo-dhead > p:empty { display: none; }
 }
+
+/* 오너기업·중복상장 목록 '나머지 n건 보기'(ma.css .ma-morewrap과 같다) */
+.pe-pagewrap { padding: 16px 24px; border-top: 1px solid var(--row); }
+@media (max-width: 760px) { .pe-pagewrap { padding: 16px; } }

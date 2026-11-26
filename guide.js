@@ -12,7 +12,7 @@ const GD_STEPS = [
   { t: '파이프라인', d: '어느 화면에서든 ‘파이프라인에 올리기’로 챙길 딜을 모아 단계와 다음 연락일을 관리합니다. 딜을 펼치면 검토 노트, 딜 노트, IR 등 자료를 한곳에서 보고, 세 분이 함께 고칩니다. 딜 자료는 공용 폴더 ‘06. 진행중인 딜’에 주간회의 순서대로 번호가 붙은 딜 폴더로 모입니다. 딜 노트는 업무일지·회의록의 ‘딜 노트’ 버튼으로도 씁니다. 옆 팩트시트 탭에는 요청한 회사와 엑스포 목록 회사의 팩트시트가 최신 요청순으로 한 목록에 모여 있고, 요청자와 매출, OPM, 매출 성장, 투자 단계로 거를 수 있습니다. 딜소싱 화면에서 회사를 펼쳐 ☆관심을 누르면 관심 기업 탭에 나만 보는 목록으로 모입니다.', pc: '.nav [data-r="pipeline"]', m: '.mh-it[href="#deals/pipeline"]' },
   { t: '가치평가', d: 'PER 시장, 업종 실적, 재무분석, 평가 결과 네 탭이고 평가 결과 안에 요약, 상대가치평가, 절대가치평가가 있습니다. 처음에는 회사를 고르지 않은 상태라 PER 시장에서 전 상장사 PER 분포, 코스피와 코스닥 PER 추이, 업종별 PER 비교(처음엔 세부 업종, 줄을 누르면 업종 안 분포와 업종 PER 추이)를 봅니다. 업종 실적에서는 대분류, 중분류, 소분류 업종마다 매출, 영업이익, EBITDA, 순이익의 중앙값과 영업이익률, EBITDA 마진, 순이익률을 맨 위 전체 상장사와 견주고, 머리글을 눌러 정렬하고 업종 줄을 눌러 그 업종 회사들을 펼쳐 봅니다. 금액은 평균이나 합계로도 바꿔 볼 수 있고, 업종이 없는 신규상장 회사는 맨 아래 업종 미지정 줄에 모입니다. 회사를 검색하거나 평가한 회사 단추를 누르면 모든 탭이 그 회사를 함께 보고, PER 시장에는 그 회사 위치가 표시됩니다. 비상장 회사는 이름 옆에 「비상장」이 붙고, 현재가 대신 최근 투자 라운드(예: 시리즈 C) 주당 가격과 그 가격 대비 상승여력을 봅니다. 비상장 회사의 상대가치평가는 비슷한 업종 상장사 배수와 유사거래(M&A) 배수를 상장 직전 해 이익에 곱한 뒤 지금 시점으로 할인한 값입니다. 평가 결과 › 요약에서는 결합 목표주가, 풋볼필드, 상대가치평가와 절대가치평가 핵심 값을 한 화면에 봅니다. 재무분석에서는 성장성, 수익성, 효율성, 안정성 지표를 비교기업 평균과 견주고 5년 추세를 봅니다. 상대가치평가에서는 비교기업을 넣고 빼거나 범위, 기준 기간, 배수 조정을 바꿔 적정 주가를 다시 계산하고 같은 계산이 담긴 엑셀을 받습니다. 절대가치평가에서는 사업부별 매출부터 비용, 재투자, 할인율까지 15단계로 가정을 바꿔 DCF 적정 주가를 다시 계산하고, 연도별 재무제표와 민감도, 시나리오, 리버스 DCF 보고서를 봅니다. 할인율 단계의 선택지별 WACC 표에서는 베타, 무위험이자율, 주식위험프리미엄 선택에 따라 WACC가 얼마나 달라지는지 봅니다. 매출, 원가, 판관비 단계 표의 오른쪽 두 열은 과거와 추정 CAGR이고, 접힌 과거 연도는 표 왼쪽 위 「이전 연도 펴기」로 봅니다. 가정마다 평균에 넣을 해를 켜고 끌 수 있고, 상대가치 결합 단계에서는 사업부별 합산 가치를 봅니다.', pc: '.nav [data-r="valuation"]', m: '.mh-it[href="#valuation"]' },
   { t: '주간회의와 공용 폴더', d: '팀 파일함입니다. 파일을 끌어다 놓으면 올라가고, PPT·엑셀은 누르면 바로 열립니다. ‘링크 복사’로 폴더 주소를 보내면 받는 분은 그 폴더가 바로 열립니다.', pc: '.nav [data-r="weekly"], .nav [data-r="files"]', m: '.mh-it[href="#weekly"], .mh-it[href="#files"]' },
-  { t: '법인 설립과 금감원 면담', d: '법인 설립은 위쪽에서 날짜별과 서류별 보기를 고르고, 금감원 면담은 준비서류를 체크합니다. 날짜별에서는 오늘 할 일이 파란 테두리로 보이고, 다 끝난 지난 날짜는 접혀 있습니다. 두 보기의 체크는 같습니다. 사람별 칸을 누르면 미준비, 준비됨, 해당 없음 순으로 바뀌고, 회사 일은 담당을 정해 체크합니다. 진행 상황을 ‘메모’에 남기면 세 분이 같이 봅니다.', pc: '.nav [data-r="corp"], .nav [data-r="fss"]', m: '.mh-it[href="#corp"], .mh-it[href="#fss"]' },
+  { t: '법인 설립과 금감원 면담', d: '법인 설립은 위쪽에서 날짜별과 서류별 보기를 고르고, 금감원 면담은 준비서류를 체크합니다. 날짜별에서는 오늘 할 일이 파란 테두리로 보이고, 다 끝난 지난 날짜는 접혀 있습니다. 두 보기의 체크는 같습니다. 항목 날짜를 누르면 날짜와 때를 고칠 수 있습니다. 사람별 칸을 누르면 미준비, 준비됨, 해당 없음 순으로 바뀌고, 회사 일은 담당을 정해 체크합니다. 진행 상황을 ‘메모’에 남기면 세 분이 같이 봅니다.', pc: '.nav [data-r="corp"], .nav [data-r="fss"]', m: '.mh-it[href="#corp"], .mh-it[href="#fss"]' },
   { t: '자금', d: '계좌 잔고와 수입·지출, 자금계획을 봅니다. 계좌 탭에 통장과 CMA를 등록하고, 수입·지출 탭에 은행 거래내역이나 법인카드 이용내역 엑셀을 올리면 거래가 쌓여 분류별 월 합계가 나옵니다. 같은 거래를 다시 올려도 한 번만 들어가고, 같은 거래처는 지난번 분류를 제안합니다. 급여 거래는 받는 분과 건별 금액 없이 달별 합계 한 줄로만 저장됩니다. 자금계획 탭에 매달 나가는 고정비와 들어올 돈을 넣으면 12개월 월말 잔고, 버티는 개월 수, 계획 대비 실적, 운전자본을 봅니다.', pc: '.nav [data-r="cash"]', m: '.mh-it[href="#cash"]', when: () => typeof csAllowed === 'function' && csAllowed() },
   { t: '홈페이지', d: '만들고 있는 회사 홈페이지를 미리 봅니다. 공개 전이라 웍스 안에서만 보입니다.', pc: '.nav [data-r="homepage"]' },
   { t: '요청사항', d: '불편한 점이나 있었으면 하는 기능을 화면마다 남겨 주세요. 반영하면 그 아래에 답을 달아 드립니다. 오류가 떴으면 이름 메뉴의 오류 기록을 캡처해 같이 남겨 주세요.', pc: '#req:not([hidden])', m: '#me', mt: '요청사항, 오류 기록 (이름 메뉴 안)' },
@@ -29,7 +29,7 @@ function gdInstallText() {
   if (isMobile()) return '브라우저 오른쪽 위 메뉴(⋮)에서 ‘홈 화면에 추가’ 또는 ‘앱 설치’를 누르면 휴대폰에서 앱처럼 바로 열립니다.';
   return '설치하면 바탕화면·작업 표시줄에서 앱처럼 바로 열립니다. 주소창 오른쪽의 ‘앱 설치’ 아이콘을 눌러도 됩니다.';
 }
-const gd = { i: -1, steps: [], el: null, off: null };
+const gd = { i: -1, steps: [], el: null, off: null, untrap: null };
 
 function gdTargets(step) {
   const sel = isMobile() ? step.m : step.pc;
@@ -49,6 +49,7 @@ async function gdOpen(force) {
   gd.el.className = 'gd'; gd.el.setAttribute('role', 'dialog'); gd.el.setAttribute('aria-modal', 'true'); gd.el.setAttribute('aria-label', '사용 안내');
   gd.el.innerHTML = '<div class="gd-hole" hidden></div><div class="gd-card"></div>';
   document.body.appendChild(gd.el);
+  gd.untrap = dlgTrap(gd.el, { focus: false }); // Tab은 안내 카드 안에서만, 닫으면 원래 자리로
   gd.el.addEventListener('click', gdClick);
   document.addEventListener('keydown', gdKey);
   addEventListener('resize', gdPlace);
@@ -64,7 +65,7 @@ function gdSeen() {
 }
 function gdClose(viaBack) {
   if (!gd.el) return;
-  gd.el.remove(); gd.el = null;
+  gd.el.remove(); gd.el = null; gd.untrap?.(); gd.untrap = null;
   document.removeEventListener('keydown', gdKey); removeEventListener('resize', gdPlace);
   try { if (localStorage.getItem(GD_KEY()) !== '2') gdSeen(); } catch { /* 다음에 또 떠도 된다 */ }
   if (viaBack !== true) gd.off?.();
@@ -79,6 +80,7 @@ function gdDraw() {
     card.className = 'gd-card center';
     card.innerHTML = `<div class="gd-mark">UNIVERSE WORKS</div><h2>${esc(myName())} 님, 반갑습니다</h2><p>주요 메뉴를 1분 안에 안내해 드립니다.</p>
       <div class="gd-act"><button type="button" class="btn grey" data-gd="skip">나중에</button><button type="button" class="btn primary" data-gd="next">둘러보기</button></div>`;
+    dlgLabel(gd.el);
     card.querySelector('[data-gd="next"]').focus();
     return;
   }
@@ -90,6 +92,7 @@ function gdDraw() {
       ${gd.i > 0 ? '<button type="button" class="btn" data-gd="prev">이전</button>' : ''}<button type="button" class="btn primary" data-gd="next">${last ? '시작하기' : '다음'}</button></div>`;
   if (s.install) { gd.el.querySelector('.gd-hole').hidden = true; card.classList.add('center'); card.style.left = card.style.top = ''; }
   else gdPlace();
+  dlgLabel(gd.el);
   card.querySelector('[data-gd="next"]').focus();
 }
 

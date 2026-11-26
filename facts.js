@@ -340,6 +340,7 @@ function fsIrBox(x) {
 /* 팀 파일함 PDF는 SharePoint 보기 화면으로 연다(폰에서도 열림). 받기 전에 창을 먼저 열어 팝업 차단을 피한다 */
 async function fsIrOpen(f) {
   const w = window.open('', '_blank');
+  if (w) w.opener = null; // 새 탭이 웍스 창을 건드리지 못하게
   try { const j = await G.get(`${fsUrl(`${FS_DIR}/ir/${f}`)}?$select=webUrl`); if (w) w.location = j.webUrl; else window.open(j.webUrl, '_blank', 'noopener'); }
   catch (e) { if (w) w.close(); toast(e.status === 404 ? '자료 파일을 찾지 못했습니다' : e.message); }
 }
@@ -409,11 +410,20 @@ function fsDraw(listOnly) {
 }
 // 요청 목록·팩트시트(fsq.js)가 새로 읽히거나 바뀌면 fqPaint가 부른다
 function fsReqPaint() { if (fsS.host?.isConnected) fsDraw(); }
+// 줄을 갈아 끼운 뒤 포커스 되돌리기: 누르던 요소를 id, data-* 값(없으면 class)으로 새 줄에서 찾는다
+const fsFKey = (root) => {
+  const ae = document.activeElement; if (!ae || !root?.contains(ae) || ae === root) return '';
+  if (ae.id) return `#${CSS.escape(ae.id)}`;
+  const ds = [...ae.attributes].filter((a) => a.name.startsWith('data-')).map((a) => `[${a.name}="${CSS.escape(a.value)}"]`).join('');
+  return ae.tagName.toLowerCase() + (ds || [...ae.classList].map((c) => `.${CSS.escape(c)}`).join(''));
+};
 function fsRefreshRow(k) {
   const x = fsFind(k); if (!x || !fsS.host) return;
   const i = fsListItems().findIndex((y) => y.key === x.key); // No.는 지금 목록에서의 순서
-  fsS.host.querySelectorAll('.ipo-row[data-fs]').forEach((r) => { if (r.dataset.fs === x.key) { r.outerHTML = fsRow(x, Math.max(0, i)); } });
+  let fk = '';
+  fsS.host.querySelectorAll('.ipo-row[data-fs]').forEach((r) => { if (r.dataset.fs === x.key) { fk = fk || fsFKey(r); r.outerHTML = fsRow(x, Math.max(0, i)); } });
   const r = fsS.host.querySelector(`.ipo-row[data-fs="${CSS.escape(x.key)}"]`); if (r) fsPaintImgs(r);
+  if (r && fk) r.querySelector(fk)?.focus({ preventScroll: true });
 }
 
 /* 엑셀(CSV): 지금 거른 목록을 보이는 순서대로(tgt.js tgCsv와 같은 방식) */
@@ -435,10 +445,15 @@ function fsCsv() {
 async function fsPipeAdd(btn) {
   const k = btn.closest('.ipo-row')?.dataset.fs, x = k && fsFind(k);
   if (!x || btn.disabled || typeof pipeAdd !== 'function') return;
+  const kb = btn === document.activeElement;
   btn.disabled = true;
   try { await pipeAdd({ src: '행사·IR', ref: `facts:${x.key}`, name: x.name }); } catch (e) { toast(e?.message || '파이프라인에 올리지 못했습니다.'); }
   const p = fsS.host?.querySelector(`.ipo-row[data-fs="${CSS.escape(k)}"] .ipo-dhead > .rd-pipe`);
-  if (p) p.outerHTML = fsPipe(x);
+  if (p) {
+    const had = kb || p === document.activeElement;
+    p.outerHTML = fsPipe(x);
+    if (had) fsS.host?.querySelector(`.ipo-row[data-fs="${CSS.escape(k)}"] .ipo-dhead > .rd-pipe`)?.focus({ preventScroll: true });
+  }
 }
 
 function fsBind(root) {
@@ -463,7 +478,9 @@ function fsBind(root) {
       viewSet('fs.open', fsS.open); fsRefreshRow(x.key);
     }
   });
-  root.addEventListener('input', (ev) => { if (ev.target.id === 'fs-q') { fsS.q = ev.target.value; viewSet('fs.q', fsS.q); fsDraw(); } });
+  let qt = 0; const qGo = () => { clearTimeout(qt); qt = setTimeout(fsDraw, 150); }; // 검색: 150ms 모아서, 한글 조합 중엔 compositionend 때
+  root.addEventListener('input', (ev) => { if (ev.target.id === 'fs-q') { fsS.q = ev.target.value; viewSet('fs.q', fsS.q); if (!ev.isComposing) qGo(); } });
+  root.addEventListener('compositionend', (ev) => { if (ev.target.id === 'fs-q') qGo(); });
   root.addEventListener('change', (ev) => { if (ev.target.id === 'fs-sort') { fsS.sort = ev.target.value; viewSet('fs.sort2', fsS.sort); fsDraw(); } });
 }
 

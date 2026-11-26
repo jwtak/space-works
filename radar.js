@@ -577,7 +577,16 @@ const rdSplitSkip = (tab, list) => (typeof fvSplit === 'function' ? fvSplit(list
 const rdSkipTail = (tab, skip, rowFn) => (skip.length && typeof fvSkipTail === 'function' ? fvSkipTail(skip, tab, rowFn) : '');
 // 예심청구 화면의 주관사 선정 행(id = mandate:…)은 mandates에서 찾는다. key는 rdKey 그대로 yesim:mandate:… 라 예심 행 key와 겹치지 않는다
 const rdFind = (tab, id) => (tab === 'yesim' && rdIsMn(id) ? rdS.yesim.data?.mandates : tab === 'sell' && rdIsPe(id) ? rdS.sell.data?.pe?.items : tab === 'sell' && rdIsCo(id) ? rdS.sell.data?.co?.items : rdS[tab].data?.items)?.find((x) => x.id === id);
-const rdMark = (key) => rdS.marks.items.find((m) => m && m.key === key);
+// 표시 찾기는 key → 항목 Map으로(행마다 수백 건을 훑지 않게). 표시 목록이 새 배열이 되거나 길이가 바뀌면 다시 만들고, 제자리에서 바꾸는 되돌리기(rdRollback)는 직접 비운다
+let rdMarkIx = { src: null, len: -1, map: null };
+const rdMark = (key) => {
+  const a = rdS.marks.items;
+  if (rdMarkIx.src !== a || rdMarkIx.len !== a.length) {
+    const map = new Map(); a.forEach((m) => { if (m && m.key != null && !map.has(m.key)) map.set(m.key, m); });
+    rdMarkIx = { src: a, len: a.length, map };
+  }
+  return rdMarkIx.map.get(key);
+};
 const rdSt = (key) => { const s = rdMark(key)?.status; return RD_STATUS.includes(s) ? s : '미접촉'; };
 const rdNow = () => { const d = new Date(); return `${ymd(d)}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 let rdSeq = 0;
@@ -605,6 +614,7 @@ function rdRollback(msg) {
     const items = rdS.marks.items, k = items.findIndex((x) => x && x.key === key);
     if (e.base) { if (k >= 0) items[k] = e.base; else items.push(e.base); } else if (k >= 0) items.splice(k, 1);
   });
+  rdMarkIx.src = null;
   rdS.dirty.clear();
   toast(msg);
   rdDraw();
@@ -657,11 +667,13 @@ function rdTouch(tab, id, patch) {
   return true;
 }
 
-// 검토 완료를 한 번 더 누르면 미접촉으로 되돌린다(다른 상태는 그대로)
+// 검토 완료를 한 번 더 누르면 미접촉으로 되돌리고 토스트로 알린다(다른 상태는 그대로)
 function rdSetStatus(tab, id, status) {
   if (!RD_STATUS.includes(status)) return;
-  if (rdSt(rdKey(tab, id)) === status) { if (status !== RD_DONE) return; status = RD_STATUS[0]; }
+  let undo = false;
+  if (rdSt(rdKey(tab, id)) === status) { if (status !== RD_DONE) return; status = RD_STATUS[0]; undo = true; }
   if (!rdTouch(tab, id, { status })) return;
+  if (undo) toast('검토 완료를 해제했습니다');
   rdRefreshRow(tab, id);
   rdSumDraw();
   rdSaveMarks();
@@ -1432,9 +1444,14 @@ function rdImeDone() {
 function rdReveal(r) {
   const sc = r.closest('.scroll');
   if (!sc) { r.scrollIntoView({ block: r.offsetHeight <= innerHeight ? 'center' : 'start' }); return; }
-  const tb = document.querySelector('.tabbar'), vis = sc.clientHeight - (tb ? tb.offsetHeight : 0), h = r.offsetHeight;
-  const top = r.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
-  sc.scrollTop = h <= vis ? top - (vis - h) / 2 : top - 8;
+  const go = () => {
+    const tb = document.querySelector('.tabbar'), vis = sc.clientHeight - (tb ? tb.offsetHeight : 0), h = r.offsetHeight;
+    const top = r.getBoundingClientRect().top - sc.getBoundingClientRect().top + sc.scrollTop;
+    sc.scrollTop = h <= vis ? top - (vis - h) / 2 : top - 8;
+  };
+  go();
+  // 접힌 행은 화면 근처에 와야 그려진다(radar.css content-visibility). 옮긴 뒤 위쪽 행이 제 높이로 그려지면 한 번 더 맞춘다
+  requestAnimationFrame(() => requestAnimationFrame(() => { if (r.isConnected) go(); }));
 }
 
 function rdDraw() {
@@ -1482,10 +1499,27 @@ function rdRefreshRow(tab, id) {
   if (!x || rdS.tab !== tab || !rdS.host || !rdS.host.isConnected) return;
   const b = rdS.host.querySelector('#rd-body'), r = b && rdRowEl(b, id); if (!r) return;
   if (rdImeWait(r, `row:${id}`, () => rdRefreshRow(tab, id))) return;
-  const keep = rdKeepNote(r);
+  const keep = rdKeepNote(r), fk = keep ? null : rdFocusKey(r);
   rdDrawing = true;
   try { rdHold(b, id, () => { r.outerHTML = RD_ROW[tab](x); }); } finally { rdDrawing = false; }
   rdKeepBack(tab, keep);
+  rdFocusBack(rdRowEl(b, id), fk);
+}
+
+/* 행을 outerHTML로 갈아 끼우면 누른 단추의 포커스가 body로 빠진다. 갈아 끼우기 전에 포커스 자리(태그와 data-* 이름, 없으면 class, 같은 것 중 몇 번째)를 적어 두고
+   새 행에서 같은 자리로 되돌린다(vc.js 펼침 단추와 같은 방식). 메모 칸은 rdKeepNote·rdKeepBack이 따로 지킨다 */
+const RD_FK_STATE = new Set(['on', 'open', 'sel']);
+function rdFocusKey(box) {
+  const a = document.activeElement; if (!a || !box || !box.contains(a)) return null;
+  if (a === box) return { self: true };
+  const d = [...a.attributes].filter((t) => t.name.startsWith('data-')).map((t) => `[${t.name}]`).join('');
+  const sel = a.tagName.toLowerCase() + (d || [...a.classList].filter((c) => !RD_FK_STATE.has(c)).map((c) => `.${CSS.escape(c)}`).join(''));
+  return { sel, n: [...box.querySelectorAll(sel)].indexOf(a) };
+}
+function rdFocusBack(box, k) {
+  if (!k || !box || !box.isConnected) return;
+  const all = k.self ? [box] : box.querySelectorAll(k.sel), el = all[k.self ? 0 : k.n] || all[0];
+  if (el && document.activeElement !== el) el.focus({ preventScroll: true });
 }
 
 function rdFilterHtml(tab) {
@@ -1568,7 +1602,11 @@ function rdBind(root, tab) {
       rdRefreshRow(tab, id);
     }
   });
-  root.addEventListener('input', (ev) => { if (ev.target.id === 'rd-q') { s.q = ev.target.value; rdDraw(); } });
+  // 검색: 150ms 모아서 한 번 그린다. 한글 조합 중에는 미루고 조합이 끝나면(compositionend) 그린다
+  let qT = 0;
+  const qSoon = (el) => { clearTimeout(qT); qT = setTimeout(() => { if (!el.isConnected) return; s.q = el.value; rdDraw(); }, 150); };
+  root.addEventListener('input', (ev) => { if (ev.target.id === 'rd-q' && !ev.isComposing) qSoon(ev.target); });
+  root.addEventListener('compositionend', (ev) => { if (ev.target.id === 'rd-q') qSoon(ev.target); });
   root.addEventListener('change', (ev) => {
     const t = ev.target;
     if (t.id === 'rd-sort') { s.sort = t.value; rdDraw(); }

@@ -206,8 +206,25 @@ function fcChkHtml(h) {
   const who = [h.by, h.at && h.at.slice(5, 10).replace('-', '.')].filter(Boolean).join(' ');
   return `<div class="fc-acts fc-done"><span class="muted" title="${tip}">${h.chk === 'drop' ? '제외' : h.fixed ? '고쳐서 확정' : '확인'}${who ? ` ${esc(who)}` : ''}</span><button type="button" class="btn sm ghost" data-fc-undo="${esc(h.id)}">되돌리기</button>${h.chk === 'ok' ? `<button type="button" class="btn sm ghost" data-fc-edit="${esc(h.id)}">고치기</button>` : ''}</div>`;
 }
+/* 억 단위 금액 칸: '100억원', '1.2억', '1,000', '5천만', '1조 2천억'처럼 뜻이 분명한 것은 억으로 읽는다. 숫자만이면 억, 숫자 뒤 '원'만 붙으면 원. 빈 칸은 null, 못 읽으면 NaN */
+function fcParseEok(s) {
+  let t = String(s ?? '').replace(/[\s,]/g, '');
+  if (!t) return null;
+  const won = /원$/.test(t); t = t.replace(/원$/, '');
+  const n = (v) => Math.round(v * 1e4) / 1e4;
+  if (/^\d+(\.\d+)?$/.test(t)) return n(won ? +t / 1e8 : +t);
+  const m = t.match(/^(?:(\d+(?:\.\d+)?)조)?(?:(\d+(?:\.\d+)?)(천)?억)?(?:(\d+(?:\.\d+)?)(천)?만)?$/);
+  if (!m || (!m[1] && !m[2] && !m[4])) return NaN;
+  return n((m[1] ? m[1] * 1e4 : 0) + (m[2] ? m[2] * (m[3] ? 1000 : 1) : 0) + (m[4] ? (m[4] * (m[5] ? 1000 : 1)) / 1e4 : 0));
+}
+function fcFxErr(inp, on) {
+  if (on) inp.setAttribute('aria-invalid', 'true'); else inp.removeAttribute('aria-invalid');
+  const lb = inp.closest('.fc-fx'); let e = lb?.querySelector('.fc-fx-err');
+  if (on && lb && !e) { e = document.createElement('span'); e.className = 'fc-fx-err'; e.textContent = '금액 확인'; lb.appendChild(e); }
+  if (!on && e) e.remove();
+}
 function fcEditRow(h, sub) {
-  const f = (k, l) => `<label class="fc-fx"><span>${l}</span><input class="input" data-fc-fx="${k}" value="${esc(h[k] == null ? '' : String(h[k]))}"${k === 'amt' || k === 'size' ? ' inputmode="decimal"' : ''}></label>`;
+  const f = (k, l) => `<label class="fc-fx"><span>${l}</span><input class="input" data-fc-fx="${k}" value="${esc(h[k] == null ? '' : String(h[k]))}"></label>`;
   return `<div class="ipo-row rd-static fc-hrow fc-editing${sub ? ' fc-sub' : ''}" data-hid="${esc(h.id)}"><div class="fc-form">${FC_FIX.map(([k, l]) => f(k, l)).join('')}
     <div class="fc-acts"><button type="button" class="btn sm" data-fc-save="${esc(h.id)}">확정</button><button type="button" class="btn sm ghost" data-fc-cancel>취소</button>${h.url ? `<a class="rd-link" href="${esc(h.url)}" target="_blank" rel="noopener noreferrer">원문</a>` : ''}</div></div></div>`;
 }
@@ -292,11 +309,25 @@ function fcViewHtml() {
   const n = { list: d?.items.length, plan: d?.plan.length, scan: d?.hasScan ? d.scan.length : null, hist: d?.hist.filter((h) => h.chk !== 'drop').length || null };
   return `<div class="seg" role="tablist">${FC_VIEWS.map(([k, l]) => `<button type="button" role="tab" data-fc-view="${k}" class="${fcS.view === k ? 'on' : ''}" aria-selected="${fcS.view === k}">${l}${n[k] != null ? `<span class="pe-gn">${n[k]}</span>` : ''}</button>`).join('')}</div>`;
 }
+// 다시 그린 뒤 포커스 되돌리기: 누르던 요소를 id, data-* 값(없으면 class)으로 새 화면에서 찾는다
+const fcFKey = (root) => {
+  const ae = document.activeElement; if (!ae || !root?.contains(ae) || ae === root) return '';
+  if (ae.id) return `#${CSS.escape(ae.id)}`;
+  const ds = [...ae.attributes].filter((a) => a.name.startsWith('data-')).map((a) => `[${a.name}="${CSS.escape(a.value)}"]`).join('');
+  return ae.tagName.toLowerCase() + (ds || [...ae.classList].map((c) => `.${CSS.escape(c)}`).join(''));
+};
+const fcFBack = (root, k) => { const ae = document.activeElement; if (!k || !root || (ae && ae !== document.body && ae.isConnected)) return; root.querySelector(k)?.focus({ preventScroll: true }); };
+// 고치기 칸: 처음 값과 달라졌는지
+const fcEditDirty = () => !!fcS.edit && [...(fcS.host?.querySelectorAll('.fc-editing [data-fc-fx]') || [])].some((i) => i.value !== i.defaultValue);
 function fcDraw(full) {
   const h = fcS.host; if (!h || !h.isConnected) return;
+  const fk = fcFKey(h);
+  const keep = fcS.edit ? [...h.querySelectorAll('.fc-editing [data-fc-fx]')].map((i) => [i.dataset.fcFx, i.value]) : []; // 고치는 중에 다른 곳을 눌러 다시 그려도 쓰던 값 유지
   if (full) { h.querySelector('#fc-filter').innerHTML = fcFilterHtml(); h.querySelector('#fc-view').innerHTML = fcViewHtml(); }
   h.querySelector('#fc-sum').innerHTML = fcSummary();
   h.querySelector('#fc-body').innerHTML = fcBody();
+  if (keep.length) keep.forEach(([k, v]) => { const i = h.querySelector(`.fc-editing [data-fc-fx="${k}"]`); if (i) i.value = v; });
+  fcFBack(h, fk);
   fcSave();
 }
 function fcBind(root) {
@@ -330,12 +361,17 @@ function fcBind(root) {
     const row = t.closest('.ipo-row[data-id]'), x = row && fcS.data?.items.find((y) => y.id === row.dataset.id);
     if (!x) return;
     if (fcS.open.has(x.id)) fcS.open.delete(x.id); else fcS.open.add(x.id);
+    const fk = fcFKey(row);
     row.outerHTML = fcRow(x);
+    if (fk) fcFBack([...root.querySelectorAll('.ipo-row[data-id]')].find((r) => r.dataset.id === x.id), fk);
   });
+  let qt = 0; const qGo = () => { clearTimeout(qt); qt = setTimeout(() => fcDraw(), 150); }; // 검색: 150ms 모아서, 한글 조합 중엔 compositionend 때
   root.addEventListener('input', (ev) => {
-    if (ev.target.id === 'fc-q') { fcS.q = ev.target.value; fcDraw(); }
-    if (ev.target.id === 'fc-hq') { fcS.hq = ev.target.value; fcDraw(); }
+    if (ev.target.id === 'fc-q') { fcS.q = ev.target.value; if (!ev.isComposing) qGo(); }
+    if (ev.target.id === 'fc-hq') { fcS.hq = ev.target.value; if (!ev.isComposing) qGo(); }
   });
+  root.addEventListener('compositionend', (ev) => { if (ev.target.id === 'fc-q' || ev.target.id === 'fc-hq') qGo(); });
+  root.addEventListener('input', (ev) => { if (ev.target.matches?.('[data-fc-fx][aria-invalid]')) fcFxErr(ev.target, false); });
   root.addEventListener('change', (ev) => {
     if (ev.target.id === 'fc-horg') { fcS.horg = ev.target.value; fcDraw(); }
     if (ev.target.id === 'fc-hord') { fcS.hord = ev.target.value === 'org' ? 'org' : 'date'; fcDraw(); }
@@ -344,8 +380,8 @@ function fcBind(root) {
 
 async function fcMarkClick(b) {
   const ds = b.dataset;
-  if ('fcCancel' in ds) { fcS.edit = ''; fcDraw(); return; }
-  if (ds.fcEdit) { fcS.edit = ds.fcEdit; fcDraw(); const r = fcS.host?.querySelector('.fc-editing input'); if (r) r.focus(); return; }
+  if ('fcCancel' in ds) { if (fcEditDirty() && !confirm('고친 내용을 버릴까요?')) return; fcS.edit = ''; fcDraw(); return; }
+  if (ds.fcEdit) { if (fcS.edit && fcS.edit !== ds.fcEdit && fcEditDirty() && !confirm('고친 내용을 버릴까요?')) return; fcS.edit = ds.fcEdit; fcDraw(); const r = fcS.host?.querySelector('.fc-editing input'); if (r) r.focus(); return; }
   let id, patch;
   if (ds.fcOk) { id = ds.fcOk; patch = { st: '확인' }; }
   else if (ds.fcDrop) { id = ds.fcDrop; patch = { st: '제외' }; }
@@ -353,13 +389,15 @@ async function fcMarkClick(b) {
   else if (ds.fcSave) {
     id = ds.fcSave;
     const row = b.closest('.fc-editing'), h = fcS.data?.histRaw.find((x) => x.id === id); if (!row || !h) return;
-    const fix = {};
+    const fix = {}, bad = [];
     row.querySelectorAll('[data-fc-fx]').forEach((inp) => {
-      const k = inp.dataset.fcFx, v = inp.value.trim();
-      const val = k === 'amt' || k === 'size' ? (v === '' ? null : Number(v.replace(/[,억\s]/g, ''))) : v;
-      if ((k === 'amt' || k === 'size') && val != null && !Number.isFinite(val)) return;
+      const k = inp.dataset.fcFx, v = inp.value.trim(), money = k === 'amt' || k === 'size';
+      const val = money ? fcParseEok(v) : v;
+      fcFxErr(inp, money && Number.isNaN(val));
+      if (money && Number.isNaN(val)) { bad.push(inp); return; }
       if (val !== h[k] && !(val === '' && h[k] == null)) fix[k] = val;
     });
+    if (bad.length) { bad[0].focus(); return; }
     if (!fix.gp && 'gp' in fix) { toast('선정 GP를 넣어 주세요'); return; }
     patch = { st: '확인', fix };
   }
@@ -367,6 +405,15 @@ async function fcMarkClick(b) {
   b.disabled = true;
   try { await fcMark(id, patch); fcS.edit = ''; fcDraw(true); } catch (e) { b.disabled = false; toast(e.message || '저장하지 못했습니다'); }
 }
+
+// 고치기 칸에 쓰던 값이 있으면 메뉴 이동, 새로 고침 전에 묻는다
+document.addEventListener('click', (e) => {
+  const a = e.target.closest?.('a[href^="#"], [data-dt]'); if (!a || !fcS.host?.isConnected || !fcEditDirty()) return;
+  const to = a.getAttribute('href') || a.dataset.dt; if (!to || to === location.hash) return;
+  if (confirm('고친 내용을 버리고 이동할까요?')) { fcS.edit = ''; return; }
+  e.preventDefault(); e.stopImmediatePropagation();
+}, true);
+window.addEventListener('beforeunload', (e) => { if (fcS.host?.isConnected && fcEditDirty()) { e.preventDefault(); e.returnValue = ''; } });
 
 async function renderFund(host) {
   fcS.host = host; fcS.err = '';

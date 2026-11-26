@@ -32,12 +32,23 @@ const rqMine = (email) => {
 const rqEditForm = (id, rid) => `<form class="rq-ef" data-ef="${esc(id)}" data-er="${esc(rid)}"><textarea class="area" name="t" rows="3" required>${esc(rqS.editDraft)}</textarea>
       <div class="rq-act"><button type="button" class="btn sm grey" data-ecancel>취소</button><button class="btn sm primary" ${rqS.busy ? 'disabled' : ''}>저장</button></div></form>`;
 const rqDrafting = () => [...document.querySelectorAll('#req textarea')].some((t) => t.value.trim());
-// 쓰던 요청·의견, 고치던 글(원래 글과 다를 때)이 있으면 창 닫기·새로 고침 전에 묻는다
-window.addEventListener('beforeunload', (e) => {
+// 쓰던 의견, 고치던 글(원래 글과 다를 때)
+function rqDirtyReply() {
   const [id, rid] = (rqS.edit || '').split('|'), x = rqS.items.find((i) => i.id === id);
   const src = rid ? (x?.replies || []).find((r) => r && r.id === rid) : x;
-  if (($('#rq-t')?.value || '').trim() || rqS.replyDraft.trim() || (rqS.edit && rqS.editDraft.trim() !== String(src?.text || '').trim())) { e.preventDefault(); e.returnValue = ''; }
+  return !!(rqS.replyDraft.trim() || (rqS.edit && rqS.editDraft.trim() !== String(src?.text || '').trim()));
+}
+// 쓰던 요청·의견, 고치던 글이 있으면 창 닫기·새로 고침 전에 묻는다
+window.addEventListener('beforeunload', (e) => {
+  if (($('#rq-t')?.value || '').trim() || rqDirtyReply()) { e.preventDefault(); e.returnValue = ''; }
 });
+// 메뉴를 옮기면 의견·고치던 글이 닫히므로 먼저 묻는다(새 요청 글은 메뉴를 옮겨도 남음)
+document.addEventListener('click', (e) => {
+  const a = e.target.closest?.('a[href^="#"], [data-dt]'); if (!a || a.closest('#req') || !rqDirtyReply()) return;
+  const to = a.getAttribute('href') || a.dataset.dt; if (!to || to === location.hash) return;
+  if (confirm('쓰던 의견이 저장되지 않습니다. 이동할까요?')) return;
+  e.preventDefault(); e.stopImmediatePropagation();
+}, true);
 
 // inSave: rqSave 안에서 부를 때. 밖에서 부른 읽기는 저장 중이거나 그 사이 저장이 있었으면 결과를 버린다(false)
 async function rqLoad(inSave) {

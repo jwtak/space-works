@@ -275,7 +275,7 @@ function evDetail(e) {
 
 function evRefreshRow(id) {
   const e = evFind(id); if (!e) return;
-  document.querySelectorAll('#ev-list .ev-row').forEach((r) => { if (r.dataset.id === id) r.outerHTML = evRow(e); });
+  document.querySelectorAll('#ev-list .ev-row').forEach((r) => { if (r.dataset.id === id) (typeof swapKeepFocus === 'function' ? swapKeepFocus(r, evRow(e)) : (r.outerHTML = evRow(e))); });
 }
 
 /* ---------- 필터 줄 ---------- */
@@ -585,7 +585,7 @@ function evBind(root) {
       const cur = f.inds.filter((x) => EV_INDS.includes(x)); // 머리글 메뉴의 '모두 해제' 표시는 버튼을 누르면 지운다
       f.inds = !k ? [] : cur.includes(k) ? cur.filter((x) => x !== k) : [...cur, k];
       evSaveFilter(); evDrawMain();
-      const mf = $('.ev-mf'); if (mf) mf.outerHTML = evMfHTML();
+      const mf = $('.ev-mf'); if (mf) (typeof swapKeepFocus === 'function' ? swapKeepFocus(mf, evMfHTML()) : (mf.outerHTML = evMfHTML()));
       return;
     }
     if (hit('a, input, select, .ev-detail')) return;
@@ -619,7 +619,7 @@ function evBind(root) {
     evState.f[k] = k === 'min' ? Number(t.value) : t.value;
     evSaveFilter(); evDrawMain();
     if (k !== 'sort') t.classList.toggle('on', evChanged(k)); // 기본값이 아니면 파랑
-    const mf = $('.ev-mf'); if (mf) mf.outerHTML = evMfHTML();
+    const mf = $('.ev-mf'); if (mf) (typeof swapKeepFocus === 'function' ? swapKeepFocus(mf, evMfHTML()) : (mf.outerHTML = evMfHTML()));
   });
   root.addEventListener('input', (ev) => {
     if (ev.target.id !== 'ev-q') return;

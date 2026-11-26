@@ -15,6 +15,7 @@
   --primary-soft: #EEF4FF;
   --danger: #DC2626;
   --danger-soft: #FEF2F2;
+  --toast-act: #93C5FD; /* 어두운 알림 띠 위 되돌리기 글자 */
   --ok: #15803D;
   --r: 8px;
   --r-lg: 12px;
@@ -169,7 +170,14 @@ svg.i.lg { width: 22px; height: 22px; }
 
 .empty { padding: 28px 0; color: var(--text3); font-size: var(--fs-md); text-align: center; }
 .muted { color: var(--text3); }
-.toast { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); background: #1F2937; color: #fff; padding: 10px 16px; border-radius: var(--r); font-size: var(--fs-md); z-index: 120; }
+.toast { position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%); display: flex; align-items: center; gap: 12px; max-width: min(560px, calc(100% - 32px)); background: #1F2937; color: #fff; padding: 10px 16px; border-radius: var(--r); font-size: var(--fs-md); z-index: 120; }
+.toast:not(.on) { opacity: 0; pointer-events: none; }
+.toast.err, .toast.act { padding-right: 8px; }
+.toast-t { min-width: 0; }
+.toast-a { flex: none; height: 32px; padding: 0 8px; border: 0; border-radius: var(--r-sm); background: none; color: var(--toast-act); font-weight: 600; cursor: pointer; }
+.toast-x { flex: none; display: grid; place-items: center; width: 32px; height: 32px; margin-left: -4px; border: 0; border-radius: var(--r-sm); background: none; color: var(--text4); cursor: pointer; }
+.toast-a:hover, .toast-x:hover { background: rgba(255, 255, 255, .1); }
+.toast-a[hidden], .toast-x[hidden] { display: none; }
 
 /* ---------- 홈 ---------- */
 .home { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 20px; align-items: start; }
@@ -453,8 +461,9 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 .mcal-toggle { display: none; }
 
 /* 시트(아래에서 올라오는 패널)·메뉴 */
-.sheet-wrap { position: fixed; inset: 0; z-index: 60; background: rgba(17, 24, 39, .45); display: flex; align-items: flex-end; justify-content: center; }
-.sheet { width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto; background: var(--card); border-radius: var(--r-xl) var(--r-xl) 0 0; padding: 8px 20px calc(20px + env(safe-area-inset-bottom)); }
+.sheet-wrap { position: fixed; inset: 0; z-index: 60; background: rgba(17, 24, 39, .45); display: flex; align-items: flex-end; justify-content: center; overscroll-behavior: contain; }
+.sheet { width: 100%; max-width: 520px; max-height: 88vh; overflow-y: auto; overscroll-behavior: contain; background: var(--card); border-radius: var(--r-xl) var(--r-xl) 0 0; padding: 8px 20px calc(20px + env(safe-area-inset-bottom)); }
+.sheet:focus { outline: none; }
 .sheet .handle { width: 40px; height: 4px; border-radius: var(--r-full); background: #D9DCE1; margin: 4px auto 14px; }
 .sheet h3 { margin: 0 0 14px; font-size: var(--fs-xl); line-height: 26px; }
 .sheet .menu { list-style: none; margin: 0; padding: 0; }
@@ -655,7 +664,11 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
   .tabs .n, .tabs button .n { font-size: var(--fs-md); }
   .card-head .meta { font-size: var(--fs-md); }
   .empty { font-size: var(--fs-base); }
-  .toast { left: 16px; right: 16px; bottom: calc(76px + env(safe-area-inset-bottom)); transform: none; padding: 12px 16px; font-size: var(--fs-base); line-height: 22px; text-align: center; }
+  .toast { left: 16px; right: 16px; max-width: none; justify-content: center; bottom: calc(76px + env(safe-area-inset-bottom)); transform: none; padding: 12px 16px; font-size: var(--fs-base); line-height: 22px; text-align: center; }
+  .toast.err, .toast.act { text-align: left; padding-right: 8px; }
+  .toast.err .toast-t, .toast.act .toast-t { flex: 1; }
+  .toast-a, .toast-x { height: 40px; }
+  .toast-x { width: 40px; }
 
   /* 홈: D-day 묶음은 줄이 바뀌어도 이름·D-n이 갈라지지 않게 */
   .mh-hello .sub .ms { white-space: nowrap; }

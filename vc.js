@@ -335,7 +335,13 @@ function vcDraw(filter) {
   set('#vc-sum', vcSummary());
   if (filter) set('#vc-filter', vcFilterHtml());
   const fb = h.querySelector('#vc-fcard'); if (fb) fb.hidden = !vcS.data;
+  // 지난번 그린 차트를 MK_CHARTS에서 비운다(id가 배열 자리라 맨 뒤에 남아 있으면 잘라 내고, 그사이 다른 화면이 넣었으면 그 자리만 비움)
+  const old = vcS.charts || [];
+  if (old.length && MK_CHARTS.length === old[0].i + old.length && old.every((c, j) => MK_CHARTS[c.i] === c.o && c.i === old[0].i + j)) MK_CHARTS.length = old[0].i;
+  else old.forEach((c) => { if (MK_CHARTS[c.i] === c.o) MK_CHARTS[c.i] = null; });
+  const c0 = MK_CHARTS.length;
   set('#vc-body', vcBody());
+  vcS.charts = MK_CHARTS.slice(c0).map((o, j) => ({ i: c0 + j, o }));
   const b = h.querySelector('#vc-body'); if (b) mkChartHover(b);
   vcViewSave();
 }

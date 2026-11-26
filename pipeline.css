@@ -160,6 +160,11 @@
 .pp-cp-tabs { align-self: flex-start; max-width: 100%; overflow-x: auto; scrollbar-width: none; }
 .pp-cp-tabs::-webkit-scrollbar { display: none; }
 .pp-cp-tabs button { flex: none; white-space: nowrap; }
+/* PC: 회사가 많으면 줄을 바꿔 다 보이게(마우스로는 숨긴 가로 스크롤을 못 씀). 줄마다 첫 칸 왼쪽 선과 윗줄 경계선은 칸 선으로 */
+@media (min-width: 761px) {
+  .pp-cp-tabs { flex-wrap: wrap; overflow: hidden; }
+  .pp-cp-tabs button { margin-left: -1px; border-left: 1px solid var(--line2); box-shadow: 0 -1px 0 var(--line2); }
+}
 .pp-cp .ipo-kv .k { white-space: nowrap; }
 .pp-cp-mail { margin-top: 8px; padding: 12px 16px; border-radius: var(--r); background: var(--hover); font-size: var(--fs-base); line-height: 24px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .pp-cp-act { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
@@ -321,3 +326,7 @@
 .pp-fs { padding-top: 12px; }
 @media (max-width: 760px) { .pp-dtop .pp-by { display: none; } .pp-dtop { margin: 0 -15px 4px; padding: 0 15px; } .pp-dtop .pp-dtabs { gap: 24px; } }
 @media (min-width: 761px) { @container pp-page (max-width: 399.98px) { .pp-dtop { margin: 0 -15px 4px; padding: 0 15px; } } }
+
+/* 지우기 확인 창의 '삭제'(딜 삭제·컨택 기록 지우기): 위험 동작 색 */
+.btn.pp-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.btn.pp-danger:hover { background: color-mix(in srgb, var(--danger) 88%, #000); border-color: color-mix(in srgb, var(--danger) 88%, #000); }

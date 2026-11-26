@@ -337,11 +337,11 @@ function finTip() { // 값 풍선 하나를 body 에 두고 같이 씀(.fin 이 
 function finBind(root, code) {
   root.addEventListener('click', (e) => {
     const sg = e.target.closest('[data-fin-seg="stat"]');
-    if (sg) { finS.stat = sg.dataset.v; finSave(); finDraw(root, code); root.querySelector('[data-fin-seg="stat"].on')?.focus(); }
+    if (sg) { finS.stat = sg.dataset.v; finSave(); finDraw(root, code); root.querySelector('[data-fin-seg="stat"].on')?.focus({ preventScroll: true }); }
   });
   root.addEventListener('change', (e) => {
     const t = e.target;
-    if (t.matches('[data-fin-case]')) { finS.cid[code || ''] = t.value; finSave(); finDraw(root, code); return; }
+    if (t.matches('[data-fin-case]')) { finS.cid[code || ''] = t.value; finSave(); finDraw(root, code); root.querySelector('[data-fin-case]')?.focus({ preventScroll: true }); return; } // 다시 그린 사례 고르기 칸에 초점
     if (t.matches('[data-fin-met]')) { // 막대만 다시 그림(고르는 칸의 초점 유지)
       const c = finCase(code), w = root.querySelector('[data-fin-pb]');
       if (c && w) { finS.met[c.id] = t.value; finSave(); w.innerHTML = finPeerBars(c, finPrep(c)); }

@@ -185,7 +185,7 @@ const DL_ARR = { n: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none"
 function dlTh(k, label, cls = '', attrs = '') {
   const on = dlS.sk === k, arr = `<span class="arr${on ? ' on' : ''}" aria-hidden="true">${on ? (dlS.asc ? DL_ARR.up : DL_ARR.dn) : DL_ARR.n}</span>`;
   const num = /\bnum\b/.test(cls);
-  return `<th class="${cls}${on ? ' sorted' : ''}" data-k="${k}"${attrs} aria-sort="${on ? (dlS.asc ? 'ascending' : 'descending') : 'none'}">${num ? `${arr}${label}` : `${label}${arr}`}</th>`;
+  return `<th class="${cls}${on ? ' sorted' : ''}" data-k="${k}"${attrs} aria-sort="${on ? (dlS.asc ? 'ascending' : 'descending') : 'none'}"><button type="button" class="dl-sort" data-dl-sort="${k}">${num ? `${arr}${label}` : `${label}${arr}`}</button></th>`;
 }
 function dlHead() {
   const ys = dlYears(), y = dlS.data?.year;
@@ -425,9 +425,10 @@ function dlToggle(tr) {
   const id = tr.dataset.id, x = dlS.data?.byCode.get(id); if (!x) return;
   if (dlS.open.has(id)) dlS.open.delete(id); else dlS.open.add(id);
   dlViewSave();
-  const nx = tr.nextElementSibling;
+  const nx = tr.nextElementSibling, b = tr.closest('#dl-body'), kb = document.activeElement === tr; // 행(tabindex)에 있던 포커스는 새 행으로
   if (nx && nx.classList.contains('dl-xrow')) nx.remove();
   tr.outerHTML = dlRow(x, Number(tr.dataset.n) || 0, tr.classList.contains('dl-fvoff'));
+  if (kb && b) dlRowEl(b, id)?.focus({ preventScroll: true });
   dlFitX();
 }
 
@@ -490,7 +491,13 @@ function dlBind(root) {
     const go = t.closest('[data-dl-go]'); if (go) { dlGo(go.dataset.dlGo); return; }
     const am = t.closest('[data-dl-aimore]'); if (am) { dlS.aiAll = true; am.previousElementSibling?.classList.add('all'); am.remove(); return; }
     const th = t.closest('th[data-k]');
-    if (th) { const k = th.dataset.k; if (dlS.sk === k) dlS.asc = !dlS.asc; else { dlS.sk = k; dlS.asc = DL_ASC.includes(k); } dlDraw(); return; }
+    if (th) { // 머리글 안 단추(키보드 Enter·Space도 click). 다시 그린 머리글의 같은 단추로 포커스를 되돌린다
+      const k = th.dataset.k, kb = !!t.closest('.dl-sort');
+      if (dlS.sk === k) dlS.asc = !dlS.asc; else { dlS.sk = k; dlS.asc = DL_ASC.includes(k); }
+      dlDraw();
+      if (kb) root.querySelector(`.dl-sort[data-dl-sort="${CSS.escape(k)}"]`)?.focus({ preventScroll: true });
+      return;
+    }
     if (t.closest('a, input, select, label, .dl-xrow')) return;
     const tr = t.closest('tr.dl-tr'); if (tr) dlToggle(tr);
   });
@@ -499,7 +506,11 @@ function dlBind(root) {
     const go = ev.target.closest?.('[data-dl-go]'), tr = ev.target.matches?.('tr.dl-tr') ? ev.target : null;
     if (go) { ev.preventDefault(); dlGo(go.dataset.dlGo); } else if (tr) { ev.preventDefault(); dlToggle(tr); }
   });
-  root.addEventListener('input', (ev) => { if (ev.target.id === 'dl-q') { dlS.q = ev.target.value; dlDraw(); } });
+  // 검색: 150ms 모아서 한 번 그린다. 한글 조합 중에는 미루고 조합이 끝나면 그린다
+  let qT = 0;
+  const qSoon = (el) => { clearTimeout(qT); qT = setTimeout(() => { if (!el.isConnected) return; dlS.q = el.value; dlDraw(); }, 150); };
+  root.addEventListener('input', (ev) => { if (ev.target.id === 'dl-q' && !ev.isComposing) qSoon(ev.target); });
+  root.addEventListener('compositionend', (ev) => { if (ev.target.id === 'dl-q') qSoon(ev.target); });
   root.addEventListener('change', (ev) => {
     const t = ev.target, k = { 'dl-good': 'good', 'dl-cb': 'cb', 'dl-bo': 'bo', 'dl-stage': 'stage', 'dl-mkt': 'mkt' }[t.id];
     if (k) { dlS[k] = t.type === 'checkbox' ? t.checked : t.value; dlDraw(); }

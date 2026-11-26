@@ -94,6 +94,8 @@
 .dl-tbl thead th:hover[data-k], .dl-tbl thead th.sorted { color: var(--primary); }
 .dl-tbl th .arr { display: inline-flex; vertical-align: -2px; margin-left: 2px; color: var(--text3); opacity: .6; }
 .dl-tbl th.num .arr { margin: 0 2px 0 0; }
+/* 정렬 머리글 단추: 머리글 글자 모양 그대로(키보드로 Tab·Enter 정렬) */
+.dl-tbl th .dl-sort { display: inline-block; padding: 0; border: 0; background: none; font: inherit; line-height: inherit; letter-spacing: inherit; color: inherit; text-align: inherit; white-space: nowrap; cursor: pointer; }
 .dl-tbl th .arr.on, .dl-tbl th:hover .arr { color: var(--primary); opacity: 1; }
 .dl-tbl .num { text-align: right; }
 /* 앵글·상태 머리글 = 배지 안 글자 시작선(배지 좌우 8) */

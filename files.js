@@ -518,11 +518,17 @@ async function flUpload(files) {
       }
       set(100, '완료'); r.classList.add('done'); ok++;
     } catch (e) {
-      set(100, '실패'); r.classList.add('fail'); r.title = e.message;
+      set(100, '실패'); r.classList.add('fail');
+      // 실패 사유는 줄에 글자로 남기고, 닫기 전까지 사라지지 않는다
+      const er = document.createElement('span'); er.className = 'er'; er.textContent = e.message || '올리기 실패'; r.appendChild(er);
+      const x = document.createElement('button'); x.type = 'button'; x.className = 'iconbtn x'; x.setAttribute('aria-label', `${f.name} 닫기`); x.innerHTML = '<svg class="i sm" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+      x.addEventListener('click', () => { r.remove(); if (!box.children.length) box.remove(); }); r.insertBefore(x, r.querySelector('.bar'));
       if (s?.uploadUrl) fetch(s.uploadUrl, { method: 'DELETE' }).catch(() => {}); // 끝내 실패한 업로드 세션은 지운다(조각이 남지 않게)
     } finally { window.flUploading--; }
   }
-  if (ok) toast(`${ok}개를 올렸습니다`);
+  const bad = files.length - ok;
+  if (bad) toast(ok ? `${ok}개를 올렸고 ${bad}개는 올리지 못했습니다` : `${bad}개를 올리지 못했습니다`, { error: true });
+  else if (ok) toast(`${ok}개를 올렸습니다`);
   if (path === flS.path && $('#fl-list')) { flS.at = 0; flLoad(); }
-  setTimeout(() => { rows.forEach((r) => r.remove()); if (!box.children.length) box.remove(); }, 2500);
+  setTimeout(() => { rows.forEach((r) => { if (!r.classList.contains('fail')) r.remove(); }); if (!box.children.length) box.remove(); }, 2500);
 }

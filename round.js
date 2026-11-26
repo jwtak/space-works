@@ -378,7 +378,9 @@ function rnBind(root) {
     if (t.closest('a, input, select, .ipo-detail')) return;
     const row = t.closest('.ipo-row[data-id]'); if (row) rnToggle(row);
   });
-  root.addEventListener('input', (ev) => { if (ev.target.id === 'rn-q') { rnS.q = ev.target.value; rnDraw(); } });
+  let qt = 0; const qGo = () => { clearTimeout(qt); qt = setTimeout(() => rnDraw(), 150); }; // 검색: 150ms 모아서, 한글 조합 중엔 compositionend 때
+  root.addEventListener('input', (ev) => { if (ev.target.id === 'rn-q') { rnS.q = ev.target.value; if (!ev.isComposing) qGo(); } });
+  root.addEventListener('compositionend', (ev) => { if (ev.target.id === 'rn-q') qGo(); });
   root.addEventListener('change', (ev) => {
     const t = ev.target;
     if (t.id === 'rn-sort') { rnS.sort = t.value; rnDraw(); }

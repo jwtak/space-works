@@ -73,13 +73,13 @@
 .fl-pv { display: flex; flex-direction: column; width: min(1040px, 100%); height: min(88vh, 900px); background: #fff; border-radius: var(--r-xl); overflow: hidden; }
 .fl-pv-head { display: flex; align-items: center; gap: 8px; min-height: 60px; padding: 8px 12px 8px 24px; border-bottom: 1px solid var(--line); }
 .fl-pv-head h3 { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-xl); line-height: 24px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.fl-pv-body { flex: 1; min-height: 0; display: grid; place-items: center; background: var(--page); overflow: auto; }
+.fl-pv-body { flex: 1; min-height: 0; display: grid; place-items: center; background: var(--page); overflow: auto; overscroll-behavior: contain; }
 .fl-pv-frame { width: 100%; height: 100%; border: 0; background: #fff; }
 .fl-pv-img { max-width: 100%; max-height: 100%; object-fit: contain; }
 .fl-pv-txt { align-self: start; justify-self: stretch; margin: 0; padding: 20px 24px; font: 13px/1.6 ui-monospace, Consolas, 'D2Coding', monospace; white-space: pre-wrap; word-break: break-all; background: #fff; min-height: 100%; }
 
 /* 올리기 진행 */
-.fl-up { position: fixed; right: 24px; bottom: 24px; z-index: 55; width: 320px; max-height: 50vh; overflow-y: auto; padding: 8px 16px; background: #fff; border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: 0 8px 24px rgba(17, 24, 39, .12); }
+.fl-up { position: fixed; right: 24px; bottom: 24px; z-index: 55; width: 320px; max-height: 50vh; overflow-y: auto; overscroll-behavior: contain; padding: 8px 16px; background: #fff; border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: 0 8px 24px rgba(17, 24, 39, .12); }
 .fl-up-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; padding: 8px 0; font-size: var(--fs-md); }
 .fl-up-row + .fl-up-row { border-top: 1px solid var(--row); }
 .fl-up-row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -89,6 +89,9 @@
 .fl-up-row.done .pc { color: var(--ok); }
 .fl-up-row.fail .pc { color: var(--danger); }
 .fl-up-row.fail .bar i { background: var(--danger); }
+.fl-up-row.fail { grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; }
+.fl-up-row .er { grid-column: 1 / -1; color: var(--danger); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.fl-up-row .x { width: 24px; height: 24px; margin: -4px -4px -4px 0; }
 
 @media (max-width: 1100px) and (min-width: 761px) {
   .fl-row { grid-template-columns: 18px minmax(0, 1fr) 132px 88px 32px; }

@@ -73,7 +73,7 @@ button.vc-hr:hover { background: var(--hover); }
 .vc-tbl tr.vc-row:hover td { background: var(--hover); }
 .vc-tbl tr.vc-row.open td { background: var(--primary-soft); border-bottom-color: transparent; }
 .vc-open { display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 0; border: 0; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
-.vc-open b { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.vc-open b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vc-chev { display: flex; flex: none; color: var(--text3); transition: transform .15s ease; }
 .vc-row.open .vc-chev { transform: rotate(90deg); color: var(--primary); }
 .vc-tbl tr.vc-row:hover td.st b, .vc-tbl tr.vc-row.open td.st b { color: var(--primary); }

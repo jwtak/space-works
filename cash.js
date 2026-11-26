@@ -225,10 +225,11 @@ function csAccEdit(id) {
     <div class="cs-foot">${x.id ? '<button type="button" class="btn ghost cs-del" data-del>삭제</button>' : ''}<button type="button" class="btn" data-close>취소</button><button type="submit" class="btn primary">저장</button></div></form>`, (el, close) => {
     const f = el.querySelector('form');
     let src = x.balSrc || '수기';
+    const mark = csSheetGuard(el, close);
     csMoneyInputs(f);
     f.last4.addEventListener('input', () => { f.last4.value = f.last4.value.replace(/\D/g, '').slice(0, 4); });
     f.querySelector('[data-close]').onclick = () => close();
-    f.querySelector('[data-lb]')?.addEventListener('click', () => { f.bal.value = csWon(lb.bal); f.balAt.value = lb.date; src = '거래내역'; });
+    f.querySelector('[data-lb]')?.addEventListener('click', () => { f.bal.value = csWon(lb.bal); f.balAt.value = lb.date; src = '거래내역'; mark(); });
     f.bal.addEventListener('input', () => { src = '수기'; });
     f.querySelector('[data-del]')?.addEventListener('click', () => {
       if (!confirm(`${x.name} 계좌를 지울까요? 올린 거래내역은 남습니다.`)) return;
@@ -243,6 +244,27 @@ function csAccEdit(id) {
       csAct('acc', (d) => { const i = d.items.findIndex((a) => a.id === rec.id); if (i >= 0) d.items[i] = rec; else d.items.push(rec); });
     });
   });
+}
+// 고친 내용이 있는 창을 Esc나 바깥 클릭으로 닫으려 하면 확인한다. 돌려주는 함수는 입력 말고 바뀐 것(추가·삭제 단추)을 알릴 때
+function csSheetGuard(el, close) {
+  let dirty = false, downOut = false;
+  const wrap = el.parentElement, mark = () => { dirty = true; };
+  el.addEventListener('input', mark); el.addEventListener('change', mark);
+  const ask = () => !dirty || confirm('고친 내용이 저장되지 않습니다. 닫을까요?');
+  const onKey = (e) => {
+    if (!wrap.isConnected) { window.removeEventListener('keydown', onKey, true); return; }
+    if (e.key !== 'Escape' || !dirty || wrap.nextElementSibling?.classList.contains('sheet-wrap')) return; // 위에 다른 창이 있으면 그 창 몫
+    e.stopPropagation(); e.preventDefault();
+    if (ask()) close();
+  };
+  window.addEventListener('keydown', onKey, true);
+  wrap.addEventListener('mousedown', (e) => { downOut = e.target === wrap; }, true);
+  wrap.addEventListener('click', (e) => {
+    if (e.target !== wrap || !dirty) return;
+    e.stopPropagation();
+    if (downOut && ask()) close();
+  }, true);
+  return mark;
 }
 function csMoneyInputs(f) {
   f.querySelectorAll('.cs-money').forEach((i) => {
@@ -269,9 +291,9 @@ function csCatOpts(cur) {
   return `<option value="">미분류</option>${lost}<optgroup label="지출">${g('지출')}</optgroup><optgroup label="수입">${g('수입')}</optgroup><optgroup label="제외">${g('제외')}</optgroup>`;
 }
 const csSrcName = (x) => (x.src === 'card' ? x.card || '카드' : csAccs().find((a) => a.id === x.acct)?.name || '계좌');
-function csTxHTML() {
-  const { mon, mons, inMon, list } = csTxView(), s = csSums(inMon), shown = list.slice(0, CS.lim);
-  const sug = list.filter((x) => x.sug).length;
+const csSugBtn = (list) => { const n = list.filter((x) => x.sug).length; return n ? `<button type="button" class="btn sm" data-sug-ok>제안 확정 ${n}건</button>` : ''; };
+function csTxListHTML(list) {
+  const shown = list.slice(0, CS.lim);
   const rows = shown.map((x) => `<tr data-tx="${esc(x.id)}">
     ${csTd('날짜', `<span class="cs-n">${x.pay ? csYmTxt(csYm(x.date)) : yymd(x.date)}</span>${x.time ? `<div class="cs-sub cs-n">${esc(x.time.slice(0, 5))}</div>` : ''}`)}
     ${csTd('내용', `<div class="cs-desc">${esc(x.desc || x.desc2 || '')}</div><div class="cs-sub">${esc([x.desc && x.desc2 ? x.desc2 : '', csSrcName(x)].filter(Boolean).join(' / '))}</div>`)}
@@ -279,19 +301,23 @@ function csTxHTML() {
     ${csTd('잔액', `<span class="cs-n cs-sub">${x.bal != null ? csWon(x.bal) : ''}</span>`)}
     ${csTd('분류', x.pay ? `<span class="cs-payc">${esc(x.cat || '급여')}</span><button type="button" class="btn ghost sm cs-paydel" data-paydel="${esc(x.id)}" aria-label="급여 합계 줄 지우기">${ico('trash', 'sm')}</button>` : `<select class="select cs-cat ${x.sug ? 'sug' : ''}" data-cat="${esc(x.id)}" aria-label="분류"${x.sug ? ' title="지난 분류 제안"' : ''}>${csCatOpts(x.cat)}</select>`)}
     ${csTd('메모', `<input class="input cs-memo" data-memo="${esc(x.id)}" value="${esc(x.memo || '')}" maxlength="200" aria-label="메모" autocomplete="off">`)}</tr>`).join('');
+  return list.length ? `<table class="tbl cs-tbl cs-txt"><thead><tr><th>날짜</th><th>내용</th><th>입금</th><th>출금</th><th>잔액</th><th>분류</th><th>메모</th></tr></thead><tbody>${rows}</tbody></table>
+        ${list.length > shown.length ? `<div class="cs-more"><button type="button" class="btn sm" data-more>${list.length - shown.length}건 더 보기</button></div>` : ''}`
+    : `<div class="empty">${CS.f.tx.d.items.length ? '해당 거래 없음' : '올린 거래내역 없음'}</div>`;
+}
+function csTxHTML() {
+  const { mon, mons, inMon, list } = csTxView(), s = csSums(inMon);
   return `<div class="tiles cs-tiles">${csTile('수입', csV(s.inn), 'green')}${csTile('지출', csV(s.out), 'red')}${csTile('순수입', csV(s.inn - s.out), s.inn - s.out < 0 ? 'amber' : 'blue')}${csTile('미분류', `${s.un}<small>건</small>`, 'violet')}</div>
     ${csSumHTML(mon, mons)}
-    <section class="card" id="cs-drop"><div class="card-head cs-head"><h2>거래<span class="n">${list.length}</span></h2>
-      <div class="act cs-acts">${sug ? `<button type="button" class="btn sm" data-sug-ok>제안 확정 ${sug}건</button>` : ''}<button type="button" class="btn sm" data-cats>분류 관리</button><button type="button" class="btn sm" data-imps>올린 파일</button><button type="button" class="btn primary sm" data-up>${ico('upload', 'sm')}엑셀 올리기</button><input type="file" id="cs-file" accept=".xlsx,.xls,.csv,.htm,.html" hidden></div></div>
+    <section class="card" id="cs-drop"><div class="card-head cs-head"><h2>거래<span class="n" id="cs-txn">${list.length}</span></h2>
+      <div class="act cs-acts"><span class="cs-sugb" id="cs-sugb">${csSugBtn(list)}</span><button type="button" class="btn sm" data-cats>분류 관리</button><button type="button" class="btn sm" data-imps>올린 파일</button><button type="button" class="btn primary sm" data-up>${ico('upload', 'sm')}엑셀 올리기</button><input type="file" id="cs-file" accept=".xlsx,.xls,.csv,.htm,.html" hidden></div></div>
       <div class="cs-filters">
         <select class="select" data-f="mon" aria-label="달"><option value="all" ${mon === 'all' ? 'selected' : ''}>전체 기간</option>${mons.map((m) => `<option value="${m}" ${m === mon ? 'selected' : ''}>${m.slice(0, 4)}.${m.slice(5)}</option>`).join('')}</select>
         <select class="select" data-f="src" aria-label="출처"><option value="">은행·카드</option><option value="bank" ${CS.src === 'bank' ? 'selected' : ''}>은행</option><option value="card" ${CS.src === 'card' ? 'selected' : ''}>카드</option></select>
         <select class="select" data-f="cat" aria-label="분류"><option value="">모든 분류</option><option value="_none" ${CS.cat === '_none' ? 'selected' : ''}>미분류</option>${csCats().map((c) => `<option ${c.name === CS.cat ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}</select>
         <input class="input" type="search" data-f="q" value="${esc(CS.q2)}" placeholder="내용, 메모" aria-label="검색" autocomplete="off">
       </div>
-      ${list.length ? `<table class="tbl cs-tbl cs-txt"><thead><tr><th>날짜</th><th>내용</th><th>입금</th><th>출금</th><th>잔액</th><th>분류</th><th>메모</th></tr></thead><tbody>${rows}</tbody></table>
-        ${list.length > shown.length ? `<div class="cs-more"><button type="button" class="btn sm" data-more>${list.length - shown.length}건 더 보기</button></div>` : ''}`
-        : `<div class="empty">${CS.f.tx.d.items.length ? '해당 거래 없음' : '올린 거래내역 없음'}</div>`}</section>`;
+      <div id="cs-txlist">${csTxListHTML(list)}</div></section>`;
 }
 function csSumHTML(mon, mons) {
   const items = CS.f.tx.d.items, cats = csCats();
@@ -325,13 +351,13 @@ function csCatsEdit() {
   const list = csCats().map((c) => ({ ...c, old: c.name }));
   openSheet(`<h3>분류 관리</h3><div class="cs-cats" id="cs-cats"></div><button type="button" class="btn sm" data-catadd>${ico('plus', 'sm')}분류 추가</button>
     <div class="cs-foot"><button type="button" class="btn" data-close>취소</button><button type="button" class="btn primary" data-catsave>저장</button></div>`, (el, close) => {
-    const box = el.querySelector('#cs-cats');
+    const box = el.querySelector('#cs-cats'), mark = csSheetGuard(el, close);
     const draw = () => { box.innerHTML = list.map((c, i) => `<div class="cs-catrow"><input class="input" data-cn="${i}" value="${esc(c.name)}" maxlength="30" aria-label="분류 이름"><select class="select" data-ct="${i}" aria-label="구분">${['지출', '수입', '제외'].map((t) => `<option ${t === c.type ? 'selected' : ''}>${t}</option>`).join('')}</select><label class="cs-sub cs-pl" title="받는 분, 건별 금액 없이 달별 합계로만 저장"><input type="checkbox" data-cpay="${i}" ${c.pay ? 'checked' : ''}>합계만</label><span class="cs-sub cs-n">${c.old ? `${used(c.old)}건` : ''}</span><button type="button" class="btn ghost sm" data-cd="${i}" aria-label="지우기">${ico('trash', 'sm')}</button></div>`).join(''); };
     draw();
     box.addEventListener('input', (e) => { const i = e.target.dataset.cn; if (i != null) list[i].name = e.target.value; });
     box.addEventListener('change', (e) => { const i = e.target.dataset.ct; if (i != null) list[i].type = e.target.value; const j = e.target.dataset.cpay; if (j != null) list[j].pay = e.target.checked; });
-    box.addEventListener('click', (e) => { const b = e.target.closest('[data-cd]'); if (!b) return; const c = list[b.dataset.cd]; if (c.old && used(c.old) && !confirm(`${c.old} 분류 거래 ${used(c.old)}건은 미분류가 됩니다. 지울까요?`)) return; list.splice(Number(b.dataset.cd), 1); draw(); });
-    el.querySelector('[data-catadd]').onclick = () => { list.push({ name: '', type: '지출', old: '' }); draw(); box.querySelector(`[data-cn="${list.length - 1}"]`)?.focus(); };
+    box.addEventListener('click', (e) => { const b = e.target.closest('[data-cd]'); if (!b) return; const c = list[b.dataset.cd]; if (c.old && used(c.old) && !confirm(`${c.old} 분류 거래 ${used(c.old)}건은 미분류가 됩니다. 지울까요?`)) return; list.splice(Number(b.dataset.cd), 1); mark(); draw(); });
+    el.querySelector('[data-catadd]').onclick = () => { list.push({ name: '', type: '지출', old: '' }); mark(); draw(); box.querySelector(`[data-cn="${list.length - 1}"]`)?.focus(); };
     el.querySelector('[data-close]').onclick = () => close();
     el.querySelector('[data-catsave]').onclick = () => {
       const out = list.map((c) => ({ ...c, name: csNorm(c.name) })).filter((c) => c.name);
@@ -619,7 +645,7 @@ function csPlanEdit(id) {
       <div class="field"><label>끝 월</label><input class="input" type="month" name="end" value="${esc(x.end || '')}"></div></div>
     <div class="field"><label>메모</label><input class="input" name="memo" value="${esc(x.memo || '')}" maxlength="200" autocomplete="off"></div>
     <div class="cs-foot">${x.id ? '<button type="button" class="btn ghost cs-del" data-del>삭제</button>' : ''}<button type="button" class="btn" data-close>취소</button><button type="submit" class="btn primary">저장</button></div></form>`, (el, close) => {
-    const f = el.querySelector('form'); csMoneyInputs(f);
+    const f = el.querySelector('form'); csMoneyInputs(f); csSheetGuard(el, close);
     const nm = f.querySelector('[name=name]'); nm.addEventListener('change', () => { if (!f.cat.value && csCats().some((c) => c.name === nm.value.trim())) f.cat.value = nm.value.trim(); }); // 항목 이름이 분류와 같으면 분류로
     f.querySelector('[data-close]').onclick = () => close();
     f.querySelector('[data-del]')?.addEventListener('click', () => { if (!confirm(`${x.name} 항목을 지울까요?`)) return; close(); csAct('plan', (d) => { d.items = d.items.filter((p) => p.id !== x.id); }); });
@@ -641,7 +667,7 @@ function csWcEdit(id) {
     <div class="field"><label>예정일</label><input class="input" type="date" name="due" value="${esc(x.due || '')}"></div>
     <div class="field"><label>메모</label><input class="input" name="memo" value="${esc(x.memo || '')}" maxlength="200" autocomplete="off"></div>
     <div class="cs-foot">${x.id ? '<button type="button" class="btn ghost cs-del" data-del>삭제</button>' : ''}<button type="button" class="btn" data-close>취소</button><button type="submit" class="btn primary">저장</button></div></form>`, (el, close) => {
-    const f = el.querySelector('form'); csMoneyInputs(f);
+    const f = el.querySelector('form'); csMoneyInputs(f); csSheetGuard(el, close);
     f.querySelector('[data-close]').onclick = () => close();
     f.querySelector('[data-del]')?.addEventListener('click', () => { if (!confirm(`${x.name} 항목을 지울까요?`)) return; close(); csAct('plan', (d) => { d.wc = d.wc.filter((w) => w.id !== x.id); }); });
     f.addEventListener('submit', (e) => {
@@ -699,15 +725,43 @@ document.addEventListener('change', (e) => {
   else return;
   CS.lim = 300; csDraw();
 });
+// 검색: 목록 부분만 다시 그려 검색칸은 그대로 둔다. 한글 조합 중엔 미루고 조합이 끝나면 반영(2026-11-26 규격 점검)
 let csQT = null;
+function csQApply(v) {
+  CS.q2 = v; viewSet('cash.q', v); CS.lim = 300;
+  const box = $('#cs-txlist'); if (!box) { csDraw(); return; }
+  const { list } = csTxView();
+  box.innerHTML = csTxListHTML(list);
+  const n = $('#cs-txn'); if (n) n.textContent = list.length;
+  const sb = $('#cs-sugb'); if (sb) sb.innerHTML = csSugBtn(list);
+}
+const csQSched = (i) => { clearTimeout(csQT); csQT = setTimeout(() => csQApply(i.value), 150); };
 document.addEventListener('input', (e) => {
   if (!csOn() || !e.target.matches('#cs-root [data-f="q"]')) return;
-  clearTimeout(csQT); const v = e.target.value;
-  csQT = setTimeout(() => { CS.q2 = v; viewSet('cash.q', v); CS.lim = 300; csDraw(); const i = $('#cs-root [data-f="q"]'); if (i) { i.focus(); i.setSelectionRange(v.length, v.length); } }, 250);
+  if (e.isComposing) { clearTimeout(csQT); return; }
+  csQSched(e.target);
 });
-// 거래 카드에 엑셀 파일을 끌어다 놓아도 올린다
-document.addEventListener('dragover', (e) => { if (csOn() && e.target.closest?.('#cs-drop')) e.preventDefault(); });
-document.addEventListener('drop', (e) => { const z = csOn() && e.target.closest?.('#cs-drop'); if (!z) return; e.preventDefault(); const fl = e.dataTransfer?.files?.[0]; if (fl) csImport(fl); });
+document.addEventListener('compositionend', (e) => { if (csOn() && e.target.matches?.('#cs-root [data-f="q"]')) csQSched(e.target); });
+// 거래 카드에 엑셀 파일을 끌어다 놓아도 올린다. 자금 화면에선 카드 밖에 놓아도 브라우저가 그 파일로 이동하지 않게 막는다
+let csDragT = null;
+const csHasFiles = (e) => [...(e.dataTransfer?.types || [])].includes('Files');
+const csDropEnd = () => { clearTimeout(csDragT); $('#cs-drop')?.classList.remove('drop', 'drop-in'); };
+document.addEventListener('dragover', (e) => {
+  if (!csOn() || !csHasFiles(e)) return;
+  e.preventDefault();
+  const z = $('#cs-drop'), inZ = !!e.target.closest?.('#cs-drop');
+  e.dataTransfer.dropEffect = inZ ? 'copy' : 'none';
+  if (z) { z.classList.add('drop'); z.classList.toggle('drop-in', inZ); }
+  clearTimeout(csDragT); csDragT = setTimeout(csDropEnd, 1000); // dragleave를 놓쳐도 표시가 남지 않게
+});
+document.addEventListener('dragleave', (e) => { if (csOn() && !e.relatedTarget) csDropEnd(); });
+document.addEventListener('dragend', () => { if (csOn()) csDropEnd(); });
+document.addEventListener('drop', (e) => {
+  if (!csOn() || !csHasFiles(e)) return;
+  e.preventDefault(); csDropEnd();
+  if (!e.target.closest?.('#cs-drop')) return;
+  const fl = e.dataTransfer?.files?.[0]; if (fl) csImport(fl);
+});
 
 TAB_INFO.cash = {
   title: '자금',

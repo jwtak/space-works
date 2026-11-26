@@ -282,7 +282,7 @@ function maBind(root) {
     const id = row.dataset.id, x = maS.data?.deals.find((d) => d.id === id); if (!x) return;
     if (maS.open.has(id)) maS.open.delete(id); else maS.open.add(id);
     maViewSave();
-    row.outerHTML = maRow(x);
+    (typeof swapKeepFocus === 'function' ? swapKeepFocus(row, maRow(x)) : (row.outerHTML = maRow(x)));
   });
   root.addEventListener('change', (ev) => {
     if (ev.target.id === 'ma-sector') { maS.f.sector = ev.target.value; refilter(); }

@@ -499,8 +499,18 @@ function peBody() {
   const heir = peS.grp === 'heir', row = (x) => (heir ? peHeirRow(x) : peDupRow(x));
   const [keep, skip] = peFv(heir ? peHeirList() : peDupList()), list = peSink(keep);
   if (!list.length && !skip.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
-  return (heir ? PE_HEIR_HEAD : PE_DUP_HEAD) + list.map((x) => (x.low ? peLowRow(x) : row(x))).join('') + (skip.length ? fvSkipTail(skip, `pe-${peS.grp}`, row) : '');
+  // 처음엔 위 목록 100건만 그리고 '나머지 n건 보기'(ma.js와 같다). 컨택한 곳·관심 없음 묶음은 그대로 아래에. 보기 링크로 온 회사가 뒤쪽이면 전부
+  const li = list.findIndex((x) => x.low), main = li < 0 ? list : list.slice(0, li), low = li < 0 ? [] : list.slice(li);
+  const all = peS.all === peSig() || (peS.focus != null && main.findIndex((x) => x.id === peS.focus) >= PE_PAGE);
+  if (all) peS.all = peSig();
+  const shown = all ? main : main.slice(0, PE_PAGE), rest = main.length - shown.length;
+  return (heir ? PE_HEIR_HEAD : PE_DUP_HEAD) + shown.map(row).join('')
+    + (rest > 0 ? `<div class="pe-pagewrap"><button type="button" class="btn sm" data-pe-page>나머지 ${rest.toLocaleString('ko-KR')}건 보기</button></div>` : '')
+    + low.map((x) => (x.low ? peLowRow(x) : row(x))).join('') + (skip.length ? fvSkipTail(skip, `pe-${peS.grp}`, row) : '');
 }
+const PE_PAGE = 100;
+// '나머지 보기'를 누른 조건(그룹·검색어·필터·정렬). 조건이 바뀌면 다시 100건부터
+const peSig = () => { const s = peS[peS.grp]; return JSON.stringify([peS.grp, ...PE_VIEW[peS.grp].map((k) => s[k]), !!s.old, !!s.team, !!s.big]); };
 const peRowEl = (root, id) => [...root.querySelectorAll('.ipo-row[data-id]')].find((r) => r.dataset.id === id);
 const peRowHtml = (x) => (x.id.startsWith('heir:') ? peHeirRow(x) : peDupRow(x));
 
@@ -586,10 +596,26 @@ function peRefreshRow(id) {
   const x = peFind(id), b = peS.host?.querySelector('#pe-body'), r = b && peRowEl(b, id);
   if (!x || !r) return;
   if (peImeWait(r, `row:${id}`, () => peRefreshRow(id))) return;
-  const keep = peKeepNote(r);
+  const keep = peKeepNote(r), fk = keep ? null : peFocusKey(r);
   peDrawing = true;
   try { peHold(b, id, () => { r.outerHTML = peRowHtml(x); }); } finally { peDrawing = false; }
   peKeepBack(keep);
+  peFocusBack(peRowEl(b, id), fk);
+}
+
+/* 행을 갈아 끼우기 전 포커스 자리(태그와 data-* 이름, 없으면 class, 같은 것 중 몇 번째)를 적어 두고 새 행에서 같은 자리로 되돌린다(radar.js rdFocusKey와 같다) */
+const PE_FK_STATE = new Set(['on', 'open', 'sel']);
+function peFocusKey(box) {
+  const a = document.activeElement; if (!a || !box || !box.contains(a)) return null;
+  if (a === box) return { self: true };
+  const d = [...a.attributes].filter((t) => t.name.startsWith('data-')).map((t) => `[${t.name}]`).join('');
+  const sel = a.tagName.toLowerCase() + (d || [...a.classList].filter((c) => !PE_FK_STATE.has(c)).map((c) => `.${CSS.escape(c)}`).join(''));
+  return { sel, n: [...box.querySelectorAll(sel)].indexOf(a) };
+}
+function peFocusBack(box, k) {
+  if (!k || !box || !box.isConnected) return;
+  const all = k.self ? [box] : box.querySelectorAll(k.sel), el = all[k.self ? 0 : k.n] || all[0];
+  if (el && document.activeElement !== el) el.focus({ preventScroll: true });
 }
 
 // 접은 행이 상태 때문에 다른 묶음(컨택한 곳 ↔ 위 목록)으로 가야 하면 목록을 다시 그리고, 그 행 바로 다음 행이 그 자리에 오게 한다
@@ -600,10 +626,11 @@ function peFold(r, x) {
   if (peLowSt(peSt(x.key)) === inLow) { peRefreshRow(x.id); return; }
   const sc = r.closest('.scroll');
   let nx = r.nextElementSibling; while (nx && !nx.matches('.ipo-row[data-id]')) nx = nx.nextElementSibling;
-  const y0 = r.getBoundingClientRect().top - (parseFloat(getComputedStyle(r).marginTop) || 0), nid = nx?.dataset.id; // 펼친 행 위 여백까지
+  const y0 = r.getBoundingClientRect().top - (parseFloat(getComputedStyle(r).marginTop) || 0), nid = nx?.dataset.id, fk = peFocusKey(r); // 펼친 행 위 여백까지
   peDraw();
   const n = nid != null && peRowEl(b, nid);
   if (sc && n) { const dy = n.getBoundingClientRect().top - y0; if (Math.abs(dy) >= 0.5) sc.scrollTop += dy; }
+  peFocusBack(peRowEl(b, x.id), fk);
 }
 
 // 펼친 행의 파이프라인 버튼만 다시 그린다(행을 통째로 다시 그리면 그사이 치던 메모가 사라진다). id가 없으면 펼친 행 전부
@@ -662,6 +689,11 @@ function peBind(root) {
     const pb = t.closest('[data-pe-pipe]'); if (pb) { pePipeAdd(pb); return; }
     // 이동은 링크(#deals/delist)가 한다. 그 전에 상폐 위험·CB 탭이 필터를 풀고 그 회사를 펼쳐 두게
     const mb = t.closest('[data-pe-more]'); if (mb) { mb.closest('.pe-sigbox')?.classList.add('pe-all'); mb.remove(); return; }
+    if (t.closest('[data-pe-page]')) { // 나머지 보기: 101번째 회사 이름으로 포커스를 옮긴다(단추는 사라짐)
+      peS.all = peSig(); peDraw();
+      peS.host?.querySelectorAll('#pe-body > .ipo-row[data-id]')[PE_PAGE]?.querySelector('.ipo-ttl')?.focus({ preventScroll: true });
+      return;
+    }
     const dl = t.closest('[data-pe-dl]'); if (dl) { if (typeof delistFocus === 'function') delistFocus(`delist:${dl.dataset.peDl}`); return; }
     if (t.closest('a, input, select, .ipo-detail')) return;
     const row = t.closest('.ipo-row[data-id]');
@@ -672,7 +704,11 @@ function peBind(root) {
       if (was && x) peFold(row, x); else peRefreshRow(id);
     }
   });
-  root.addEventListener('input', (ev) => { if (ev.target.id === 'pe-q') { peS[peS.grp].q = ev.target.value; peDraw(); } });
+  // 검색: 150ms 모아서 한 번 그린다. 한글 조합 중에는 미루고 조합이 끝나면 그린다
+  let qT = 0;
+  const qSoon = (el) => { clearTimeout(qT); qT = setTimeout(() => { if (!el.isConnected) return; peS[peS.grp].q = el.value; peDraw(); }, 150); };
+  root.addEventListener('input', (ev) => { if (ev.target.id === 'pe-q' && !ev.isComposing) qSoon(ev.target); });
+  root.addEventListener('compositionend', (ev) => { if (ev.target.id === 'pe-q') qSoon(ev.target); });
   root.addEventListener('change', (ev) => {
     const t = ev.target;
     if (t.id === 'pe-sort') { peS[peS.grp].sort = t.value; peDraw(); }

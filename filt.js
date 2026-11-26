@@ -31,6 +31,8 @@ const ffBtnName = (b) => ffTxt(b).replace(/\s*\d[\d,]*$/, ''); // 'K-뷰티 61'�
 
 /* ---------- 슬라이더 ---------- */
 const ffNum = (v) => (v === '' || v == null || !Number.isFinite(+v) ? null : +v);
+// 직접 입력칸: 아이폰 숫자 자판엔 마이너스가 없어 글자 칸으로 받는다. 유니코드 마이너스, 쉼표, 단위(억·%)는 걸러 읽는다
+const ffNumIn = (v) => ffNum(String(v ?? '').replace(/[−‒–—﹣－]/g, '-').replace(/[,\s억%]/g, ''));
 const ffFmt = (mode, v) => (mode === 'rev' || mode === 'opa' ? `${v.toLocaleString('ko-KR')}억` : `${v}%`);
 // 묶음 k(rev·op·gr)의 지금 눈금 종류와 값
 function ffCur(s, k) {
@@ -55,7 +57,7 @@ function ffRangeHtml(id, k, label) {
   return `<div class="rd-fing ff-rg" data-ff-id="${id}" data-ff-k="${k}" data-ff-label="${esc(label)}" data-ff-on="${esc(ffChipText(k, label, mode, v))}"><span class="rd-finl">${esc(label)}</span>
     <div class="ff-rgb"><input type="range" class="ff-range" min="0" max="${stops.length - 1}" step="1" value="${idx}" aria-label="${esc(label)}" style="--p:${(idx / (stops.length - 1)) * 100}%">
       <output class="ff-out">${v == null ? '전체' : `${esc(ffFmt(mode, v))} 이상`}</output>
-      <span class="ff-numw"><input type="number" class="input ff-num" inputmode="decimal" value="${v ?? ''}" placeholder="직접" aria-label="${esc(label)} 직접 입력"><span class="ff-unit">${mode === 'rev' || mode === 'opa' ? '억' : '%'}</span></span>${sw}</div></div>`;
+      <span class="ff-numw"><input type="text" class="input ff-num" autocomplete="off" spellcheck="false" enterkeyhint="done" value="${v ?? ''}" placeholder="직접" aria-label="${esc(label)} 직접 입력"><span class="ff-unit">${mode === 'rev' || mode === 'opa' ? '억' : '%'}</span></span>${sw}</div></div>`;
 }
 // 화면이 거를 때: 고른 조건마다 값이 있으면 비교, 없으면 nn(값 없는 회사도 보기)일 때만 남긴다. rev·op는 억, gr은 %
 function ffOk(s, x) {
@@ -95,7 +97,7 @@ document.addEventListener('change', (ev) => {
   ev.stopPropagation();
   if (t.matches('.ff-nnc')) { ffSet(id, 'nn', t.checked ? '1' : '', true); return; }
   if (t.matches('.ff-num')) {
-    const v = ffNum(t.value), { mode } = ffCur(s, k);
+    const v = ffNumIn(t.value), { mode } = ffCur(s, k);
     ffSet(id, k, v == null ? '' : k === 'op' ? `${mode === 'opm' ? 'm' : 'a'}:${v}` : String(v), true);
   }
 }, true);

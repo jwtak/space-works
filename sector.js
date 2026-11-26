@@ -395,8 +395,8 @@ function secViewSet(v) {
 
 function secRowRedraw(row) {
   const id = row.dataset.id;
-  if (secS.view === 'map') { const c = secS.map?.byId.get(id); if (c) row.outerHTML = secMapRow(c); return; }
-  const r = secDealList().find((x) => x.id === id); if (r) row.outerHTML = secDealRow(r);
+  if (secS.view === 'map') { const c = secS.map?.byId.get(id); if (c) (typeof swapKeepFocus === 'function' ? swapKeepFocus(row, secMapRow(c)) : (row.outerHTML = secMapRow(c))); return; }
+  const r = secDealList().find((x) => x.id === id); if (r) (typeof swapKeepFocus === 'function' ? swapKeepFocus(row, secDealRow(r)) : (row.outerHTML = secDealRow(r)));
 }
 
 function secBind(root) {
