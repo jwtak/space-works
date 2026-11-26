@@ -111,7 +111,7 @@ function sfCos(g, all, lv, me) { // 펼친 업종의 회사 줄. 회사 수 칸�
     return `<tr class="sf-c${me?.code === y.code ? ' me' : ''}" data-sf-in="${esc(id)}"><td class="st"><button type="button" class="sf-co" data-va-pick="${esc(y.code)}" title="${esc(`${y.name} 보기`)}"><b>${esc(y.name)}</b></button>${all || lv !== 'industry' ? `<small>${esc(y.industry || '')}</small>` : ''}</td>`
       + `<td>${esc(ML[y.market] || y.market || '')}${note ? `<small>${esc(note)}</small>` : ''}</td>${SF_COLS.map((c) => sfCell(fin, c, sfYv(y, c[0]))).join('')}</tr>`;
   };
-  const more = rest > 0 ? `<tr class="sf-c sf-more"><td class="st"><button type="button" class="va-more" data-sf-more="${esc(id)}" data-n="${shown.length}">${rest > SF_STEP ? `${vaNum(SF_STEP)}곳 더` : `나머지 ${vaNum(rest)}곳`}</button></td><td colspan="${SF_COLS.length + 1}">${rest > SF_STEP ? `<span class="meta">나머지 ${vaNum(rest)}곳</span>` : ''}</td></tr>` : '';
+  const step = Math.min(SF_STEP, rest), more = rest > 0 ? `<tr class="sf-more more-tr"><td colspan="${SF_COLS.length + 2}"><div class="more-wrap"><button type="button" class="btn sm" data-sf-more="${esc(id)}" data-n="${shown.length}">${rest > step ? `${vaNum(step)}건 더 보기` : `나머지 ${vaNum(rest)}건 보기`}</button>${rest > step ? `<span class="more-rest">남은 ${vaNum(rest)}건</span>` : ''}</div></td></tr>` : ''; // 더 보기 모양은 app.js moreList와 같게
   return shown.map(row).join('') + more;
 }
 

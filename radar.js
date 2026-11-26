@@ -1022,7 +1022,7 @@ function rdSignals() {
       <div class="rd-mh">${esc(x.src) || RD_NA}</div>
     </div></div>`;
   return `<section class="card ipo-card rd-card2"><div class="card-head"><h2>청구 전 신호 <span class="n">${list.length}</span></h2></div>
-    ${list.length ? `<div class="ipo-head ipo-cols"><div>날짜</div><div>회사</div><div class="rd-c2">신호</div><div class="rd-span3">기사</div><div>매체</div></div>${list.map(row).join('')}` : '<div class="empty">조건에 맞는 신호가 없습니다.</div>'}</section>`;
+    ${list.length ? `<div class="ipo-head ipo-cols"><div>날짜</div><div>회사</div><div class="rd-c2">신호</div><div class="rd-span3">기사</div><div>매체</div></div>${moreList('rd-sig', list, row, { sig: JSON.stringify([s.q, s.f]) })}` : '<div class="empty">조건에 맞는 신호가 없습니다.</div>'}</section>`;
 }
 
 /* ---------- 펀드 만기 › VC 앵글(옛 이름 매각희망, FI 회수, 구주 매물) ---------- */
@@ -1225,23 +1225,9 @@ function rdCoDetail(x) {
 function rdFunds() {
   const s = rdS.sell, d = s.data;
   if (!d || !d.funds.length || !['all', '만기'].includes(s.f)) return '';
-  const list = rdFundList(), row = rdFundRow;
-  // 조합도 100건씩(1,400개 넘게 한 번에 그리면 화면을 열 때마다 멈춤). 검색어가 바뀌면 다시 100건부터
-  const n = s.fundLim?.q === s.q ? s.fundLim.n : RD_PAGE; s.fundLim = { q: s.q, n };
-  const rest = list.length - Math.min(n, list.length);
+  const q = s.q.trim().toLowerCase(), list = d.funds.filter((x) => !q || x.q.includes(q));
   return `<section class="card ipo-card rd-card2"><div class="card-head"><h2>만기 임박 조합 <span class="n">${list.length}</span></h2></div>
-    ${list.length ? `<div class="ipo-head ipo-cols rd-g6"><div>만기일</div><div>조합</div><div>운용사</div><div class="rd-c2">결성일</div><div>결성액</div><div class="rd-c2">출처</div></div>${list.slice(0, n).map(row).join('')}${rest > 0 ? `<div class="rd-pagewrap">${rdPageBtn(rest).replace('data-rd-page', 'data-rd-fpage')}</div>` : ''}` : '<div class="empty">조건에 맞는 조합이 없습니다.</div>'}</section>`;
-}
-const rdFundList = () => { const s = rdS.sell, q = s.q.trim().toLowerCase(); return s.data.funds.filter((x) => !q || x.q.includes(q)); };
-function rdFundMore(btn) {
-  const s = rdS.sell, wrap = btn.closest('.rd-pagewrap'); if (!wrap || !s.data) return;
-  const list = rdFundList(), n0 = s.fundLim?.n || RD_PAGE, add = list.slice(n0, n0 + RD_PAGE);
-  s.fundLim = { q: s.q, n: n0 + add.length };
-  wrap.insertAdjacentHTML('beforebegin', add.map(rdFundRow).join(''));
-  const rest = list.length - s.fundLim.n;
-  if (rest > 0) wrap.innerHTML = rdPageBtn(rest).replace('data-rd-page', 'data-rd-fpage'); else wrap.remove();
-  const r = wrap.parentElement?.querySelectorAll(':scope > .ipo-row')[n0]; // 붙인 첫 조합으로 포커스(단추는 사라질 수 있음)
-  if (r) { r.tabIndex = -1; r.focus({ preventScroll: true }); }
+    ${list.length ? `<div class="ipo-head ipo-cols rd-g6"><div>만기일</div><div>조합</div><div>운용사</div><div class="rd-c2">결성일</div><div>결성액</div><div class="rd-c2">출처</div></div>${moreList('rd-funds', list, rdFundRow, { sig: s.q })}` : '<div class="empty">조건에 맞는 조합이 없습니다.</div>'}</section>`;
 }
 function rdFundRow(x) {
   // 출처는 '·'로 이어 온 원문(DIVA 조합현황 · 모태 출자 · …) 중 첫 출처만 칸에, 전체는 마우스를 올리면. 단계(stage)는 보유 회사가 없을 때만 보조 줄에
@@ -1416,29 +1402,9 @@ function rdBody(tab) {
   // 예심청구 전체는 주관사 선정(선정일)과 예심(청구일)이 섞이므로 첫 칸 머리를 '날짜'로
   const head = pe ? RD_PE_HEAD : co ? RD_CO_HEAD : tab !== 'yesim' ? RD_HEAD[tab] : s.f === 'mandate' ? RD_MN_HEAD : s.f === 'all' ? RD_YS_HEAD.replace('청구일', '날짜') : RD_HEAD[tab];
   // 위 목록은 100건씩(펀드 만기 VC 앵글이 1,400곳 넘어 한 번에 그리면 화면을 열 때마다 0.2초 넘게 멈춤). 더 보기는 다시 그리지 않고 아래에 붙임. 보기 링크로 온 회사가 뒤쪽이면 그 회사까지
-  const { main, low } = rdCut(list), sig = rdSig(tab);
-  let n = s.lim?.sig === sig ? s.lim.n : RD_PAGE;
-  const fi = s.focus != null ? main.findIndex((x) => x.grp == null && String(x.id) === String(s.focus)) : -1;
-  if (fi >= n) n = Math.ceil((fi + 1) / RD_PAGE) * RD_PAGE;
-  s.lim = { sig, n };
-  const rest = main.slice(n).filter((x) => x.grp == null).length, row = rdRowFn(tab);
-  return head + main.slice(0, n).map(row).join('') + (rest > 0 ? `<div class="rd-pagewrap">${rdPageBtn(rest)}</div>` : '') + low.map(row).join('') + tail;
-}
-const RD_PAGE = 100;
-const rdSig = (tab) => JSON.stringify([tab, ...RD_VIEW[tab].map((k) => rdS[tab][k])]);
-const rdRowFn = (tab) => (x) => (x.grp === '__low' ? rdLowRow(x) : RD_ROW[tab](x));
-const rdCut = (list) => { const li = list.findIndex((x) => x.grp === '__low'); return { main: li < 0 ? list : list.slice(0, li), low: li < 0 ? [] : list.slice(li) }; };
-const rdPageBtn = (rest) => `<button type="button" class="btn sm" data-rd-page>${rest > RD_PAGE ? `${RD_PAGE}건 더 보기` : `나머지 ${rest}건 보기`}</button>${rest > RD_PAGE ? `<span class="rd-rest">남은 ${rest.toLocaleString('ko-KR')}건</span>` : ''}`;
-function rdPageMore(btn) { // 더 보기: 다음 100건을 단추 앞에 붙이고 그 첫 회사 이름으로 포커스
-  const tab = rdS.tab, s = rdS[tab], wrap = btn.closest('.rd-pagewrap'); if (!wrap || !s?.data) return;
-  const [raw] = rdSplitSkip(tab, RD_LIST[tab]());
-  const { main } = rdCut(rdSink(tab, tab === 'bids' ? rdBidsGroups(raw) : raw)), n0 = s.lim?.n || RD_PAGE, add = main.slice(n0, n0 + RD_PAGE);
-  s.lim = { sig: rdSig(tab), n: n0 + add.length };
-  wrap.insertAdjacentHTML('beforebegin', add.map(rdRowFn(tab)).join(''));
-  const rest = main.slice(s.lim.n).filter((x) => x.grp == null).length;
-  if (rest > 0) wrap.innerHTML = rdPageBtn(rest); else wrap.remove();
-  const first = add.find((x) => x.grp == null);
-  if (first) rdRowEl(rdS.host, String(first.id))?.querySelector('.ipo-ttl')?.focus({ preventScroll: true });
+  const li = list.findIndex((x) => x.grp === '__low'), main = li < 0 ? list : list.slice(0, li), low = li < 0 ? [] : list.slice(li), row = (x) => (x.grp === '__low' ? rdLowRow(x) : RD_ROW[tab](x));
+  return head + moreList(`rd-${tab}`, main, row, { sig: JSON.stringify(RD_VIEW[tab].map((k) => s[k])), isRow: (x) => x.grp == null, focus: s.focus != null ? (x) => x.grp == null && String(x.id) === String(s.focus) : null })
+    + low.map(row).join('') + tail;
 }
 
 /* 다시 그릴 때(다른 분 저장 합치기·저장 실패 되돌리기 등) 쓰고 있던 메모 칸을 지킨다 — ipo.js ipoDraw와 같은 방식.
@@ -1596,8 +1562,6 @@ function rdBind(root, tab) {
   const segOn = (sel, on) => root.querySelectorAll(sel).forEach((b) => { b.classList.toggle('on', b === on); b.setAttribute('aria-pressed', b === on); });
   root.addEventListener('click', (ev) => {
     const t = ev.target;
-    const pg = t.closest('[data-rd-page]'); if (pg) { rdPageMore(pg); return; }
-    const fp = t.closest('[data-rd-fpage]'); if (fp) { rdFundMore(fp); return; }
     const fb = t.closest('[data-rd-f]');
     if (fb) { s.f = fb.dataset.rdF; segOn('[data-rd-f]', fb); rdDraw(); return; }
     const ab = t.closest('[data-rd-ang]');

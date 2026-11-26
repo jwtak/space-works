@@ -501,7 +501,10 @@ function tgBody(k) {
   const [keep, skip] = tgFv(tgRows(k)), list = tgSink(keep);
   if (!list.length && !skip.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
   const y = k === 'deep' ? null : tgYear(st.data.items), row = (x) => (k === 'deep' ? tgDeepRow(x) : tgConsRow(x, y));
-  return (k === 'deep' ? TG_DEEP_HEAD : tgConsHead(y)) + list.map((x) => (x.low ? tgLowRow(x) : row(x))).join('') + (skip.length ? fvSkipTail(skip, k, row) : '');
+  // 위 목록은 100건씩(app.js moreList), 컨택한 곳 묶음은 그대로 아래에. 검색, 필터, 정렬이 바뀌면 처음부터
+  const li = list.findIndex((x) => x.low), main = li < 0 ? list : list.slice(0, li), low = li < 0 ? [] : list.slice(li), f = tgS.focus;
+  return (k === 'deep' ? TG_DEEP_HEAD : tgConsHead(y)) + moreList(`tg-${k}`, main, row, { sig: JSON.stringify(st.v), focus: f != null ? (x) => x.id === f : null })
+    + low.map((x) => (x.low ? tgLowRow(x) : row(x))).join('') + (skip.length ? fvSkipTail(skip, k, row) : '');
 }
 const tgRowEl = (root, id) => [...root.querySelectorAll('.ipo-row[data-id]')].find((r) => r.dataset.id === id);
 const tgRowHtml = (x) => (x.id.startsWith('deep:') ? tgDeepRow(x) : tgConsRow(x, tgYear(tgS.cons.data?.items || [])));

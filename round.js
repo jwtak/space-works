@@ -310,7 +310,8 @@ function rnBody(all) {
   if (!rnS.data && !tgS.deep.data && !tgS.cons.data) return '<div class="empty">투자 라운드 목록을 준비하고 있습니다. 자료가 올라오면 여기에 보입니다.</div>';
   const [list, skip] = rnFv(rnRows(all));
   if (!list.length && !skip.length) return '<div class="empty">조건에 맞는 회사가 없습니다.</div>';
-  return RN_HEAD + list.map((e) => rnRow(e)).join('') + (skip.length ? fvSkipTail(skip, 'round', (e) => rnRow(e)) : '');
+  const f = rnS.focus; // 100건씩(app.js moreList). 검색, 필터, 정렬이 바뀌면 처음부터
+  return RN_HEAD + moreList('round', list, (e) => rnRow(e), { sig: JSON.stringify(RN_KEYS.map((k) => rnS[k])), focus: f ? (e) => e.id === f : null }) + (skip.length ? fvSkipTail(skip, 'round', (e) => rnRow(e)) : '');
 }
 
 function rnDraw(full) {

@@ -66,7 +66,6 @@ button.vc-hr:hover { background: var(--hover); }
 .vc-sort { display: inline-flex; align-items: center; gap: 2px; height: 36px; padding: 0; border: 0; background: none; font: inherit; font-weight: 600; color: var(--text2); cursor: pointer; }
 .vc-sort.on, .vc-sort:hover { color: var(--ink); }
 .vc-dir { display: inline-block; width: 12px; color: var(--primary); }
-.vc-morewrap { display: flex; justify-content: center; padding-top: 12px; }
 
 /* 투자사 펼치기: 행을 누르면 보유 회사(공시). 모양은 ipo.css 펼침(연파랑 머리 + 흰 묶음 박스 .ipo-box·.ipo-tbl) */
 .vc-tbl tr.vc-row { cursor: pointer; }
@@ -118,7 +117,6 @@ button.vc-hr:hover { background: var(--hover); }
   .vc-bars .v { display: none; }
   .vc-bars .b.on .v { display: block; white-space: nowrap; }
   .vc-page .mk-seg button { height: 44px; }
-  .vc-morewrap .btn { height: 44px; }
   .vc-page .mk-chart .yl, .vc-page .mk-chart .xt span { font-size: var(--fs-md); }
   /* 표: 주력 업종 칸 대신 이름 아래 작은 글씨, 정렬 머리는 누르기 쉽게 44 */
   .vc-tbl .vc-c-main { display: none; }

@@ -374,7 +374,7 @@ function dlBody() {
   if (!dlS.data) return '<div class="empty">수집 자료 없음</div>';
   const [list, skip] = dlFv(dlList());
   const cnt = dlS.host?.querySelector('#dl-count'); if (cnt) cnt.textContent = `${list.length.toLocaleString('ko-KR')} / 전체 ${dlFv(dlS.data.items)[0].length.toLocaleString('ko-KR')}곳`;
-  return `<table class="dl-tbl">${dlHead()}<tbody>${list.length ? list.map((x, i) => dlRow(x, i)).join('') : `<tr><td colspan="${DL_COLS}" class="dl-empty">조건에 맞는 회사 없음</td></tr>`}${dlSkipTail(skip, list.length)}</tbody></table>`;
+  return `<table class="dl-tbl">${dlHead()}<tbody>${list.length ? moreList('delist', list, (x, i) => dlRow(x, i), { tr: DL_COLS, sig: JSON.stringify([...Object.keys(DL_VIEW).map((k) => dlS[k]), dlMob()]), focus: dlS.focus != null ? (x) => x.code === dlS.focus : null }) : `<tr><td colspan="${DL_COLS}" class="dl-empty">조건에 맞는 회사 없음</td></tr>`}${dlSkipTail(skip, list.length)}</tbody></table>`;
 }
 /* 관심 없음(사람별, fav.js): 펼친 칸 머리와 같은 ref(delist:<종목코드>)로 떼어 표 맨 아래 접힌 묶음으로.
    fav.js fvSkipTail은 div 묶음이라 표에서는 머리만 한 칸짜리 행에 넣고, 펼쳤을 때(fav.js와 같은 기억 키 fv.sk.delist) 흐린 표 행을 잇는다 */

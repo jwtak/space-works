@@ -322,7 +322,7 @@ function siBody(si) {
   const row = (e) => siRow(e, si.fy);
   return SI_HEAD
     + (pins.length ? siGrp('사내 딜', pins.length) + pins.map(row).join('') : '')
-    + (main.length ? (pins.length ? siGrp('후보', main.length) : '') + main.map(row).join('') : '')
+    + (main.length ? (pins.length ? siGrp('후보', main.length) : '') + moreList('si', main, row, { sig: JSON.stringify([...SI_KEYS.map((k) => siS[k]), siS.top]), focus: siS.focus != null ? (e) => e.id === siS.focus : null }) : '') // 100건씩(app.js moreList)
     + (low.length ? siGrp('컨택한 곳', low.length, ' rd-low') + low.map(row).join('') : '')
     + (skip.length ? fvSkipTail(skip, 'si', row) : '');
 }

@@ -7,7 +7,6 @@
 const MA_FILE = 'data/ma.json', MA_XLSX = 'data/ma.xlsx';
 const MA_TTL = 5 * 60000;
 const MA_STALE = 8; // 주 1회 갱신이므로 기준일이 8일 넘게 지나면 빨간 글씨
-const MA_PAGE = 100; // 처음엔 100건만 그리고 나머지는 '나머지 n건 보기'로
 const MA_KINDS = ['PE', 'SI', 'PE+SI'];
 const MA_DONE = ['계약', '완료'];
 const MA_STAGE_OPTS = [['done', '체결'], ['all', '전체']];
@@ -20,7 +19,7 @@ const maS = (() => {
   const v = viewGet('ma', null) || {};
   const s = (k) => (typeof v[k] === 'string' ? v[k] : '');
   return {
-    data: null, err: '', at: 0, loading: null, host: null, more: false,
+    data: null, err: '', at: 0, loading: null, host: null,
     f: { sector: s('sector'), kind: MA_KINDS.includes(v.kind) ? v.kind : '', stage: v.stage === 'all' ? 'all' : 'done', year: MA_PERIODS.includes(v.year) || /^\d{4}$/.test(v.year) ? v.year : '5y', q: s('q') },
     open: new Set(Array.isArray(v.open) ? v.open : []),
   };
@@ -197,8 +196,7 @@ function maBody() {
   if (!d || !d.deals.length) return '<div class="empty">아직 만들어진 M&A 거래 자료가 없습니다.</div>';
   const list = maList();
   if (!list.length) return '<div class="empty">조건에 맞는 거래가 없습니다.</div>';
-  const shown = maS.more ? list : list.slice(0, MA_PAGE), rest = list.length - shown.length;
-  return `${MA_HEAD}${shown.map(maRow).join('')}${rest > 0 ? `<div class="ma-morewrap"><button type="button" class="btn sm" data-ma-more>나머지 ${rest}건 보기</button></div>` : ''}`;
+  return `${MA_HEAD}${moreList('ma', list, (x) => maRow(x), { sig: JSON.stringify(maS.f) })}`; // 100건씩(app.js moreList), 조건이 바뀌면 처음부터
 }
 
 /* ---------- 요약 줄·중앙값 줄·필터 ---------- */
@@ -266,7 +264,7 @@ async function maDownload(btn) {
 
 function maBind(root) {
   const segOn = (sel, on) => root.querySelectorAll(sel).forEach((b) => { b.classList.toggle('on', b === on); b.setAttribute('aria-pressed', b === on); });
-  const refilter = () => { maS.more = false; maDraw(); };
+  const refilter = () => { maDraw(); };
   root.addEventListener('click', (ev) => {
     const t = ev.target;
     const kb = t.closest('[data-ma-kind]'); if (kb) { maS.f.kind = kb.dataset.maKind; segOn('[data-ma-kind]', kb); refilter(); return; }
@@ -276,7 +274,6 @@ function maBind(root) {
       return;
     }
     const xb = t.closest('#ma-xlsx'); if (xb) { maDownload(xb); return; }
-    if (t.closest('[data-ma-more]')) { maS.more = true; maDraw(); return; }
     if (t.closest('a, input, select, .ipo-detail')) return;
     const row = t.closest('.ma-row[data-id]'); if (!row) return;
     const id = row.dataset.id, x = maS.data?.deals.find((d) => d.id === id); if (!x) return;

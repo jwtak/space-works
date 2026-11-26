@@ -916,3 +916,9 @@ body { word-break: keep-all; overflow-wrap: anywhere; }
 .fl-ic.etc { font-size: 9px; }
 .fl-ic.sm { width: 20px; height: 20px; border-radius: var(--r-xs); font-size: 11px; line-height: 1; }
 .fl-ic.sm:is(.pdf, .img, .zip, .etc) { font-size: 7px; letter-spacing: 0; }
+/* 긴 목록 더 보기(app.js moreList). 표 안이면 가로 스크롤해도 왼쪽에 붙어 있게 */
+.more-wrap { display: flex; align-items: center; gap: 12px; padding: 16px 24px; border-top: 1px solid var(--row); }
+.more-rest { color: var(--text3); font-size: var(--fs-sm); font-variant-numeric: tabular-nums; }
+.more-tr > td { padding: 0 !important; background: var(--card); }
+.more-tr .more-wrap { position: sticky; left: 0; width: max-content; border-top: 0; }
+@media (max-width: 760px) { .more-wrap { padding: 16px; } }

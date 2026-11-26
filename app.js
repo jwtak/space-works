@@ -905,6 +905,44 @@ let mfQ = 0;
 new MutationObserver(() => { if (!mfQ) mfQ = requestAnimationFrame(() => { mfQ = 0; mfApply(); kbFix(PAGE); }); }).observe(PAGE, { childList: true, subtree: true });
 PAGE.addEventListener('change', () => requestAnimationFrame(mfApply));
 
+/* 긴 목록은 100건씩(2026-11-26 사용자 「한 번에 많이 띄우려니까 처음에 렉 걸리는 듯」). 모양 기준은 딜소싱 › 상장 준비.
+   moreList(key, items, row, { sig, focus, isRow, tr, n }) → 처음 n건(기본 100) HTML + 더 보기 줄.
+   - items는 검색, 필터, 정렬을 다 거친 전체 목록. 건수 표시는 부르는 쪽이 전체로
+   - sig(검색어, 필터, 정렬 등)가 바뀌면 다시 100건부터. 같으면(상태 바꾸기, 펼치기로 다시 그림) 펼쳐 둔 수 그대로
+   - focus(x => bool): 보기 링크로 온 줄이 뒤쪽이면 그 줄까지 펼침. isRow: 묶음 머리 같은 줄은 남은 건수에서 뺌
+   - tr: 표 안이면 열 수(더 보기 줄을 <tr><td colspan>으로, 가로 스크롤 표에서도 왼쪽에 붙어 있게)
+   더 보기를 누르면 다시 그리지 않고 다음 100건만 단추 앞에 붙이고 첫 줄로 포커스(아래 클릭 처리) */
+const MORE_N = 100, MORE = {};
+function moreList(key, items, row, o = {}) {
+  const m = MORE[key] ||= {}, sig = o.sig ?? '', step = o.n || MORE_N;
+  let n = m.sig === sig && m.n ? m.n : step;
+  if (o.focus) { const fi = items.findIndex(o.focus); if (fi >= n) n = Math.ceil((fi + 1) / step) * step; }
+  Object.assign(m, { sig, n, step, items, row, isRow: o.isRow || null, tr: o.tr || 0 });
+  return items.slice(0, n).map((x, i) => row(x, i)).join('') + moreBar(key);
+}
+function moreBar(key) {
+  const m = MORE[key], rest = m.items.slice(m.n).filter((x) => !m.isRow || m.isRow(x)).length;
+  if (rest <= 0) return '';
+  const b = `<button type="button" class="btn sm" data-more-k="${esc(key)}">${rest > m.step ? `${m.step}건 더 보기` : `나머지 ${rest.toLocaleString('ko-KR')}건 보기`}</button>${rest > m.step ? `<span class="more-rest">남은 ${rest.toLocaleString('ko-KR')}건</span>` : ''}`;
+  return m.tr ? `<tr class="more-tr" data-more-wrap><td colspan="${m.tr}"><div class="more-wrap">${b}</div></td></tr>` : `<div class="more-wrap" data-more-wrap>${b}</div>`;
+}
+const moreReset = (key) => { delete MORE[key]; };
+document.addEventListener('click', (e) => {
+  const b = e.target.closest?.('[data-more-k]'); if (!b) return;
+  const key = b.dataset.moreK, m = MORE[key], wrap = b.closest('[data-more-wrap]'); if (!m || !wrap) return;
+  e.stopPropagation(); // 화면의 줄 클릭 처리(펼치기 등)로 가지 않게
+  const n0 = m.n, add = m.items.slice(n0, n0 + m.step), prev = wrap.previousElementSibling, box = wrap.parentElement;
+  m.n = n0 + add.length;
+  wrap.insertAdjacentHTML('beforebegin', add.map((x, i) => m.row(x, n0 + i)).join(''));
+  const first = prev ? prev.nextElementSibling : box.firstElementChild;
+  const bar = moreBar(key); if (bar) wrap.outerHTML = bar; else wrap.remove();
+  if (first && first !== wrap) {
+    const f = first.matches('[tabindex], button, a[href]') ? first : first.querySelector('[tabindex]:not([tabindex="-1"]), button, a[href]');
+    if (f) f.focus({ preventScroll: true }); else { first.tabIndex = -1; first.focus({ preventScroll: true }); }
+  }
+  document.dispatchEvent(new CustomEvent('more:add', { detail: { key, box } })); // 붙인 줄에 따로 할 일이 있는 화면용
+}, true);
+
 function segFit(seg) {
   const on = seg?.querySelector('.on'); if (!on) return;
   const fit = () => { seg.classList.toggle('ovf', seg.scrollWidth > seg.clientWidth + 1); if (seg.scrollWidth > seg.clientWidth) seg.scrollLeft += on.getBoundingClientRect().left - seg.getBoundingClientRect().left - (seg.clientWidth - on.offsetWidth) / 2; };

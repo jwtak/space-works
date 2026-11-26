@@ -16,7 +16,7 @@ const vcS = (() => {
   const v = viewGet('vc', null) || {};
   const s = (k) => (typeof v[k] === 'string' ? v[k] : '');
   return {
-    data: null, err: '', at: 0, loading: null, host: null, more: false,
+    data: null, err: '', at: 0, loading: null, host: null,
     f: { mon: s('mon'), mode: v.mode === 'mon' ? 'mon' : 'cum', major: s('major'), minor: s('minor'), stage: s('stage'), region: s('region'), q: s('q') },
     sort: VC_SORTS.includes(v.sort) ? v.sort : 'amt', dir: v.dir === 'asc' ? 'asc' : 'desc',
     open: new Set(Array.isArray(v.open) ? v.open.filter((x) => typeof x === 'string') : []), hmore: new Set(),
@@ -244,12 +244,11 @@ function vcTable(rows) {
   if (!rows.length) return '<div class="empty">조건에 맞는 투자사가 없습니다.</div>';
   const k = vcS.sort, sg = vcS.dir === 'asc' ? 1 : -1;
   const list = rows.slice().sort((a, b) => (k === 'name' ? a.v.name.localeCompare(b.v.name, 'ko') : k === 'cnt' ? a.p[0] - b.p[0] || a.p[1] - b.p[1] : a.p[1] - b.p[1]) * sg);
-  const shown = vcS.more ? list : list.slice(0, VC_PAGE), rest = list.length - shown.length;
   const th = (key, label, cls = '') => `<th class="${cls}" aria-sort="${k === key ? (vcS.dir === 'asc' ? 'ascending' : 'descending') : 'none'}"><button type="button" class="vc-sort${k === key ? ' on' : ''}" data-vc-sort="${key}">${label}<span class="vc-dir" aria-hidden="true">${k === key ? (vcS.dir === 'asc' ? '▴' : '▾') : ''}</span></button></th>`;
-  return `<div class="mk-scroll"><table class="mk-tbl vc-tbl"><thead><tr>${th('name', '투자사', 'st')}${th('amt', '투자금액')}${th('cnt', '건수')}<th class="vc-c-main">주력 업종</th></tr></thead><tbody>${shown.map((r, i) => {
+  return `<div class="mk-scroll"><table class="mk-tbl vc-tbl"><thead><tr>${th('name', '투자사', 'st')}${th('amt', '투자금액')}${th('cnt', '건수')}<th class="vc-c-main">주력 업종</th></tr></thead><tbody>${moreList('vc', list, (r, i) => {
     const x = vcMain(r.rec), open = vcS.open.has(r.v.id), hid = `vc-hold-${i}`;
     return `<tr class="vc-row${open ? ' open' : ''}" data-vc-row="${esc(r.v.id)}"><td class="st"><button type="button" class="vc-open" aria-expanded="${open}"${open ? ` aria-controls="${hid}"` : ''} title="보유 회사(공시) ${open ? '접기' : '펼치기'}"><span class="vc-chev" aria-hidden="true">${ico('right', 'sm')}</span><b>${esc(r.v.name)}</b></button>${x ? `<small class="vc-alt">${esc(x.mn)} ${x.share}</small>` : ''}</td><td class="strong">${vcAmt(r.p[1])}억</td><td>${r.p[0].toLocaleString('ko-KR')}건</td><td class="vc-c-main">${x ? `${esc(x.mn)}<small>${esc(x.mj)} ${x.share}</small>` : '<span class="mk-dim">-</span>'}</td></tr>${open ? `<tr class="vc-drow" id="${hid}"><td class="vc-dcell" colspan="4">${vcHold(r.v)}</td></tr>` : ''}`;
-  }).join('')}</tbody></table></div>${rest > 0 ? `<div class="vc-morewrap"><button type="button" class="btn sm" data-vc-more>나머지 ${rest.toLocaleString('ko-KR')}곳 보기</button></div>` : ''}`;
+  }, { tr: 4, n: VC_PAGE, sig: JSON.stringify([vcS.f, k, vcS.dir]) })}</tbody></table></div>`; // 20곳씩(app.js moreList), 조건이나 정렬이 바뀌면 처음부터
 }
 
 /* ---------- 보유 회사(공시) ---------- */
@@ -347,7 +346,7 @@ function vcDraw(filter) {
 }
 
 function vcBind(root) {
-  const refilter = (filter) => { vcS.more = false; vcDraw(filter); };
+  const refilter = (filter) => { vcDraw(filter); };
   root.addEventListener('click', (ev) => {
     const t = ev.target, f = vcS.f;
     const mb = t.closest('[data-vc-mode]'); if (mb) { if (!mb.disabled) { f.mode = mb.dataset.vcMode; refilter(); } return; }
@@ -362,7 +361,6 @@ function vcBind(root) {
     }
     const sb = t.closest('[data-vc-sort]');
     if (sb) { const k = sb.dataset.vcSort; if (vcS.sort === k) vcS.dir = vcS.dir === 'asc' ? 'desc' : 'asc'; else { vcS.sort = k; vcS.dir = k === 'name' ? 'asc' : 'desc'; } vcDraw(); return; }
-    if (t.closest('[data-vc-more]')) { vcS.more = true; vcDraw(); return; }
     if (t.closest('#vc-reset')) { Object.assign(f, { major: '', minor: '', stage: '', region: '', q: '' }); refilter(true); return; }
     if (t.closest('#vc-ref')) { vcLoad(true).then(() => vcDraw(true)).catch((e) => toast(e.message)); return; }
     const hm = t.closest('[data-vc-hmore]'); if (hm) { vcS.hmore.add(hm.dataset.vcHmore); vcDraw(); return; }

@@ -29,12 +29,10 @@
 .sf-tbl td.st .sf-co b { font-weight: 500; color: var(--ink); }
 .sf-co:hover b { color: var(--primary); text-decoration: underline; }
 .sf-tbl tr.sf-more td { padding-top: 0; padding-bottom: 0; }
-.sf-tbl .sf-more .va-more { margin: 0; padding-left: 20px; }
 
 @media (max-width: 760px) {
   .sf-tbl { min-width: 824px; }
   .sf-tbl .st { width: 128px; }
   .sf-sort, .sf-h0 { height: 44px; }
   .sf-sort { white-space: normal; text-align: left; }
-  .sf-tbl .sf-more .va-more { height: 44px; }
 }

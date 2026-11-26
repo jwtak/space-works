@@ -346,6 +346,7 @@ async function fsIrOpen(f) {
 }
 
 /* 제품 이미지: 팀 파일함에서 받아 blob 주소로(한 번 받은 것은 다시 받지 않음) */
+document.addEventListener('more:add', (e) => { if (e.detail.key === 'facts') fsPaintImgs(e.detail.box); }); // 더 보기로 붙인 줄의 그림
 function fsPaintImgs(root) {
   root.querySelectorAll('[data-fs-img]').forEach((el) => {
     const f = el.dataset.fsImg; if (el.firstChild) return;
@@ -393,7 +394,7 @@ function fsBody() {
   const all = fsListItems();
   const [a, skip] = typeof fvSplit === 'function' ? fvSplit(all, (x) => fsRefs(x).find((r) => fvSkip(r)) || fsRef(x)) : [all, []];
   if (!a.length && !skip.length) return fsAll().length ? '<div class="empty">조건에 맞는 회사가 없습니다.</div>' : '<div class="empty">아직 올라간 팩트시트가 없습니다.</div>';
-  return `<div class="ipo-head fs-cols"><div>No.</div><div>회사</div><div class="fs-c-by">요청</div><div class="fs-c-rev">최근 매출</div><div class="fs-c-opm">OPM</div><div class="fs-c-grow">매출 성장</div><div class="fs-c-stage">현재 투자 단계</div><div class="fs-c-total">누적 투자</div><div></div></div>${a.map((x, i) => fsRow(x, i)).join('')}${typeof fvSkipTail === 'function' ? fvSkipTail(skip, 'facts', (x, i) => fsRow(x, a.length + i)) : ''}`;
+  return `<div class="ipo-head fs-cols"><div>No.</div><div>회사</div><div class="fs-c-by">요청</div><div class="fs-c-rev">최근 매출</div><div class="fs-c-opm">OPM</div><div class="fs-c-grow">매출 성장</div><div class="fs-c-stage">현재 투자 단계</div><div class="fs-c-total">누적 투자</div><div></div></div>${moreList('facts', a, (x, i) => fsRow(x, i), { sig: JSON.stringify([fsS.q, fsS.fl, fsS.sort, fsS.tab]), focus: fsS.focus ? (x) => fsRef(x) === fsS.focus || x.key === fsS.focus : null })}${typeof fvSkipTail === 'function' ? fvSkipTail(skip, 'facts', (x, i) => fsRow(x, a.length + i)) : ''}`;
 }
 // listOnly: 슬라이더를 끄는 동안은 목록·요약만(필터 줄을 다시 그리면 끌기가 끊긴다)
 function fsDraw(listOnly) {
