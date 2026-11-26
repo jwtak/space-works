@@ -115,3 +115,5 @@
   .pr-fold { margin: 0; padding: 12px 16px; border: 0; border-radius: 0; }
   .pr-fold + .card { border-top: 8px solid var(--row); }
 }
+/* 완료 숨기기 켠 상태 */
+.pr-hide[aria-pressed="true"] { border-color: var(--primary); background: var(--primary-soft); color: var(--primary); }
