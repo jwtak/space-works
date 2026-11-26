@@ -3,7 +3,7 @@
    { lists: { corp|fss: { title, event, date, src, folder, personFolders?, people[], roles{}, owners[],
        sections[{ title, kind: 'people'|'company', note, items[{ id, title, detail, due, na?[사람], owner? }] }] } },
      state: { <항목 id>: 사람 서류면 { <사람>: { s: 'todo'|'done'|'na', by, at } }, 회사 서류면 { owner, s, by, at } },
-     memos: { <항목 id>: { t, by, at } } }  — 서류 줄마다 메모 하나(누구나 쓰고 고친다, 비우면 지움)
+     memos: { <항목 id>: { t, by, at } } }  — 서류 줄마다 메모 하나(누구나 쓰고 고친다, 비우면 지움). 섹션의 folderLabel은 폴더 단추 글자(없으면 '회사 서류 폴더')
    날짜별 보기(2026-11-23, 법인 설립): L.byDate가 true면 '날짜별'과 '서류별'을 오간다(마지막 보기는 기기별 localStorage, 처음은 날짜별).
      자료는 그대로 섹션 하나이고, 날짜별은 항목의 due와 when('오전', '10시', '이후' 같은 때 표시)으로 묶어 그린다. due가 없으면 맨 끝 묶음.
      사람 서류 섹션 항목은 날짜 묶음 안에서도 사람마다 칸. 다 끝난 지난 날짜는 '지난 일정'으로 접고(펼침은 viewGet), 오늘 묶음은 파란 테두리, 오늘 뒤 첫 날짜는 '다음'.
@@ -206,7 +206,7 @@ function prDraw() {
       </section>`;
     }
     return `<section class="card pr-sec">
-      <div class="card-head"><h2>${esc(sec.title)}</h2>${sec.note ? `<span class="meta">${esc(sec.note)}</span>` : ''}${sec.folder ? `<a class="btn sm act" href="${esc(prFolder(sec.folder))}">${ico('folder', 'sm')}<span>회사 서류 폴더</span></a>` : ''}</div>
+      <div class="card-head"><h2>${esc(sec.title)}</h2>${sec.note ? `<span class="meta">${esc(sec.note)}</span>` : ''}${sec.folder ? `<a class="btn sm act" href="${esc(prFolder(sec.folder))}">${ico('folder', 'sm')}<span>${esc(sec.folderLabel || '회사 서류 폴더')}</span></a>` : ''}</div>
       <ul class="pr-co">${items.map((it) => prCoLi(L, it, me)).join('')}</ul>
     </section>`;
   }).join('');
