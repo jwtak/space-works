@@ -1,6 +1,6 @@
 /* 투자업무 › 시장동향 — 손PB 시장 동향 화면(MarketTrendScreen.jsx)을 웍스용으로 옮긴 것 + 공모주 통계.
    데이터: OneDrive data/market.json(00. 대시보드\market\collect_market.py, 평일 09:03), data/ipo_stats.json(같은 폴더 ipo_stats.py).
-   탭: #market = 시장 지표, #market/ipo = 공모주 통계, #market/pe = PE 동향(딜레이더 yesim·bids.json 집계 + 공표 통계), #market/ma = M&A 거래(ma.js), #market/vc = 벤처투자(vc.js). 차트는 인라인 SVG(라이브러리 없음).
+   탭: #market = 시장 지표, #market/ipo = 공모주 통계, #market/pe = PE 동향(딜레이더 yesim·bids.json 집계 + 공표 통계), #market/ma = M&A 거래(ma.js), #market/vc = 벤처투자(vc.js), #market/policy = 정책자금(policy.js). 차트는 인라인 SVG(라이브러리 없음).
    국내 관행대로 상승은 빨강, 하락은 파랑. */
 const MK_TTL = 600000;
 const mkS = { market: null, ipo: null, yesim: null, bids: null, at: 0, loading: null, tab: 'market', dd: 10, rate: 3, stock: 'KOSPI', sector: 'us', more: false, ipoMk: 'ALL', ipoQ: '', ipoAll: false, ipoVal: null, valQ: '', valAll: false, mezz: null };
@@ -705,7 +705,7 @@ TAB_INFO['market/pe'] = mkPeInfo();
 
 // ---------- 화면 ----------
 function mkDraw() {
-  const host = $('#mk-host'); if (!host || mkS.tab === 'ma' || mkS.tab === 'vc') return; // M&A 거래·벤처투자 탭으로 옮긴 뒤 늦게 끝난 mkLoad가 덮어쓰지 않게
+  const host = $('#mk-host'); if (!host || ['ma', 'vc', 'policy'].includes(mkS.tab)) return; // M&A 거래·벤처투자 탭으로 옮긴 뒤 늦게 끝난 mkLoad가 덮어쓰지 않게
   viewSet('mk', Object.fromEntries(MK_VIEW.map((k) => [k, mkS[k]])));
   TAB_INFO['market/pe'] = mkPeInfo();
   host.innerHTML = mkS.tab === 'ipo' ? mkIpoHTML() : mkS.tab === 'pe' ? mkPeHTML() : mkMarketHTML();
@@ -725,9 +725,9 @@ function mkTblW(root) {
   root.querySelectorAll('.mk-tbl').forEach((t) => { const n = t.tHead.rows[0].cells.length - 1; t.style.minWidth = t.classList.contains('mz-mkt') ? '' : mob ? (t.classList.contains('mk-ref') ? '' : `${104 + n * 92}px`) : `${150 + n * 104}px`; }); // 첫 열 150px + 나머지 같은 폭, 좁으면 카드 안에서 가로 스크롤
 }
 async function renderMarket() {
-  const r = route(); mkS.tab = r === 'market/ipo' ? 'ipo' : r === 'market/pe' ? 'pe' : r === 'market/ma' && typeof renderMa === 'function' ? 'ma' : r === 'market/vc' && typeof renderVc === 'function' ? 'vc' : 'market';
-  const tabs = [['market', '시장 지표', 'chart'], ['ipo', '공모주 통계', 'spark'], ['pe', 'PE 동향', 'flag'], ...(typeof renderMa === 'function' ? [['ma', 'M&A 거래', 'link']] : []), ...(typeof renderVc === 'function' ? [['vc', '벤처투자', 'box']] : [])];
-  PAGE.innerHTML = `<div class="page-head"><h1>시장동향</h1><span class="mk-hr"><span class="mk-upd" id="mk-upd"></span>${mkS.tab === 'ma' || mkS.tab === 'vc' ? '' : infoBtn(mkS.tab === 'market' ? 'market' : `market/${mkS.tab}`)}</span></div>
+  const r = route(); mkS.tab = r === 'market/ipo' ? 'ipo' : r === 'market/pe' ? 'pe' : r === 'market/ma' && typeof renderMa === 'function' ? 'ma' : r === 'market/vc' && typeof renderVc === 'function' ? 'vc' : r === 'market/policy' && typeof renderPolicy === 'function' ? 'policy' : 'market';
+  const tabs = [['market', '시장 지표', 'chart'], ['ipo', '공모주 통계', 'spark'], ['pe', 'PE 동향', 'flag'], ...(typeof renderMa === 'function' ? [['ma', 'M&A 거래', 'link']] : []), ...(typeof renderVc === 'function' ? [['vc', '벤처투자', 'box']] : []), ...(typeof renderPolicy === 'function' ? [['policy', '정책자금', 'wallet']] : [])];
+  PAGE.innerHTML = `<div class="page-head"><h1>시장동향</h1><span class="mk-hr"><span class="mk-upd" id="mk-upd"></span>${['ma', 'vc', 'policy'].includes(mkS.tab) ? '' : infoBtn(mkS.tab === 'market' ? 'market' : `market/${mkS.tab}`)}</span></div>
     <div class="deal-seg mk-tabs" role="tablist">${tabs.map(([k, t, i]) => `<button type="button" role="tab" data-mt="${k}" aria-selected="${mkS.tab === k}" class="${mkS.tab === k ? 'on' : ''}">${ico(i)}${t}</button>`).join('')}</div>
     <div id="mk-host" class="mk"><div class="card"><div class="empty">불러오는 중…</div></div></div>`;
   PAGE.querySelectorAll('[data-mt]').forEach((b) => b.addEventListener('click', () => { if (mkS.tab !== b.dataset.mt) location.hash = b.dataset.mt === 'market' ? '#market' : `#market/${b.dataset.mt}`; }));
@@ -740,6 +740,7 @@ async function renderMarket() {
   });
   if (mkS.tab === 'ma') { renderMa($('#mk-host')); return; } // M&A 거래는 ma.js가 자기 자료(ma.json)만 읽는다
   if (mkS.tab === 'vc') { renderVc($('#mk-host')); return; } // 벤처투자는 vc.js가 자기 자료(vc_trend.json)만 읽는다
+  if (mkS.tab === 'policy') { renderPolicy($('#mk-host')); return; } // 정책자금은 policy.js가 자기 자료 세 개만 읽는다
   try { await mkLoad(); } catch (e) { toast(e.message); }
   const u = mkS.market?.updated_at || mkS.market?.meta?.updated_at, t = u ? new Date(u) : null;
   if (t && !isNaN(t)) $('#mk-upd').textContent = `${t.getMonth() + 1}/${t.getDate()} ${pad(t.getHours())}:${pad(t.getMinutes())} 업데이트`;

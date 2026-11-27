@@ -47,6 +47,7 @@ const CFG = {
       'data/consumer.json': '012DPUXZTOA7RBJFZL35FII6EUQITISIKX', // 딜소싱 › 타깃 › 소비재(2026-11-16)
       'data/deeptech.json': '012DPUXZWNZKHMU42RDNC2CULHR547V3PI', // 딜소싱 › 타깃 › 딥테크(2026-11-16)
       'data/vc_trend.json': '012DPUXZVERNQZAJLLA5G3RWOAT7QVAI3O', // 시장동향 › 벤처투자(DIVA, 2026-11-17)
+      'data/policy_fund.json': '012DPUXZSFBWNCMHTJSNG2ET3BTMYHNRZP', 'data/fund_maturity.json': '012DPUXZQAF5SAVTDGO5HKP4NAD4Y2HVVD', 'data/kosdaq_factcheck.json': '012DPUXZWZ6JLGHPBZUBF2P6DOUXFHIFKC', // 시장동향 › 정책자금(2026-11-27)
       'data/si_targets.json': '012DPUXZXFEUXZ22JC3NG3DFKAUMJMJZPE', // 딜소싱 › 타깃 › SI 타깃(2026-11-18)
       'data/fund_calls.json': '012DPUXZSOSPROT2AYJ5HYWND6GKAEXVQQ', // 딜소싱 › 출자사업(2026-11-25)
       'data/fund_hist_marks.json': '012DPUXZQ6PFITLGLWNJE3CGKPJZZLTWT7', // 출자사업 선정 이력 확인·고친 값(세 분 편집 공유, 2026-11-25)

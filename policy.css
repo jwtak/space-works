@@ -1,0 +1,117 @@
+/* 시장동향 › 정책자금 (policy.js) — 카드·표·범례는 market.css(mk-*), 요약 줄은 ipo.css를 그대로 쓰고 여기엔 새로 필요한 것만.
+   글자는 본문 15, 보조 13 이상. 2027～2028 열은 --t-amber로 칠한다. */
+
+.pol-page { display: flex; flex-direction: column; }
+.pol-body { display: flex; flex-direction: column; gap: 16px; }
+.pol-ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.pol-page .mk-seg button { height: 28px; font-size: var(--fs-md); }
+.pol-page .mk-hd, .pol-page .mk-legend { font-size: var(--fs-md); }
+.pol-sub { margin: 20px 0 8px; font-size: var(--fs-base); font-weight: 600; color: var(--ink); }
+.mk-body > .pol-sub:first-child, .pol-grp:first-child > .pol-sub:first-child { margin-top: 0; }
+.pol-a { color: var(--primary); text-decoration: none; }
+.pol-a:hover { text-decoration: underline; }
+.pol-srcs { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; font-size: var(--fs-sm); }
+.pol-srcs > span { color: var(--text3); }
+
+/* 팩트체크: 요약 + 주장마다 판정 배지 */
+.pol-sum { margin: 0 0 16px; font-size: var(--fs-lg); line-height: 26px; font-weight: 600; color: var(--ink); }
+.pol-cls { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.pol-cl { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 12px; padding: 12px 0; border-top: 1px solid var(--row); }
+.pol-cl:first-child { border-top: 0; padding-top: 0; }
+.pol-cb b { display: block; font-size: var(--fs-base); line-height: 22px; font-weight: 600; color: var(--ink); }
+.pol-cb p { margin: 4px 0 0; font-size: var(--fs-md); line-height: 22px; color: var(--text2); }
+.pol-j { display: inline-flex; align-items: center; justify-content: center; height: 24px; padding: 0 8px; border-radius: var(--r-xs); font-size: var(--fs-sm); font-weight: 600; white-space: nowrap; justify-self: start; }
+.pol-j.j-ok { background: var(--t-green); color: var(--t-green-c); }
+.pol-j.j-part { background: var(--t-amber); color: var(--t-amber-c); }
+.pol-j.j-over { background: var(--t-red); color: var(--t-red-c); }
+.pol-j.j-na { background: var(--fill); color: var(--text3); }
+
+/* 정책자금 연도별: 줄 = 항목, 열 = 연도. 실적 진하게, 예산 옅게, 계획 빗금 */
+.pol-grp + .pol-grp { margin-top: 8px; }
+.pol-sc { display: flex; flex-direction: column; min-width: calc(200px + var(--n) * 56px); }
+.pol-sr { display: grid; grid-template-columns: 200px repeat(var(--n), minmax(56px, 1fr)); align-items: stretch; border-bottom: 1px solid var(--row); }
+.pol-sr.pol-yr { border-bottom: 0; }
+.pol-sn { display: flex; align-items: flex-end; padding: 0 12px 8px 0; overflow: hidden; word-break: keep-all; font-size: var(--fs-md); line-height: 20px; font-weight: 600; color: var(--ink); }
+.pol-sn { position: sticky; left: 0; z-index: 1; background: var(--card); }
+.pol-sn:empty { padding: 0; }
+.pol-c { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; height: var(--h, 92px); padding: 4px 4px 0; }
+.pol-c.hot { background: var(--t-amber); }
+.pol-c .v { font-size: var(--fs-sm); line-height: 18px; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; text-decoration: none; }
+.pol-c .v.t-bud, .pol-c .v.t-plan { color: var(--text2); font-weight: 500; }
+.pol-c a.v:hover { color: var(--primary); text-decoration: underline; }
+.pol-c .bars { display: flex; align-items: flex-end; justify-content: center; gap: 2px; width: 100%; margin-top: 2px; }
+.pol-c i { display: block; flex: 1 1 0; max-width: 28px; min-height: 2px; border-radius: var(--r-xs) var(--r-xs) 0 0; }
+.pol-yr .pol-c { height: auto; padding: 4px 4px 0; font-size: var(--fs-sm); color: var(--text3); font-variant-numeric: tabular-nums; }
+.pol-yr .pol-c.hot { color: var(--t-amber-c); font-weight: 600; border-radius: 0 0 var(--r-xs) var(--r-xs); }
+.k-act { background: var(--primary); }
+.k-bud { background: var(--t-blue-i); }
+.k-plan { background: repeating-linear-gradient(135deg, var(--primary) 0 2px, var(--t-blue-i) 2px 6px); }
+.pol-lg i { width: 12px; height: 12px; border-radius: var(--r-xs); }
+.pol-more { margin-top: 12px; }
+.pol-tbl .pol-tv + .pol-tv { margin-top: 4px; }
+
+/* 과거 사례 출처 */
+.pol-notes { display: flex; flex-direction: column; gap: 4px; margin: 12px 0 0; padding: 0; list-style: none; font-size: var(--fs-sm); line-height: 20px; color: var(--text3); }
+.pol-notes li { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 12px; }
+.pol-notes b { font-weight: 600; color: var(--text2); }
+
+/* 주요 일정 */
+.pol-ev { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
+.pol-ev li { display: grid; grid-template-columns: 88px minmax(0, 1fr) auto; align-items: baseline; gap: 12px; padding: 8px 0; border-top: 1px solid var(--row); font-size: var(--fs-md); color: var(--text2); }
+.pol-ev li:first-child { border-top: 0; }
+.pol-ev .d { color: var(--text3); font-variant-numeric: tabular-nums; }
+.pol-ev small { max-width: 280px; font-size: var(--fs-sm); color: var(--text3); overflow-wrap: anywhere; }
+
+/* 표: market.css .mk-tbl 그대로, 긴 글자 칸만 줄바꿈 */
+.pol-tbl td small { font-size: var(--fs-sm); }
+.pol-tbl th.pol-hot { color: var(--t-amber-c); }
+.pol-tbl td.pol-wrap { white-space: normal; word-break: keep-all; line-height: 20px; }
+.pol-tbl td.st.pol-wrap b { white-space: normal; }
+
+/* 펀드 결성과 만기: 위 결성, 아래 만기 */
+.pol-mat { display: grid; grid-template-columns: 48px repeat(var(--n), minmax(48px, 1fr)); min-width: calc(48px + var(--n) * 52px); }
+.pol-ml { display: grid; grid-template-rows: 140px 28px 140px; font-size: var(--fs-sm); color: var(--text3); }
+.pol-ml span:first-child { align-self: end; padding-bottom: 8px; }
+.pol-ml span:last-child { grid-row: 3; padding-top: 8px; }
+.pol-mc { display: grid; grid-template-rows: 140px 28px 140px; padding: 0 4px; }
+.pol-mc.hot { background: var(--t-amber); border-radius: var(--r-xs); }
+.pol-mc .up, .pol-mc .dn { display: flex; flex-direction: column; align-items: center; min-height: 0; }
+.pol-mc .up { justify-content: flex-end; }
+.pol-mc .up > i:first-of-type { border-radius: var(--r-xs) var(--r-xs) 0 0; }
+.pol-mc .dn > i:last-of-type { border-radius: 0 0 var(--r-xs) var(--r-xs); }
+.pol-mc .up > .v { margin-bottom: 4px; }
+.pol-mc .dn > .v { margin-top: 4px; }
+.pol-mc i { display: block; width: 100%; max-width: 28px; flex: none; }
+.pol-mc .v { font-size: var(--fs-sm); font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pol-mc .dn .v { color: var(--text2); }
+.pol-mc .yr { display: flex; align-items: center; justify-content: center; border-top: 1px solid var(--line2); border-bottom: 1px solid var(--line2); font-size: var(--fs-sm); color: var(--text3); font-variant-numeric: tabular-nums; }
+.pol-mc.hot .yr { color: var(--t-amber-c); font-weight: 600; }
+.m-vc { background: var(--primary); }
+.m-ngf { background: var(--t-violet-c); }
+.m-pef { background: var(--t-green-c); }
+.m-etc { background: var(--line2); }
+.pol-mc .dn.part i { background-image: repeating-linear-gradient(135deg, var(--card) 0 3px, transparent 3px 6px); }
+.pol-part { font-size: var(--fs-sm); line-height: 16px; color: var(--text3); }
+.pol-basis { margin: 12px 0 0; font-size: var(--fs-md); line-height: 22px; color: var(--text2); }
+
+/* 확인 불가: 접힌 칸 */
+.pol-unk > summary { display: flex; align-items: center; gap: 8px; min-height: 60px; padding: 0 24px; cursor: pointer; list-style: none; }
+.pol-unk > summary::-webkit-details-marker { display: none; }
+.pol-unk > summary h2 { margin: 0; font-size: var(--fs-xl); line-height: 24px; font-weight: 600; }
+.pol-unk > summary .mk-dim { font-size: var(--fs-md); }
+.pol-chev { display: flex; color: var(--text3); transition: transform .15s ease; }
+.pol-unk[open] .pol-chev { transform: rotate(90deg); }
+.pol-unk > summary:focus-visible { outline: none; box-shadow: var(--focus-ring); border-radius: var(--r-lg); }
+.pol-unk .mk-body { padding-top: 0; }
+.pol-ul { margin: 0; padding-left: 20px; font-size: var(--fs-md); line-height: 24px; color: var(--text2); }
+
+@media (max-width: 760px) {
+  .pol-cl { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .pol-sc { min-width: calc(104px + var(--n) * 56px); }
+  .pol-sr { grid-template-columns: 104px repeat(var(--n), minmax(56px, 1fr)); }
+  .pol-sn { line-height: 18px; font-size: var(--fs-sm); }
+  .pol-ev li { grid-template-columns: 80px minmax(0, 1fr); }
+  .pol-ev small { grid-column: 2; max-width: none; }
+  .pol-unk > summary { padding: 0 16px; min-height: 52px; }
+  .pol-ctl { margin-left: 0; width: 100%; }
+}
