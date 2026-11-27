@@ -881,8 +881,8 @@ function mfApply() {
    - 탭 줄(role=tablist, .tabs)과 하나만 고르는 .seg 묶음: 고른 단추만 Tab으로 들어가고 ←→ Home End로 옮기며 바로 고름(kbTabs)
    - 이름 없는 입력 칸에 aria-label(바로 앞 for 없는 label 글자, 없으면 placeholder. kbName) */
 const KB_CLICK = 'li.click, tr.row, li[data-n], .it[data-item], .it2[data-item], .it[data-evid], .lnk, [data-v3-more], [data-edit]';
-const KB_TGL = ':is(.seg, .mk-seg, .rq-seg) > button:not([role])';
-const KB_TABS = '[role=tablist], .tabs, .seg, .mk-seg, .rq-seg';
+const KB_TGL = ':is(.seg, .mk-seg, .rq-seg, .mail-seg) > button:not([role])';
+const KB_TABS = '[role=tablist], .tabs, .seg, .mk-seg, .rq-seg, .mail-seg';
 const KB_IN = 'input:not([type=hidden]):not([type=file]), select, textarea';
 function kbFix(root) {
   root.querySelectorAll(KB_CLICK).forEach((el) => {

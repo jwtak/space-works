@@ -152,7 +152,7 @@ function sfChart(d, lv, named, me) {
     return `<button type="button" class="${cls}" data-sf-cg="${esc(id)}" aria-pressed="${on}" title="${esc(`${sfName(g.name)} ${lab} ${sfPct(v)}, ${vaNum(g.n)}곳`)}"><span class="nm">${esc(sfName(g.name))}</span>`
       + `<span class="bar"><b style="left:${z.toFixed(2)}%"></b><i class="${v < 0 ? 'neg' : ''}" style="left:${Math.min(z, p).toFixed(2)}%;width:${Math.abs(p - z).toFixed(2)}%"></i></span><em>${sfPct(v)}</em><small>${vaNum(g.n)}곳</small></button>`;
   };
-  const bars = `<div class="sf-bars">${val(allG) != null ? bar(allG, true) : ''}${shown.map((g) => bar(g, false)).join('')}${keep ? bar(keep, false) : ''}${sfGMore(ranked.length - shown.length)}</div>`;
+  const bars = `<div class="sf-bars" role="group" aria-label="${esc(`업종별 ${lab}`)}">${val(allG) != null ? bar(allG, true) : ''}${shown.map((g) => bar(g, false)).join('')}${keep ? bar(keep, false) : ''}${sfGMore(ranked.length - shown.length)}</div>`;
   const full = vaCw(true), two = full >= 840, W = two ? Math.floor((full - 32) / 2) : full;
   const cgG = cg === SF_ALL_ID ? allG : ranked.find((g) => sfGid(g) === cg);
   return `<div class="sf-ch${two ? ' two' : ''}">${bars}<div class="sf-scbox">${sfScatter(d, lv, cgG, cg === SF_ALL_ID, k, lab, val(cgG), me, W)}</div></div>`;

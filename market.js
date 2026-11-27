@@ -64,7 +64,7 @@ const mkDate = (t, day = true) => { const d = new Date(t); return `${d.getUTCFul
 
 /* series: [{name, color, freq, data:[{t,v}]}], mode 'line' | 'area'(낙폭: 0이 수면). 그린 뒤 마우스를 올리면 그 시점 값이 뜬다 */
 const MK_CHARTS = [];
-function mkChart(series, { mode = 'line', h = 160, fmt = (v) => mkNum(v, 2), marker, zero = false } = {}) { // zero: 값이 모두 0 이상이면 아래 축을 0에서 자른다(벤처투자 누적 추이)
+function mkChart(series, { mode = 'line', h = 160, fmt = (v) => mkNum(v, 2), marker, zero = false, title = '' } = {}) { // zero: 값이 모두 0 이상이면 아래 축을 0에서 자른다(벤처투자 누적 추이)
   const all = series.flatMap((s) => s.data); if (!all.length) return '';
   const t0 = Math.min(...all.map((p) => p.t)), t1 = Math.max(...all.map((p) => p.t));
   let lo, hi, step;
@@ -82,7 +82,10 @@ function mkChart(series, { mode = 'line', h = 160, fmt = (v) => mkNum(v, 2), mar
   const dots = series.map((s) => { const l = s.data[s.data.length - 1]; return `<i class="dot" style="left:${(x(l.t) / W) * 100}%;top:${(y(l.v) / H) * 100}%;background:${s.color}"></i>`; }).join('');
   const mk = marker && marker.t >= t0 && marker.t <= t1 ? `<div class="mk-mark" style="left:${(x(marker.t) / W) * 100}%"><span class="${x(marker.t) / W > 0.65 ? 'r' : ''}">${esc(marker.label)}</span></div>` : '';
   const xt = mkTicks(t0, t1).map((k) => `<span style="left:${(x(k.t) / W) * 100}%">${k.l}</span>`).join('');
-  return `<div class="mk-chart" data-chart="${id}"><div class="plot" style="height:${h}px"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${gl}${lines}</svg>${ylab}${mk}${dots}<div class="hv" hidden></div><div class="tip" hidden></div></div><div class="xt">${xt}</div></div>`;
+  // 화면낭독기용 차트 이름(화면 글자는 그대로): 무엇의 추이인지, 기간, 마지막 값
+  const day = !series.every((s) => s.freq === 'M'), last = series.map((s) => `${s.name} ${fmt(s.data[s.data.length - 1].v)}`).join(', ');
+  const aria = `${title || series.map((s) => s.name).join(', ')} ${mode === 'area' ? '고점 대비 낙폭' : '추이'}, ${mkDate(t0, day)}부터 ${mkDate(t1, day)}까지. 마지막 ${last}${marker ? `. 최저 ${marker.label}` : ''}`;
+  return `<div class="mk-chart" data-chart="${id}" role="img" aria-label="${esc(aria)}"><div class="plot" style="height:${h}px"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${gl}${lines}</svg>${ylab}${mk}${dots}<div class="hv" hidden></div><div class="tip" hidden></div></div><div class="xt">${xt}</div></div>`;
 }
 function mkChartHover(root) {
   root.querySelectorAll('.mk-chart').forEach((el) => {
@@ -134,9 +137,9 @@ function mkRates(d) {
   const us = Object.entries(d.us_bonds || {}).filter(([, v]) => v?.history).map(([l, v]) => ({ name: l, color: MK_US_COLORS[l] || '#2563EB', freq: 'W', data: mkWindow(v.history, y), last: v.yield })).filter((s) => s.data.length);
   const kr = Object.entries(d.kr_rates?.history || {}).map(([l, h]) => ({ name: l, color: MK_KR_COLORS[l] || '#2563EB', freq: 'D', data: mkWindow(h, y), last: h?.values?.[h.values.length - 1] })).filter((s) => s.data.length);
   const fx = d.fx?.USDKRW, fxd = mkWindow(fx?.history, y);
-  if (us.length) out.push(`<div class="mk-card"><div class="mk-card-h"><b>미국 국채 수익률</b><span class="mk-dim">${esc(d.us_bonds[us[0].name]?.date || '')}</span></div>${mkChart(us, { fmt: (v) => `${mkNum(v, 1)}%` })}${mkLegend(us.map((s) => ({ name: s.name, color: s.color, value: `${mkNum(s.last, 3)}%` })))}</div>`);
-  if (kr.length) out.push(`<div class="mk-card"><div class="mk-card-h"><b>국내 시장금리</b><span class="mk-dim">${y == null || y > 3 ? '최근 3년' : esc(d.kr_rates.date || '')}</span></div>${mkChart(kr, { fmt: (v) => `${mkNum(v, 2)}%` })}${mkLegend(kr.map((s) => ({ name: s.name, color: s.color, value: `${mkNum(s.last, 2)}%` })))}</div>`);
-  if (fxd.length) out.push(`<div class="mk-card"><div class="mk-card-h"><b>원달러 환율</b><span class="mk-dim">${esc(fx.date || '')}</span></div>${mkChart([{ name: 'USD/KRW', color: '#2563EB', freq: 'W', data: fxd }], { fmt: (v) => mkNum(v, 0) })}
+  if (us.length) out.push(`<div class="mk-card"><div class="mk-card-h"><b>미국 국채 수익률</b><span class="mk-dim">${esc(d.us_bonds[us[0].name]?.date || '')}</span></div>${mkChart(us, { fmt: (v) => `${mkNum(v, 1)}%`, title: '미국 국채 수익률' })}${mkLegend(us.map((s) => ({ name: s.name, color: s.color, value: `${mkNum(s.last, 3)}%` })))}</div>`);
+  if (kr.length) out.push(`<div class="mk-card"><div class="mk-card-h"><b>국내 시장금리</b><span class="mk-dim">${y == null || y > 3 ? '최근 3년' : esc(d.kr_rates.date || '')}</span></div>${mkChart(kr, { fmt: (v) => `${mkNum(v, 2)}%`, title: '국내 시장금리' })}${mkLegend(kr.map((s) => ({ name: s.name, color: s.color, value: `${mkNum(s.last, 2)}%` })))}</div>`);
+  if (fxd.length) out.push(`<div class="mk-card"><div class="mk-card-h"><b>원달러 환율</b><span class="mk-dim">${esc(fx.date || '')}</span></div>${mkChart([{ name: 'USD/KRW', color: '#2563EB', freq: 'W', data: fxd }], { fmt: (v) => mkNum(v, 0), title: '원달러 환율' })}
     <div class="mk-fx"><b>${mkNum(fx.rate)}원</b>${[['일간', fx.daily_return], ['1개월', fx['1m']], ['3개월', fx['3m']], ['연초 대비', fx.ytd], ['1년', fx['1y']]].map(([l, v]) => `<span>${l} ${mkPct(v, 2)}</span>`).join('')}</div></div>`);
   const tiles = (d.kr_rates?.rates || []).map((r) => mkTile(r.label, mkNum(r.rate, 2), '%', r.change != null ? mkKv([['전일 대비', `<span class="${mkCls(r.change)}">${r.change > 0 ? '+' : ''}${mkNum(r.change, 3)}</span>`]]) : '')).join('');
   return `${out.length ? `<div class="mk-grid3">${out.join('')}</div>` : ''}${tiles ? `<div class="mk-sub">시장금리 현황</div><div class="mk-tiles">${tiles}</div>` : ''}`;
@@ -377,7 +380,8 @@ function lkCurve(car, hs) {
   const ylab = grid.map((g) => `<span class="yl" style="top:${(y(g) / H) * 100}%">${esc(`${mkNum(g, step < 1 ? 1 : 0)}%`)}</span>`).join('');
   const dots = ser.map((s) => `<i class="dot" style="left:100%;top:${(y(s.v[len - 1]) / H) * 100}%;background:${LK_COLORS[s.h]}"></i>`).join('');
   const xt = [0, half / 2, half, half * 1.5, len - 1].map((i) => `<span style="left:${(x(i) / W) * 100}%">${off(i)}</span>`).join('');
-  return `<div class="lk-chart"><div class="plot" style="height:180px"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${gl}${dl}${lines}${hit}</svg>${ylab}${dots}</div><div class="xt">${xt}</div></div>
+  const aria = `보호예수 해제일 앞뒤 평균 누적 초과수익률, ${off(0)}부터 ${off(len - 1)}까지. 해제일 ${ser.map((s) => `${s.l} ${mkSigned(s.v[Math.round(half)], 1)}`).join(', ')}. ${off(len - 1)} ${ser.map((s) => `${s.l} ${mkSigned(s.v[len - 1], 1)}`).join(', ')}`;
+  return `<div class="lk-chart" role="img" aria-label="${esc(aria)}"><div class="plot" style="height:180px"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${gl}${dl}${lines}${hit}</svg>${ylab}${dots}</div><div class="xt">${xt}</div></div>
     ${mkLegend(ser.map((s) => ({ name: s.l, color: LK_COLORS[s.h], value: mkSigned(s.v[len - 1], 1) })))}`;
 }
 
@@ -403,7 +407,7 @@ function mkBandHTML() {
   if (!M) return '';
   const order = B.order || [['above', '상단 초과'], ['top', '상단'], ['in', '밴드 안'], ['bottom', '하단'], ['below', '하단 미만']];
   const years = (M.by_year || []).filter((r) => r.n);
-  const stack = `<div class="lk-stack">${years.map((r) => `<div class="r"><b>${r.year}</b><div class="bar">${order.filter(([p]) => r.cnt?.[p]).map(([p, l]) => `<i style="width:${r.pct[p]}%;background:${LK_BAND_COLORS[p]}" title="${esc(`${l} ${r.cnt[p]}건 (${mkNum(r.pct[p], 1)}%)`)}"></i>`).join('')}</div></div>`).join('')}</div>
+  const stack = `<div class="lk-stack" role="img" aria-label="${esc(`상장 연도별 공모가 확정 위치 비중. ${years.map((r) => `${r.year}년 ${order.filter(([p]) => r.cnt?.[p]).map(([p, l]) => `${l} ${mkNum(r.pct[p], 1)}%`).join(', ')}`).join('. ')}`)}">${years.map((r) => `<div class="r"><b>${r.year}</b><div class="bar">${order.filter(([p]) => r.cnt?.[p]).map(([p, l]) => `<i style="width:${r.pct[p]}%;background:${LK_BAND_COLORS[p]}" title="${esc(`${l} ${r.cnt[p]}건 (${mkNum(r.pct[p], 1)}%)`)}"></i>`).join('')}</div></div>`).join('')}</div>
     ${mkLegend(order.map(([p, l]) => ({ name: l, color: LK_BAND_COLORS[p], value: lkShare(M.total?.pct?.[p]) })))}`;
   const dist = lkTbl(['상장 연도', '건수', ...order.map(([, l]) => l), '상단 초과폭'], years.map((r) => `<tr><td class="st"><b>${r.year}</b></td><td>${r.n}</td>${order.map(([p]) => `<td>${r.cnt?.[p] ? `<span title="${r.cnt[p]}건">${lkShare(r.pct[p])}</span>` : '-'}</td>`).join('')}<td>${mkPct(r.above_prem_mean)}</td></tr>`));
   const era = mkS.bandEra || 'all';

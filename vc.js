@@ -228,7 +228,7 @@ function vcTrend(m, mode) {
   const ser = [{ name: `${y}년`, color: '#2563EB', freq: 'M', data: pts.map((p) => ({ t: Date.UTC(y, +p.k.slice(5) - 1, 1), v: p.v })) }];
   const lyMs = d.months.filter((k) => k.startsWith(`${y - 1}-`));
   if (lyMs.length) ser.push({ name: `${y - 1}년`, color: '#9CA3AF', freq: 'M', data: lyMs.map((k) => ({ t: Date.UTC(y, +k.slice(5) - 1, 1), v: vcAgg(k, 'cum').amt })) });
-  return `${mkChart(ser, { h: 180, zero: true, fmt: (v) => `${vcAmt(v)}억` })}${mkLegend(ser.map((s) => ({ name: s.name, color: s.color, value: `${vcAmt(s.data.at(-1).v)}억` })))}`;
+  return `${mkChart(ser, { h: 180, zero: true, fmt: (v) => `${vcAmt(v)}억`, title: '월별 누적 투자 금액' })}${mkLegend(ser.map((s) => ({ name: s.name, color: s.color, value: `${vcAmt(s.data.at(-1).v)}억` })))}`;
 }
 
 /* ---------- 투자사 목록 ---------- */

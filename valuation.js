@@ -176,7 +176,8 @@ function vaField(c, r) { // 결론 막대: 배수별 25～75% 범위와 중앙�
   const xs = items.flatMap((x) => [x.v.lo?.ps, x.v.hi?.ps, x.v.med.ps]).filter((v) => v != null).concat(c.target.close);
   const x0 = Math.min(...xs) * 0.92, x1 = Math.max(...xs) * 1.04, X = (v) => `${(((v - x0) / (x1 - x0)) * 100).toFixed(2)}%`;
   const now = X(c.target.close);
-  return `<div class="va-ff">${items.map((x, i) => {
+  const aria = `배수별 주당 가치 범위. ${items.map((x) => `${x.nm} 중앙값 ${vaWon(x.v.med.ps)}, 25% ${vaWon(x.v.lo?.ps ?? x.v.med.ps)}, 75% ${vaWon(x.v.hi?.ps ?? x.v.med.ps)}`).join('. ')}. 현재가 ${vaWon(c.target.close)}`;
+  return `<div class="va-ff" role="img" aria-label="${esc(aria)}">${items.map((x, i) => {
     const lo = x.v.lo?.ps ?? x.v.med.ps, hi = x.v.hi?.ps ?? x.v.med.ps, prim = c.primary.includes(x.nm), sep = i > 0 && x.per !== items[i - 1].per;
     return `<div class="va-ff-r ${prim ? 'p' : ''} ${sep ? 'sep' : ''}"><div class="va-ff-l"><b>${esc(x.nm)}</b><small>${esc(VA_PER[x.per])} ${vaX(x.v.med.mult)}</small></div>
       <div class="va-ff-b"><i class="bar" style="left:${X(Math.min(lo, hi))};width:calc(${X(Math.max(lo, hi))} - ${X(Math.min(lo, hi))})" title="25% ${vaWon(lo)} ～ 75% ${vaWon(hi)}"></i><i class="med" style="left:${X(x.v.med.ps)}"></i><i class="now" style="left:${now}"></i></div>
@@ -313,7 +314,8 @@ function vaFootball(c, r) { // 풋볼필드: 52주 고저, 증권사 목표가, 
   const lab = (v, cls, t, side) => `<span class="${cls}" style="left:${X(v)};transform:translateX(${side < 0 ? 'calc(-100% - 6px)' : side > 0 ? '6px' : '-50%'})">${t}</span>`;
   const side = tp ? (tp.ps >= t.close ? -1 : 1) : 0;
   const top = `<div class="va-fb-r leg"><div class="va-fb-l"></div><div class="va-fb-b">${lab(t.close, 'now', `현재가 ${vaWon(t.close)}`, side)}${tp ? lab(tp.ps, 'tp', `목표주가 ${vaWon(Math.round(tp.ps / 100) * 100)}`, -side) : ''}<u class="now" style="left:${X(t.close)}"></u>${tp ? `<u class="tp" style="left:${X(tp.ps)}"></u>` : ''}</div></div>`;
-  return `<div class="va-fb">${top}${ff}</div>`;
+  const aria = `풋볼필드. ${rows.filter(([, , g]) => g).map(([, l, g]) => `${l} ${vaWon(g.lo)}부터 ${vaWon(g.hi)}까지`).join('. ')}. 현재가 ${vaWon(t.close)}${tp ? `, 목표주가 ${vaWon(Math.round(tp.ps / 100) * 100)}` : ''}`;
+  return `<div class="va-fb" role="img" aria-label="${esc(aria)}">${top}${ff}</div>`;
 }
 function vaSummary(c, r) {
   const s = r.s, t = c.target, tp = vaTarget(c, r), W_ = vaW(c);

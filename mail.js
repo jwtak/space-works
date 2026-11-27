@@ -455,13 +455,21 @@ function mailMenu(anchor, items) {
       resolve(v);
     };
     const onDown = (e) => { if (!menu.contains(e.target)) done(null); };
-    const onKey = (e) => { if (e.key === 'Escape') done(null); };
+    const onKey = (e) => {
+      if (e.key === 'Escape' || e.key === 'Tab') { if (e.key === 'Tab') e.preventDefault(); done(null); anchor.focus(); return; }
+      const bs = [...menu.querySelectorAll('[role=menuitem]')], i = bs.indexOf(document.activeElement); // ↑↓ Home End로 항목 사이를 옮김(끝에서 처음으로 돎)
+      if (!bs.length || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(e.key)) return;
+      e.preventDefault();
+      const n = bs[e.key === 'Home' ? 0 : e.key === 'End' ? bs.length - 1 : i < 0 ? (e.key === 'ArrowUp' ? bs.length - 1 : 0) : (i + (e.key === 'ArrowDown' ? 1 : -1) + bs.length) % bs.length];
+      bs.forEach((b) => { b.tabIndex = b === n ? 0 : -1; }); n.focus();
+    };
     const off = pushLayer(() => done(null, true), () => done(null, true));
     menu.addEventListener('mail-close', () => done(null));
     menu.addEventListener('click', (e) => { const b = e.target.closest('[data-k]'); if (b) done(b.dataset.k); });
     document.addEventListener('mousedown', onDown, true);
     document.addEventListener('keydown', onKey);
     document.body.appendChild(menu);
+    menu.querySelectorAll('[role=menuitem]').forEach((b, i) => { b.tabIndex = i ? -1 : 0; });
     menu.querySelector('button')?.focus();
   });
 }
@@ -473,7 +481,7 @@ async function renderMail() {
     <div class="card mail-shell" id="mail-shell">
       <aside class="mail-folders">
         <button class="btn primary mail-write" type="button" id="mail-new">${ico('plus', 'sm')}메일 쓰기</button>
-        <nav class="mail-fnav" id="mail-fnav"></nav>
+        <nav class="mail-fnav" id="mail-fnav" aria-label="메일함"></nav>
       </aside>
       <section class="mail-list">
         <div class="mail-dhead">
@@ -506,6 +514,7 @@ async function renderMail() {
   $('#mail-sf').addEventListener('submit', (e) => { e.preventDefault(); m.q = $('#mail-q').value.trim(); m.sel = null; m.msg = null; mailViewSave(); mailLoadList(); });
   $('#mail-q').addEventListener('search', () => { if (!$('#mail-q').value) { m.q = ''; mailViewSave(); mailLoadList(); } });
   $('#mail-filter').addEventListener('change', (e) => { m.filter = e.target.value; mailViewSave(); mailDrawFolders(); mailLoadList(); });
+  $('#mail-fnav').addEventListener('keydown', mailFnavKey);
   PAGE.querySelectorAll('[data-scope]').forEach((b) => b.addEventListener('click', () => {
     const all = b.dataset.scope === '1'; if (all === m.qAll) return;
     m.qAll = all; m.sel = null; m.msg = null; mailViewSave(); mailLoadList();
@@ -629,6 +638,7 @@ function mailDrawFolders() {
   // 받은편지함 바로 아래 '안 읽은 메일' = 받은편지함 + 보기 '안 읽은 메일'(사용자 11/12)
   const unreadBtn = `<button type="button" class="mail-f sub ${unreadView && !m.compose ? 'on' : ''}" data-f="inbox" data-flt="unread">${mi('env', 'sm')}<span class="mail-fn">안 읽은 메일</span></button>`;
   const tree = m.tree || [];
+  const fk = (b) => `${b.dataset.f}|${b.dataset.flt || ''}`, a = document.activeElement, had = a && nav.contains(a) && a.dataset.f ? fk(a) : null; // 다시 그려도 보던 폴더 단추에 포커스
   nav.innerHTML = MAIL_FOLDERS.map((f) => btn(f.id, f.name, ico(f.icon, 'sm')) + (f.id === 'inbox' ? unreadBtn : '')).join('')
     + (tree.length ? `<div class="mail-fsep" role="separator"></div>${tree.map((f) => btn(f.id, f.name, mi('folder', 'sm'), f.depth)).join('')}` : '')
     + (m.sharedOk ? `<div class="mail-fgrp" role="separator" title="${MAIL_SHARED}">contact@</div>${MAIL_SHARED_FOLDERS.map((f) => btn(f.id, f.name, ico(f.icon, 'sm'))).join('')}` : '');
@@ -640,7 +650,22 @@ function mailDrawFolders() {
     const flt = $('#mail-filter'); if (flt) flt.value = m.filter;
     mailDrawShell(); mailDrawFolders(); mailDrawPane(); mailLoadList();
   }));
+  const fb = [...nav.querySelectorAll('[data-f]')];
+  const cur = (had && fb.find((b) => fk(b) === had)) || nav.querySelector('[data-f].on') || fb[0];
+  fb.forEach((b) => { b.tabIndex = b === cur ? 0 : -1; });
+  if (had && cur) cur.focus();
   mailDrawCount(); mailDrawTitle();
+}
+/* 폴더 단추 줄: Tab은 한 번만 들르고 ↑↓(폰 가로 줄은 ←→) Home End로 옮김. 폴더를 열 때마다 메일을 받아 오므로 옮기기만 하고 Enter, Space로 연다 */
+function mailFnavKey(e) {
+  const b = e.target.closest?.('[data-f]'), nav = b?.parentElement;
+  if (!b || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.isComposing) return;
+  const k = e.key, fb = [...nav.querySelectorAll('[data-f]')].filter((x) => x.getClientRects().length), i = fb.indexOf(b);
+  if (i < 0 || !['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(k)) return;
+  e.preventDefault();
+  const n = fb[k === 'Home' ? 0 : k === 'End' ? fb.length - 1 : (i + (k === 'ArrowDown' || k === 'ArrowRight' ? 1 : -1) + fb.length) % fb.length];
+  fb.forEach((x) => { x.tabIndex = x === n ? 0 : -1; });
+  n.focus(); n.scrollIntoView({ block: 'nearest', inline: 'nearest' });
 }
 
 /* 목록 제목과 검색 범위(이 폴더 / 전체 메일함). 범위 전환은 검색 중에만 보인다 */
@@ -2356,10 +2381,20 @@ function mailAbFind(term, skip) {
 /* 받는이 칸: 마지막 주소 조각으로 주고받은 메일 주소록(바로)과 /me/people(회사 사람, 자주 연락한 사람)을 같이 찾는다.
    후보가 뜨면 첫 번째가 기본 선택이라 Enter 한 번에 들어간다. 한글 조합 중 Enter는 조합이 끝난 뒤 그 글자로 다시 찾아 첫 후보를 넣고,
    후보가 없으면 입력값을 주소로 확정한다. */
+let MAIL_SUG_N = 0;
 function mailAutocomplete(box) {
   const input = box.querySelector('input:not([type=hidden])'), sug = box.querySelector('.mail-sug');
   let timer = null, items = [], idx = -1, seq = 0, pending = false, loading = false;
-  const close = () => { sug.hidden = true; items = []; idx = -1; };
+  // 화면낭독기: 입력 칸은 combobox, 후보 목록은 listbox, 고른 후보는 aria-activedescendant(포커스는 입력 칸에 그대로)
+  const sid = `mail-sug-${++MAIL_SUG_N}`;
+  sug.id = sid; sug.setAttribute('role', 'listbox'); sug.setAttribute('aria-label', `${input.getAttribute('aria-label') || '받는 사람'} 후보`);
+  input.setAttribute('role', 'combobox'); input.setAttribute('aria-autocomplete', 'list'); input.setAttribute('aria-controls', sid); input.setAttribute('aria-expanded', 'false');
+  const aria = (key) => {
+    const open = !sug.hidden && items.length > 0, li = open && idx >= 0 ? sug.querySelector(`#${sid}-${idx}`) : null;
+    input.setAttribute('aria-expanded', String(open));
+    if (li) { input.setAttribute('aria-activedescendant', li.id); if (key) li.scrollIntoView({ block: 'nearest' }); } else input.removeAttribute('aria-activedescendant');
+  };
+  const close = () => { sug.hidden = true; items = []; idx = -1; aria(); };
   const pick = (i) => {
     const p = items[i]; if (!p) return;
     const label = mailLabel(p.name, p.address);
@@ -2371,9 +2406,10 @@ function mailAutocomplete(box) {
     input.focus();
   };
   const draw = () => {
-    sug.innerHTML = items.map((p, i) => `<li class="${i === idx ? 'on' : ''}" data-i="${i}"><b>${esc(p.name || p.address)}</b>${p.name ? `<span class="muted">${esc(p.address)}</span>` : ''}<span class="mail-sug-d">${esc(mailAbDom(p.address))}</span></li>`).join('');
+    sug.innerHTML = items.map((p, i) => `<li class="${i === idx ? 'on' : ''}" data-i="${i}" id="${sid}-${i}" role="option" aria-selected="${i === idx}"><b>${esc(p.name || p.address)}</b>${p.name ? `<span class="muted">${esc(p.address)}</span>` : ''}<span class="mail-sug-d">${esc(mailAbDom(p.address))}</span></li>`).join('');
     sug.hidden = !items.length;
     sug.querySelectorAll('[data-i]').forEach((li) => li.addEventListener('mousedown', (e) => { e.preventDefault(); pick(Number(li.dataset.i)); }));
+    aria();
   };
   // 조합 중 눌린 Enter의 마무리: 후보가 있으면 첫 번째, 없으면 쓴 그대로 주소 칩
   const finish = (my) => {
@@ -2426,10 +2462,10 @@ function mailAutocomplete(box) {
     // 후보가 아직 없을 때 누른 Enter는 검색 결과를 기다렸다 첫 후보를 넣는다
     if (enter && (pending || (loading && !items.length))) { e.preventDefault(); e.stopImmediatePropagation(); pending = true; return; }
     if (sug.hidden) return;
-    if (e.key === 'ArrowDown') { e.preventDefault(); idx = (idx + 1) % items.length; draw(); }
-    else if (e.key === 'ArrowUp') { e.preventDefault(); idx = (idx - 1 + items.length) % items.length; draw(); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); idx = (idx + 1) % items.length; draw(); aria(true); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); idx = (idx - 1 + items.length) % items.length; draw(); aria(true); }
     else if (enter && items.length) { e.preventDefault(); e.stopImmediatePropagation(); clearTimeout(timer); seq++; loading = false; pick(Math.max(idx, 0)); }
-    else if (e.key === 'Escape') close();
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); close(); } // 열린 후보만 닫고 쓰기 창은 그대로
   }, true); // 캡처: 주소 칩 칸의 Enter(입력값 그대로 확정)보다 먼저
   input.addEventListener('blur', () => setTimeout(() => { if (!pending) close(); }, 120));
 }
